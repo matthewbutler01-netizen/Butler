@@ -97,6 +97,7 @@ public final class ButlerCli {
         System.out.println("Team strength rankings");
         System.out.println("Value source: " + report.source());
         if (report.teams().isEmpty()) { System.out.println("No teams found."); return; }
+        System.out.printf("Value coverage: %d/%d (%.1f%%)%n", report.valuedPlayers(), report.totalPlayers(), report.coveragePercent());
         for (TeamStrengthAnalyzer.TeamStrength team : report.teams()) {
             System.out.printf("%d. %s  value=%.2f  [%s]%n", team.rank(), team.teamName(), team.playerValue(), team.teamId());
             System.out.printf("   Valued players: %d  Missing values: %d  Composition tie-breaker: %.2f%n", team.valuedPlayers(), team.missingValues(), team.compositionScore());
