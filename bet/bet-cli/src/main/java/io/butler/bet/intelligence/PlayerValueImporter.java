@@ -58,8 +58,8 @@ public final class PlayerValueImporter {
             resolved.add(PlayerValue.create(player.getId(), input.value(), source, asOfDate));
         }
 
-        // Nothing is written until every input row has been validated and resolved.
-        for (PlayerValue value : resolved) values.save(value);
+        // Validate and resolve the complete input first, then commit the whole batch atomically.
+        values.saveAll(resolved);
         return new ImportResult(resolved.size());
     }
 
