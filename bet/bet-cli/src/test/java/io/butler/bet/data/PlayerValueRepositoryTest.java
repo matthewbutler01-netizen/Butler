@@ -99,6 +99,21 @@ class PlayerValueRepositoryTest {
     }
 
     @Test
+    void listsDistinctPersistedSourcesDeterministically() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        Player player = Player.create("Player", "QB", "BUF");
+        players.save(player);
+
+        values.save(PlayerValue.create(player.getId(), 80.0, "market-b", LocalDate.of(2026, 8, 1)));
+        values.save(PlayerValue.create(player.getId(), 90.0, "market-a", LocalDate.of(2026, 9, 1)));
+        values.save(PlayerValue.create(player.getId(), 95.0, "market-b", LocalDate.of(2026, 9, 1)));
+
+        assertEquals(java.util.List.of("market-a", "market-b"), values.findSources());
+    }
+
+    @Test
     void deletingPlayerCascadesValues() throws Exception {
         Database database = database();
         PlayerRepository players = new PlayerRepository(database);
