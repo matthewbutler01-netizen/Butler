@@ -188,13 +188,27 @@ public final class ButlerCli {
             }
             return;
         }
+        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("value-history")) {
+            Player player = players.findById(args[2]).orElseThrow(() -> new IllegalArgumentException("player not found: " + args[2]));
+            PlayerValueRepository values = new PlayerValueRepository(database);
+            var history = args.length == 4
+                ? values.findByPlayerIdAndSource(player.getId(), args[3])
+                : values.findByPlayerId(player.getId());
+            System.out.println("Player value history");
+            System.out.println(player.getDisplayName() + "  [" + player.getId() + "]");
+            if (history.isEmpty()) { System.out.println("No persisted player value history found."); return; }
+            for (var snapshot : history) {
+                System.out.printf("%s  %s  %.2f%n", snapshot.getAsOfDate(), snapshot.getSource(), snapshot.getValue());
+            }
+            return;
+        }
         if (args.length == 3 && args[1].equalsIgnoreCase("value-import")) {
             PlayerValueImporter.ImportResult result = new PlayerValueImporter(database).importJson(Path.of(args[2]));
             System.out.println("Imported player values.");
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|value-sources|values <source>|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-history <player-id> [source]|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -229,6 +243,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }

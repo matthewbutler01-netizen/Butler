@@ -33,6 +33,27 @@ class PlayerValueRepositoryTest {
     }
 
     @Test
+    void sourceSpecificHistoryIsNewestFirstAndExcludesOtherSources() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        Player player = Player.create("Player", "QB", "BUF");
+        players.save(player);
+
+        values.save(PlayerValue.create(player.getId(), 70.0, "market", LocalDate.of(2026, 8, 1)));
+        values.save(PlayerValue.create(player.getId(), 90.0, "market", LocalDate.of(2026, 9, 1)));
+        values.save(PlayerValue.create(player.getId(), 99.0, "other", LocalDate.of(2026, 9, 1)));
+
+        var history = values.findByPlayerIdAndSource(player.getId(), "market");
+
+        assertEquals(2, history.size());
+        assertEquals(LocalDate.of(2026, 9, 1), history.get(0).getAsOfDate());
+        assertEquals(90.0, history.get(0).getValue());
+        assertEquals(LocalDate.of(2026, 8, 1), history.get(1).getAsOfDate());
+        assertEquals(70.0, history.get(1).getValue());
+    }
+
+    @Test
     void queryInputsAreTrimmedConsistently() throws Exception {
         Database database = database();
         PlayerRepository players = new PlayerRepository(database);
@@ -44,6 +65,7 @@ class PlayerValueRepositoryTest {
         assertEquals(88.0, values.findLatestByPlayerId("  " + player.getId() + "  ").orElseThrow().getValue());
         assertEquals(88.0, values.findLatestByPlayerIdAndSource("  " + player.getId() + "  ", "  manual  ").orElseThrow().getValue());
         assertEquals(1, values.findByPlayerId("  " + player.getId() + "  ").size());
+        assertEquals(1, values.findByPlayerIdAndSource("  " + player.getId() + "  ", "  manual  ").size());
         assertEquals(1, values.findLatestBySource("  manual  ").size());
     }
 
@@ -54,6 +76,7 @@ class PlayerValueRepositoryTest {
 
         assertThrows(IllegalArgumentException.class, () -> values.findLatestByPlayerId("   "));
         assertThrows(IllegalArgumentException.class, () -> values.findLatestByPlayerIdAndSource("player", "   "));
+        assertThrows(IllegalArgumentException.class, () -> values.findByPlayerIdAndSource("player", "   "));
         assertThrows(IllegalArgumentException.class, () -> values.findLatestBySource("   "));
         assertThrows(IllegalArgumentException.class, () -> values.deleteByPlayerId("   "));
     }

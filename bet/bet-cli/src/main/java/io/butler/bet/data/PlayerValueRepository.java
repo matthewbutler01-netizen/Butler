@@ -117,6 +117,26 @@ public final class PlayerValueRepository {
         return List.copyOf(values);
     }
 
+    public List<PlayerValue> findByPlayerIdAndSource(String playerId, String source) throws SQLException {
+        String normalizedPlayerId = requireText(playerId, "playerId");
+        String normalizedSource = requireText(source, "source");
+        List<PlayerValue> values = new ArrayList<>();
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("""
+                 SELECT id, player_id, value, source, as_of_date
+                 FROM player_values
+                 WHERE player_id = ? AND source = ?
+                 ORDER BY as_of_date DESC
+                 """)) {
+            statement.setString(1, normalizedPlayerId);
+            statement.setString(2, normalizedSource);
+            try (var results = statement.executeQuery()) {
+                while (results.next()) values.add(map(results));
+            }
+        }
+        return List.copyOf(values);
+    }
+
     public List<PlayerValue> findLatestBySource(String source) throws SQLException {
         String normalizedSource = requireText(source, "source");
         List<PlayerValue> values = new ArrayList<>();
