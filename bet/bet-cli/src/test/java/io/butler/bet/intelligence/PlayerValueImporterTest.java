@@ -16,7 +16,9 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -77,6 +79,19 @@ class PlayerValueImporterTest {
             () -> new PlayerValueImporter(database).importJson(json));
         assertTrue(error.getMessage().contains("invalid asOfDate for externalPlayerId sleeper-2"));
         assertTrue(new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "market").isEmpty());
+    }
+
+    @Test
+    void batchSaveRollsBackEarlierRowsWhenDatabaseRejectsLaterRow() throws Exception {
+        Database database = database();
+        Fixture fixture = fixture(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        LocalDate date = LocalDate.of(2026, 9, 1);
+        PlayerValue valid = PlayerValue.create(fixture.first().getId(), 75.0, "market", date);
+        PlayerValue invalidForeignKey = PlayerValue.create("missing-internal-player", 90.0, "market", date);
+
+        assertThrows(SQLException.class, () -> values.saveAll(List.of(valid, invalidForeignKey)));
+        assertTrue(values.findLatestByPlayerIdAndSource(fixture.first().getId(), "market").isEmpty());
     }
 
     @Test
