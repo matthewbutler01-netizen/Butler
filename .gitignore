@@ -1,0 +1,17 @@
+# Butler runtime data
+butler.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Gradle
+.gradle/
+**/build/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
