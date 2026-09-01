@@ -20,21 +20,19 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class SleeperLeagueImporter {
-    private final SleeperClient client;
-    private final SleeperJsonParser parser;
+    private final SleeperGateway gateway;
     private final LeagueRepository leagues;
     private final TeamRepository teams;
     private final PlayerRepository players;
     private final RosterRepository rosters;
 
     public SleeperLeagueImporter(Database database) {
-        this(new SleeperClient(), new SleeperJsonParser(), database);
+        this(new SleeperApiGateway(), database);
     }
 
-    SleeperLeagueImporter(SleeperClient client, SleeperJsonParser parser, Database database) {
+    SleeperLeagueImporter(SleeperGateway gateway, Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.client = Objects.requireNonNull(client, "client must not be null");
-        this.parser = Objects.requireNonNull(parser, "parser must not be null");
+        this.gateway = Objects.requireNonNull(gateway, "gateway must not be null");
         this.leagues = new LeagueRepository(database);
         this.teams = new TeamRepository(database);
         this.players = new PlayerRepository(database);
@@ -42,10 +40,10 @@ public final class SleeperLeagueImporter {
     }
 
     public ImportResult importLeague(String sleeperLeagueId) throws IOException, InterruptedException, SQLException {
-        SleeperJsonParser.SleeperLeague sourceLeague = parser.parseLeague(client.getLeague(sleeperLeagueId));
-        var sourceUsers = parser.parseUsers(client.getLeagueUsers(sleeperLeagueId));
-        var sourceRosters = parser.parseRosters(client.getLeagueRosters(sleeperLeagueId));
-        var sourcePlayers = parser.parsePlayers(client.getNflPlayers());
+        SleeperJsonParser.SleeperLeague sourceLeague = gateway.fetchLeague(sleeperLeagueId);
+        var sourceUsers = gateway.fetchUsers(sleeperLeagueId);
+        var sourceRosters = gateway.fetchRosters(sleeperLeagueId);
+        var sourcePlayers = gateway.fetchPlayers();
 
         League league = leagues.findByExternalId(sourceLeague.id())
                 .map(existing -> new League(existing.getId(), sourceLeague.id(), sourceLeague.name()))
