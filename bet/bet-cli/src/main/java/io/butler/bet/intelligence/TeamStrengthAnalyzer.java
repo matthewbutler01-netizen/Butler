@@ -30,10 +30,12 @@ public final class TeamStrengthAnalyzer {
         LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(requireText(leagueId, "leagueId"));
         List<TeamStrength> strengths = new ArrayList<>();
         int totalValuedPlayers = 0;
+        int totalMissingValues = 0;
 
         for (LeagueAnalyzer.TeamReport team : league.teams()) {
             ValueSummary values = playerValue(team.teamId(), valueSource);
             totalValuedPlayers += values.valuedPlayers();
+            totalMissingValues += values.missingValues();
             double compositionScore = score(team.positionCounts(), team.slotCounts());
             strengths.add(new TeamStrength(0, team.teamId(), team.teamName(), values.total(), compositionScore,
                 values.valuedPlayers(), values.missingValues(), Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
@@ -53,7 +55,7 @@ public final class TeamStrengthAnalyzer {
             ranked.add(new TeamStrength(i + 1, team.teamId(), team.teamName(), team.playerValue(), team.compositionScore(),
                 team.valuedPlayers(), team.missingValues(), team.positionCounts(), team.slotCounts()));
         }
-        return new StrengthReport(leagueId.trim(), valueSource, List.copyOf(ranked));
+        return new StrengthReport(leagueId.trim(), valueSource, totalValuedPlayers, totalMissingValues, List.copyOf(ranked));
     }
 
     private ValueSummary playerValue(String teamId, String source) throws SQLException {
@@ -93,7 +95,13 @@ public final class TeamStrengthAnalyzer {
     }
 
     private record ValueSummary(double total, int valuedPlayers, int missingValues) {}
-    public record StrengthReport(String leagueId, String source, List<TeamStrength> teams) {}
+    public record StrengthReport(String leagueId, String source, int valuedPlayers, int missingValues,
+                                 List<TeamStrength> teams) {
+        public int totalPlayers() { return valuedPlayers + missingValues; }
+        public double coveragePercent() {
+            return totalPlayers() == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers();
+        }
+    }
     public record TeamStrength(int rank, String teamId, String teamName, double playerValue, double compositionScore,
                                int valuedPlayers, int missingValues, Map<String, Integer> positionCounts,
                                Map<String, Integer> slotCounts) {
