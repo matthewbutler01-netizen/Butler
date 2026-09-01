@@ -64,7 +64,7 @@ public final class PlayerValueRepository {
     }
 
     public Optional<PlayerValue> findLatestByPlayerId(String playerId) throws SQLException {
-        requireText(playerId, "playerId");
+        String normalizedPlayerId = requireText(playerId, "playerId");
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("""
                  SELECT id, player_id, value, source, as_of_date
@@ -73,7 +73,7 @@ public final class PlayerValueRepository {
                  ORDER BY as_of_date DESC, source ASC
                  LIMIT 1
                  """)) {
-            statement.setString(1, playerId);
+            statement.setString(1, normalizedPlayerId);
             try (var results = statement.executeQuery()) {
                 return results.next() ? Optional.of(map(results)) : Optional.empty();
             }
@@ -81,8 +81,8 @@ public final class PlayerValueRepository {
     }
 
     public Optional<PlayerValue> findLatestByPlayerIdAndSource(String playerId, String source) throws SQLException {
-        requireText(playerId, "playerId");
-        requireText(source, "source");
+        String normalizedPlayerId = requireText(playerId, "playerId");
+        String normalizedSource = requireText(source, "source");
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("""
                  SELECT id, player_id, value, source, as_of_date
@@ -91,8 +91,8 @@ public final class PlayerValueRepository {
                  ORDER BY as_of_date DESC
                  LIMIT 1
                  """)) {
-            statement.setString(1, playerId);
-            statement.setString(2, source);
+            statement.setString(1, normalizedPlayerId);
+            statement.setString(2, normalizedSource);
             try (var results = statement.executeQuery()) {
                 return results.next() ? Optional.of(map(results)) : Optional.empty();
             }
@@ -100,7 +100,7 @@ public final class PlayerValueRepository {
     }
 
     public List<PlayerValue> findByPlayerId(String playerId) throws SQLException {
-        requireText(playerId, "playerId");
+        String normalizedPlayerId = requireText(playerId, "playerId");
         List<PlayerValue> values = new ArrayList<>();
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("""
@@ -109,7 +109,7 @@ public final class PlayerValueRepository {
                  WHERE player_id = ?
                  ORDER BY as_of_date DESC, source ASC
                  """)) {
-            statement.setString(1, playerId);
+            statement.setString(1, normalizedPlayerId);
             try (var results = statement.executeQuery()) {
                 while (results.next()) values.add(map(results));
             }
@@ -118,7 +118,7 @@ public final class PlayerValueRepository {
     }
 
     public List<PlayerValue> findLatestBySource(String source) throws SQLException {
-        requireText(source, "source");
+        String normalizedSource = requireText(source, "source");
         List<PlayerValue> values = new ArrayList<>();
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("""
@@ -133,8 +133,8 @@ public final class PlayerValueRepository {
                  WHERE pv.source = ?
                  ORDER BY pv.value DESC, pv.player_id ASC
                  """)) {
-            statement.setString(1, source);
-            statement.setString(2, source);
+            statement.setString(1, normalizedSource);
+            statement.setString(2, normalizedSource);
             try (var results = statement.executeQuery()) {
                 while (results.next()) values.add(map(results));
             }
@@ -143,10 +143,10 @@ public final class PlayerValueRepository {
     }
 
     public void deleteByPlayerId(String playerId) throws SQLException {
-        requireText(playerId, "playerId");
+        String normalizedPlayerId = requireText(playerId, "playerId");
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("DELETE FROM player_values WHERE player_id = ?")) {
-            statement.setString(1, playerId);
+            statement.setString(1, normalizedPlayerId);
             statement.executeUpdate();
         }
     }
@@ -160,7 +160,8 @@ public final class PlayerValueRepository {
             LocalDate.parse(results.getString("as_of_date")));
     }
 
-    private static void requireText(String value, String field) {
+    private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
+        return value.trim();
     }
 }
