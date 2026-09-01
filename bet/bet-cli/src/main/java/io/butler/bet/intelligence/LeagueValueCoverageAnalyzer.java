@@ -32,23 +32,30 @@ public final class LeagueValueCoverageAnalyzer {
         for (String source : playerValues.findSources()) {
             int valuedPlayers = 0;
             int missingValues = 0;
+            int uncoveredTeams = 0;
             LocalDate oldestValueDate = null;
             LocalDate latestValueDate = null;
 
             for (LeagueAnalyzer.TeamReport team : league.teams()) {
+                int teamValuedPlayers = 0;
+                int teamMissingValues = 0;
                 for (Roster roster : rosters.findByTeamId(team.teamId())) {
                     PlayerValue value = playerValues.findLatestByPlayerIdAndSource(roster.getPlayerId(), source).orElse(null);
                     if (value == null) {
                         missingValues++;
+                        teamMissingValues++;
                         continue;
                     }
                     valuedPlayers++;
+                    teamValuedPlayers++;
                     oldestValueDate = earlier(oldestValueDate, value.getAsOfDate());
                     latestValueDate = later(latestValueDate, value.getAsOfDate());
                 }
+                if (teamValuedPlayers == 0 && teamMissingValues > 0) uncoveredTeams++;
             }
 
-            sources.add(new SourceCoverage(source, valuedPlayers, missingValues, oldestValueDate, latestValueDate));
+            sources.add(new SourceCoverage(source, valuedPlayers, missingValues, uncoveredTeams,
+                oldestValueDate, latestValueDate));
         }
 
         return new CoverageReport(normalizedLeagueId, List.copyOf(sources));
@@ -67,13 +74,29 @@ public final class LeagueValueCoverageAnalyzer {
         return value.trim();
     }
 
+    public enum RankingReadiness {
+        UNAVAILABLE,
+        BLOCKED,
+        PARTIAL,
+        READY
+    }
+
     public record CoverageReport(String leagueId, List<SourceCoverage> sources) {}
 
-    public record SourceCoverage(String source, int valuedPlayers, int missingValues,
+    public record SourceCoverage(String source, int valuedPlayers, int missingValues, int uncoveredTeams,
                                  LocalDate oldestValueDate, LocalDate latestValueDate) {
         public int totalPlayers() { return valuedPlayers + missingValues; }
         public double coveragePercent() {
             return totalPlayers() == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers();
+        }
+        public boolean rankable() {
+            return valuedPlayers > 0 && uncoveredTeams == 0;
+        }
+        public RankingReadiness readiness() {
+            if (valuedPlayers == 0) return RankingReadiness.UNAVAILABLE;
+            if (uncoveredTeams > 0) return RankingReadiness.BLOCKED;
+            if (missingValues > 0) return RankingReadiness.PARTIAL;
+            return RankingReadiness.READY;
         }
     }
 }

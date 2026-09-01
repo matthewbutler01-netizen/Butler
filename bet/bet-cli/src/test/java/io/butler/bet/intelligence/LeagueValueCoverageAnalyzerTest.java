@@ -19,8 +19,10 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeagueValueCoverageAnalyzerTest {
     @TempDir Path tempDir;
@@ -59,7 +61,10 @@ class LeagueValueCoverageAnalyzerTest {
         assertEquals("market-a", marketA.source());
         assertEquals(2, marketA.valuedPlayers());
         assertEquals(0, marketA.missingValues());
+        assertEquals(0, marketA.uncoveredTeams());
         assertEquals(100.0, marketA.coveragePercent());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.READY, marketA.readiness());
+        assertTrue(marketA.rankable());
         assertEquals(LocalDate.of(2026, 8, 30), marketA.oldestValueDate());
         assertEquals(LocalDate.of(2026, 9, 1), marketA.latestValueDate());
 
@@ -67,15 +72,53 @@ class LeagueValueCoverageAnalyzerTest {
         assertEquals("market-b", marketB.source());
         assertEquals(1, marketB.valuedPlayers());
         assertEquals(1, marketB.missingValues());
+        assertEquals(0, marketB.uncoveredTeams());
         assertEquals(50.0, marketB.coveragePercent());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.PARTIAL, marketB.readiness());
+        assertTrue(marketB.rankable());
 
         var outsideOnly = report.sources().get(2);
         assertEquals("outside-only", outsideOnly.source());
         assertEquals(0, outsideOnly.valuedPlayers());
         assertEquals(2, outsideOnly.missingValues());
+        assertEquals(1, outsideOnly.uncoveredTeams());
         assertEquals(0.0, outsideOnly.coveragePercent());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.UNAVAILABLE, outsideOnly.readiness());
+        assertFalse(outsideOnly.rankable());
         assertNull(outsideOnly.oldestValueDate());
         assertNull(outsideOnly.latestValueDate());
+    }
+
+    @Test
+    void sourceIsBlockedWhenAnyRosteredTeamHasZeroCoverage() throws Exception {
+        Database database = database();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        League league = new League(UUID.randomUUID().toString(), "league-ext", "League");
+        Team covered = new Team(UUID.randomUUID().toString(), "t1", league.getId(), "Covered");
+        Team uncovered = new Team(UUID.randomUUID().toString(), "t2", league.getId(), "Uncovered");
+        Player first = new Player(UUID.randomUUID().toString(), "p1", "First", "QB", "BUF");
+        Player second = new Player(UUID.randomUUID().toString(), "p2", "Second", "WR", "MIN");
+        leagues.save(league);
+        teams.save(covered);
+        teams.save(uncovered);
+        players.save(first);
+        players.save(second);
+        rosters.save(new Roster(UUID.randomUUID().toString(), null, covered.getId(), first.getId(), "STARTER"));
+        rosters.save(new Roster(UUID.randomUUID().toString(), null, uncovered.getId(), second.getId(), "STARTER"));
+        values.save(PlayerValue.create(first.getId(), 100, "market", LocalDate.of(2026, 9, 1)));
+
+        var source = new LeagueValueCoverageAnalyzer(database).analyze(league.getId()).sources().getFirst();
+
+        assertEquals(1, source.valuedPlayers());
+        assertEquals(1, source.missingValues());
+        assertEquals(1, source.uncoveredTeams());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.BLOCKED, source.readiness());
+        assertFalse(source.rankable());
     }
 
     @Test
