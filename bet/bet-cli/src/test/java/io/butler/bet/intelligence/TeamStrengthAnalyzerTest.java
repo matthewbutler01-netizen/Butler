@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -60,9 +61,25 @@ class TeamStrengthAnalyzerTest {
         assertEquals(1, report.missingValues());
         assertEquals(2, report.totalPlayers());
         assertEquals(50.0, report.coveragePercent());
+        assertEquals(LocalDate.of(2026, 9, 1), report.oldestValueDate());
+        assertEquals(LocalDate.of(2026, 9, 1), report.latestValueDate());
         assertEquals(100.0, team.playerValue());
         assertEquals(1, team.valuedPlayers());
         assertEquals(1, team.missingValues());
+    }
+
+    @Test
+    void reportShowsOldestAndLatestDatesAcrossUsedValues() throws Exception {
+        Fixture fixture = fixture();
+        fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "source", LocalDate.of(2026, 8, 29)));
+        fixture.values.save(PlayerValue.create(fixture.player2.getId(), 90, "source", LocalDate.of(2026, 9, 1)));
+
+        var report = new TeamStrengthAnalyzer(fixture.database).rank(fixture.league.getId(), "source");
+
+        assertEquals(LocalDate.of(2026, 8, 29), report.oldestValueDate());
+        assertEquals(LocalDate.of(2026, 9, 1), report.latestValueDate());
+        assertEquals(2, report.valuedPlayers());
+        assertEquals(100.0, report.coveragePercent());
     }
 
     @Test
@@ -106,6 +123,8 @@ class TeamStrengthAnalyzerTest {
         assertTrue(report.teams().isEmpty());
         assertEquals(0, report.totalPlayers());
         assertEquals(0.0, report.coveragePercent());
+        assertNull(report.oldestValueDate());
+        assertNull(report.latestValueDate());
     }
 
     @Test
