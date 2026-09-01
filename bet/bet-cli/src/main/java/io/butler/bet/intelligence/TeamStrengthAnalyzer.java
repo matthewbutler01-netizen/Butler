@@ -34,6 +34,7 @@ public final class TeamStrengthAnalyzer {
         String valueSource = requireText(source, "source");
         LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(requireText(leagueId, "leagueId"));
         List<TeamStrength> strengths = new ArrayList<>();
+        List<String> uncoveredTeams = new ArrayList<>();
         int totalValuedPlayers = 0;
         int totalMissingValues = 0;
         LocalDate oldestValueDate = null;
@@ -45,6 +46,9 @@ public final class TeamStrengthAnalyzer {
             totalMissingValues += values.missingValues();
             oldestValueDate = earlier(oldestValueDate, values.oldestValueDate());
             latestValueDate = later(latestValueDate, values.latestValueDate());
+            if (values.valuedPlayers() == 0 && values.missingValues() > 0) {
+                uncoveredTeams.add(team.teamName() + " [" + team.teamId() + "]");
+            }
             double compositionScore = score(team.positionCounts(), team.slotCounts());
             strengths.add(new TeamStrength(0, team.teamId(), team.teamName(), values.total(), compositionScore,
                 values.valuedPlayers(), values.missingValues(), Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
@@ -52,6 +56,10 @@ public final class TeamStrengthAnalyzer {
 
         if (!strengths.isEmpty() && totalValuedPlayers == 0) {
             throw new IllegalArgumentException("no player values found for source: " + valueSource);
+        }
+        if (!uncoveredTeams.isEmpty()) {
+            throw new IllegalArgumentException("teams have zero player-value coverage for source " + valueSource + ": "
+                + String.join(", ", uncoveredTeams));
         }
         if (minimumAsOfDate != null && oldestValueDate != null && oldestValueDate.isBefore(minimumAsOfDate)) {
             throw new IllegalArgumentException("player values for source " + valueSource
