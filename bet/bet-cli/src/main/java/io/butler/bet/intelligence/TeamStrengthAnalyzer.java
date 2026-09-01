@@ -7,6 +7,7 @@ import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -31,11 +32,15 @@ public final class TeamStrengthAnalyzer {
         List<TeamStrength> strengths = new ArrayList<>();
         int totalValuedPlayers = 0;
         int totalMissingValues = 0;
+        LocalDate oldestValueDate = null;
+        LocalDate latestValueDate = null;
 
         for (LeagueAnalyzer.TeamReport team : league.teams()) {
             ValueSummary values = playerValue(team.teamId(), valueSource);
             totalValuedPlayers += values.valuedPlayers();
             totalMissingValues += values.missingValues();
+            oldestValueDate = earlier(oldestValueDate, values.oldestValueDate());
+            latestValueDate = later(latestValueDate, values.latestValueDate());
             double compositionScore = score(team.positionCounts(), team.slotCounts());
             strengths.add(new TeamStrength(0, team.teamId(), team.teamName(), values.total(), compositionScore,
                 values.valuedPlayers(), values.missingValues(), Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
@@ -55,13 +60,16 @@ public final class TeamStrengthAnalyzer {
             ranked.add(new TeamStrength(i + 1, team.teamId(), team.teamName(), team.playerValue(), team.compositionScore(),
                 team.valuedPlayers(), team.missingValues(), team.positionCounts(), team.slotCounts()));
         }
-        return new StrengthReport(leagueId.trim(), valueSource, totalValuedPlayers, totalMissingValues, List.copyOf(ranked));
+        return new StrengthReport(leagueId.trim(), valueSource, totalValuedPlayers, totalMissingValues,
+            oldestValueDate, latestValueDate, List.copyOf(ranked));
     }
 
     private ValueSummary playerValue(String teamId, String source) throws SQLException {
         double total = 0;
         int valuedPlayers = 0;
         int missingValues = 0;
+        LocalDate oldestValueDate = null;
+        LocalDate latestValueDate = null;
         for (Roster roster : rosters.findByTeamId(teamId)) {
             PlayerValue value = playerValues.findLatestByPlayerIdAndSource(roster.getPlayerId(), source).orElse(null);
             if (value == null) {
@@ -70,8 +78,20 @@ public final class TeamStrengthAnalyzer {
             }
             total += value.getValue();
             valuedPlayers++;
+            oldestValueDate = earlier(oldestValueDate, value.getAsOfDate());
+            latestValueDate = later(latestValueDate, value.getAsOfDate());
         }
-        return new ValueSummary(total, valuedPlayers, missingValues);
+        return new ValueSummary(total, valuedPlayers, missingValues, oldestValueDate, latestValueDate);
+    }
+
+    private static LocalDate earlier(LocalDate current, LocalDate candidate) {
+        if (candidate == null) return current;
+        return current == null || candidate.isBefore(current) ? candidate : current;
+    }
+
+    private static LocalDate later(LocalDate current, LocalDate candidate) {
+        if (candidate == null) return current;
+        return current == null || candidate.isAfter(current) ? candidate : current;
     }
 
     static double score(Map<String, Integer> positions, Map<String, Integer> slots) {
@@ -94,9 +114,10 @@ public final class TeamStrengthAnalyzer {
         return value.trim();
     }
 
-    private record ValueSummary(double total, int valuedPlayers, int missingValues) {}
+    private record ValueSummary(double total, int valuedPlayers, int missingValues,
+                                LocalDate oldestValueDate, LocalDate latestValueDate) {}
     public record StrengthReport(String leagueId, String source, int valuedPlayers, int missingValues,
-                                 List<TeamStrength> teams) {
+                                 LocalDate oldestValueDate, LocalDate latestValueDate, List<TeamStrength> teams) {
         public int totalPlayers() { return valuedPlayers + missingValues; }
         public double coveragePercent() {
             return totalPlayers() == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers();
