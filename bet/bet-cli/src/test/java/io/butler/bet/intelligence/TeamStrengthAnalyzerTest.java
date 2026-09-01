@@ -146,14 +146,27 @@ class TeamStrengthAnalyzerTest {
     }
 
     @Test
-    void rejectsRankingWhenSelectedSourceHasNoCoverage() throws Exception {
+    void unknownRankingSourceListsAvailableSources() throws Exception {
         Fixture fixture = fixture();
         fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "other-source", LocalDate.of(2026, 9, 1)));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
             () -> new TeamStrengthAnalyzer(fixture.database).rank(fixture.league.getId(), "missing-source"));
 
-        assertEquals("no player values found for source: missing-source", error.getMessage());
+        assertEquals("unknown player value source: missing-source. Available sources: other-source", error.getMessage());
+    }
+
+    @Test
+    void knownSourceWithoutLeagueCoverageNamesTheLeague() throws Exception {
+        Fixture fixture = fixture();
+        Player outsideLeague = new Player(UUID.randomUUID().toString(), "outside", "Outside", "WR", "KC");
+        fixture.players.save(outsideLeague);
+        fixture.values.save(PlayerValue.create(outsideLeague.getId(), 100, "source", LocalDate.of(2026, 9, 1)));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamStrengthAnalyzer(fixture.database).rank(fixture.league.getId(), "source"));
+
+        assertEquals("no player values found for source source in league " + fixture.league.getId(), error.getMessage());
     }
 
     @Test
