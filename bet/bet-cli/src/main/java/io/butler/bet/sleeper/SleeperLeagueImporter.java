@@ -13,8 +13,11 @@ import io.butler.bet.domain.Team;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 
 public final class SleeperLeagueImporter {
     private final SleeperClient client;
@@ -44,50 +47,92 @@ public final class SleeperLeagueImporter {
         var sourceRosters = parser.parseRosters(client.getLeagueRosters(sleeperLeagueId));
         var sourcePlayers = parser.parsePlayers(client.getNflPlayers());
 
-        String leagueId = "sleeper-league-" + sourceLeague.id();
-        League league = new League(leagueId, sourceLeague.id(), sourceLeague.name());
+        League league = leagues.findByExternalId(sourceLeague.id())
+                .map(existing -> new League(existing.getId(), sourceLeague.id(), sourceLeague.name()))
+                .orElseGet(() -> new League(UUID.randomUUID().toString(), sourceLeague.id(), sourceLeague.name()));
         leagues.save(league);
 
-        Map<String, String> ownerNames = new HashMap<>();
-        sourceUsers.forEach(user -> ownerNames.put(user.id(), user.displayName()));
+        Map<String, SleeperJsonParser.SleeperUser> owners = new HashMap<>();
+        sourceUsers.forEach(user -> owners.put(user.id(), user));
 
         int teamCount = 0;
-        int playerCount = 0;
+        Set<String> importedPlayerIds = new HashSet<>();
         int rosterCount = 0;
 
         for (SleeperJsonParser.SleeperRoster sourceRoster : sourceRosters) {
             String rosterExternalId = Integer.toString(sourceRoster.rosterId());
-            String teamId = "sleeper-team-" + sourceLeague.id() + "-" + rosterExternalId;
-            String ownerName = sourceRoster.ownerId() == null ? null : ownerNames.get(sourceRoster.ownerId());
-            String teamName = ownerName == null || ownerName.isBlank()
-                    ? "Roster " + rosterExternalId
-                    : ownerName;
+            SleeperJsonParser.SleeperUser owner = sourceRoster.ownerId() == null ? null : owners.get(sourceRoster.ownerId());
+            String teamName = chooseTeamName(owner, rosterExternalId);
 
-            teams.save(new Team(teamId, rosterExternalId, leagueId, teamName));
+            Team team = teams.findByExternalId(league.getId(), rosterExternalId)
+                    .map(existing -> new Team(existing.getId(), rosterExternalId, league.getId(), teamName))
+                    .orElseGet(() -> new Team(UUID.randomUUID().toString(), rosterExternalId, league.getId(), teamName));
+            teams.save(team);
             teamCount++;
 
+            Set<String> desiredInternalPlayerIds = new HashSet<>();
             for (String sleeperPlayerId : sourceRoster.playerIds()) {
                 SleeperJsonParser.SleeperPlayer sourcePlayer = sourcePlayers.get(sleeperPlayerId);
-                if (sourcePlayer == null || sourcePlayer.position() == null || sourcePlayer.position().isBlank()) {
-                    continue;
-                }
+                String displayName = sourcePlayer == null ? "Sleeper Player " + sleeperPlayerId : sourcePlayer.displayName();
+                String position = sourcePlayer == null || sourcePlayer.position() == null || sourcePlayer.position().isBlank()
+                        ? "UNKNOWN"
+                        : sourcePlayer.position();
+                String nflTeam = sourcePlayer == null ? null : sourcePlayer.nflTeam();
 
-                String playerId = "sleeper-player-" + sleeperPlayerId;
-                players.save(new Player(
-                        playerId,
-                        sleeperPlayerId,
-                        sourcePlayer.displayName(),
-                        sourcePlayer.position(),
-                        sourcePlayer.nflTeam()));
-                playerCount++;
+                Player player = players.findByExternalId(sleeperPlayerId)
+                        .map(existing -> new Player(existing.getId(), sleeperPlayerId, displayName, position, nflTeam))
+                        .orElseGet(() -> new Player(UUID.randomUUID().toString(), sleeperPlayerId, displayName, position, nflTeam));
+                players.save(player);
+                importedPlayerIds.add(player.getId());
+                desiredInternalPlayerIds.add(player.getId());
 
-                String rosterId = "sleeper-roster-" + sourceLeague.id() + "-" + rosterExternalId + "-" + sleeperPlayerId;
-                rosters.save(new Roster(rosterId, null, teamId, playerId, "ROSTER"));
+                String slot = slotFor(sourceRoster, sleeperPlayerId);
+                Roster roster = rosters.findByTeamAndPlayer(team.getId(), player.getId())
+                        .map(existing -> new Roster(existing.getId(), existing.getExternalId(), team.getId(), player.getId(), slot))
+                        .orElseGet(() -> new Roster(UUID.randomUUID().toString(), null, team.getId(), player.getId(), slot));
+                rosters.save(roster);
                 rosterCount++;
+            }
+
+            for (Roster existing : rosters.findByTeamId(team.getId())) {
+                if (!desiredInternalPlayerIds.contains(existing.getPlayerId())) {
+                    rosters.deleteById(existing.getId());
+                }
             }
         }
 
-        return new ImportResult(leagueId, teamCount, playerCount, rosterCount);
+        Set<String> activeRosterExternalIds = new HashSet<>();
+        sourceRosters.forEach(roster -> activeRosterExternalIds.add(Integer.toString(roster.rosterId())));
+        for (Team existing : teams.findByLeagueId(league.getId())) {
+            if (existing.getExternalId() != null && !activeRosterExternalIds.contains(existing.getExternalId())) {
+                teams.deleteById(existing.getId());
+            }
+        }
+
+        return new ImportResult(league.getId(), teamCount, importedPlayerIds.size(), rosterCount);
+    }
+
+    private static String chooseTeamName(SleeperJsonParser.SleeperUser owner, String rosterExternalId) {
+        if (owner != null && owner.teamName() != null && !owner.teamName().isBlank()) {
+            return owner.teamName();
+        }
+        if (owner != null && owner.displayName() != null && !owner.displayName().isBlank()) {
+            return owner.displayName();
+        }
+        return "Roster " + rosterExternalId;
+    }
+
+    private static String slotFor(SleeperJsonParser.SleeperRoster roster, String playerId) {
+        if (roster.taxiIds().contains(playerId)) {
+            return "TAXI";
+        }
+        if (roster.reserveIds().contains(playerId)) {
+            return "RESERVE";
+        }
+        if (roster.starterIds().contains(playerId)) {
+            return "STARTER";
+        }
+        return "BENCH";
     }
 
     public record ImportResult(String leagueId, int teamsImported, int playerReferencesImported, int rosterEntriesImported) {}
