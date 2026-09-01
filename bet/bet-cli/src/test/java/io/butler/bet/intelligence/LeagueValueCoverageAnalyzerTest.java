@@ -57,6 +57,7 @@ class LeagueValueCoverageAnalyzerTest {
         var report = new LeagueValueCoverageAnalyzer(database).analyze(league.getId());
 
         assertEquals(3, report.sources().size());
+        assertNull(report.minimumAsOfDate());
         var marketA = report.sources().get(0);
         assertEquals("market-a", marketA.source());
         assertEquals(2, marketA.valuedPlayers());
@@ -87,6 +88,59 @@ class LeagueValueCoverageAnalyzerTest {
         assertFalse(outsideOnly.rankable());
         assertNull(outsideOnly.oldestValueDate());
         assertNull(outsideOnly.latestValueDate());
+    }
+
+    @Test
+    void minimumAsOfDateMarksOtherwiseReadySourceStale() throws Exception {
+        Database database = database();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        League league = new League(UUID.randomUUID().toString(), "league-ext", "League");
+        Team team = new Team(UUID.randomUUID().toString(), "team-ext", league.getId(), "Team");
+        Player first = new Player(UUID.randomUUID().toString(), "p1", "First", "QB", "BUF");
+        leagues.save(league);
+        teams.save(team);
+        players.save(first);
+        rosters.save(new Roster(UUID.randomUUID().toString(), null, team.getId(), first.getId(), "STARTER"));
+        values.save(PlayerValue.create(first.getId(), 100, "market", LocalDate.of(2026, 8, 30)));
+
+        var report = new LeagueValueCoverageAnalyzer(database).analyze(league.getId(), LocalDate.of(2026, 9, 1));
+        var source = report.sources().getFirst();
+
+        assertEquals(LocalDate.of(2026, 9, 1), report.minimumAsOfDate());
+        assertTrue(source.stale());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.STALE, source.readiness());
+        assertFalse(source.rankable());
+    }
+
+    @Test
+    void minimumAsOfDateAcceptsBoundaryDate() throws Exception {
+        Database database = database();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        League league = new League(UUID.randomUUID().toString(), "league-ext", "League");
+        Team team = new Team(UUID.randomUUID().toString(), "team-ext", league.getId(), "Team");
+        Player player = new Player(UUID.randomUUID().toString(), "p1", "First", "QB", "BUF");
+        leagues.save(league);
+        teams.save(team);
+        players.save(player);
+        rosters.save(new Roster(UUID.randomUUID().toString(), null, team.getId(), player.getId(), "STARTER"));
+        values.save(PlayerValue.create(player.getId(), 100, "market", LocalDate.of(2026, 9, 1)));
+
+        var source = new LeagueValueCoverageAnalyzer(database)
+            .analyze(league.getId(), LocalDate.of(2026, 9, 1)).sources().getFirst();
+
+        assertFalse(source.stale());
+        assertEquals(LeagueValueCoverageAnalyzer.RankingReadiness.READY, source.readiness());
+        assertTrue(source.rankable());
     }
 
     @Test
