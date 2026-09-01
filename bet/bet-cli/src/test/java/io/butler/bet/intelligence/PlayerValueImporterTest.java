@@ -8,6 +8,7 @@ import io.butler.bet.data.RosterRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -23,21 +25,8 @@ class PlayerValueImporterTest {
 
     @Test
     void importsExternalPlayerValuesAndDrivesTeamRanking() throws Exception {
-        Database database = new Database(tempDir.resolve("butler.db"));
-        database.initialize();
-        LeagueRepository leagues = new LeagueRepository(database);
-        TeamRepository teams = new TeamRepository(database);
-        PlayerRepository players = new PlayerRepository(database);
-        RosterRepository rosters = new RosterRepository(database);
-
-        League league = new League("league", "ext-league", "Test League");
-        Team alpha = new Team("alpha", "a", league.getId(), "Alpha");
-        Team beta = new Team("beta", "b", league.getId(), "Beta");
-        Player first = new Player("p1", "sleeper-1", "First Player", "QB", "CHI");
-        Player second = new Player("p2", "sleeper-2", "Second Player", "WR", "KC");
-        leagues.save(league); teams.save(alpha); teams.save(beta); players.save(first); players.save(second);
-        rosters.save(new Roster("r1", null, alpha.getId(), first.getId(), "STARTER"));
-        rosters.save(new Roster("r2", null, beta.getId(), second.getId(), "STARTER"));
+        Database database = database();
+        Fixture fixture = fixture(database);
 
         Path json = tempDir.resolve("values.json");
         Files.writeString(json, """
@@ -52,12 +41,59 @@ class PlayerValueImporterTest {
         assertEquals(3, result.entriesRead());
         assertEquals(2, result.imported());
         assertEquals(1, result.missingPlayers());
-        assertEquals(75.0, new PlayerValueRepository(database).findLatestByPlayerId(first.getId()).orElseThrow().getValue());
+        assertEquals(75.0, new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "test-market").orElseThrow().getValue());
 
-        TeamStrengthAnalyzer.StrengthReport ranking = new TeamStrengthAnalyzer(database).rank(league.getId());
+        TeamStrengthAnalyzer.StrengthReport ranking = new TeamStrengthAnalyzer(database).rank(fixture.league().getId(), "test-market");
+        assertEquals("test-market", ranking.source());
         assertEquals("Beta", ranking.teams().getFirst().teamName());
         assertEquals(90.0, ranking.teams().getFirst().playerValue());
         assertEquals(1, ranking.teams().getFirst().valuedPlayers());
         assertEquals(0, ranking.teams().getFirst().missingValues());
     }
+
+    @Test
+    void rankingIgnoresValuesFromOtherSources() throws Exception {
+        Database database = database();
+        Fixture fixture = fixture(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        LocalDate date = LocalDate.of(2026, 9, 1);
+
+        values.save(PlayerValue.create(fixture.first().getId(), 100.0, "source-a", date));
+        values.save(PlayerValue.create(fixture.second().getId(), 50.0, "source-a", date));
+        values.save(PlayerValue.create(fixture.first().getId(), 1.0, "source-b", date));
+        values.save(PlayerValue.create(fixture.second().getId(), 999.0, "source-b", date));
+
+        TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(database);
+        var sourceA = analyzer.rank(fixture.league().getId(), "source-a");
+        var sourceB = analyzer.rank(fixture.league().getId(), "source-b");
+
+        assertEquals("Alpha", sourceA.teams().getFirst().teamName());
+        assertEquals(100.0, sourceA.teams().getFirst().playerValue());
+        assertEquals("Beta", sourceB.teams().getFirst().teamName());
+        assertEquals(999.0, sourceB.teams().getFirst().playerValue());
+    }
+
+    private Database database() throws Exception {
+        Database database = new Database(tempDir.resolve("butler.db"));
+        database.initialize();
+        return database;
+    }
+
+    private Fixture fixture(Database database) throws Exception {
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        League league = new League("league", "ext-league", "Test League");
+        Team alpha = new Team("alpha", "a", league.getId(), "Alpha");
+        Team beta = new Team("beta", "b", league.getId(), "Beta");
+        Player first = new Player("p1", "sleeper-1", "First Player", "QB", "CHI");
+        Player second = new Player("p2", "sleeper-2", "Second Player", "WR", "KC");
+        leagues.save(league); teams.save(alpha); teams.save(beta); players.save(first); players.save(second);
+        rosters.save(new Roster("r1", null, alpha.getId(), first.getId(), "STARTER"));
+        rosters.save(new Roster("r2", null, beta.getId(), second.getId(), "STARTER"));
+        return new Fixture(league, first, second);
+    }
+
+    private record Fixture(League league, Player first, Player second) {}
 }
