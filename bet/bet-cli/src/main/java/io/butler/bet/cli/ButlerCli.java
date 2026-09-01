@@ -9,7 +9,9 @@ import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
+import io.butler.bet.sleeper.SleeperLeagueImporter;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 
@@ -35,6 +37,7 @@ public final class ButlerCli {
                 case "team" -> handleTeam(args);
                 case "player" -> handlePlayer(args);
                 case "roster" -> handleRoster(args);
+                case "sleeper" -> handleSleeper(args);
                 default -> {
                     System.out.println("Unknown command: " + args[0]);
                     System.out.println();
@@ -44,6 +47,13 @@ public final class ButlerCli {
         } catch (SQLException e) {
             System.err.println("Database error: " + e.getMessage());
             System.exit(1);
+        } catch (IOException e) {
+            System.err.println("Sleeper API error: " + e.getMessage());
+            System.exit(3);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Sleeper import interrupted.");
+            System.exit(4);
         } catch (IllegalArgumentException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -61,6 +71,19 @@ public final class ButlerCli {
             return;
         }
         System.out.println("Usage: butler db <init|seed>");
+    }
+
+    private static void handleSleeper(String[] args) throws SQLException, IOException, InterruptedException {
+        if (args.length == 3 && args[1].equalsIgnoreCase("import")) {
+            SleeperLeagueImporter.ImportResult result = new SleeperLeagueImporter(initializedDatabase()).importLeague(args[2]);
+            System.out.println("Imported Sleeper league.");
+            System.out.println("League ID: " + result.leagueId());
+            System.out.println("Teams: " + result.teamsImported());
+            System.out.println("Player references: " + result.playerReferencesImported());
+            System.out.println("Roster entries: " + result.rosterEntriesImported());
+            return;
+        }
+        System.out.println("Usage: butler sleeper import <sleeper-league-id>");
     }
 
     private static void handleLeague(String[] args) throws SQLException {
@@ -185,6 +208,7 @@ public final class ButlerCli {
         System.out.println("  butler help");
         System.out.println("  butler db init");
         System.out.println("  butler db seed");
+        System.out.println("  butler sleeper import <sleeper-league-id>");
         System.out.println("  butler league add <name>");
         System.out.println("  butler league list");
         System.out.println("  butler team list <league-id>");
