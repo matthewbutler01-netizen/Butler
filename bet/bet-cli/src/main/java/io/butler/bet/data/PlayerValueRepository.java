@@ -142,6 +142,21 @@ public final class PlayerValueRepository {
         return List.copyOf(values);
     }
 
+    public List<String> findSources() throws SQLException {
+        List<String> sources = new ArrayList<>();
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("""
+                 SELECT DISTINCT source
+                 FROM player_values
+                 ORDER BY source COLLATE NOCASE ASC, source ASC
+                 """)) {
+            try (var results = statement.executeQuery()) {
+                while (results.next()) sources.add(results.getString("source"));
+            }
+        }
+        return List.copyOf(sources);
+    }
+
     public void deleteByPlayerId(String playerId) throws SQLException {
         String normalizedPlayerId = requireText(playerId, "playerId");
         try (var connection = database.openConnection();
