@@ -79,8 +79,12 @@ public final class ButlerCli {
             var all = leagues.findAll(); if (all.isEmpty()) System.out.println("No leagues found."); else all.forEach(league -> System.out.println(league.getId() + "  " + league.getName())); return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("analyze")) { printLeagueReport(new LeagueAnalyzer(database).analyze(args[2])); return; }
-        if (args.length == 3 && args[1].equalsIgnoreCase("value-sources")) {
-            printLeagueValueCoverage(new LeagueValueCoverageAnalyzer(database).analyze(args[2]));
+        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("value-sources")) {
+            LeagueValueCoverageAnalyzer analyzer = new LeagueValueCoverageAnalyzer(database);
+            var report = args.length == 4
+                ? analyzer.analyze(args[2], parseDate(args[3], "minimum-as-of-date"))
+                : analyzer.analyze(args[2]);
+            printLeagueValueCoverage(report);
             return;
         }
         if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
@@ -91,7 +95,7 @@ public final class ButlerCli {
             printStrengthReport(report);
             return;
         }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id>|rank <league-id> <source> [minimum-as-of-date]>");
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|rank <league-id> <source> [minimum-as-of-date]>");
     }
 
     private static void printLeagueReport(LeagueAnalyzer.LeagueReport report) {
@@ -110,6 +114,7 @@ public final class ButlerCli {
     private static void printLeagueValueCoverage(LeagueValueCoverageAnalyzer.CoverageReport report) {
         System.out.println("League player-value source coverage");
         System.out.println("League ID: " + report.leagueId());
+        if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
         if (report.sources().isEmpty()) { System.out.println("No persisted player value sources found."); return; }
         for (var source : report.sources()) {
             String dates = source.oldestValueDate() == null ? "none"
@@ -224,6 +229,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
