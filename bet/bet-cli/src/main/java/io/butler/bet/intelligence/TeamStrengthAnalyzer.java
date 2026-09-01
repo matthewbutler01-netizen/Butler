@@ -31,8 +31,9 @@ public final class TeamStrengthAnalyzer {
     }
 
     public StrengthReport rank(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
+        String normalizedLeagueId = requireText(leagueId, "leagueId");
         String valueSource = requireText(source, "source");
-        LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(requireText(leagueId, "leagueId"));
+        LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(normalizedLeagueId);
         List<TeamStrength> strengths = new ArrayList<>();
         List<String> uncoveredTeams = new ArrayList<>();
         int totalValuedPlayers = 0;
@@ -56,7 +57,14 @@ public final class TeamStrengthAnalyzer {
         }
 
         if (!strengths.isEmpty() && totalValuedPlayers == 0) {
-            throw new IllegalArgumentException("no player values found for source: " + valueSource);
+            List<String> availableSources = playerValues.findSources();
+            if (availableSources.contains(valueSource)) {
+                throw new IllegalArgumentException("no player values found for source " + valueSource
+                    + " in league " + normalizedLeagueId);
+            }
+            String available = availableSources.isEmpty() ? "none" : String.join(", ", availableSources);
+            throw new IllegalArgumentException("unknown player value source: " + valueSource
+                + ". Available sources: " + available);
         }
         if (!uncoveredTeams.isEmpty()) {
             throw new IllegalArgumentException("teams have zero player-value coverage for source " + valueSource + ": "
@@ -78,7 +86,7 @@ public final class TeamStrengthAnalyzer {
                 team.valuedPlayers(), team.missingValues(), team.oldestValueDate(), team.latestValueDate(),
                 team.positionCounts(), team.slotCounts()));
         }
-        return new StrengthReport(leagueId.trim(), valueSource, totalValuedPlayers, totalMissingValues,
+        return new StrengthReport(normalizedLeagueId, valueSource, totalValuedPlayers, totalMissingValues,
             oldestValueDate, latestValueDate, List.copyOf(ranked));
     }
 
