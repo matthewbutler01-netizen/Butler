@@ -19,6 +19,8 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerValueImporterTest {
     @TempDir Path tempDir;
@@ -27,28 +29,66 @@ class PlayerValueImporterTest {
     void importsExternalPlayerValuesAndDrivesTeamRanking() throws Exception {
         Database database = database();
         Fixture fixture = fixture(database);
-
-        Path json = tempDir.resolve("values.json");
-        Files.writeString(json, """
+        Path json = write("values.json", """
             [
-              {"playerId":"sleeper-1","value":75.0,"source":"test-market","asOfDate":"2026-09-01"},
-              {"playerId":"sleeper-2","value":90.0,"source":"test-market","asOfDate":"2026-09-01"},
-              {"playerId":"missing-player","value":99.0,"source":"test-market","asOfDate":"2026-09-01"}
+              {"externalPlayerId":"sleeper-1","value":75.0,"source":"test-market","asOfDate":"2026-09-01"},
+              {"externalPlayerId":"sleeper-2","value":90.0,"source":"test-market","asOfDate":"2026-09-01"}
             ]
             """);
 
         PlayerValueImporter.ImportResult result = new PlayerValueImporter(database).importJson(json);
-        assertEquals(3, result.entriesRead());
-        assertEquals(2, result.imported());
-        assertEquals(1, result.missingPlayers());
+        assertEquals(2, result.valuesImported());
         assertEquals(75.0, new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "test-market").orElseThrow().getValue());
 
-        TeamStrengthAnalyzer.StrengthReport ranking = new TeamStrengthAnalyzer(database).rank(fixture.league().getId(), "test-market");
-        assertEquals("test-market", ranking.source());
+        var ranking = new TeamStrengthAnalyzer(database).rank(fixture.league().getId(), "test-market");
         assertEquals("Beta", ranking.teams().getFirst().teamName());
         assertEquals(90.0, ranking.teams().getFirst().playerValue());
-        assertEquals(1, ranking.teams().getFirst().valuedPlayers());
-        assertEquals(0, ranking.teams().getFirst().missingValues());
+    }
+
+    @Test
+    void unknownPlayerFailsWholeImportBeforeAnyValuesAreWritten() throws Exception {
+        Database database = database();
+        Fixture fixture = fixture(database);
+        Path json = write("unknown.json", """
+            [
+              {"externalPlayerId":"sleeper-1","value":75.0,"source":"market","asOfDate":"2026-09-01"},
+              {"externalPlayerId":"missing-player","value":99.0,"source":"market","asOfDate":"2026-09-01"}
+            ]
+            """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new PlayerValueImporter(database).importJson(json));
+        assertTrue(error.getMessage().contains("unknown externalPlayerId at entry 2: missing-player"));
+        assertTrue(new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "market").isEmpty());
+    }
+
+    @Test
+    void invalidLaterRowFailsWholeImportBeforeAnyValuesAreWritten() throws Exception {
+        Database database = database();
+        Fixture fixture = fixture(database);
+        Path json = write("invalid-date.json", """
+            [
+              {"externalPlayerId":"sleeper-1","value":75.0,"source":"market","asOfDate":"2026-09-01"},
+              {"externalPlayerId":"sleeper-2","value":90.0,"source":"market","asOfDate":"not-a-date"}
+            ]
+            """);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new PlayerValueImporter(database).importJson(json));
+        assertTrue(error.getMessage().contains("invalid asOfDate for externalPlayerId sleeper-2"));
+        assertTrue(new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "market").isEmpty());
+    }
+
+    @Test
+    void trimsExternalIdAndSource() throws Exception {
+        Database database = database();
+        Fixture fixture = fixture(database);
+        Path json = write("trim.json", """
+            [{"externalPlayerId":"  sleeper-1  ","value":42.0,"source":"  manual  ","asOfDate":"2026-09-01"}]
+            """);
+
+        new PlayerValueImporter(database).importJson(json);
+        assertEquals(42.0, new PlayerValueRepository(database).findLatestByPlayerIdAndSource(fixture.first().getId(), "manual").orElseThrow().getValue());
     }
 
     @Test
@@ -57,20 +97,20 @@ class PlayerValueImporterTest {
         Fixture fixture = fixture(database);
         PlayerValueRepository values = new PlayerValueRepository(database);
         LocalDate date = LocalDate.of(2026, 9, 1);
-
         values.save(PlayerValue.create(fixture.first().getId(), 100.0, "source-a", date));
         values.save(PlayerValue.create(fixture.second().getId(), 50.0, "source-a", date));
         values.save(PlayerValue.create(fixture.first().getId(), 1.0, "source-b", date));
         values.save(PlayerValue.create(fixture.second().getId(), 999.0, "source-b", date));
 
         TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(database);
-        var sourceA = analyzer.rank(fixture.league().getId(), "source-a");
-        var sourceB = analyzer.rank(fixture.league().getId(), "source-b");
+        assertEquals("Alpha", analyzer.rank(fixture.league().getId(), "source-a").teams().getFirst().teamName());
+        assertEquals("Beta", analyzer.rank(fixture.league().getId(), "source-b").teams().getFirst().teamName());
+    }
 
-        assertEquals("Alpha", sourceA.teams().getFirst().teamName());
-        assertEquals(100.0, sourceA.teams().getFirst().playerValue());
-        assertEquals("Beta", sourceB.teams().getFirst().teamName());
-        assertEquals(999.0, sourceB.teams().getFirst().playerValue());
+    private Path write(String name, String content) throws Exception {
+        Path path = tempDir.resolve(name);
+        Files.writeString(path, content);
+        return path;
     }
 
     private Database database() throws Exception {
