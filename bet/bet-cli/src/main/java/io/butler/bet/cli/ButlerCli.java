@@ -10,6 +10,7 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import io.butler.bet.intelligence.LeagueAnalyzer;
+import io.butler.bet.intelligence.PlayerValueModel;
 import io.butler.bet.intelligence.TeamStrengthAnalyzer;
 import io.butler.bet.sleeper.SleeperLeagueImporter;
 
@@ -96,6 +97,7 @@ public final class ButlerCli {
         if (report.teams().isEmpty()) { System.out.println("No teams found."); return; }
         for (TeamStrengthAnalyzer.TeamStrength team : report.teams()) {
             System.out.printf("%d. %s  score=%.2f  [%s]%n", team.rank(), team.teamName(), team.score(), team.teamId());
+            System.out.printf("   Player value: %.2f  Composition: %.2f%n", team.playerValue(), team.compositionScore());
             System.out.println("   Positions: " + formatCounts(team.positionCounts()));
             System.out.println("   Slots: " + formatCounts(team.slotCounts()));
         }
@@ -117,11 +119,20 @@ public final class ButlerCli {
     }
 
     private static void handlePlayer(String[] args) throws SQLException {
+        PlayerRepository players = new PlayerRepository(initializedDatabase());
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
-            PlayerRepository players = new PlayerRepository(initializedDatabase()); var all = players.findAll();
-            if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
+            var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
         }
-        System.out.println("Usage: butler player list");
+        if (args.length == 2 && args[1].equalsIgnoreCase("values")) {
+            PlayerValueModel values = new PlayerValueModel();
+            var all = players.findAll();
+            if (all.isEmpty()) { System.out.println("No players found."); return; }
+            all.stream().map(values::value)
+                .sorted(java.util.Comparator.comparingDouble(PlayerValueModel.PlayerValue::score).reversed().thenComparing(PlayerValueModel.PlayerValue::playerName))
+                .forEach(value -> System.out.printf("%.2f  %s  %s  [%s]%n", value.score(), value.position(), value.playerName(), value.playerId()));
+            return;
+        }
+        System.out.println("Usage: butler player <list|values>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -148,6 +159,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id>\n  butler team list <league-id>\n  butler player list\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id>\n  butler team list <league-id>\n  butler player list\n  butler player values\n  butler roster list <team-id>");
     }
 }
