@@ -25,6 +25,10 @@ public final class LeagueValueCoverageAnalyzer {
     }
 
     public CoverageReport analyze(String leagueId) throws SQLException {
+        return analyze(leagueId, null);
+    }
+
+    public CoverageReport analyze(String leagueId, LocalDate minimumAsOfDate) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(normalizedLeagueId);
         List<SourceCoverage> sources = new ArrayList<>();
@@ -55,10 +59,10 @@ public final class LeagueValueCoverageAnalyzer {
             }
 
             sources.add(new SourceCoverage(source, valuedPlayers, missingValues, uncoveredTeams,
-                oldestValueDate, latestValueDate));
+                oldestValueDate, latestValueDate, minimumAsOfDate));
         }
 
-        return new CoverageReport(normalizedLeagueId, List.copyOf(sources));
+        return new CoverageReport(normalizedLeagueId, minimumAsOfDate, List.copyOf(sources));
     }
 
     private static LocalDate earlier(LocalDate current, LocalDate candidate) {
@@ -77,24 +81,29 @@ public final class LeagueValueCoverageAnalyzer {
     public enum RankingReadiness {
         UNAVAILABLE,
         BLOCKED,
+        STALE,
         PARTIAL,
         READY
     }
 
-    public record CoverageReport(String leagueId, List<SourceCoverage> sources) {}
+    public record CoverageReport(String leagueId, LocalDate minimumAsOfDate, List<SourceCoverage> sources) {}
 
     public record SourceCoverage(String source, int valuedPlayers, int missingValues, int uncoveredTeams,
-                                 LocalDate oldestValueDate, LocalDate latestValueDate) {
+                                 LocalDate oldestValueDate, LocalDate latestValueDate, LocalDate minimumAsOfDate) {
         public int totalPlayers() { return valuedPlayers + missingValues; }
         public double coveragePercent() {
             return totalPlayers() == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers();
         }
+        public boolean stale() {
+            return minimumAsOfDate != null && oldestValueDate != null && oldestValueDate.isBefore(minimumAsOfDate);
+        }
         public boolean rankable() {
-            return valuedPlayers > 0 && uncoveredTeams == 0;
+            return valuedPlayers > 0 && uncoveredTeams == 0 && !stale();
         }
         public RankingReadiness readiness() {
             if (valuedPlayers == 0) return RankingReadiness.UNAVAILABLE;
             if (uncoveredTeams > 0) return RankingReadiness.BLOCKED;
+            if (stale()) return RankingReadiness.STALE;
             if (missingValues > 0) return RankingReadiness.PARTIAL;
             return RankingReadiness.READY;
         }
