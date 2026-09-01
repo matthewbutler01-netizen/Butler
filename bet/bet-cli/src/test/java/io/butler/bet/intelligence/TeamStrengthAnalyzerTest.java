@@ -82,6 +82,27 @@ class TeamStrengthAnalyzerTest {
     }
 
     @Test
+    void rejectsRankingWhenSelectedSourceHasNoCoverage() throws Exception {
+        Fixture fixture = fixture();
+        fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "other-source", LocalDate.of(2026, 9, 1)));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamStrengthAnalyzer(fixture.database).rank(fixture.league.getId(), "missing-source"));
+
+        assertEquals("no player values found for source: missing-source", error.getMessage());
+    }
+
+    @Test
+    void emptyLeagueStillReturnsEmptyRanking() throws Exception {
+        Fixture fixture = fixture();
+        League emptyLeague = new League(UUID.randomUUID().toString(), "empty-ext", "Empty");
+        new LeagueRepository(fixture.database).save(emptyLeague);
+
+        var report = new TeamStrengthAnalyzer(fixture.database).rank(emptyLeague.getId(), "missing-source");
+        assertTrue(report.teams().isEmpty());
+    }
+
+    @Test
     void blankSourceAndLeagueIdAreRejected() throws Exception {
         Fixture fixture = fixture();
         TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(fixture.database);
