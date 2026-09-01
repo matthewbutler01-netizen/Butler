@@ -76,8 +76,8 @@ public final class ButlerCli {
             var all = leagues.findAll(); if (all.isEmpty()) System.out.println("No leagues found."); else all.forEach(league -> System.out.println(league.getId() + "  " + league.getName())); return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("analyze")) { printLeagueReport(new LeagueAnalyzer(database).analyze(args[2])); return; }
-        if (args.length == 3 && args[1].equalsIgnoreCase("rank")) { printStrengthReport(new TeamStrengthAnalyzer(database).rank(args[2])); return; }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|rank <league-id>>");
+        if (args.length == 4 && args[1].equalsIgnoreCase("rank")) { printStrengthReport(new TeamStrengthAnalyzer(database).rank(args[2], args[3])); return; }
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|rank <league-id> <source>>");
     }
 
     private static void printLeagueReport(LeagueAnalyzer.LeagueReport report) {
@@ -95,6 +95,7 @@ public final class ButlerCli {
 
     private static void printStrengthReport(TeamStrengthAnalyzer.StrengthReport report) {
         System.out.println("Team strength rankings");
+        System.out.println("Value source: " + report.source());
         if (report.teams().isEmpty()) { System.out.println("No teams found."); return; }
         for (TeamStrengthAnalyzer.TeamStrength team : report.teams()) {
             System.out.printf("%d. %s  value=%.2f  [%s]%n", team.rank(), team.teamName(), team.playerValue(), team.teamId());
@@ -125,18 +126,14 @@ public final class ButlerCli {
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
             var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
         }
-        if (args.length == 2 && args[1].equalsIgnoreCase("values")) {
+        if (args.length == 3 && args[1].equalsIgnoreCase("values")) {
             PlayerValueRepository values = new PlayerValueRepository(database);
-            var all = players.findAll();
-            boolean found = false;
-            for (Player player : all) {
-                var value = values.findLatestByPlayerId(player.getId());
-                if (value.isEmpty()) continue;
-                found = true;
-                var snapshot = value.orElseThrow();
-                System.out.printf("%.2f  %s  %s  source=%s  as-of=%s  [%s]%n", snapshot.getValue(), player.getPosition(), player.getDisplayName(), snapshot.getSource(), snapshot.getAsOfDate(), player.getId());
+            var snapshots = values.findLatestBySource(args[2]);
+            if (snapshots.isEmpty()) { System.out.println("No persisted player values found for source " + args[2] + "."); return; }
+            for (var snapshot : snapshots) {
+                Player player = players.findById(snapshot.getPlayerId()).orElseThrow();
+                System.out.printf("%.2f  %s  %s  as-of=%s  [%s]%n", snapshot.getValue(), player.getPosition(), player.getDisplayName(), snapshot.getAsOfDate(), player.getId());
             }
-            if (!found) System.out.println("No persisted player values found.");
             return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("value-import")) {
@@ -147,7 +144,7 @@ public final class ButlerCli {
             System.out.println("Missing players: " + result.missingPlayers());
             return;
         }
-        System.out.println("Usage: butler player <list|values|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|values <source>|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -174,6 +171,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id>\n  butler team list <league-id>\n  butler player list\n  butler player values\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id> <source>\n  butler team list <league-id>\n  butler player list\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
