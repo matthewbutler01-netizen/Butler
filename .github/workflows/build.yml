@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - bf-005-data-foundation
+      - 'bf-*'
   pull_request:
     branches:
       - main
