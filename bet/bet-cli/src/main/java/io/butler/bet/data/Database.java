@@ -70,9 +70,23 @@ public final class Database {
                 )
                 """);
 
+            statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_values (
+                    id TEXT PRIMARY KEY,
+                    player_id TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    as_of_date TEXT NOT NULL,
+                    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                    UNIQUE (player_id, source, as_of_date)
+                )
+                """);
+
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_teams_league_id ON teams(league_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_rosters_team_id ON rosters(team_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_rosters_player_id ON rosters(player_id)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_values_player_id ON player_values(player_id)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_values_source_date ON player_values(source, as_of_date)");
         }
     }
 }
