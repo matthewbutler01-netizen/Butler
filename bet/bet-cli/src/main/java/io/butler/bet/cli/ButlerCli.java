@@ -143,9 +143,14 @@ public final class ButlerCli {
             var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("value-sources")) {
-            var sources = new PlayerValueRepository(database).findSources();
-            if (sources.isEmpty()) System.out.println("No persisted player value sources found.");
-            else sources.forEach(System.out::println);
+            var summaries = new PlayerValueRepository(database).findSourceSummaries();
+            if (summaries.isEmpty()) { System.out.println("No persisted player value sources found."); return; }
+            for (var summary : summaries) {
+                String dates = summary.oldestAsOfDate().equals(summary.latestAsOfDate())
+                    ? summary.latestAsOfDate().toString()
+                    : summary.oldestAsOfDate() + " to " + summary.latestAsOfDate();
+                System.out.printf("%s  players=%d  dates=%s%n", summary.source(), summary.playerCount(), dates);
+            }
             return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("values")) {
