@@ -51,7 +51,8 @@ public final class TeamStrengthAnalyzer {
             }
             double compositionScore = score(team.positionCounts(), team.slotCounts());
             strengths.add(new TeamStrength(0, team.teamId(), team.teamName(), values.total(), compositionScore,
-                values.valuedPlayers(), values.missingValues(), Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
+                values.valuedPlayers(), values.missingValues(), values.oldestValueDate(), values.latestValueDate(),
+                Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
         }
 
         if (!strengths.isEmpty() && totalValuedPlayers == 0) {
@@ -74,7 +75,8 @@ public final class TeamStrengthAnalyzer {
         for (int i = 0; i < strengths.size(); i++) {
             TeamStrength team = strengths.get(i);
             ranked.add(new TeamStrength(i + 1, team.teamId(), team.teamName(), team.playerValue(), team.compositionScore(),
-                team.valuedPlayers(), team.missingValues(), team.positionCounts(), team.slotCounts()));
+                team.valuedPlayers(), team.missingValues(), team.oldestValueDate(), team.latestValueDate(),
+                team.positionCounts(), team.slotCounts()));
         }
         return new StrengthReport(leagueId.trim(), valueSource, totalValuedPlayers, totalMissingValues,
             oldestValueDate, latestValueDate, List.copyOf(ranked));
@@ -140,8 +142,8 @@ public final class TeamStrengthAnalyzer {
         }
     }
     public record TeamStrength(int rank, String teamId, String teamName, double playerValue, double compositionScore,
-                               int valuedPlayers, int missingValues, Map<String, Integer> positionCounts,
-                               Map<String, Integer> slotCounts) {
+                               int valuedPlayers, int missingValues, LocalDate oldestValueDate, LocalDate latestValueDate,
+                               Map<String, Integer> positionCounts, Map<String, Integer> slotCounts) {
         public double score() { return playerValue; }
         public int totalPlayers() { return valuedPlayers + missingValues; }
         public double coveragePercent() {
