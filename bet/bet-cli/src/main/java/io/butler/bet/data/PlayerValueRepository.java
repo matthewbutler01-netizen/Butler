@@ -2,6 +2,7 @@ package io.butler.bet.data;
 
 import io.butler.bet.domain.PlayerValue;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -19,13 +20,40 @@ public final class PlayerValueRepository {
 
     public void save(PlayerValue value) throws SQLException {
         Objects.requireNonNull(value, "value must not be null");
-        try (var connection = database.openConnection();
-             var statement = connection.prepareStatement("""
-                 INSERT INTO player_values(id, player_id, value, source, as_of_date)
-                 VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT(player_id, source, as_of_date) DO UPDATE SET
-                     value = excluded.value
-                 """)) {
+        try (var connection = database.openConnection()) {
+            save(connection, value);
+        }
+    }
+
+    public void saveAll(List<PlayerValue> values) throws SQLException {
+        Objects.requireNonNull(values, "values must not be null");
+        for (PlayerValue value : values) Objects.requireNonNull(value, "value must not be null");
+
+        try (var connection = database.openConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                for (PlayerValue value : values) save(connection, value);
+                connection.commit();
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    connection.rollback();
+                } catch (SQLException rollbackFailure) {
+                    e.addSuppressed(rollbackFailure);
+                }
+                throw e;
+            } finally {
+                connection.setAutoCommit(true);
+            }
+        }
+    }
+
+    private static void save(Connection connection, PlayerValue value) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+             INSERT INTO player_values(id, player_id, value, source, as_of_date)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(player_id, source, as_of_date) DO UPDATE SET
+                 value = excluded.value
+             """)) {
             statement.setString(1, value.getId());
             statement.setString(2, value.getPlayerId());
             statement.setDouble(3, value.getValue());
