@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.PlayerRepository;
+import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.League;
@@ -10,7 +11,6 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import io.butler.bet.intelligence.LeagueAnalyzer;
-import io.butler.bet.intelligence.PlayerValueModel;
 import io.butler.bet.intelligence.TeamStrengthAnalyzer;
 import io.butler.bet.sleeper.SleeperLeagueImporter;
 
@@ -96,8 +96,8 @@ public final class ButlerCli {
         System.out.println("Team strength rankings");
         if (report.teams().isEmpty()) { System.out.println("No teams found."); return; }
         for (TeamStrengthAnalyzer.TeamStrength team : report.teams()) {
-            System.out.printf("%d. %s  score=%.2f  [%s]%n", team.rank(), team.teamName(), team.score(), team.teamId());
-            System.out.printf("   Player value: %.2f  Composition: %.2f%n", team.playerValue(), team.compositionScore());
+            System.out.printf("%d. %s  value=%.2f  [%s]%n", team.rank(), team.teamName(), team.playerValue(), team.teamId());
+            System.out.printf("   Valued players: %d  Missing values: %d  Composition tie-breaker: %.2f%n", team.valuedPlayers(), team.missingValues(), team.compositionScore());
             System.out.println("   Positions: " + formatCounts(team.positionCounts()));
             System.out.println("   Slots: " + formatCounts(team.slotCounts()));
         }
@@ -119,17 +119,23 @@ public final class ButlerCli {
     }
 
     private static void handlePlayer(String[] args) throws SQLException {
-        PlayerRepository players = new PlayerRepository(initializedDatabase());
+        Database database = initializedDatabase();
+        PlayerRepository players = new PlayerRepository(database);
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
             var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("values")) {
-            PlayerValueModel values = new PlayerValueModel();
+            PlayerValueRepository values = new PlayerValueRepository(database);
             var all = players.findAll();
-            if (all.isEmpty()) { System.out.println("No players found."); return; }
-            all.stream().map(values::value)
-                .sorted(java.util.Comparator.comparingDouble(PlayerValueModel.PlayerValue::score).reversed().thenComparing(PlayerValueModel.PlayerValue::playerName))
-                .forEach(value -> System.out.printf("%.2f  %s  %s  [%s]%n", value.score(), value.position(), value.playerName(), value.playerId()));
+            boolean found = false;
+            for (Player player : all) {
+                var value = values.findLatestByPlayerId(player.getId());
+                if (value.isEmpty()) continue;
+                found = true;
+                var snapshot = value.orElseThrow();
+                System.out.printf("%.2f  %s  %s  source=%s  as-of=%s  [%s]%n", snapshot.getValue(), player.getPosition(), player.getDisplayName(), snapshot.getSource(), snapshot.getAsOfDate(), player.getId());
+            }
+            if (!found) System.out.println("No persisted player values found.");
             return;
         }
         System.out.println("Usage: butler player <list|values>");
