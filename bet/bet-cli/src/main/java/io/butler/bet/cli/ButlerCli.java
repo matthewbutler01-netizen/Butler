@@ -41,7 +41,7 @@ public final class ButlerCli {
                 default -> { System.out.println("Unknown command: " + args[0]); System.out.println(); printHelp(); }
             }
         } catch (SQLException e) { System.err.println("Database error: " + e.getMessage()); System.exit(1);
-        } catch (IOException e) { System.err.println("File/API error: " + e.getMessage()); System.exit(3);
+        } catch (IOException e) { System.err.println("I/O error: " + e.getMessage()); System.exit(3);
         } catch (InterruptedException e) { Thread.currentThread().interrupt(); System.err.println("Sleeper import interrupted."); System.exit(4);
         } catch (IllegalArgumentException e) { System.err.println("Error: " + e.getMessage()); System.exit(2); }
     }
@@ -139,9 +139,7 @@ public final class ButlerCli {
         if (args.length == 3 && args[1].equalsIgnoreCase("value-import")) {
             PlayerValueImporter.ImportResult result = new PlayerValueImporter(database).importJson(Path.of(args[2]));
             System.out.println("Imported player values.");
-            System.out.println("Entries read: " + result.entriesRead());
-            System.out.println("Imported: " + result.imported());
-            System.out.println("Missing players: " + result.missingPlayers());
+            System.out.println("Imported: " + result.valuesImported());
             return;
         }
         System.out.println("Usage: butler player <list|values <source>|value-import <json-file>>");
