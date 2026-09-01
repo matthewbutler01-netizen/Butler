@@ -27,6 +27,10 @@ public final class TeamStrengthAnalyzer {
     }
 
     public StrengthReport rank(String leagueId, String source) throws SQLException {
+        return rank(leagueId, source, null);
+    }
+
+    public StrengthReport rank(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
         String valueSource = requireText(source, "source");
         LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(requireText(leagueId, "leagueId"));
         List<TeamStrength> strengths = new ArrayList<>();
@@ -48,6 +52,10 @@ public final class TeamStrengthAnalyzer {
 
         if (!strengths.isEmpty() && totalValuedPlayers == 0) {
             throw new IllegalArgumentException("no player values found for source: " + valueSource);
+        }
+        if (minimumAsOfDate != null && oldestValueDate != null && oldestValueDate.isBefore(minimumAsOfDate)) {
+            throw new IllegalArgumentException("player values for source " + valueSource
+                + " are older than minimum as-of date " + minimumAsOfDate + ": oldest=" + oldestValueDate);
         }
 
         strengths.sort(Comparator.comparingDouble(TeamStrength::playerValue).reversed()
