@@ -114,7 +114,8 @@ public final class ButlerCli {
         }
         for (TeamStrengthAnalyzer.TeamStrength team : report.teams()) {
             System.out.printf("%d. %s  value=%.2f  [%s]%n", team.rank(), team.teamName(), team.playerValue(), team.teamId());
-            System.out.printf("   Valued players: %d  Missing values: %d  Composition tie-breaker: %.2f%n", team.valuedPlayers(), team.missingValues(), team.compositionScore());
+            System.out.printf("   Coverage: %d/%d (%.1f%%)  Missing values: %d  Composition tie-breaker: %.2f%n",
+                team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(), team.missingValues(), team.compositionScore());
             System.out.println("   Positions: " + formatCounts(team.positionCounts()));
             System.out.println("   Slots: " + formatCounts(team.slotCounts()));
         }

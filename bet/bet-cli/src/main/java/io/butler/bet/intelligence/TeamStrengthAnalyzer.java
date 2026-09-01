@@ -143,5 +143,9 @@ public final class TeamStrengthAnalyzer {
                                int valuedPlayers, int missingValues, Map<String, Integer> positionCounts,
                                Map<String, Integer> slotCounts) {
         public double score() { return playerValue; }
+        public int totalPlayers() { return valuedPlayers + missingValues; }
+        public double coveragePercent() {
+            return totalPlayers() == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers();
+        }
     }
 }
