@@ -109,6 +109,23 @@ class TeamStrengthAnalyzerTest {
     }
 
     @Test
+    void rejectsRankingWhenAnyRosteredTeamHasZeroCoverage() throws Exception {
+        Fixture fixture = fixture();
+        Team uncovered = new Team(UUID.randomUUID().toString(), "2", fixture.league.getId(), "Uncovered");
+        Player uncoveredPlayer = new Player(UUID.randomUUID().toString(), "p3", "Third", "WR", "CHI");
+        fixture.teams.save(uncovered);
+        fixture.players.save(uncoveredPlayer);
+        fixture.rosters.save(new Roster(UUID.randomUUID().toString(), null, uncovered.getId(), uncoveredPlayer.getId(), "STARTER"));
+        fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "source", LocalDate.of(2026, 9, 1)));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamStrengthAnalyzer(fixture.database).rank(fixture.league.getId(), "source"));
+
+        assertEquals("teams have zero player-value coverage for source source: Uncovered [" + uncovered.getId() + "]",
+            error.getMessage());
+    }
+
+    @Test
     void compositionBreaksTiesButNeverOverridesPlayerValue() throws Exception {
         Fixture fixture = fixture();
         Team weakComposition = fixture.team;
