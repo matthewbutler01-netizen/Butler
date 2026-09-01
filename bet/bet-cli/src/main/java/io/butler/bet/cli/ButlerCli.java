@@ -116,8 +116,9 @@ public final class ButlerCli {
                 : source.oldestValueDate().equals(source.latestValueDate())
                     ? source.latestValueDate().toString()
                     : source.oldestValueDate() + " to " + source.latestValueDate();
-            System.out.printf("%s  coverage=%d/%d (%.1f%%)  dates=%s%n",
-                source.source(), source.valuedPlayers(), source.totalPlayers(), source.coveragePercent(), dates);
+            System.out.printf("%s  status=%s  coverage=%d/%d (%.1f%%)  uncovered-teams=%d  dates=%s%n",
+                source.source(), source.readiness(), source.valuedPlayers(), source.totalPlayers(),
+                source.coveragePercent(), source.uncoveredTeams(), dates);
         }
     }
 
