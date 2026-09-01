@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerValueRepositoryTest {
@@ -29,6 +30,32 @@ class PlayerValueRepositoryTest {
         assertEquals(2, values.findByPlayerId(player.getId()).size());
         assertEquals(92.5, values.findLatestByPlayerId(player.getId()).orElseThrow().getValue());
         assertEquals(LocalDate.of(2026, 9, 1), values.findLatestByPlayerIdAndSource(player.getId(), "manual").orElseThrow().getAsOfDate());
+    }
+
+    @Test
+    void queryInputsAreTrimmedConsistently() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        Player player = Player.create("Player", "QB", "CHI");
+        players.save(player);
+        values.save(PlayerValue.create(player.getId(), 88.0, "manual", LocalDate.of(2026, 9, 1)));
+
+        assertEquals(88.0, values.findLatestByPlayerId("  " + player.getId() + "  ").orElseThrow().getValue());
+        assertEquals(88.0, values.findLatestByPlayerIdAndSource("  " + player.getId() + "  ", "  manual  ").orElseThrow().getValue());
+        assertEquals(1, values.findByPlayerId("  " + player.getId() + "  ").size());
+        assertEquals(1, values.findLatestBySource("  manual  ").size());
+    }
+
+    @Test
+    void blankQueryInputsAreRejected() throws Exception {
+        Database database = database();
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        assertThrows(IllegalArgumentException.class, () -> values.findLatestByPlayerId("   "));
+        assertThrows(IllegalArgumentException.class, () -> values.findLatestByPlayerIdAndSource("player", "   "));
+        assertThrows(IllegalArgumentException.class, () -> values.findLatestBySource("   "));
+        assertThrows(IllegalArgumentException.class, () -> values.deleteByPlayerId("   "));
     }
 
     @Test
