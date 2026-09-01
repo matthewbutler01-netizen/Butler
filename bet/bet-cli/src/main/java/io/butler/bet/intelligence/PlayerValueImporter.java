@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,31 +31,43 @@ public final class PlayerValueImporter {
     public ImportResult importJson(Path path) throws IOException, SQLException {
         Objects.requireNonNull(path, "path must not be null");
         List<ValueInput> inputs = mapper.readValue(path.toFile(), new TypeReference<List<ValueInput>>() {});
-        int imported = 0;
-        int missingPlayers = 0;
+        if (inputs == null) throw new IllegalArgumentException("player value file must contain a JSON array");
 
-        for (ValueInput input : inputs) {
-            validate(input);
-            Player player = players.findByExternalId(input.playerId()).orElse(null);
-            if (player == null) {
-                missingPlayers++;
-                continue;
+        List<PlayerValue> resolved = new ArrayList<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            ValueInput input = inputs.get(i);
+            int entry = i + 1;
+            if (input == null) throw new IllegalArgumentException("player value entry " + entry + " must not be null");
+
+            String externalPlayerId = requireText(input.externalPlayerId(), "externalPlayerId", entry);
+            String source = requireText(input.source(), "source", entry);
+            if (!Double.isFinite(input.value()) || input.value() < 0) {
+                throw new IllegalArgumentException("value must be finite and non-negative at entry " + entry);
             }
-            values.save(PlayerValue.create(player.getId(), input.value(), input.source(), LocalDate.parse(input.asOfDate())));
-            imported++;
+
+            String dateText = requireText(input.asOfDate(), "asOfDate", entry);
+            LocalDate asOfDate;
+            try {
+                asOfDate = LocalDate.parse(dateText);
+            } catch (DateTimeParseException e) {
+                throw new IllegalArgumentException("invalid asOfDate for externalPlayerId " + externalPlayerId + ": " + dateText, e);
+            }
+
+            Player player = players.findByExternalId(externalPlayerId)
+                .orElseThrow(() -> new IllegalArgumentException("unknown externalPlayerId at entry " + entry + ": " + externalPlayerId));
+            resolved.add(PlayerValue.create(player.getId(), input.value(), source, asOfDate));
         }
-        return new ImportResult(inputs.size(), imported, missingPlayers);
+
+        // Nothing is written until every input row has been validated and resolved.
+        for (PlayerValue value : resolved) values.save(value);
+        return new ImportResult(resolved.size());
     }
 
-    private static void validate(ValueInput input) {
-        if (input == null) throw new IllegalArgumentException("player value entry must not be null");
-        if (input.playerId() == null || input.playerId().isBlank()) throw new IllegalArgumentException("playerId must not be blank");
-        if (!Double.isFinite(input.value()) || input.value() < 0) throw new IllegalArgumentException("value must be finite and non-negative");
-        if (input.source() == null || input.source().isBlank()) throw new IllegalArgumentException("source must not be blank");
-        if (input.asOfDate() == null || input.asOfDate().isBlank()) throw new IllegalArgumentException("asOfDate must not be blank");
-        LocalDate.parse(input.asOfDate());
+    private static String requireText(String value, String field, int entry) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank at entry " + entry);
+        return value.trim();
     }
 
-    public record ValueInput(String playerId, double value, String source, String asOfDate) {}
-    public record ImportResult(int entriesRead, int imported, int missingPlayers) {}
+    public record ValueInput(String externalPlayerId, double value, String source, String asOfDate) {}
+    public record ImportResult(int valuesImported) {}
 }
