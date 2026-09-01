@@ -29,12 +29,18 @@ public final class TeamStrengthAnalyzer {
         String valueSource = requireText(source, "source");
         LeagueAnalyzer.LeagueReport league = leagueAnalyzer.analyze(requireText(leagueId, "leagueId"));
         List<TeamStrength> strengths = new ArrayList<>();
+        int totalValuedPlayers = 0;
 
         for (LeagueAnalyzer.TeamReport team : league.teams()) {
             ValueSummary values = playerValue(team.teamId(), valueSource);
+            totalValuedPlayers += values.valuedPlayers();
             double compositionScore = score(team.positionCounts(), team.slotCounts());
             strengths.add(new TeamStrength(0, team.teamId(), team.teamName(), values.total(), compositionScore,
                 values.valuedPlayers(), values.missingValues(), Map.copyOf(team.positionCounts()), Map.copyOf(team.slotCounts())));
+        }
+
+        if (!strengths.isEmpty() && totalValuedPlayers == 0) {
+            throw new IllegalArgumentException("no player values found for source: " + valueSource);
         }
 
         strengths.sort(Comparator.comparingDouble(TeamStrength::playerValue).reversed()
