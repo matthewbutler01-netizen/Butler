@@ -29,26 +29,32 @@ public final class SleeperJsonParser {
         JsonNode root = mapper.readTree(json);
         List<SleeperUser> users = new ArrayList<>();
         for (JsonNode node : root) {
-            users.add(new SleeperUser(requiredText(node, "user_id"), optionalText(node, "display_name")));
+            JsonNode metadata = node.path("metadata");
+            users.add(new SleeperUser(
+                    requiredText(node, "user_id"),
+                    optionalText(node, "display_name"),
+                    optionalText(metadata, "team_name")));
         }
-        return users;
+        return List.copyOf(users);
     }
 
     public List<SleeperRoster> parseRosters(String json) throws JsonProcessingException {
         JsonNode root = mapper.readTree(json);
         List<SleeperRoster> rosters = new ArrayList<>();
         for (JsonNode node : root) {
-            List<String> playerIds = new ArrayList<>();
-            JsonNode players = node.path("players");
-            if (players.isArray()) {
-                players.forEach(player -> playerIds.add(player.asText()));
+            int rosterId = node.path("roster_id").asInt(0);
+            if (rosterId <= 0) {
+                throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
             }
             rosters.add(new SleeperRoster(
-                    node.path("roster_id").asInt(),
+                    rosterId,
                     optionalText(node, "owner_id"),
-                    List.copyOf(playerIds)));
+                    stringList(node, "players"),
+                    stringList(node, "starters"),
+                    stringList(node, "reserve"),
+                    stringList(node, "taxi")));
         }
-        return rosters;
+        return List.copyOf(rosters);
     }
 
     public Map<String, SleeperPlayer> parsePlayers(String json) throws JsonProcessingException {
@@ -71,6 +77,21 @@ public final class SleeperJsonParser {
         return Map.copyOf(players);
     }
 
+    private static List<String> stringList(JsonNode node, String field) {
+        JsonNode values = node.path(field);
+        if (!values.isArray()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        values.forEach(value -> {
+            String text = value.asText(null);
+            if (text != null && !text.isBlank()) {
+                result.add(text);
+            }
+        });
+        return List.copyOf(result);
+    }
+
     private static String requiredText(JsonNode node, String field) {
         String value = optionalText(node, field);
         if (value == null || value.isBlank()) {
@@ -85,7 +106,13 @@ public final class SleeperJsonParser {
     }
 
     public record SleeperLeague(String id, String name) {}
-    public record SleeperUser(String id, String displayName) {}
-    public record SleeperRoster(int rosterId, String ownerId, List<String> playerIds) {}
+    public record SleeperUser(String id, String displayName, String teamName) {}
+    public record SleeperRoster(
+            int rosterId,
+            String ownerId,
+            List<String> playerIds,
+            List<String> starterIds,
+            List<String> reserveIds,
+            List<String> taxiIds) {}
     public record SleeperPlayer(String id, String displayName, String position, String nflTeam) {}
 }
