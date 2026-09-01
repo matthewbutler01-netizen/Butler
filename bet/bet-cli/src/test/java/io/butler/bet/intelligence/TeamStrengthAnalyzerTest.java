@@ -56,6 +56,10 @@ class TeamStrengthAnalyzerTest {
         var team = report.teams().get(0);
 
         assertEquals("market-a", report.source());
+        assertEquals(1, report.valuedPlayers());
+        assertEquals(1, report.missingValues());
+        assertEquals(2, report.totalPlayers());
+        assertEquals(50.0, report.coveragePercent());
         assertEquals(100.0, team.playerValue());
         assertEquals(1, team.valuedPlayers());
         assertEquals(1, team.missingValues());
@@ -100,6 +104,8 @@ class TeamStrengthAnalyzerTest {
 
         var report = new TeamStrengthAnalyzer(fixture.database).rank(emptyLeague.getId(), "missing-source");
         assertTrue(report.teams().isEmpty());
+        assertEquals(0, report.totalPlayers());
+        assertEquals(0.0, report.coveragePercent());
     }
 
     @Test
