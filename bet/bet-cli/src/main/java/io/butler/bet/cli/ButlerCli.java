@@ -18,6 +18,8 @@ import io.butler.bet.sleeper.SleeperLeagueImporter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -76,8 +78,15 @@ public final class ButlerCli {
             var all = leagues.findAll(); if (all.isEmpty()) System.out.println("No leagues found."); else all.forEach(league -> System.out.println(league.getId() + "  " + league.getName())); return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("analyze")) { printLeagueReport(new LeagueAnalyzer(database).analyze(args[2])); return; }
-        if (args.length == 4 && args[1].equalsIgnoreCase("rank")) { printStrengthReport(new TeamStrengthAnalyzer(database).rank(args[2], args[3])); return; }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|rank <league-id> <source>>");
+        if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
+            TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(database);
+            var report = args.length == 5
+                ? analyzer.rank(args[2], args[3], parseDate(args[4], "minimum-as-of-date"))
+                : analyzer.rank(args[2], args[3]);
+            printStrengthReport(report);
+            return;
+        }
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|rank <league-id> <source> [minimum-as-of-date]>");
     }
 
     private static void printLeagueReport(LeagueAnalyzer.LeagueReport report) {
@@ -168,6 +177,14 @@ public final class ButlerCli {
         System.out.println("Seeded demo fantasy data."); System.out.println("League ID: " + league.getId()); System.out.println("Team ID: " + team.getId());
     }
 
+    private static LocalDate parseDate(String value, String field) {
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(field + " must be an ISO date (YYYY-MM-DD): " + value, e);
+        }
+    }
+
     private static Database initializedDatabase() throws SQLException { Database database = database(); database.initialize(); return database; }
     private static Database database() { return new Database(DATABASE_PATH); }
     private static String joinArgs(String[] args, int start) { StringBuilder value = new StringBuilder(); for (int i = start; i < args.length; i++) { if (!value.isEmpty()) value.append(' '); value.append(args[i]); } return value.toString(); }
@@ -175,6 +192,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id> <source>\n  butler team list <league-id>\n  butler player list\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
