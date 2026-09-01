@@ -133,5 +133,5 @@ public final class SleeperLeagueImporter {
         return "BENCH";
     }
 
-    public record ImportResult(String leagueId, int teamsImported, int playerReferencesImported, int rosterEntriesImported) {}
+    public record ImportResult(String leagueId, int teamsImported, int playersImported, int rosterEntriesImported) {}
 }
