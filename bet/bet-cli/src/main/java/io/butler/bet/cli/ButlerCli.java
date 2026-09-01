@@ -142,6 +142,12 @@ public final class ButlerCli {
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
             var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
         }
+        if (args.length == 2 && args[1].equalsIgnoreCase("value-sources")) {
+            var sources = new PlayerValueRepository(database).findSources();
+            if (sources.isEmpty()) System.out.println("No persisted player value sources found.");
+            else sources.forEach(System.out::println);
+            return;
+        }
         if (args.length == 3 && args[1].equalsIgnoreCase("values")) {
             PlayerValueRepository values = new PlayerValueRepository(database);
             var snapshots = values.findLatestBySource(args[2]);
@@ -158,7 +164,7 @@ public final class ButlerCli {
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|values <source>|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -193,6 +199,6 @@ public final class ButlerCli {
     private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
