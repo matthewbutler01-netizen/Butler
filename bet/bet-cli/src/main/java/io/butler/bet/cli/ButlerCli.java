@@ -79,7 +79,7 @@ public final class ButlerCli {
             System.out.println("Imported Sleeper league.");
             System.out.println("League ID: " + result.leagueId());
             System.out.println("Teams: " + result.teamsImported());
-            System.out.println("Player references: " + result.playerReferencesImported());
+            System.out.println("Players: " + result.playersImported());
             System.out.println("Roster entries: " + result.rosterEntriesImported());
             return;
         }
