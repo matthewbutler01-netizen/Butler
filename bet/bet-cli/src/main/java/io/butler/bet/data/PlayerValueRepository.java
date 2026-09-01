@@ -143,18 +143,41 @@ public final class PlayerValueRepository {
     }
 
     public List<String> findSources() throws SQLException {
-        List<String> sources = new ArrayList<>();
+        return findSourceSummaries().stream().map(SourceSummary::source).toList();
+    }
+
+    public List<SourceSummary> findSourceSummaries() throws SQLException {
+        List<SourceSummary> summaries = new ArrayList<>();
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("""
-                 SELECT DISTINCT source
-                 FROM player_values
-                 ORDER BY source COLLATE NOCASE ASC, source ASC
+                 WITH latest AS (
+                     SELECT source, player_id, MAX(as_of_date) AS max_date
+                     FROM player_values
+                     GROUP BY source, player_id
+                 )
+                 SELECT pv.source,
+                        COUNT(*) AS player_count,
+                        MIN(pv.as_of_date) AS oldest_as_of_date,
+                        MAX(pv.as_of_date) AS latest_as_of_date
+                 FROM player_values pv
+                 JOIN latest
+                   ON latest.source = pv.source
+                  AND latest.player_id = pv.player_id
+                  AND latest.max_date = pv.as_of_date
+                 GROUP BY pv.source
+                 ORDER BY pv.source COLLATE NOCASE ASC, pv.source ASC
                  """)) {
             try (var results = statement.executeQuery()) {
-                while (results.next()) sources.add(results.getString("source"));
+                while (results.next()) {
+                    summaries.add(new SourceSummary(
+                        results.getString("source"),
+                        results.getInt("player_count"),
+                        LocalDate.parse(results.getString("oldest_as_of_date")),
+                        LocalDate.parse(results.getString("latest_as_of_date"))));
+                }
             }
         }
-        return List.copyOf(sources);
+        return List.copyOf(summaries);
     }
 
     public void deleteByPlayerId(String playerId) throws SQLException {
@@ -179,4 +202,6 @@ public final class PlayerValueRepository {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value.trim();
     }
+
+    public record SourceSummary(String source, int playerCount, LocalDate oldestAsOfDate, LocalDate latestAsOfDate) {}
 }

@@ -114,6 +114,32 @@ class PlayerValueRepositoryTest {
     }
 
     @Test
+    void sourceSummariesUseEachPlayersLatestSnapshot() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        Player first = Player.create("First", "QB", "BUF");
+        Player second = Player.create("Second", "WR", "MIN");
+        players.save(first);
+        players.save(second);
+
+        values.save(PlayerValue.create(first.getId(), 70.0, "market", LocalDate.of(2026, 8, 1)));
+        values.save(PlayerValue.create(first.getId(), 90.0, "market", LocalDate.of(2026, 9, 1)));
+        values.save(PlayerValue.create(second.getId(), 80.0, "market", LocalDate.of(2026, 8, 30)));
+        values.save(PlayerValue.create(second.getId(), 99.0, "other", LocalDate.of(2026, 9, 1)));
+
+        var summaries = values.findSourceSummaries();
+        assertEquals(2, summaries.size());
+        var market = summaries.get(0);
+        assertEquals("market", market.source());
+        assertEquals(2, market.playerCount());
+        assertEquals(LocalDate.of(2026, 8, 30), market.oldestAsOfDate());
+        assertEquals(LocalDate.of(2026, 9, 1), market.latestAsOfDate());
+        assertEquals("other", summaries.get(1).source());
+        assertEquals(1, summaries.get(1).playerCount());
+    }
+
+    @Test
     void deletingPlayerCascadesValues() throws Exception {
         Database database = database();
         PlayerRepository players = new PlayerRepository(database);
