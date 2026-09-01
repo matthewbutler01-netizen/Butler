@@ -83,6 +83,32 @@ class TeamStrengthAnalyzerTest {
     }
 
     @Test
+    void minimumAsOfDateRejectsStaleValues() throws Exception {
+        Fixture fixture = fixture();
+        fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "source", LocalDate.of(2026, 8, 29)));
+        fixture.values.save(PlayerValue.create(fixture.player2.getId(), 90, "source", LocalDate.of(2026, 9, 1)));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamStrengthAnalyzer(fixture.database).rank(
+                fixture.league.getId(), "source", LocalDate.of(2026, 8, 30)));
+
+        assertEquals("player values for source source are older than minimum as-of date 2026-08-30: oldest=2026-08-29",
+            error.getMessage());
+    }
+
+    @Test
+    void minimumAsOfDateAcceptsBoundaryDate() throws Exception {
+        Fixture fixture = fixture();
+        fixture.values.save(PlayerValue.create(fixture.player1.getId(), 100, "source", LocalDate.of(2026, 8, 29)));
+        fixture.values.save(PlayerValue.create(fixture.player2.getId(), 90, "source", LocalDate.of(2026, 9, 1)));
+
+        var report = new TeamStrengthAnalyzer(fixture.database).rank(
+            fixture.league.getId(), "source", LocalDate.of(2026, 8, 29));
+
+        assertEquals(LocalDate.of(2026, 8, 29), report.oldestValueDate());
+    }
+
+    @Test
     void compositionBreaksTiesButNeverOverridesPlayerValue() throws Exception {
         Fixture fixture = fixture();
         Team weakComposition = fixture.team;
