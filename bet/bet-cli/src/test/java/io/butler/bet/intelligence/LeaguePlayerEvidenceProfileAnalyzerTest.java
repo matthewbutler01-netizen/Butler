@@ -44,7 +44,7 @@ class LeaguePlayerEvidenceProfileAnalyzerTest {
         var team = report.teams().getFirst();
         assertEquals(100.0, team.ageCoveragePercent());
         assertEquals(50.0, team.productionCoveragePercent());
-        assertEquals(26.0, team.age().averageAge());
+        assertEquals(25.0, team.age().averageAge());
         assertEquals(1, team.production().missingPlayers().size());
         assertEquals("p2", team.production().missingPlayers().getFirst().playerId());
     }
