@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FranchiseValueReadinessAnalyzerTest {
@@ -52,26 +53,63 @@ class FranchiseValueReadinessAnalyzerTest {
         assertEquals(1, report.missingDraftPickAssets().size());
         assertEquals(f.betaSecond.getId(), report.missingDraftPickAssets().getFirst().draftPickId());
         assertEquals("Alpha", report.missingDraftPickAssets().getFirst().teamName());
+        assertNull(report.minimumAsOfDate());
+        assertFalse(report.stale());
     }
 
     @Test
     void reportsReadyWhenEveryCurrentAssetHasAValue() throws Exception {
         Fixture f = fixture();
-        f.playerValues.save(PlayerValue.create(f.qb.getId(), 100,
-            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
-        f.playerValues.save(PlayerValue.create(f.wr.getId(), 80,
-            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
-        f.pickValues.save(DraftPickValue.create(f.alphaFirst.getId(), 70,
-            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
-        f.pickValues.save(DraftPickValue.create(f.betaSecond.getId(), 40,
-            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+        saveCompleteValues(f);
 
         var report = new FranchiseValueReadinessAnalyzer(f.database).analyze(f.league.getId());
 
         assertEquals(FranchiseValueReadinessAnalyzer.Readiness.READY, report.status());
         assertTrue(report.rankable());
         assertEquals(100.0, report.coveragePercent());
+        assertEquals(LocalDate.of(2026, 8, 28), report.oldestValueDate());
+        assertEquals(LocalDate.of(2026, 9, 1), report.latestValueDate());
         assertTrue(report.teams().stream().allMatch(FranchiseValueReadinessAnalyzer.TeamReadiness::rankable));
+    }
+
+    @Test
+    void reportsStaleAssetsAgainstExplicitMinimumDate() throws Exception {
+        Fixture f = fixture();
+        saveCompleteValues(f);
+
+        LocalDate cutoff = LocalDate.of(2026, 8, 30);
+        var report = new FranchiseValueReadinessAnalyzer(f.database).analyze(f.league.getId(), cutoff);
+
+        assertEquals(FranchiseValueReadinessAnalyzer.Readiness.STALE, report.status());
+        assertFalse(report.rankable());
+        assertTrue(report.stale());
+        assertEquals(cutoff, report.minimumAsOfDate());
+        assertEquals(2, report.staleAssets());
+        assertEquals(0, report.stalePlayerAssets().size());
+        assertEquals(2, report.staleDraftPickAssets().size());
+        assertEquals(f.alphaFirst.getId(), report.staleDraftPickAssets().getFirst().draftPickId());
+        assertEquals(LocalDate.of(2026, 8, 28), report.staleDraftPickAssets().getFirst().asOfDate());
+        assertEquals(FranchiseValueReadinessAnalyzer.Readiness.STALE,
+            report.teams().stream().filter(team -> team.teamName().equals("Alpha")).findFirst().orElseThrow().status());
+        assertEquals(FranchiseValueReadinessAnalyzer.Readiness.STALE,
+            report.teams().stream().filter(team -> team.teamName().equals("Beta")).findFirst().orElseThrow().status());
+    }
+
+    @Test
+    void staleStatusTakesPriorityOverPartialCoverageWhenCutoffIsExplicit() throws Exception {
+        Fixture f = fixture();
+        f.playerValues.save(PlayerValue.create(f.qb.getId(), 100,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        f.pickValues.save(DraftPickValue.create(f.alphaFirst.getId(), 70,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+
+        var report = new FranchiseValueReadinessAnalyzer(f.database).analyze(
+            f.league.getId(), DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 30));
+
+        assertEquals(FranchiseValueReadinessAnalyzer.Readiness.STALE, report.status());
+        assertEquals(2, report.missingAssets());
+        assertEquals(1, report.staleAssets());
+        assertFalse(report.rankable());
     }
 
     @Test
@@ -85,6 +123,17 @@ class FranchiseValueReadinessAnalyzerTest {
         assertEquals(0, report.valuedAssets());
         assertEquals(4, report.missingAssets());
         assertFalse(report.rankable());
+    }
+
+    private static void saveCompleteValues(Fixture f) throws Exception {
+        f.playerValues.save(PlayerValue.create(f.qb.getId(), 100,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        f.playerValues.save(PlayerValue.create(f.wr.getId(), 80,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        f.pickValues.save(DraftPickValue.create(f.alphaFirst.getId(), 70,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+        f.pickValues.save(DraftPickValue.create(f.betaSecond.getId(), 40,
+            DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
     }
 
     private Fixture fixture() throws Exception {
