@@ -25,6 +25,8 @@ A typical workflow is:
 ```text
 butler sleeper sync-all <sleeper-league-id>
 butler league status <league-id>
+butler league overview <league-id>
+butler league team-context <league-id>
 butler league franchise-readiness <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 butler trade compare <league-id> <side-a-assets> <side-b-assets> --minimum-as-of 2026-09-01
@@ -54,6 +56,8 @@ For example:
 
 ```text
 butler league status <league-id> --minimum-as-of 2026-09-01
+butler league overview <league-id> --minimum-as-of 2026-09-01
+butler league team-context <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 ```
 
@@ -69,7 +73,14 @@ This is intentional: **present data is not automatically complete data, and comp
 
 ### League overview and team context
 
-The league overview/status stack provides a league-level view of analysis readiness. Team context adds neutral team-by-team franchise value, coverage, safe rank when available, and recent player-value movement when comparable snapshots exist.
+Use `league overview` for a compact league-level intelligence summary: health, safe franchise leaders when available, recent value movers when comparable history exists, and Butler's deterministic next actions.
+
+Use `league team-context` for the neutral team-by-team board. It reports persisted player and draft-pick value, asset coverage, safe franchise rank when available, recent player-value movement, movement coverage, riser/faller counts, and next actions.
+
+```text
+butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+```
 
 Use these outputs to answer two different questions:
 
