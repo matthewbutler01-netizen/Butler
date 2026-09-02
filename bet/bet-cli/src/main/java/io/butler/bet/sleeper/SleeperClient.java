@@ -39,6 +39,10 @@ public final class SleeperClient {
         return get("league/" + encodePath(leagueId) + "/users");
     }
 
+    public String getLeagueTradedPicks(String leagueId) throws IOException, InterruptedException {
+        return get("league/" + encodePath(leagueId) + "/traded_picks");
+    }
+
     public String getUser(String usernameOrUserId) throws IOException, InterruptedException {
         return get("user/" + encodePath(usernameOrUserId));
     }

@@ -22,8 +22,14 @@ public final class SleeperJsonParser {
 
     public SleeperLeague parseLeague(String json) throws JsonProcessingException {
         JsonNode root = mapper.readTree(json);
-        return new SleeperLeague(requiredText(root, "league_id"), requiredText(root, "name"),
-            stringList(root, "roster_positions"));
+        JsonNode settings = root.path("settings");
+        return new SleeperLeague(
+            requiredText(root, "league_id"),
+            requiredText(root, "name"),
+            stringList(root, "roster_positions"),
+            positiveInt(root, "season"),
+            settings.path("type").asInt(0),
+            settings.path("draft_rounds").asInt(0));
     }
 
     public List<SleeperUser> parseUsers(String json) throws JsonProcessingException {
@@ -58,6 +64,26 @@ public final class SleeperJsonParser {
         return List.copyOf(rosters);
     }
 
+    public List<SleeperTradedPick> parseTradedPicks(String json) throws JsonProcessingException {
+        JsonNode root = mapper.readTree(json);
+        List<SleeperTradedPick> picks = new ArrayList<>();
+        for (JsonNode node : root) {
+            int season = positiveInt(node, "season");
+            int round = node.path("round").asInt(0);
+            int originalRosterId = node.path("roster_id").asInt(0);
+            int previousOwnerRosterId = node.path("previous_owner_id").asInt(0);
+            int ownerRosterId = node.path("owner_id").asInt(0);
+            if (season <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: season");
+            if (round <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: round");
+            if (originalRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
+            if (previousOwnerRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: previous_owner_id");
+            if (ownerRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: owner_id");
+            picks.add(new SleeperTradedPick(
+                season, round, originalRosterId, previousOwnerRosterId, ownerRosterId));
+        }
+        return List.copyOf(picks);
+    }
+
     public Map<String, SleeperPlayer> parsePlayers(String json) throws JsonProcessingException {
         JsonNode root = mapper.readTree(json);
         Map<String, SleeperPlayer> players = new HashMap<>();
@@ -76,6 +102,20 @@ public final class SleeperJsonParser {
                     optionalText(node, "team")));
         });
         return Map.copyOf(players);
+    }
+
+    private static int positiveInt(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) return 0;
+        if (value.isIntegralNumber()) return value.asInt(0);
+        String text = value.asText(null);
+        if (text == null || text.isBlank()) return 0;
+        try {
+            int parsed = Integer.parseInt(text.trim());
+            return parsed > 0 ? parsed : 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private static List<String> stringList(JsonNode node, String field) {
@@ -106,13 +146,22 @@ public final class SleeperJsonParser {
         return value == null || value.isNull() ? null : value.asText();
     }
 
-    public record SleeperLeague(String id, String name, List<String> rosterPositions) {
+    public record SleeperLeague(String id, String name, List<String> rosterPositions,
+                                int season, int leagueType, int draftRounds) {
         public SleeperLeague(String id, String name) {
-            this(id, name, List.of());
+            this(id, name, List.of(), 0, 0, 0);
+        }
+
+        public SleeperLeague(String id, String name, List<String> rosterPositions) {
+            this(id, name, rosterPositions, 0, 0, 0);
         }
 
         public SleeperLeague {
             rosterPositions = rosterPositions == null ? List.of() : List.copyOf(rosterPositions);
+            if (leagueType < 0 || leagueType > 2) {
+                throw new IllegalArgumentException("leagueType must be 0 (redraft), 1 (keeper), or 2 (dynasty)");
+            }
+            if (draftRounds < 0) throw new IllegalArgumentException("draftRounds must not be negative");
         }
     }
     public record SleeperUser(String id, String displayName, String teamName) {}
@@ -123,5 +172,7 @@ public final class SleeperJsonParser {
             List<String> starterIds,
             List<String> reserveIds,
             List<String> taxiIds) {}
+    public record SleeperTradedPick(int season, int round, int originalRosterId,
+                                    int previousOwnerRosterId, int ownerRosterId) {}
     public record SleeperPlayer(String id, String displayName, String position, String nflTeam) {}
 }

@@ -11,9 +11,12 @@ class SleeperJsonParserTest {
 
     @Test
     void parsesLeagueUsersRostersAndPlayers() throws Exception {
-        var league = parser.parseLeague("{\"league_id\":\"123\",\"name\":\"Dynasty League\"}");
+        var league = parser.parseLeague("{\"league_id\":\"123\",\"name\":\"Dynasty League\",\"season\":\"2026\",\"settings\":{\"type\":2,\"draft_rounds\":5}}");
         assertEquals("123", league.id());
         assertEquals("Dynasty League", league.name());
+        assertEquals(2026, league.season());
+        assertEquals(2, league.leagueType());
+        assertEquals(5, league.draftRounds());
 
         var users = parser.parseUsers("[{\"user_id\":\"u1\",\"display_name\":\"Matt\",\"metadata\":{\"team_name\":\"Butler Dynasty\"}}]");
         assertEquals(1, users.size());
@@ -35,8 +38,43 @@ class SleeperJsonParserTest {
     }
 
     @Test
+    void parsesTradedDraftPicks() throws Exception {
+        var picks = parser.parseTradedPicks("""
+            [
+              {"season":"2027","round":1,"roster_id":2,"previous_owner_id":2,"owner_id":5},
+              {"season":"2028","round":3,"roster_id":4,"previous_owner_id":7,"owner_id":9}
+            ]
+            """);
+
+        assertEquals(2, picks.size());
+        assertEquals(2027, picks.get(0).season());
+        assertEquals(1, picks.get(0).round());
+        assertEquals(2, picks.get(0).originalRosterId());
+        assertEquals(2, picks.get(0).previousOwnerRosterId());
+        assertEquals(5, picks.get(0).ownerRosterId());
+        assertEquals(2028, picks.get(1).season());
+        assertEquals(9, picks.get(1).ownerRosterId());
+    }
+
+    @Test
+    void missingDraftMetadataDefaultsToUnknownWithoutBreakingLegacyLeagueParsing() throws Exception {
+        var league = parser.parseLeague("{\"league_id\":\"123\",\"name\":\"Legacy\"}");
+        assertEquals(0, league.season());
+        assertEquals(0, league.leagueType());
+        assertEquals(0, league.draftRounds());
+    }
+
+    @Test
     void rejectsMissingOrInvalidRosterId() {
         assertThrows(IllegalArgumentException.class, () -> parser.parseRosters("[{\"players\":[]}]") );
         assertThrows(IllegalArgumentException.class, () -> parser.parseRosters("[{\"roster_id\":0,\"players\":[]}]") );
+    }
+
+    @Test
+    void rejectsInvalidTradedPickFields() {
+        assertThrows(IllegalArgumentException.class,
+            () -> parser.parseTradedPicks("[{\"season\":\"2027\",\"round\":0,\"roster_id\":1,\"previous_owner_id\":1,\"owner_id\":2}]"));
+        assertThrows(IllegalArgumentException.class,
+            () -> parser.parseTradedPicks("[{\"season\":\"bad\",\"round\":1,\"roster_id\":1,\"previous_owner_id\":1,\"owner_id\":2}]"));
     }
 }
