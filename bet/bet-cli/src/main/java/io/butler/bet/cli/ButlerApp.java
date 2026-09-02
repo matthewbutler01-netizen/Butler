@@ -19,6 +19,8 @@ import io.butler.bet.sleeper.SleeperLeagueImporter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -160,8 +162,8 @@ public final class ButlerApp {
             printLeagueAssets(args[2], args.length == 4 ? args[3] : null);
             return;
         }
-        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("franchise-readiness")) {
-            printFranchiseReadiness(args[2], args.length == 4 ? args[3] : null);
+        if (args[1].equalsIgnoreCase("franchise-readiness")) {
+            handleFranchiseReadiness(args);
             return;
         }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("franchise-rank")) {
@@ -198,48 +200,102 @@ public final class ButlerApp {
         printDraftPickUsage();
     }
 
-    private static void printFranchiseReadiness(String leagueId, String sourceOverride) throws SQLException {
+    private static void handleFranchiseReadiness(String[] args) throws SQLException {
+        if (args.length == 3) {
+            printFranchiseReadiness(args[2], null, null);
+            return;
+        }
+        if (args.length == 4) {
+            printFranchiseReadiness(args[2], args[3], null);
+            return;
+        }
+        if (args.length == 5 && args[3].equalsIgnoreCase("--minimum-as-of")) {
+            printFranchiseReadiness(args[2], null, parseMinimumAsOfDate(args[4]));
+            return;
+        }
+        if (args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of")) {
+            printFranchiseReadiness(args[2], args[3], parseMinimumAsOfDate(args[5]));
+            return;
+        }
+        printDraftPickUsage();
+    }
+
+    private static void printFranchiseReadiness(String leagueId, String sourceOverride,
+                                                LocalDate minimumAsOfDate) throws SQLException {
         Database database = initializedDatabase();
         FranchiseValueReadinessAnalyzer analyzer = new FranchiseValueReadinessAnalyzer(database);
-        var report = sourceOverride == null
-            ? analyzer.analyze(leagueId)
-            : analyzer.analyze(leagueId, sourceOverride);
+        var report = minimumAsOfDate == null
+            ? (sourceOverride == null ? analyzer.analyze(leagueId) : analyzer.analyze(leagueId, sourceOverride))
+            : (sourceOverride == null
+                ? analyzer.analyze(leagueId, minimumAsOfDate)
+                : analyzer.analyze(leagueId, sourceOverride, minimumAsOfDate));
 
         System.out.println("Franchise value readiness");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
+        if (report.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        }
+        System.out.println("Value dates: " + valueDates(report.oldestValueDate(), report.latestValueDate()));
         System.out.println("Status: " + report.status());
         System.out.println("Rankable: " + report.rankable());
-        System.out.printf("Coverage: %d/%d assets (%.1f%%)  missing-players=%d  missing-picks=%d%n",
+        System.out.printf("Coverage: %d/%d assets (%.1f%%)  missing-players=%d  missing-picks=%d  stale=%d%n",
             report.valuedAssets(), report.totalAssets(), report.coveragePercent(),
-            report.missingPlayers(), report.missingDraftPicks());
+            report.missingPlayers(), report.missingDraftPicks(), report.staleAssets());
 
         for (var team : report.teams()) {
-            System.out.printf("%s  status=%s  rankable=%s  coverage=%d/%d (%.1f%%)  missing-players=%d  missing-picks=%d  [%s]%n",
+            System.out.printf("%s  status=%s  rankable=%s  coverage=%d/%d (%.1f%%)  missing-players=%d  missing-picks=%d  stale=%d  dates=%s  [%s]%n",
                 team.teamName(), team.status(), team.rankable(), team.valuedAssets(), team.totalAssets(),
-                team.coveragePercent(), team.missingPlayers(), team.missingDraftPicks(), team.teamId());
+                team.coveragePercent(), team.missingPlayers(), team.missingDraftPicks(), team.staleAssets(),
+                valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
         }
 
         if (report.missingAssets() == 0) {
             System.out.println("No current asset values are missing.");
-            return;
-        }
-        if (!report.missingPlayerAssets().isEmpty()) {
-            System.out.println("Missing player values:");
-            for (var player : report.missingPlayerAssets()) {
-                System.out.printf("  %s  %s  %s%s  slot=%s  [%s]%n",
-                    player.teamName(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
-                    player.slot(), player.playerId());
+        } else {
+            if (!report.missingPlayerAssets().isEmpty()) {
+                System.out.println("Missing player values:");
+                for (var player : report.missingPlayerAssets()) {
+                    System.out.printf("  %s  %s  %s%s  slot=%s  [%s]%n",
+                        player.teamName(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                        player.slot(), player.playerId());
+                }
+            }
+            if (!report.missingDraftPickAssets().isEmpty()) {
+                System.out.println("Missing draft-pick values:");
+                for (var pick : report.missingDraftPickAssets()) {
+                    String original = pick.originalTeamName().equals(pick.teamName())
+                        ? "" : "  original=" + pick.originalTeamName();
+                    String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
+                    System.out.printf("  %s  %s%s%s  [%s]%n",
+                        pick.teamName(), pick.label(), original, slot, pick.draftPickId());
+                }
             }
         }
-        if (!report.missingDraftPickAssets().isEmpty()) {
-            System.out.println("Missing draft-pick values:");
-            for (var pick : report.missingDraftPickAssets()) {
+
+        if (report.minimumAsOfDate() == null) {
+            return;
+        }
+        if (report.staleAssets() == 0) {
+            System.out.println("No valued assets are older than the minimum as-of date.");
+            return;
+        }
+        if (!report.stalePlayerAssets().isEmpty()) {
+            System.out.println("Stale player values:");
+            for (var player : report.stalePlayerAssets()) {
+                System.out.printf("  %s  %s  %s%s  slot=%s  as-of=%s  [%s]%n",
+                    player.teamName(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                    player.slot(), player.asOfDate(), player.playerId());
+            }
+        }
+        if (!report.staleDraftPickAssets().isEmpty()) {
+            System.out.println("Stale draft-pick values:");
+            for (var pick : report.staleDraftPickAssets()) {
                 String original = pick.originalTeamName().equals(pick.teamName())
                     ? "" : "  original=" + pick.originalTeamName();
                 String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
-                System.out.printf("  %s  %s%s%s  [%s]%n",
-                    pick.teamName(), pick.label(), original, slot, pick.draftPickId());
+                System.out.printf("  %s  %s%s%s  as-of=%s  [%s]%n",
+                    pick.teamName(), pick.label(), original, slot, pick.asOfDate(), pick.draftPickId());
             }
         }
     }
@@ -508,7 +564,15 @@ public final class ButlerApp {
         }
     }
 
-    private static String valueDates(java.time.LocalDate oldest, java.time.LocalDate latest) {
+    private static LocalDate parseMinimumAsOfDate(String value) {
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("minimum-as-of must use YYYY-MM-DD: " + value);
+        }
+    }
+
+    private static String valueDates(LocalDate oldest, LocalDate latest) {
         if (oldest == null) return "none";
         return oldest.equals(latest) ? oldest.toString() : oldest + " to " + latest;
     }
@@ -547,7 +611,7 @@ public final class ButlerApp {
         System.out.println("  butler league assets <league-id> [source]");
         System.out.println("  butler league asset-search <league-id> <query> [source]");
         System.out.println("  butler league portfolio <league-id> [source]");
-        System.out.println("  butler league franchise-readiness <league-id> [source]");
+        System.out.println("  butler league franchise-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league franchise-rank <league-id> [source]");
     }
 }
