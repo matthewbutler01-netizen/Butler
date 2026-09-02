@@ -93,18 +93,30 @@ public final class ButlerApp {
     }
 
     static void handleTrade(String[] args) throws SQLException {
-        if ((args.length == 5 || args.length == 6) && args[1].equalsIgnoreCase("compare")) {
-            Database database = initializedDatabase();
-            TradeAssetAnalyzer analyzer = new TradeAssetAnalyzer(database);
-            TradeAssetAnalyzer.TradePackage sideA = parseTradePackage(args[3], "side-a-assets");
-            TradeAssetAnalyzer.TradePackage sideB = parseTradePackage(args[4], "side-b-assets");
-            var report = args.length == 6
-                ? analyzer.analyze(args[2], sideA, sideB, args[5])
-                : analyzer.analyze(args[2], sideA, sideB);
-            printTradeReport(report);
+        if (args.length < 5 || !args[1].equalsIgnoreCase("compare")) {
+            printTradeUsage();
             return;
         }
-        printTradeUsage();
+
+        Database database = initializedDatabase();
+        TradeAssetAnalyzer analyzer = new TradeAssetAnalyzer(database);
+        TradeAssetAnalyzer.TradePackage sideA = parseTradePackage(args[3], "side-a-assets");
+        TradeAssetAnalyzer.TradePackage sideB = parseTradePackage(args[4], "side-b-assets");
+
+        TradeAssetAnalyzer.TradeReport report;
+        if (args.length == 5) {
+            report = analyzer.analyze(args[2], sideA, sideB);
+        } else if (args.length == 6) {
+            report = analyzer.analyze(args[2], sideA, sideB, args[5]);
+        } else if (args.length == 7 && args[5].equalsIgnoreCase("--minimum-as-of")) {
+            report = analyzer.analyze(args[2], sideA, sideB, parseMinimumAsOfDate(args[6]));
+        } else if (args.length == 8 && args[6].equalsIgnoreCase("--minimum-as-of")) {
+            report = analyzer.analyze(args[2], sideA, sideB, args[5], parseMinimumAsOfDate(args[7]));
+        } else {
+            printTradeUsage();
+            return;
+        }
+        printTradeReport(report);
     }
 
     private static void handleSleeperExtension(String[] args)
@@ -538,24 +550,32 @@ public final class ButlerApp {
         System.out.println("Trade value comparison");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
-        System.out.printf("Coverage: %d/%d assets (%.1f%%)%n",
-            report.valuedAssets(), report.totalAssets(), report.coveragePercent());
+        if (report.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        }
+        System.out.printf("Coverage: %d/%d assets (%.1f%%)  stale=%d%n",
+            report.valuedAssets(), report.totalAssets(), report.coveragePercent(), report.staleAssets());
         printTradeSide("Side A", report.sideA());
         printTradeSide("Side B", report.sideB());
-        if (report.complete()) {
+        if (report.comparable()) {
             System.out.printf("Side A - Side B: %+.2f%n", report.valueDifference());
-        } else {
+        } else if (report.missingAssets() > 0 && report.staleAssets() > 0) {
+            System.out.println("Side A - Side B: unavailable until all trade assets have values and meet the minimum as-of date.");
+        } else if (report.missingAssets() > 0) {
             System.out.println("Side A - Side B: unavailable until all trade assets have values.");
+        } else {
+            System.out.println("Side A - Side B: unavailable because one or more valued assets are older than the minimum as-of date.");
         }
     }
 
     private static void printTradeSide(String label, TradeAssetAnalyzer.TradeSide side) {
-        System.out.printf("%s: value=%.2f  coverage=%d/%d (%.1f%%)%n",
-            label, side.totalValue(), side.valuedAssets(), side.totalAssets(), side.coveragePercent());
+        System.out.printf("%s: value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d%n",
+            label, side.totalValue(), side.valuedAssets(), side.totalAssets(), side.coveragePercent(), side.staleAssets());
         for (var player : side.players()) {
             if (player.valued()) {
-                System.out.printf("  %.2f  PLAYER  %s  %s%s  fantasy-team=%s  as-of=%s  [%s]%n",
-                    player.value(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                String freshness = player.stale() ? "STALE  " : "";
+                System.out.printf("  %s%.2f  PLAYER  %s  %s%s  fantasy-team=%s  as-of=%s  [%s]%n",
+                    freshness, player.value(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
                     player.teamName(), player.asOfDate(), player.playerId());
             } else {
                 System.out.printf("  MISSING  PLAYER  %s  %s%s  fantasy-team=%s  [%s]%n",
@@ -568,8 +588,9 @@ public final class ButlerApp {
                 ? "" : "  original=" + pick.originalTeamName();
             String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
             if (pick.valued()) {
-                System.out.printf("  %.2f  PICK  %s  owner=%s%s%s  as-of=%s  [%s]%n",
-                    pick.value(), pick.label(), pick.ownerTeamName(), original, slot,
+                String freshness = pick.stale() ? "STALE  " : "";
+                System.out.printf("  %s%.2f  PICK  %s  owner=%s%s%s  as-of=%s  [%s]%n",
+                    freshness, pick.value(), pick.label(), pick.ownerTeamName(), original, slot,
                     pick.asOfDate(), pick.draftPickId());
             } else {
                 System.out.printf("  MISSING  PICK  %s  owner=%s%s%s  [%s]%n",
@@ -624,7 +645,7 @@ public final class ButlerApp {
 
     private static void printTradeUsage() {
         System.out.println("Mixed trade assets:");
-        System.out.println("  butler trade compare <league-id> <side-a-assets> <side-b-assets> [source]");
+        System.out.println("  butler trade compare <league-id> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  Assets are comma-separated. Bare IDs are players; use player:<id> or pick:<draft-pick-id>.");
     }
 
