@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueCompositeTeamProfileAnalyzer;
+import io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;
 import io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter;
 
 import java.io.IOException;
@@ -37,6 +38,23 @@ public final class ButlerLauncher {
             return;
         }
 
+        if (isPlayerEvidenceReadinessCommand(args)) {
+            if (!isSupportedPlayerEvidenceReadiness(args)) {
+                printPlayerEvidenceReadinessUsage();
+                return;
+            }
+            try {
+                printPlayerEvidenceReadiness(analyzePlayerEvidenceReadiness(args));
+            } catch (SQLException e) {
+                System.err.println("Database error while building player evidence readiness: " + e.getMessage());
+                System.exit(1);
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                System.err.println("Error: " + e.getMessage());
+                System.exit(2);
+            }
+            return;
+        }
+
         if (isNflverseProductionCommand(args)) {
             if (!isSupportedNflverseProduction(args)) {
                 printNflverseProductionUsage();
@@ -65,6 +83,7 @@ public final class ButlerLauncher {
         ButlerMain.main(args);
         if (args == null || args.length == 0 || (args.length == 1 && args[0].equalsIgnoreCase("help"))) {
             printTeamProfileUsage();
+            printPlayerEvidenceReadinessUsage();
             printNflverseProductionUsage();
         }
     }
@@ -76,6 +95,12 @@ public final class ButlerLauncher {
         return args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of");
     }
 
+    static boolean isSupportedPlayerEvidenceReadiness(String[] args) {
+        if (!isPlayerEvidenceReadinessCommand(args)) return false;
+        if (args.length == 4) return true;
+        return args.length == 6 && args[4].equalsIgnoreCase("--minimum-profile-as-of");
+    }
+
     static boolean isSupportedNflverseProduction(String[] args) {
         return isNflverseProductionCommand(args) && args.length == 3;
     }
@@ -84,6 +109,12 @@ public final class ButlerLauncher {
         return args != null && args.length >= 2
             && args[0].equalsIgnoreCase("league")
             && args[1].equalsIgnoreCase("team-profile");
+    }
+
+    private static boolean isPlayerEvidenceReadinessCommand(String[] args) {
+        return args != null && args.length >= 2
+            && args[0].equalsIgnoreCase("league")
+            && args[1].equalsIgnoreCase("player-evidence-readiness");
     }
 
     private static boolean isNflverseProductionCommand(String[] args) {
@@ -103,11 +134,43 @@ public final class ButlerLauncher {
         return analyzer.analyze(args[2], args[3], parseDate(args[5]));
     }
 
+    private static LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport analyzePlayerEvidenceReadiness(String[] args)
+        throws SQLException {
+        LeaguePlayerEvidenceReadinessAnalyzer analyzer =
+            new LeaguePlayerEvidenceReadinessAnalyzer(initializedDatabase());
+        int season = parseSeason(args[3]);
+        if (args.length == 4) return analyzer.analyze(args[2], season);
+        return analyzer.analyze(args[2], season, parseDate(args[5]));
+    }
+
     private static NflversePlayerSeasonProductionImporter.ImportResult runNflverseProduction(int season, boolean persist)
         throws IOException, InterruptedException, SQLException {
         NflversePlayerSeasonProductionImporter importer =
             new NflversePlayerSeasonProductionImporter(initializedDatabase());
         return persist ? importer.refresh(season) : importer.preview(season);
+    }
+
+    static void printPlayerEvidenceReadiness(LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        System.out.println("League player evidence readiness");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Season: " + report.season());
+        System.out.println("Profile source: " + report.profileSource());
+        System.out.println("Production source: " + report.productionSource());
+        if (report.minimumProfileAsOf() != null) {
+            System.out.println("Minimum profile as-of: " + report.minimumProfileAsOf());
+        }
+        System.out.println("Readiness: " + report.readiness());
+        System.out.printf("Age evidence: %d/%d (%.1f%%)%n",
+            report.ageEvidencePlayers(), report.totalPlayers(), report.ageCoveragePercent());
+        System.out.printf("Production evidence: %d/%d (%.1f%%)%n",
+            report.productionEvidencePlayers(), report.totalPlayers(), report.productionCoveragePercent());
+        for (var team : report.teams()) {
+            System.out.printf("%s  readiness=%s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)  exact-birth=%d  reported-age=%d  experience=%d  [%s]%n",
+                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
+                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent(),
+                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
+        }
     }
 
     static void printNflverseProduction(NflversePlayerSeasonProductionImporter.ImportResult result) {
@@ -172,6 +235,10 @@ public final class ButlerLauncher {
 
     static void printTeamProfileUsage() {
         System.out.println("  butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+    }
+
+    static void printPlayerEvidenceReadinessUsage() {
+        System.out.println("  butler league player-evidence-readiness <league-id> <season> [--minimum-profile-as-of YYYY-MM-DD]");
     }
 
     static void printNflverseProductionUsage() {

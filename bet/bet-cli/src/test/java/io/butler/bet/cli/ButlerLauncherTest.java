@@ -25,16 +25,33 @@ class ButlerLauncherTest {
     }
 
     @Test
-    void advertisesCompositeProfileSyntax() {
+    void recognizesPlayerEvidenceReadinessArgumentForms() {
+        assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id", "2025"}));
+        assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id", "2025", "--minimum-profile-as-of", "2026-09-01"}));
+
+        assertFalse(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id"}));
+        assertFalse(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id", "2025", "--wrong", "2026-09-01"}));
+    }
+
+    @Test
+    void advertisesCompositeProfileAndPlayerEvidenceSyntax() {
         PrintStream original = System.out;
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         try {
             System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
             ButlerLauncher.printTeamProfileUsage();
+            ButlerLauncher.printPlayerEvidenceReadinessUsage();
         } finally {
             System.setOut(original);
         }
-        assertTrue(buffer.toString(StandardCharsets.UTF_8).contains(
+        String output = buffer.toString(StandardCharsets.UTF_8);
+        assertTrue(output.contains(
             "butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
+        assertTrue(output.contains(
+            "butler league player-evidence-readiness <league-id> <season> [--minimum-profile-as-of YYYY-MM-DD]"));
     }
 }
