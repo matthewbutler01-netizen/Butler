@@ -306,32 +306,17 @@ public final class ButlerCli {
             return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("value-refresh")) {
-            if (!args[2].equalsIgnoreCase("dynastyprocess")) {
-                throw new IllegalArgumentException("unknown value provider: " + args[2] + ". Supported: dynastyprocess");
-            }
+            requireDynastyProcess(args[2]);
             var result = new DynastyProcessValueImporter(database).refresh();
-            var diagnostics = result.diagnostics();
             System.out.println("Refreshed player values from DynastyProcess.");
-            System.out.println("As-of: " + result.asOfDate());
-            System.out.println("Refresh readiness: " + DynastyProcessRefreshReadiness.classify(diagnostics));
-            System.out.printf("Provider rows: %d values, %d player IDs%n", diagnostics.valueRows(), diagnostics.playerIdRows());
-            System.out.printf("Crosswalk: %d FantasyPros IDs, %d unique exact identities, %d ambiguous exact identities%n",
-                diagnostics.primaryCrosswalkEntries(), diagnostics.uniqueIdentityMappings(), diagnostics.ambiguousIdentityMappings());
-            System.out.printf("Provider mapping: %d/%d (%.1f%%)  primary=%d  exact-identity=%d  unmapped=%d%n",
-                diagnostics.providerRowsMapped(), diagnostics.valueRows(), diagnostics.providerMappingPercent(),
-                diagnostics.providerRowsMappedByPrimaryId(), diagnostics.providerRowsMappedByIdentity(), diagnostics.providerRowsUnmapped());
-            System.out.println("Eligible local players: " + result.eligiblePlayers());
-            System.out.println("Matched players: " + result.matchedPlayers());
-            System.out.println("Exact-identity fallback matches: " + result.identityFallbackMatches());
-            System.out.println("Unmatched players: " + result.unmatchedPlayers());
-            System.out.println("Snapshots imported: " + result.valuesImported());
-            System.out.println("Sources: " + DynastyProcessValueImporter.SOURCE_1QB + ", " + DynastyProcessValueImporter.SOURCE_2QB);
-            if (!result.unmatched().isEmpty()) {
-                System.out.println("Unmatched local players:");
-                for (var unmatched : result.unmatched()) {
-                    System.out.println("  " + unmatched.playerName() + "  sleeper=" + unmatched.sleeperId() + "  [" + unmatched.playerId() + "]");
-                }
-            }
+            printDynastyProcessResult(result, true);
+            return;
+        }
+        if (args.length == 3 && args[1].equalsIgnoreCase("value-preview")) {
+            requireDynastyProcess(args[2]);
+            var result = new DynastyProcessValueImporter(database).preview();
+            System.out.println("Previewed player values from DynastyProcess (no snapshots persisted).");
+            printDynastyProcessResult(result, false);
             return;
         }
         if (args.length == 3 && args[1].equalsIgnoreCase("value-import")) {
@@ -340,7 +325,37 @@ public final class ButlerCli {
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|value-sources|values <source>|value-movers <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-refresh dynastyprocess|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-movers <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-refresh dynastyprocess|value-preview dynastyprocess|value-import <json-file>>");
+    }
+
+    private static void requireDynastyProcess(String provider) {
+        if (!provider.equalsIgnoreCase("dynastyprocess")) {
+            throw new IllegalArgumentException("unknown value provider: " + provider + ". Supported: dynastyprocess");
+        }
+    }
+
+    private static void printDynastyProcessResult(DynastyProcessValueImporter.ImportResult result, boolean persisted) {
+        var diagnostics = result.diagnostics();
+        System.out.println("As-of: " + result.asOfDate());
+        System.out.println("Refresh readiness: " + DynastyProcessRefreshReadiness.classify(diagnostics));
+        System.out.printf("Provider rows: %d values, %d player IDs%n", diagnostics.valueRows(), diagnostics.playerIdRows());
+        System.out.printf("Crosswalk: %d FantasyPros IDs, %d unique exact identities, %d ambiguous exact identities%n",
+            diagnostics.primaryCrosswalkEntries(), diagnostics.uniqueIdentityMappings(), diagnostics.ambiguousIdentityMappings());
+        System.out.printf("Provider mapping: %d/%d (%.1f%%)  primary=%d  exact-identity=%d  unmapped=%d%n",
+            diagnostics.providerRowsMapped(), diagnostics.valueRows(), diagnostics.providerMappingPercent(),
+            diagnostics.providerRowsMappedByPrimaryId(), diagnostics.providerRowsMappedByIdentity(), diagnostics.providerRowsUnmapped());
+        System.out.println("Eligible local players: " + result.eligiblePlayers());
+        System.out.println("Matched players: " + result.matchedPlayers());
+        System.out.println("Exact-identity fallback matches: " + result.identityFallbackMatches());
+        System.out.println("Unmatched players: " + result.unmatchedPlayers());
+        System.out.println((persisted ? "Snapshots imported: " : "Snapshots that would be imported: ") + result.valuesImported());
+        System.out.println("Sources: " + DynastyProcessValueImporter.SOURCE_1QB + ", " + DynastyProcessValueImporter.SOURCE_2QB);
+        if (!result.unmatched().isEmpty()) {
+            System.out.println("Unmatched local players:");
+            for (var unmatched : result.unmatched()) {
+                System.out.println("  " + unmatched.playerName() + "  sleeper=" + unmatched.sleeperId() + "  [" + unmatched.playerId() + "]");
+            }
+        }
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -415,6 +430,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
