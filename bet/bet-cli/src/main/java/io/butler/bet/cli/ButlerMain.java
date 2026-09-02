@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
+import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -22,16 +23,15 @@ public final class ButlerMain {
     public static void main(String[] args) {
         if (args == null || args.length == 0) {
             ButlerApp.main(args == null ? new String[0] : args);
-            printOverviewUsage();
+            printWorkflowUsage();
             return;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
             ButlerApp.main(args);
-            printOverviewUsage();
+            printWorkflowUsage();
             return;
         }
         if (isSupportedLeagueStatus(args)) {
-            // Preserve the complete BF-100 status output and its existing error behavior first.
             ButlerApp.main(args);
             try {
                 printLeagueActions(analyzeActions(args));
@@ -56,6 +56,20 @@ public final class ButlerMain {
             }
             return;
         }
+        if (isLeagueFranchisesCommand(args)) {
+            if (!isSupportedLeagueFranchises(args)) {
+                printFranchisesUsage();
+                return;
+            }
+            try {
+                printLeagueFranchises(analyzeFranchises(args));
+            } catch (SQLException e) {
+                failDatabase("building league franchise context", e);
+            } catch (IllegalArgumentException e) {
+                failArgument(e);
+            }
+            return;
+        }
 
         ButlerApp.main(args);
     }
@@ -68,10 +82,22 @@ public final class ButlerMain {
         return isSupportedLeagueCommand(args, "overview");
     }
 
+    static boolean isSupportedLeagueFranchises(String[] args) {
+        return isSupportedLeagueCommand(args, "franchises");
+    }
+
     private static boolean isLeagueOverviewCommand(String[] args) {
+        return isLeagueCommand(args, "overview");
+    }
+
+    private static boolean isLeagueFranchisesCommand(String[] args) {
+        return isLeagueCommand(args, "franchises");
+    }
+
+    private static boolean isLeagueCommand(String[] args, String command) {
         return args != null && args.length >= 2
             && args[0].equalsIgnoreCase("league")
-            && args[1].equalsIgnoreCase("overview");
+            && args[1].equalsIgnoreCase(command);
     }
 
     private static boolean isSupportedLeagueCommand(String[] args, String command) {
@@ -97,6 +123,14 @@ public final class ButlerMain {
 
     private static LeagueOverviewAnalyzer.OverviewReport analyzeOverview(String[] args) throws SQLException {
         LeagueOverviewAnalyzer analyzer = new LeagueOverviewAnalyzer(initializedDatabase());
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], args[3]);
+        if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
+        return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
+    }
+
+    private static LeagueTeamContextAnalyzer.TeamContextReport analyzeFranchises(String[] args) throws SQLException {
+        LeagueTeamContextAnalyzer analyzer = new LeagueTeamContextAnalyzer(initializedDatabase());
         if (args.length == 3) return analyzer.analyze(args[2]);
         if (args.length == 4) return analyzer.analyze(args[2], args[3]);
         if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
@@ -144,6 +178,43 @@ public final class ButlerMain {
         printLeagueActions(overview.actionPlan().actions());
     }
 
+    static void printLeagueFranchises(LeagueTeamContextAnalyzer.TeamContextReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        var health = report.health();
+
+        System.out.println("League franchises");
+        System.out.println("League: " + health.leagueName() + "  [" + health.leagueId() + "]");
+        System.out.println("Status: " + health.status());
+        System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
+        if (health.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + health.minimumAsOfDate());
+        }
+        System.out.println("Franchise ranks available: " + report.ranksAvailable());
+        if (report.movementAvailable()) {
+            System.out.println("Movement window: " + report.movementPreviousDate() + " -> " + report.movementLatestDate());
+        } else {
+            System.out.println("Movement window: unavailable");
+        }
+
+        if (report.teams().isEmpty()) {
+            System.out.println("No team context is available until the league value source can be resolved.");
+        } else {
+            for (var team : report.teams()) {
+                String rank = team.rankAvailable() ? "#" + team.rank() : "UNRANKED";
+                String movement = team.movementAvailable()
+                    ? String.format("%+.2f", team.playerValueDelta())
+                    : "unavailable";
+                System.out.printf("%s  %s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  [%s]%n",
+                    rank, team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
+                    team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
+                    team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
+                    team.risers(), team.fallers(), team.teamId());
+            }
+        }
+
+        printLeagueActions(report.actionPlan().actions());
+    }
+
     static void printLeagueActions(List<LeagueActionPlanAnalyzer.Action> actions) {
         if (actions == null) throw new IllegalArgumentException("actions must not be null");
         if (actions.isEmpty()) {
@@ -162,9 +233,19 @@ public final class ButlerMain {
         }
     }
 
+    static void printWorkflowUsage() {
+        printOverviewUsage();
+        printFranchisesUsage();
+    }
+
     static void printOverviewUsage() {
         System.out.println("League overview:");
         System.out.println("  butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+    }
+
+    static void printFranchisesUsage() {
+        System.out.println("League franchise context:");
+        System.out.println("  butler league franchises <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
     }
 
     private static Database initializedDatabase() throws SQLException {
