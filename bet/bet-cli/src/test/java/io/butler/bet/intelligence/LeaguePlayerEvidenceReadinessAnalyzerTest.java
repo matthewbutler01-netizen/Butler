@@ -21,6 +21,7 @@ import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeaguePlayerEvidenceReadinessAnalyzerTest {
@@ -43,6 +44,30 @@ class LeaguePlayerEvidenceReadinessAnalyzerTest {
         assertTrue(report.ready());
         assertEquals(100.0, report.ageCoveragePercent());
         assertEquals(100.0, report.productionCoveragePercent());
+    }
+
+    @Test
+    void resolvesStoredLeagueSeasonWhenExplicitSeasonIsOmitted() throws Exception {
+        Database database = seeded(1, 2025);
+        new PlayerProfileSnapshotRepository(database).save(
+            PlayerProfileSnapshot.create("p1", 25, 2, "sleeper", LocalDate.of(2026, 9, 1)));
+        new PlayerSeasonProductionRepository(database).save(PlayerSeasonProduction.create(
+            "p1", 2025, 17, 0, 0, 0, 500, 4, 20, 150, 1, 0, "nflverse", LocalDate.of(2026, 1, 10)));
+
+        var report = new LeaguePlayerEvidenceReadinessAnalyzer(database).analyze("l1");
+
+        assertEquals(2025, report.season());
+        assertEquals(LeaguePlayerEvidenceReadinessAnalyzer.Readiness.READY, report.readiness());
+    }
+
+    @Test
+    void refusesImplicitSeasonWhenLeagueMetadataDoesNotContainOne() throws Exception {
+        Database database = seeded(1);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new LeaguePlayerEvidenceReadinessAnalyzer(database).analyze("l1"));
+
+        assertTrue(error.getMessage().contains("league season is unavailable"));
     }
 
     @Test
@@ -92,9 +117,13 @@ class LeaguePlayerEvidenceReadinessAnalyzerTest {
     }
 
     private Database seeded(int playerCount) throws Exception {
+        return seeded(playerCount, null);
+    }
+
+    private Database seeded(int playerCount, Integer season) throws Exception {
         Database database = new Database(tempDir.resolve("test.db"));
         database.initialize();
-        new LeagueRepository(database).save(new League("l1", null, "League"));
+        new LeagueRepository(database).save(new League("l1", null, "League", season));
         new TeamRepository(database).save(new Team("t1", null, "l1", "Alpha"));
         for (int i = 1; i <= playerCount; i++) {
             new PlayerRepository(database).save(new Player("p" + i, "10" + i, "Player " + i, "RB", null));

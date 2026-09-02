@@ -1,6 +1,7 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.LeagueRepository;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -16,13 +17,23 @@ import java.util.Objects;
  * score players, infer career arcs, or recommend strategy.
  */
 public final class LeaguePlayerEvidenceReadinessAnalyzer {
+    private final LeagueRepository leagues;
     private final LeaguePlayerProfileCoverageAnalyzer profiles;
     private final LeagueProductionCoverageAnalyzer production;
 
     public LeaguePlayerEvidenceReadinessAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
+        this.leagues = new LeagueRepository(database);
         this.profiles = new LeaguePlayerProfileCoverageAnalyzer(database);
         this.production = new LeagueProductionCoverageAnalyzer(database);
+    }
+
+    public ReadinessReport analyze(String leagueId) throws SQLException {
+        return analyze(leagueId, resolveSeason(leagueId));
+    }
+
+    public ReadinessReport analyze(String leagueId, LocalDate minimumProfileAsOf) throws SQLException {
+        return analyze(leagueId, resolveSeason(leagueId), minimumProfileAsOf);
     }
 
     public ReadinessReport analyze(String leagueId, int season) throws SQLException {
@@ -70,6 +81,17 @@ public final class LeaguePlayerEvidenceReadinessAnalyzer {
 
         return new ReadinessReport(profileReport.leagueId(), season, profileReport.providerSource(),
             productionReport.source(), minimumProfileAsOf, List.copyOf(teams));
+    }
+
+    private int resolveSeason(String leagueId) throws SQLException {
+        if (leagueId == null || leagueId.isBlank()) throw new IllegalArgumentException("leagueId must not be blank");
+        var league = leagues.findById(leagueId.trim())
+            .orElseThrow(() -> new IllegalArgumentException("league not found: " + leagueId));
+        if (league.getSeason() == null) {
+            throw new IllegalArgumentException(
+                "league season is unavailable; provide an explicit season or re-sync a supported provider league");
+        }
+        return league.getSeason();
     }
 
     private static Readiness classifyReadiness(int totalPlayers, int ageEvidencePlayers, int productionPlayers) {
