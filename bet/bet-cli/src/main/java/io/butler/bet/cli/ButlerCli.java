@@ -10,6 +10,7 @@ import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
+import io.butler.bet.intelligence.DynastyProcessValueImporter;
 import io.butler.bet.intelligence.LeagueAnalyzer;
 import io.butler.bet.intelligence.LeagueValueCoverageAnalyzer;
 import io.butler.bet.intelligence.LeagueValueMoverAnalyzer;
@@ -56,7 +57,7 @@ public final class ButlerCli {
             System.exit(3);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Sleeper import interrupted.");
+            System.err.println("Operation interrupted.");
             System.exit(4);
         } catch (IllegalArgumentException e) {
             System.err.println("Error: " + e.getMessage());
@@ -228,7 +229,7 @@ public final class ButlerCli {
         System.out.println("Usage: butler team list <league-id>");
     }
 
-    private static void handlePlayer(String[] args) throws SQLException, IOException {
+    private static void handlePlayer(String[] args) throws SQLException, IOException, InterruptedException {
         Database database = initializedDatabase();
         PlayerRepository players = new PlayerRepository(database);
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
@@ -303,13 +304,34 @@ public final class ButlerCli {
             }
             return;
         }
+        if (args.length == 3 && args[1].equalsIgnoreCase("value-refresh")) {
+            if (!args[2].equalsIgnoreCase("dynastyprocess")) {
+                throw new IllegalArgumentException("unknown value provider: " + args[2] + ". Supported: dynastyprocess");
+            }
+            var result = new DynastyProcessValueImporter(database).refresh();
+            System.out.println("Refreshed player values from DynastyProcess.");
+            System.out.println("As-of: " + result.asOfDate());
+            System.out.println("Eligible local players: " + result.eligiblePlayers());
+            System.out.println("Matched players: " + result.matchedPlayers());
+            System.out.println("Exact-identity fallback matches: " + result.identityFallbackMatches());
+            System.out.println("Unmatched players: " + result.unmatchedPlayers());
+            System.out.println("Snapshots imported: " + result.valuesImported());
+            System.out.println("Sources: " + DynastyProcessValueImporter.SOURCE_1QB + ", " + DynastyProcessValueImporter.SOURCE_2QB);
+            if (!result.unmatched().isEmpty()) {
+                System.out.println("Unmatched local players:");
+                for (var unmatched : result.unmatched()) {
+                    System.out.println("  " + unmatched.playerName() + "  sleeper=" + unmatched.sleeperId() + "  [" + unmatched.playerId() + "]");
+                }
+            }
+            return;
+        }
         if (args.length == 3 && args[1].equalsIgnoreCase("value-import")) {
             PlayerValueImporter.ImportResult result = new PlayerValueImporter(database).importJson(Path.of(args[2]));
             System.out.println("Imported player values.");
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|value-sources|values <source>|value-movers <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-movers <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-refresh dynastyprocess|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -384,6 +406,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
