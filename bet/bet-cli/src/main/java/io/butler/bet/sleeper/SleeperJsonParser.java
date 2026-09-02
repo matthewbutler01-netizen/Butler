@@ -22,7 +22,8 @@ public final class SleeperJsonParser {
 
     public SleeperLeague parseLeague(String json) throws JsonProcessingException {
         JsonNode root = mapper.readTree(json);
-        return new SleeperLeague(requiredText(root, "league_id"), requiredText(root, "name"));
+        return new SleeperLeague(requiredText(root, "league_id"), requiredText(root, "name"),
+            stringList(root, "roster_positions"));
     }
 
     public List<SleeperUser> parseUsers(String json) throws JsonProcessingException {
@@ -105,7 +106,15 @@ public final class SleeperJsonParser {
         return value == null || value.isNull() ? null : value.asText();
     }
 
-    public record SleeperLeague(String id, String name) {}
+    public record SleeperLeague(String id, String name, List<String> rosterPositions) {
+        public SleeperLeague(String id, String name) {
+            this(id, name, List.of());
+        }
+
+        public SleeperLeague {
+            rosterPositions = rosterPositions == null ? List.of() : List.copyOf(rosterPositions);
+        }
+    }
     public record SleeperUser(String id, String displayName, String teamName) {}
     public record SleeperRoster(
             int rosterId,
