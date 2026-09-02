@@ -25,6 +25,18 @@ class ButlerLauncherTest {
     }
 
     @Test
+    void recognizesEvidenceOverviewArgumentForms() {
+        assertTrue(ButlerLauncher.isSupportedEvidenceOverview(new String[]{
+            "league", "evidence-overview", "league-id"}));
+        assertTrue(ButlerLauncher.isSupportedEvidenceOverview(new String[]{
+            "league", "evidence-overview", "league-id", "2025"}));
+        assertFalse(ButlerLauncher.isSupportedEvidenceOverview(new String[]{
+            "league", "evidence-overview"}));
+        assertFalse(ButlerLauncher.isSupportedEvidenceOverview(new String[]{
+            "league", "evidence-overview", "league-id", "2025", "extra"}));
+    }
+
+    @Test
     void recognizesPlayerEvidenceReadinessArgumentForms() {
         assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
             "league", "player-evidence-readiness", "league-id"}));
@@ -42,12 +54,13 @@ class ButlerLauncherTest {
     }
 
     @Test
-    void advertisesCompositeProfileAndPlayerEvidenceSyntax() {
+    void advertisesCompositeProfileAndEvidenceSyntax() {
         PrintStream original = System.out;
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         try {
             System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
             ButlerLauncher.printTeamProfileUsage();
+            ButlerLauncher.printEvidenceOverviewUsage();
             ButlerLauncher.printPlayerEvidenceReadinessUsage();
         } finally {
             System.setOut(original);
@@ -55,6 +68,8 @@ class ButlerLauncherTest {
         String output = buffer.toString(StandardCharsets.UTF_8);
         assertTrue(output.contains(
             "butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
+        assertTrue(output.contains(
+            "butler league evidence-overview <league-id> [season]"));
         assertTrue(output.contains(
             "butler league player-evidence-readiness <league-id> [season] [--minimum-profile-as-of YYYY-MM-DD]"));
     }
