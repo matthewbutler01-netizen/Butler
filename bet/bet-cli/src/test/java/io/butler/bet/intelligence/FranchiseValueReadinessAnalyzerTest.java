@@ -87,7 +87,7 @@ class FranchiseValueReadinessAnalyzerTest {
         assertEquals(2, report.staleAssets());
         assertEquals(0, report.stalePlayerAssets().size());
         assertEquals(2, report.staleDraftPickAssets().size());
-        assertEquals(f.alphaFirst.getId(), report.staleDraftPickAssets().getFirst().draftPickId());
+        assertEquals(f.betaSecond.getId(), report.staleDraftPickAssets().getFirst().draftPickId());
         assertEquals(LocalDate.of(2026, 8, 28), report.staleDraftPickAssets().getFirst().asOfDate());
         assertEquals(FranchiseValueReadinessAnalyzer.Readiness.STALE,
             report.teams().stream().filter(team -> team.teamName().equals("Alpha")).findFirst().orElseThrow().status());
