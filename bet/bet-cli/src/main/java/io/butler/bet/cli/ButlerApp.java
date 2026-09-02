@@ -10,6 +10,7 @@ import io.butler.bet.intelligence.FranchiseValueRankingAnalyzer;
 import io.butler.bet.intelligence.FranchiseValueReadinessAnalyzer;
 import io.butler.bet.intelligence.LeagueAssetInventoryAnalyzer;
 import io.butler.bet.intelligence.LeagueAssetSearchAnalyzer;
+import io.butler.bet.intelligence.LeagueHealthAnalyzer;
 import io.butler.bet.intelligence.LeagueValueSourceResolver;
 import io.butler.bet.intelligence.TeamAssetPortfolioAnalyzer;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
@@ -83,7 +84,8 @@ public final class ButlerApp {
     }
 
     private static boolean isLeagueExtension(String[] args) {
-        return args.length >= 2 && (args[1].equalsIgnoreCase("draft-picks")
+        return args.length >= 2 && (args[1].equalsIgnoreCase("status")
+            || args[1].equalsIgnoreCase("draft-picks")
             || args[1].equalsIgnoreCase("draft-pick-values")
             || args[1].equalsIgnoreCase("portfolio")
             || args[1].equalsIgnoreCase("franchise-rank")
@@ -166,6 +168,10 @@ public final class ButlerApp {
 
     private static void handleLeagueExtension(String[] args)
         throws SQLException, IOException, InterruptedException {
+        if (args[1].equalsIgnoreCase("status")) {
+            handleLeagueStatus(args);
+            return;
+        }
         if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("asset-search")) {
             printAssetSearch(args[2], args[3], args.length == 5 ? args[4] : null);
             return;
@@ -210,6 +216,78 @@ public final class ButlerApp {
             return;
         }
         printDraftPickUsage();
+    }
+
+    private static void handleLeagueStatus(String[] args) throws SQLException {
+        if (args.length == 3) {
+            printLeagueStatus(args[2], null, null);
+            return;
+        }
+        if (args.length == 4) {
+            printLeagueStatus(args[2], args[3], null);
+            return;
+        }
+        if (args.length == 5 && args[3].equalsIgnoreCase("--minimum-as-of")) {
+            printLeagueStatus(args[2], null, parseMinimumAsOfDate(args[4]));
+            return;
+        }
+        if (args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of")) {
+            printLeagueStatus(args[2], args[3], parseMinimumAsOfDate(args[5]));
+            return;
+        }
+        printDraftPickUsage();
+    }
+
+    private static void printLeagueStatus(String leagueId, String sourceOverride,
+                                          LocalDate minimumAsOfDate) throws SQLException {
+        LeagueHealthAnalyzer analyzer = new LeagueHealthAnalyzer(initializedDatabase());
+        var report = minimumAsOfDate == null
+            ? (sourceOverride == null ? analyzer.analyze(leagueId) : analyzer.analyze(leagueId, sourceOverride))
+            : (sourceOverride == null
+                ? analyzer.analyze(leagueId, minimumAsOfDate)
+                : analyzer.analyze(leagueId, sourceOverride, minimumAsOfDate));
+
+        System.out.println("League health status");
+        System.out.println("League: " + report.leagueName() + "  [" + report.leagueId() + "]");
+        System.out.println("Sleeper league ID: " + report.sleeperLeagueId());
+        System.out.printf("Persisted assets: teams=%d  rostered-players=%d  draft-picks=%d%n",
+            report.teams(), report.rosteredPlayers(), report.draftPicks());
+        System.out.println("Value format: " + (report.valueFormat() == null ? "UNAVAILABLE" : report.valueFormat())
+            + "  detected=" + report.formatDetected());
+        if (report.sourceResolved()) {
+            System.out.println("Source: " + report.source() + (report.automaticSource() ? "  (automatic)" : "  (explicit)"));
+        } else {
+            System.out.println("Source: UNRESOLVED");
+        }
+        if (report.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        }
+        System.out.println("Status: " + report.status());
+        System.out.println("Core analysis ready: " + report.coreAnalysisReady());
+
+        if (report.franchiseReadiness() != null) {
+            var franchise = report.franchiseReadiness();
+            System.out.printf("Franchise values: status=%s  coverage=%d/%d (%.1f%%)  missing=%d  stale=%d  dates=%s%n",
+                franchise.status(), franchise.valuedAssets(), franchise.totalAssets(), franchise.coveragePercent(),
+                franchise.missingAssets(), franchise.staleAssets(),
+                valueDates(franchise.oldestValueDate(), franchise.latestValueDate()));
+            System.out.println("Franchise rankings ready: " + report.franchiseRankingsReady());
+        }
+
+        if (report.movementReadiness() != null) {
+            var movement = report.movementReadiness();
+            System.out.printf("Movement: status=%s  comparable=%d/%d (%.1f%%)  dates=%s%n",
+                movement.readiness(), movement.comparablePlayers(), movement.totalPlayers(), movement.coveragePercent(),
+                valueDates(movement.previousDate(), movement.latestDate()));
+            System.out.println("Movement ready: " + report.movementReady());
+        }
+
+        if (!report.diagnostics().isEmpty()) {
+            System.out.println("Diagnostics:");
+            for (String diagnostic : report.diagnostics()) {
+                System.out.println("  - " + diagnostic);
+            }
+        }
     }
 
     private static void handleFranchiseReadiness(String[] args) throws SQLException {
@@ -650,9 +728,10 @@ public final class ButlerApp {
     }
 
     private static void printDraftPickUsage() {
-        System.out.println("Draft picks, portfolios, rankings, readiness, inventories, search, and full sync:");
+        System.out.println("Draft picks, portfolios, rankings, readiness, inventories, search, status, and full sync:");
         System.out.println("  butler sleeper sync-all <sleeper-league-id>");
         System.out.println("  butler sleeper sync-picks <sleeper-league-id>");
+        System.out.println("  butler league status <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league draft-pick-values <league-id> dynastyprocess");
         System.out.println("  butler league draft-picks <league-id> [source]");
         System.out.println("  butler league assets <league-id> [source]");
