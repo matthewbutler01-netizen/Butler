@@ -121,8 +121,11 @@ public final class ButlerCli {
             printLeagueValueCoverage(report);
             return;
         }
-        if (args.length == 4 && args[1].equalsIgnoreCase("value-movers")) {
-            var report = new LeagueValueMoverAnalyzer(database).analyze(args[2], args[3]);
+        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("value-movers")) {
+            LeagueValueMoverAnalyzer analyzer = new LeagueValueMoverAnalyzer(database);
+            var report = args.length == 3
+                ? analyzer.analyze(args[2])
+                : analyzer.analyze(args[2], args[3]);
             System.out.println("League player value movers");
             System.out.println("League ID: " + report.leagueId());
             System.out.println("Source: " + report.source());
@@ -137,8 +140,11 @@ public final class ButlerCli {
             }
             return;
         }
-        if (args.length == 4 && args[1].equalsIgnoreCase("team-movement")) {
-            var report = new TeamValueMovementAnalyzer(database).analyze(args[2], args[3]);
+        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("team-movement")) {
+            TeamValueMovementAnalyzer analyzer = new TeamValueMovementAnalyzer(database);
+            var report = args.length == 3
+                ? analyzer.analyze(args[2])
+                : analyzer.analyze(args[2], args[3]);
             System.out.println("League team value movement");
             System.out.println("League ID: " + report.leagueId());
             System.out.println("Source: " + report.source());
@@ -185,7 +191,7 @@ public final class ButlerCli {
             printStrengthReport(report);
             return;
         }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|team-movement <league-id> <source>|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> [source [minimum-as-of-date]]>");
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> [source]|team-movement <league-id> [source]|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> [source [minimum-as-of-date]]>");
     }
 
     private static void printLeagueDynastyProcessPreview(
@@ -480,6 +486,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> [source [minimum-as-of-date]]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> [source]\n  butler league team-movement <league-id> [source]\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> [source [minimum-as-of-date]]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
