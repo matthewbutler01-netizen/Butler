@@ -51,7 +51,21 @@ public final class DynastyProcessValueImporter {
         return importCsv(valueCsv, idCsv);
     }
 
+    public ImportResult preview() throws IOException, InterruptedException, SQLException {
+        String valueCsv = download(VALUES_URI);
+        String idCsv = download(PLAYER_IDS_URI);
+        return previewCsv(valueCsv, idCsv);
+    }
+
     public ImportResult importCsv(String valueCsv, String idCsv) throws SQLException {
+        return processCsv(valueCsv, idCsv, true);
+    }
+
+    public ImportResult previewCsv(String valueCsv, String idCsv) throws SQLException {
+        return processCsv(valueCsv, idCsv, false);
+    }
+
+    private ImportResult processCsv(String valueCsv, String idCsv, boolean persist) throws SQLException {
         List<Map<String, String>> valueRows = Csv.parse(requireText(valueCsv, "valueCsv"));
         List<Map<String, String>> idRows = Csv.parse(requireText(idCsv, "idCsv"));
         if (valueRows.isEmpty()) throw new IllegalArgumentException("DynastyProcess values file contains no data rows");
@@ -140,7 +154,7 @@ public final class DynastyProcessValueImporter {
             resolved.add(PlayerValue.create(player.getId(), provider.twoQbValue(), SOURCE_2QB, provider.asOfDate()));
         }
 
-        values.saveAll(resolved);
+        if (persist) values.saveAll(resolved);
         ProviderDiagnostics diagnostics = new ProviderDiagnostics(
             valueRows.size(), idRows.size(), sleeperByFantasyPros.size(), uniqueIdentityMappings,
             ambiguousIdentityMappings, providerRowsMappedByPrimaryId, providerRowsMappedByIdentity,
