@@ -76,6 +76,21 @@ public final class Database {
                 """);
 
             statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_profile_snapshots (
+                    id TEXT PRIMARY KEY,
+                    player_id TEXT NOT NULL,
+                    reported_age INTEGER,
+                    years_experience INTEGER,
+                    source TEXT NOT NULL,
+                    as_of_date TEXT NOT NULL,
+                    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                    UNIQUE (player_id, source, as_of_date),
+                    CHECK (reported_age IS NULL OR reported_age >= 0),
+                    CHECK (years_experience IS NULL OR years_experience >= 0)
+                )
+                """);
+
+            statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS player_season_production (
                     id TEXT PRIMARY KEY,
                     player_id TEXT NOT NULL,
@@ -168,6 +183,7 @@ public final class Database {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_picks_owner_team_id ON draft_picks(owner_team_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_values_player_id ON player_values(player_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_values_source_date ON player_values(source, as_of_date)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_profile_snapshots_player_source_date ON player_profile_snapshots(player_id, source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_season_production_player_season ON player_season_production(player_id, season)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_season_production_source_date ON player_season_production(source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_pick_id ON draft_pick_values(draft_pick_id)");

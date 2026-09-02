@@ -50,9 +50,7 @@ public final class SleeperJsonParser {
         List<SleeperRoster> rosters = new ArrayList<>();
         for (JsonNode node : root) {
             int rosterId = node.path("roster_id").asInt(0);
-            if (rosterId <= 0) {
-                throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
-            }
+            if (rosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
             rosters.add(new SleeperRoster(
                     rosterId,
                     optionalText(node, "owner_id"),
@@ -78,8 +76,7 @@ public final class SleeperJsonParser {
             if (originalRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
             if (previousOwnerRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: previous_owner_id");
             if (ownerRosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: owner_id");
-            picks.add(new SleeperTradedPick(
-                season, round, originalRosterId, previousOwnerRosterId, ownerRosterId));
+            picks.add(new SleeperTradedPick(season, round, originalRosterId, previousOwnerRosterId, ownerRosterId));
         }
         return List.copyOf(picks);
     }
@@ -99,45 +96,50 @@ public final class SleeperJsonParser {
                     entry.getKey(),
                     name == null || name.isBlank() ? entry.getKey() : name,
                     optionalText(node, "position"),
-                    optionalText(node, "team")));
+                    optionalText(node, "team"),
+                    optionalNonNegativeInt(node, "age"),
+                    optionalNonNegativeInt(node, "years_exp")));
         });
         return Map.copyOf(players);
     }
 
     private static int positiveInt(JsonNode node, String field) {
+        Integer value = optionalNonNegativeInt(node, field);
+        return value == null || value <= 0 ? 0 : value;
+    }
+
+    private static Integer optionalNonNegativeInt(JsonNode node, String field) {
         JsonNode value = node.get(field);
-        if (value == null || value.isNull()) return 0;
-        if (value.isIntegralNumber()) return value.asInt(0);
-        String text = value.asText(null);
-        if (text == null || text.isBlank()) return 0;
-        try {
-            int parsed = Integer.parseInt(text.trim());
-            return parsed > 0 ? parsed : 0;
-        } catch (NumberFormatException e) {
-            return 0;
+        if (value == null || value.isNull()) return null;
+        int parsed;
+        if (value.isIntegralNumber()) {
+            parsed = value.asInt();
+        } else {
+            String text = value.asText(null);
+            if (text == null || text.isBlank()) return null;
+            try {
+                parsed = Integer.parseInt(text.trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
+        return parsed < 0 ? null : parsed;
     }
 
     private static List<String> stringList(JsonNode node, String field) {
         JsonNode values = node.path(field);
-        if (!values.isArray()) {
-            return List.of();
-        }
+        if (!values.isArray()) return List.of();
         List<String> result = new ArrayList<>();
         values.forEach(value -> {
             String text = value.asText(null);
-            if (text != null && !text.isBlank()) {
-                result.add(text);
-            }
+            if (text != null && !text.isBlank()) result.add(text);
         });
         return List.copyOf(result);
     }
 
     private static String requiredText(JsonNode node, String field) {
         String value = optionalText(node, field);
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Missing Sleeper field: " + field);
-        }
+        if (value == null || value.isBlank()) throw new IllegalArgumentException("Missing Sleeper field: " + field);
         return value;
     }
 
@@ -148,14 +150,10 @@ public final class SleeperJsonParser {
 
     public record SleeperLeague(String id, String name, List<String> rosterPositions,
                                 int season, int leagueType, int draftRounds) {
-        public SleeperLeague(String id, String name) {
-            this(id, name, List.of(), 0, 0, 0);
-        }
-
+        public SleeperLeague(String id, String name) { this(id, name, List.of(), 0, 0, 0); }
         public SleeperLeague(String id, String name, List<String> rosterPositions) {
             this(id, name, rosterPositions, 0, 0, 0);
         }
-
         public SleeperLeague {
             rosterPositions = rosterPositions == null ? List.of() : List.copyOf(rosterPositions);
             if (leagueType < 0 || leagueType > 2) {
@@ -165,14 +163,14 @@ public final class SleeperJsonParser {
         }
     }
     public record SleeperUser(String id, String displayName, String teamName) {}
-    public record SleeperRoster(
-            int rosterId,
-            String ownerId,
-            List<String> playerIds,
-            List<String> starterIds,
-            List<String> reserveIds,
-            List<String> taxiIds) {}
+    public record SleeperRoster(int rosterId, String ownerId, List<String> playerIds,
+                                List<String> starterIds, List<String> reserveIds, List<String> taxiIds) {}
     public record SleeperTradedPick(int season, int round, int originalRosterId,
                                     int previousOwnerRosterId, int ownerRosterId) {}
-    public record SleeperPlayer(String id, String displayName, String position, String nflTeam) {}
+    public record SleeperPlayer(String id, String displayName, String position, String nflTeam,
+                                Integer reportedAge, Integer yearsExperience) {
+        public SleeperPlayer(String id, String displayName, String position, String nflTeam) {
+            this(id, displayName, position, nflTeam, null, null);
+        }
+    }
 }

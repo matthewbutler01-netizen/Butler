@@ -3,17 +3,21 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.LeagueValueFormatRepository;
+import io.butler.bet.data.PlayerProfileSnapshotRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.RosterRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.LeagueValueFormat;
 import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerProfileSnapshot;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -22,11 +26,14 @@ import java.util.Set;
 import java.util.UUID;
 
 public final class SleeperLeagueImporter {
+    private static final String PROFILE_SOURCE = "sleeper";
+
     private final SleeperGateway gateway;
     private final LeagueRepository leagues;
     private final LeagueValueFormatRepository leagueFormats;
     private final TeamRepository teams;
     private final PlayerRepository players;
+    private final PlayerProfileSnapshotRepository playerProfiles;
     private final RosterRepository rosters;
 
     public SleeperLeagueImporter(Database database) { this(new SleeperApiGateway(), database); }
@@ -38,6 +45,7 @@ public final class SleeperLeagueImporter {
         this.leagueFormats = new LeagueValueFormatRepository(database);
         this.teams = new TeamRepository(database);
         this.players = new PlayerRepository(database);
+        this.playerProfiles = new PlayerProfileSnapshotRepository(database);
         this.rosters = new RosterRepository(database);
     }
 
@@ -46,6 +54,7 @@ public final class SleeperLeagueImporter {
         var sourceUsers = gateway.fetchUsers(sleeperLeagueId);
         var sourceRosters = gateway.fetchRosters(sleeperLeagueId);
         var sourcePlayers = gateway.fetchPlayers();
+        LocalDate profileAsOfDate = LocalDate.now(ZoneOffset.UTC);
 
         League league = leagues.findByExternalId(sourceLeague.id())
                 .map(existing -> new League(existing.getId(), sourceLeague.id(), sourceLeague.name()))
@@ -75,6 +84,7 @@ public final class SleeperLeagueImporter {
                 SleeperJsonParser.SleeperPlayer sourcePlayer = sourcePlayers.get(sleeperPlayerId);
                 Player player = resolvePlayer(sleeperPlayerId, sourcePlayer);
                 players.save(player);
+                saveProfileSnapshot(player, sourcePlayer, profileAsOfDate);
                 importedPlayerIds.add(player.getId());
                 desiredInternalPlayerIds.add(player.getId());
 
@@ -97,6 +107,14 @@ public final class SleeperLeagueImporter {
             if (existing.getExternalId() != null && !activeRosterExternalIds.contains(existing.getExternalId())) teams.deleteById(existing.getId());
         }
         return new ImportResult(league.getId(), teamCount, importedPlayerIds.size(), rosterCount, valueFormat);
+    }
+
+    private void saveProfileSnapshot(Player player, SleeperJsonParser.SleeperPlayer sourcePlayer,
+                                     LocalDate asOfDate) throws SQLException {
+        if (sourcePlayer == null) return;
+        PlayerProfileSnapshot snapshot = PlayerProfileSnapshot.create(player.getId(),
+            sourcePlayer.reportedAge(), sourcePlayer.yearsExperience(), PROFILE_SOURCE, asOfDate);
+        playerProfiles.save(snapshot);
     }
 
     private Player resolvePlayer(String sleeperPlayerId, SleeperJsonParser.SleeperPlayer sourcePlayer) throws SQLException {
