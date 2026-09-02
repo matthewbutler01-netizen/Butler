@@ -25,4 +25,4 @@ Butler can import dynasty player values from the open-data repository maintained
 - Cross-platform player IDs: `files/db_playerids.csv`
 - Upstream license: GNU General Public License v3.0 (GPL-3.0)
 
-Butler fetches the upstream CSV files at runtime rather than vendoring a copy of the dataset. Imported 1QB and 2QB values are persisted separately as `dynastyprocess-1qb` and `dynastyprocess-2qb`, with the upstream `scrape_date` retained as the value snapshot date. Players that cannot be mapped from FantasyPros ID to Sleeper ID are reported as unmatched rather than guessed.
+Butler fetches the upstream CSV files at runtime rather than vendoring a copy of the dataset. Imported 1QB and 2QB values are persisted separately as `dynastyprocess-1qb` and `dynastyprocess-2qb`, with the upstream `scrape_date` retained as the value snapshot date. FantasyPros-to-Sleeper IDs are the primary identity mapping. When that crosswalk is missing, Butler only falls back to a unique exact player-name + position + NFL-team match present in both upstream files; ambiguous or incomplete identities remain unmatched rather than being guessed.
