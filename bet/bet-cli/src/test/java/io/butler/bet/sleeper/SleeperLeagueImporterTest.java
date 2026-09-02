@@ -21,7 +21,7 @@ class SleeperLeagueImporterTest {
     @TempDir Path tempDir;
 
     @Test
-    void repeatedImportPreservesIdsMapsSlotsAndReconcilesChanges() throws Exception {
+    void repeatedImportPreservesIdsMapsSlotsSeasonAndReconcilesChanges() throws Exception {
         Database database = database();
         FakeGateway gateway = new FakeGateway();
         SleeperLeagueImporter importer = new SleeperLeagueImporter(gateway, database);
@@ -39,6 +39,7 @@ class SleeperLeagueImporterTest {
         var p3 = players.findByExternalId("p3").orElseThrow();
         var missing = players.findByExternalId("missing").orElseThrow();
 
+        assertEquals(2026, league.getSeason());
         assertEquals("Butler Dynasty", team1.getName());
         assertEquals("Other Owner", team2.getName());
         assertEquals("STARTER", rosters.findByTeamAndPlayer(team1.getId(), p1.getId()).orElseThrow().getSlot());
@@ -54,7 +55,9 @@ class SleeperLeagueImporterTest {
         gateway.secondFixture = true;
         importer.importLeague("L1");
 
-        assertEquals(leagueId, leagues.findByExternalId("L1").orElseThrow().getId());
+        var updatedLeague = leagues.findByExternalId("L1").orElseThrow();
+        assertEquals(leagueId, updatedLeague.getId());
+        assertEquals(2027, updatedLeague.getSeason());
         assertEquals(team1Id, teams.findByExternalId(leagueId, "1").orElseThrow().getId());
         assertEquals(p1Id, players.findByExternalId("p1").orElseThrow().getId());
         assertEquals(p1RosterId, rosters.findByTeamAndPlayer(team1Id, p1Id).orElseThrow().getId());
@@ -140,7 +143,8 @@ class SleeperLeagueImporterTest {
         boolean blankP1Metadata;
 
         @Override public SleeperJsonParser.SleeperLeague fetchLeague(String leagueId) {
-            return new SleeperJsonParser.SleeperLeague("L1", secondFixture ? "Updated League" : "Test League");
+            return new SleeperJsonParser.SleeperLeague("L1", secondFixture ? "Updated League" : "Test League",
+                List.of("QB", "RB", "WR", "TE"), secondFixture ? 2027 : 2026, 2, 4);
         }
 
         @Override public List<SleeperJsonParser.SleeperUser> fetchUsers(String leagueId) {
