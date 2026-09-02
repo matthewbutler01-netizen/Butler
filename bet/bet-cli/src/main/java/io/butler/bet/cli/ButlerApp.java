@@ -166,8 +166,8 @@ public final class ButlerApp {
             handleFranchiseReadiness(args);
             return;
         }
-        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("franchise-rank")) {
-            printFranchiseRankings(args[2], args.length == 4 ? args[3] : null);
+        if (args[1].equalsIgnoreCase("franchise-rank")) {
+            handleFranchiseRank(args);
             return;
         }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("portfolio")) {
@@ -215,6 +215,26 @@ public final class ButlerApp {
         }
         if (args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of")) {
             printFranchiseReadiness(args[2], args[3], parseMinimumAsOfDate(args[5]));
+            return;
+        }
+        printDraftPickUsage();
+    }
+
+    private static void handleFranchiseRank(String[] args) throws SQLException {
+        if (args.length == 3) {
+            printFranchiseRankings(args[2], null, null);
+            return;
+        }
+        if (args.length == 4) {
+            printFranchiseRankings(args[2], args[3], null);
+            return;
+        }
+        if (args.length == 5 && args[3].equalsIgnoreCase("--minimum-as-of")) {
+            printFranchiseRankings(args[2], null, parseMinimumAsOfDate(args[4]));
+            return;
+        }
+        if (args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of")) {
+            printFranchiseRankings(args[2], args[3], parseMinimumAsOfDate(args[5]));
             return;
         }
         printDraftPickUsage();
@@ -387,16 +407,22 @@ public final class ButlerApp {
         }
     }
 
-    private static void printFranchiseRankings(String leagueId, String sourceOverride) throws SQLException {
+    private static void printFranchiseRankings(String leagueId, String sourceOverride,
+                                               LocalDate minimumAsOfDate) throws SQLException {
         Database database = initializedDatabase();
         FranchiseValueRankingAnalyzer analyzer = new FranchiseValueRankingAnalyzer(database);
-        var report = sourceOverride == null
-            ? analyzer.rank(leagueId)
-            : analyzer.rank(leagueId, sourceOverride);
+        var report = minimumAsOfDate == null
+            ? (sourceOverride == null ? analyzer.rank(leagueId) : analyzer.rank(leagueId, sourceOverride))
+            : (sourceOverride == null
+                ? analyzer.rank(leagueId, minimumAsOfDate)
+                : analyzer.rank(leagueId, sourceOverride, minimumAsOfDate));
 
         System.out.println("Franchise value rankings");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
+        if (report.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        }
         System.out.printf("League assets: total=%.2f  players=%.2f  picks=%.2f%n",
             report.totalAssetValue(), report.playerValue(), report.draftPickValue());
         if (report.teams().isEmpty()) {
@@ -612,6 +638,6 @@ public final class ButlerApp {
         System.out.println("  butler league asset-search <league-id> <query> [source]");
         System.out.println("  butler league portfolio <league-id> [source]");
         System.out.println("  butler league franchise-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
-        System.out.println("  butler league franchise-rank <league-id> [source]");
+        System.out.println("  butler league franchise-rank <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
     }
 }
