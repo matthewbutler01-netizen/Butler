@@ -6,6 +6,7 @@ import io.butler.bet.data.DraftPickValueRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.intelligence.DynastyProcessDraftPickValueImporter;
 import io.butler.bet.intelligence.DynastyProcessValueImporter;
+import io.butler.bet.intelligence.FranchiseValueRankingAnalyzer;
 import io.butler.bet.intelligence.LeagueValueSourceResolver;
 import io.butler.bet.intelligence.TeamAssetPortfolioAnalyzer;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
@@ -79,7 +80,8 @@ public final class ButlerApp {
     private static boolean isLeagueExtension(String[] args) {
         return args.length >= 2 && (args[1].equalsIgnoreCase("draft-picks")
             || args[1].equalsIgnoreCase("draft-pick-values")
-            || args[1].equalsIgnoreCase("portfolio"));
+            || args[1].equalsIgnoreCase("portfolio")
+            || args[1].equalsIgnoreCase("franchise-rank"));
     }
 
     static void handleTrade(String[] args) throws SQLException {
@@ -144,6 +146,10 @@ public final class ButlerApp {
 
     private static void handleLeagueExtension(String[] args)
         throws SQLException, IOException, InterruptedException {
+        if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("franchise-rank")) {
+            printFranchiseRankings(args[2], args.length == 4 ? args[3] : null);
+            return;
+        }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("portfolio")) {
             printTeamPortfolio(args[2], args.length == 4 ? args[3] : null);
             return;
@@ -172,6 +178,30 @@ public final class ButlerApp {
             return;
         }
         printDraftPickUsage();
+    }
+
+    private static void printFranchiseRankings(String leagueId, String sourceOverride) throws SQLException {
+        Database database = initializedDatabase();
+        FranchiseValueRankingAnalyzer analyzer = new FranchiseValueRankingAnalyzer(database);
+        var report = sourceOverride == null
+            ? analyzer.rank(leagueId)
+            : analyzer.rank(leagueId, sourceOverride);
+
+        System.out.println("Franchise value rankings");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        System.out.printf("League assets: total=%.2f  players=%.2f  picks=%.2f%n",
+            report.totalAssetValue(), report.playerValue(), report.draftPickValue());
+        if (report.teams().isEmpty()) {
+            System.out.println("No teams found for this league.");
+            return;
+        }
+        for (var team : report.teams()) {
+            System.out.printf("%d. %s  total=%.2f  players=%.2f  picks=%.2f  assets=%d players + %d picks  dates=%s  [%s]%n",
+                team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
+                team.valuedPlayers(), team.valuedDraftPicks(),
+                valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
+        }
     }
 
     private static void printTeamPortfolio(String leagueId, String sourceOverride) throws SQLException {
@@ -358,11 +388,12 @@ public final class ButlerApp {
     }
 
     private static void printDraftPickUsage() {
-        System.out.println("Draft picks, portfolios, and full sync:");
+        System.out.println("Draft picks, portfolios, rankings, and full sync:");
         System.out.println("  butler sleeper sync-all <sleeper-league-id>");
         System.out.println("  butler sleeper sync-picks <sleeper-league-id>");
         System.out.println("  butler league draft-pick-values <league-id> dynastyprocess");
         System.out.println("  butler league draft-picks <league-id> [source]");
         System.out.println("  butler league portfolio <league-id> [source]");
+        System.out.println("  butler league franchise-rank <league-id> [source]");
     }
 }
