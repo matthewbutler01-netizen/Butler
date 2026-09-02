@@ -88,6 +88,14 @@ public final class DraftPickRepository {
             """, requireText(ownerTeamId, "ownerTeamId"));
     }
 
+    public boolean deleteById(String id) throws SQLException {
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("DELETE FROM draft_picks WHERE id = ?")) {
+            statement.setString(1, requireText(id, "id"));
+            return statement.executeUpdate() > 0;
+        }
+    }
+
     public void deleteByLeagueId(String leagueId) throws SQLException {
         try (var connection = database.openConnection();
              var statement = connection.prepareStatement("DELETE FROM draft_picks WHERE league_id = ?")) {
