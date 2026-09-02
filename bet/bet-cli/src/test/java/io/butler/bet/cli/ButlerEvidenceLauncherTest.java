@@ -5,11 +5,24 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerEvidenceLauncherTest {
+    @Test
+    void recognizesProductionContextArgumentForms() {
+        assertTrue(ButlerEvidenceLauncher.isSupportedProductionContext(new String[]{
+            "league", "production-context", "league-id"}));
+        assertTrue(ButlerEvidenceLauncher.isSupportedProductionContext(new String[]{
+            "league", "production-context", "league-id", "2025"}));
+        assertFalse(ButlerEvidenceLauncher.isSupportedProductionContext(new String[]{
+            "league", "production-context"}));
+        assertFalse(ButlerEvidenceLauncher.isSupportedProductionContext(new String[]{
+            "league", "production-context", "league-id", "2025", "extra"}));
+    }
+
     @Test
     void parsesImplicitSeasonWithIndependentFreshnessCutoffs() {
         var options = ButlerEvidenceLauncher.parseEvidenceOverview(new String[]{
@@ -48,7 +61,7 @@ class ButlerEvidenceLauncherTest {
     }
 
     @Test
-    void recognizesOnlyEvidenceOverviewForInterception() {
+    void recognizesEvidenceOverviewForInterception() {
         assertTrue(ButlerEvidenceLauncher.isEvidenceOverviewCommand(new String[]{
             "league", "evidence-overview", "league-id"}));
     }
