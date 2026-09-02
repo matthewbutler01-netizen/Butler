@@ -52,6 +52,9 @@ class TradeAssetAnalyzerTest {
 
         assertEquals(DynastyProcessValueImporter.SOURCE_2QB, report.source());
         assertTrue(report.complete());
+        assertTrue(report.fresh());
+        assertTrue(report.comparable());
+        assertNull(report.minimumAsOfDate());
         assertEquals(450.0, report.sideA().totalValue());
         assertEquals(200.0, report.sideB().totalValue());
         assertEquals(250.0, report.valueDifference());
@@ -61,6 +64,7 @@ class TradeAssetAnalyzerTest {
         assertEquals("Alpha", report.sideA().draftPicks().getFirst().originalTeamName());
         assertEquals("Alpha", report.sideA().draftPicks().getFirst().ownerTeamName());
         assertEquals(LocalDate.of(2026, 8, 28), report.sideA().draftPicks().getFirst().asOfDate());
+        assertFalse(report.sideA().draftPicks().getFirst().stale());
     }
 
     @Test
@@ -97,6 +101,7 @@ class TradeAssetAnalyzerTest {
             TradeAssetAnalyzer.TradePackage.picks(List.of(fixture.betaSecond.getId())));
 
         assertFalse(report.complete());
+        assertFalse(report.comparable());
         assertEquals(1, report.valuedAssets());
         assertEquals(2, report.missingAssets());
         assertEquals(100.0 / 3.0, report.coveragePercent(), 0.0001);
@@ -125,6 +130,83 @@ class TradeAssetAnalyzerTest {
         assertEquals(200.0, report.sideA().totalValue());
         assertEquals(60.0, report.sideB().totalValue());
         assertEquals(140.0, report.valueDifference());
+    }
+
+    @Test
+    void explicitMinimumDateTreatsCutoffAsInclusive() throws Exception {
+        Fixture fixture = fixture(LeagueValueFormat.ONE_QB);
+        fixture.playerValues.save(PlayerValue.create(
+            fixture.qb.getId(), 100, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.alphaFirst.getId(), 120, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.betaSecond.getId(), 60, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+
+        LocalDate cutoff = LocalDate.of(2026, 8, 28);
+        var report = new TradeAssetAnalyzer(fixture.database).analyze(
+            fixture.league.getId(),
+            new TradeAssetAnalyzer.TradePackage(List.of(fixture.qb.getId()), List.of(fixture.alphaFirst.getId())),
+            TradeAssetAnalyzer.TradePackage.picks(List.of(fixture.betaSecond.getId())),
+            cutoff);
+
+        assertEquals(cutoff, report.minimumAsOfDate());
+        assertTrue(report.complete());
+        assertTrue(report.fresh());
+        assertTrue(report.comparable());
+        assertEquals(0, report.staleAssets());
+        assertEquals(160.0, report.valueDifference());
+    }
+
+    @Test
+    void staleAssetSuppressesDifferenceWithoutHidingPersistedValue() throws Exception {
+        Fixture fixture = fixture(LeagueValueFormat.ONE_QB);
+        fixture.playerValues.save(PlayerValue.create(
+            fixture.qb.getId(), 100, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.alphaFirst.getId(), 120, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.betaSecond.getId(), 60, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+
+        var report = new TradeAssetAnalyzer(fixture.database).analyze(
+            fixture.league.getId(),
+            new TradeAssetAnalyzer.TradePackage(List.of(fixture.qb.getId()), List.of(fixture.alphaFirst.getId())),
+            TradeAssetAnalyzer.TradePackage.picks(List.of(fixture.betaSecond.getId())),
+            LocalDate.of(2026, 8, 30));
+
+        assertTrue(report.complete());
+        assertFalse(report.fresh());
+        assertFalse(report.comparable());
+        assertEquals(1, report.staleAssets());
+        assertEquals(0, report.stalePlayers());
+        assertEquals(1, report.staleDraftPicks());
+        assertNull(report.valueDifference());
+        assertTrue(report.sideA().draftPicks().getFirst().valued());
+        assertTrue(report.sideA().draftPicks().getFirst().stale());
+        assertEquals(120.0, report.sideA().draftPicks().getFirst().value());
+        assertEquals(LocalDate.of(2026, 8, 28), report.sideA().draftPicks().getFirst().asOfDate());
+    }
+
+    @Test
+    void explicitSourceAndMinimumDateApplyTogether() throws Exception {
+        Fixture fixture = fixture(LeagueValueFormat.TWO_QB);
+        fixture.playerValues.save(PlayerValue.create(
+            fixture.qb.getId(), 80, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.alphaFirst.getId(), 120, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 8, 28)));
+        fixture.pickValues.save(DraftPickValue.create(
+            fixture.betaSecond.getId(), 60, DynastyProcessValueImporter.SOURCE_1QB, LocalDate.of(2026, 9, 1)));
+
+        var report = new TradeAssetAnalyzer(fixture.database).analyze(
+            fixture.league.getId(),
+            new TradeAssetAnalyzer.TradePackage(List.of(fixture.qb.getId()), List.of(fixture.alphaFirst.getId())),
+            TradeAssetAnalyzer.TradePackage.picks(List.of(fixture.betaSecond.getId())),
+            DynastyProcessValueImporter.SOURCE_1QB,
+            LocalDate.of(2026, 8, 30));
+
+        assertEquals(DynastyProcessValueImporter.SOURCE_1QB, report.source());
+        assertEquals(LocalDate.of(2026, 8, 30), report.minimumAsOfDate());
+        assertEquals(1, report.staleAssets());
+        assertNull(report.valueDifference());
     }
 
     @Test

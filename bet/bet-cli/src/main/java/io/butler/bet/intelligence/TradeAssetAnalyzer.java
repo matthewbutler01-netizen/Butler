@@ -26,8 +26,8 @@ import java.util.TreeSet;
 
 /**
  * Compares mixed player and future-draft-pick trade packages using persisted values only.
- * Missing values remain explicit and suppress the package difference; no subjective fairness
- * threshold or speculative draft-pick tier is applied.
+ * Missing or explicitly stale values remain visible and suppress the package difference; no
+ * subjective fairness threshold, speculative draft-pick tier, or universal freshness window is applied.
  */
 public final class TradeAssetAnalyzer {
     private final LeagueAnalyzer leagues;
@@ -51,18 +51,35 @@ public final class TradeAssetAnalyzer {
 
     public TradeReport analyze(String leagueId, TradePackage sideA, TradePackage sideB) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
-        return analyzeResolved(normalizedLeagueId, sideA, sideB, sources.resolve(normalizedLeagueId));
+        return analyzeResolved(normalizedLeagueId, sideA, sideB, sources.resolve(normalizedLeagueId), null);
+    }
+
+    public TradeReport analyze(String leagueId, TradePackage sideA, TradePackage sideB,
+                               LocalDate minimumAsOfDate) throws SQLException {
+        String normalizedLeagueId = requireText(leagueId, "leagueId");
+        Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        return analyzeResolved(normalizedLeagueId, sideA, sideB,
+            sources.resolve(normalizedLeagueId), minimumAsOfDate);
     }
 
     public TradeReport analyze(String leagueId, TradePackage sideA, TradePackage sideB,
                                String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         leagues.analyze(normalizedLeagueId);
-        return analyzeResolved(normalizedLeagueId, sideA, sideB, requireText(source, "source"));
+        return analyzeResolved(normalizedLeagueId, sideA, sideB, requireText(source, "source"), null);
+    }
+
+    public TradeReport analyze(String leagueId, TradePackage sideA, TradePackage sideB,
+                               String source, LocalDate minimumAsOfDate) throws SQLException {
+        String normalizedLeagueId = requireText(leagueId, "leagueId");
+        leagues.analyze(normalizedLeagueId);
+        Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        return analyzeResolved(normalizedLeagueId, sideA, sideB,
+            requireText(source, "source"), minimumAsOfDate);
     }
 
     private TradeReport analyzeResolved(String leagueId, TradePackage sideA, TradePackage sideB,
-                                        String source) throws SQLException {
+                                        String source, LocalDate minimumAsOfDate) throws SQLException {
         LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);
         NormalizedPackage normalizedA = normalizePackage(sideA, "sideA");
         NormalizedPackage normalizedB = normalizePackage(sideB, "sideB");
@@ -71,9 +88,9 @@ public final class TradeAssetAnalyzer {
 
         Map<String, TeamContext> playerTeams = rosterContext(league);
         Map<String, String> teamNames = teamNames(league);
-        TradeSide analyzedA = analyzeSide(normalizedA, leagueId, source, playerTeams, teamNames);
-        TradeSide analyzedB = analyzeSide(normalizedB, leagueId, source, playerTeams, teamNames);
-        return new TradeReport(leagueId, source, analyzedA, analyzedB);
+        TradeSide analyzedA = analyzeSide(normalizedA, leagueId, source, minimumAsOfDate, playerTeams, teamNames);
+        TradeSide analyzedB = analyzeSide(normalizedB, leagueId, source, minimumAsOfDate, playerTeams, teamNames);
+        return new TradeReport(leagueId, source, minimumAsOfDate, analyzedA, analyzedB);
     }
 
     private void validateSource(String source) throws SQLException {
@@ -87,6 +104,7 @@ public final class TradeAssetAnalyzer {
     }
 
     private TradeSide analyzeSide(NormalizedPackage tradePackage, String leagueId, String source,
+                                  LocalDate minimumAsOfDate,
                                   Map<String, TeamContext> playerTeams,
                                   Map<String, String> teamNames) throws SQLException {
         List<TradePlayer> tradePlayers = new ArrayList<>();
@@ -107,11 +125,13 @@ public final class TradeAssetAnalyzer {
                 total += value.getValue();
                 valuedPlayers++;
             }
+            LocalDate asOfDate = value == null ? null : value.getAsOfDate();
             tradePlayers.add(new TradePlayer(
                 player.getId(), player.getDisplayName(), player.getPosition(), player.getNflTeam(),
                 team.teamId(), team.teamName(),
                 value == null ? null : value.getValue(),
-                value == null ? null : value.getAsOfDate()));
+                asOfDate,
+                isStale(asOfDate, minimumAsOfDate)));
         }
 
         for (String draftPickId : tradePackage.draftPickIds()) {
@@ -135,13 +155,15 @@ public final class TradeAssetAnalyzer {
                 total += value.getValue();
                 valuedPicks++;
             }
+            LocalDate asOfDate = value == null ? null : value.getAsOfDate();
             tradePicks.add(new TradeDraftPick(
                 pick.getId(), pick.getSeason(), pick.getRound(), genericPickLabel(pick.getSeason(), pick.getRound()),
                 pick.getOriginalTeamId(), originalTeamName,
                 pick.getOwnerTeamId(), ownerTeamName,
                 pick.getPickNumber(),
                 value == null ? null : value.getValue(),
-                value == null ? null : value.getAsOfDate()));
+                asOfDate,
+                isStale(asOfDate, minimumAsOfDate)));
         }
 
         return new TradeSide(
@@ -211,6 +233,10 @@ public final class TradeAssetAnalyzer {
         }
     }
 
+    private static boolean isStale(LocalDate asOfDate, LocalDate minimumAsOfDate) {
+        return asOfDate != null && minimumAsOfDate != null && asOfDate.isBefore(minimumAsOfDate);
+    }
+
     private static String genericPickLabel(int season, int round) {
         return season + " " + switch (round) {
             case 1 -> "1st";
@@ -243,14 +269,20 @@ public final class TradeAssetAnalyzer {
         }
     }
 
-    public record TradeReport(String leagueId, String source, TradeSide sideA, TradeSide sideB) {
+    public record TradeReport(String leagueId, String source, LocalDate minimumAsOfDate,
+                              TradeSide sideA, TradeSide sideB) {
         public boolean complete() { return sideA.complete() && sideB.complete(); }
+        public boolean fresh() { return staleAssets() == 0; }
+        public boolean comparable() { return complete() && fresh(); }
         public Double valueDifference() {
-            return complete() ? sideA.totalValue() - sideB.totalValue() : null;
+            return comparable() ? sideA.totalValue() - sideB.totalValue() : null;
         }
         public int totalAssets() { return sideA.totalAssets() + sideB.totalAssets(); }
         public int valuedAssets() { return sideA.valuedAssets() + sideB.valuedAssets(); }
         public int missingAssets() { return sideA.missingAssets() + sideB.missingAssets(); }
+        public int staleAssets() { return sideA.staleAssets() + sideB.staleAssets(); }
+        public int stalePlayers() { return sideA.stalePlayers() + sideB.stalePlayers(); }
+        public int staleDraftPicks() { return sideA.staleDraftPicks() + sideB.staleDraftPicks(); }
         public double coveragePercent() {
             return totalAssets() == 0 ? 0.0 : valuedAssets() * 100.0 / totalAssets();
         }
@@ -262,21 +294,27 @@ public final class TradeAssetAnalyzer {
         public int totalAssets() { return players.size() + draftPicks.size(); }
         public int valuedAssets() { return valuedPlayers + valuedDraftPicks; }
         public int missingAssets() { return missingPlayers + missingDraftPicks; }
+        public int stalePlayers() { return (int) players.stream().filter(TradePlayer::stale).count(); }
+        public int staleDraftPicks() { return (int) draftPicks.stream().filter(TradeDraftPick::stale).count(); }
+        public int staleAssets() { return stalePlayers() + staleDraftPicks(); }
         public boolean complete() { return missingAssets() == 0; }
+        public boolean fresh() { return staleAssets() == 0; }
+        public boolean comparable() { return complete() && fresh(); }
         public double coveragePercent() {
             return totalAssets() == 0 ? 0.0 : valuedAssets() * 100.0 / totalAssets();
         }
     }
 
     public record TradePlayer(String playerId, String playerName, String position, String nflTeam,
-                              String teamId, String teamName, Double value, LocalDate asOfDate) {
+                              String teamId, String teamName, Double value, LocalDate asOfDate,
+                              boolean stale) {
         public boolean valued() { return value != null; }
     }
 
     public record TradeDraftPick(String draftPickId, int season, int round, String label,
                                  String originalTeamId, String originalTeamName,
                                  String ownerTeamId, String ownerTeamName, Integer pickNumber,
-                                 Double value, LocalDate asOfDate) {
+                                 Double value, LocalDate asOfDate, boolean stale) {
         public boolean valued() { return value != null; }
     }
 }
