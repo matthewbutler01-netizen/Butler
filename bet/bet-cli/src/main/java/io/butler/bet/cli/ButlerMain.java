@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
+import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -22,16 +23,15 @@ public final class ButlerMain {
     public static void main(String[] args) {
         if (args == null || args.length == 0) {
             ButlerApp.main(args == null ? new String[0] : args);
-            printOverviewUsage();
+            printIntelligenceUsage();
             return;
         }
         if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
             ButlerApp.main(args);
-            printOverviewUsage();
+            printIntelligenceUsage();
             return;
         }
         if (isSupportedLeagueStatus(args)) {
-            // Preserve the complete BF-100 status output and its existing error behavior first.
             ButlerApp.main(args);
             try {
                 printLeagueActions(analyzeActions(args));
@@ -44,13 +44,27 @@ public final class ButlerMain {
         }
         if (isLeagueOverviewCommand(args)) {
             if (!isSupportedLeagueOverview(args)) {
-                printOverviewUsage();
+                printIntelligenceUsage();
                 return;
             }
             try {
                 printLeagueOverview(analyzeOverview(args));
             } catch (SQLException e) {
                 failDatabase("building league overview", e);
+            } catch (IllegalArgumentException e) {
+                failArgument(e);
+            }
+            return;
+        }
+        if (isLeagueTeamContextCommand(args)) {
+            if (!isSupportedLeagueTeamContext(args)) {
+                printIntelligenceUsage();
+                return;
+            }
+            try {
+                printLeagueTeamContext(analyzeTeamContext(args));
+            } catch (SQLException e) {
+                failDatabase("building league team context", e);
             } catch (IllegalArgumentException e) {
                 failArgument(e);
             }
@@ -68,10 +82,22 @@ public final class ButlerMain {
         return isSupportedLeagueCommand(args, "overview");
     }
 
+    static boolean isSupportedLeagueTeamContext(String[] args) {
+        return isSupportedLeagueCommand(args, "team-context");
+    }
+
     private static boolean isLeagueOverviewCommand(String[] args) {
+        return isLeagueCommand(args, "overview");
+    }
+
+    private static boolean isLeagueTeamContextCommand(String[] args) {
+        return isLeagueCommand(args, "team-context");
+    }
+
+    private static boolean isLeagueCommand(String[] args, String command) {
         return args != null && args.length >= 2
             && args[0].equalsIgnoreCase("league")
-            && args[1].equalsIgnoreCase("overview");
+            && args[1].equalsIgnoreCase(command);
     }
 
     private static boolean isSupportedLeagueCommand(String[] args, String command) {
@@ -97,6 +123,14 @@ public final class ButlerMain {
 
     private static LeagueOverviewAnalyzer.OverviewReport analyzeOverview(String[] args) throws SQLException {
         LeagueOverviewAnalyzer analyzer = new LeagueOverviewAnalyzer(initializedDatabase());
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], args[3]);
+        if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
+        return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
+    }
+
+    private static LeagueTeamContextAnalyzer.TeamContextReport analyzeTeamContext(String[] args) throws SQLException {
+        LeagueTeamContextAnalyzer analyzer = new LeagueTeamContextAnalyzer(initializedDatabase());
         if (args.length == 3) return analyzer.analyze(args[2]);
         if (args.length == 4) return analyzer.analyze(args[2], args[3]);
         if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
@@ -144,6 +178,41 @@ public final class ButlerMain {
         printLeagueActions(overview.actionPlan().actions());
     }
 
+    static void printLeagueTeamContext(LeagueTeamContextAnalyzer.TeamContextReport context) {
+        if (context == null) throw new IllegalArgumentException("context must not be null");
+        var health = context.health();
+
+        System.out.println("League team context");
+        System.out.println("League: " + health.leagueName() + "  [" + health.leagueId() + "]");
+        System.out.println("Status: " + health.status() + "  core-ready=" + health.coreAnalysisReady());
+        System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
+        if (health.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + health.minimumAsOfDate());
+        }
+        System.out.println("Franchise ranks available: " + context.ranksAvailable());
+        if (context.movementAvailable()) {
+            System.out.println("Movement window: " + context.movementPreviousDate() + " -> " + context.movementLatestDate());
+        } else {
+            System.out.println("Movement window: unavailable");
+        }
+
+        if (context.teams().isEmpty()) {
+            System.out.println("No team context available until a value source can be resolved.");
+        } else {
+            for (var team : context.teams()) {
+                String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
+                String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
+                System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
+                    team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
+                    team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
+                    team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
+                    team.risers(), team.fallers(), team.unchanged(), team.teamId());
+            }
+        }
+
+        printLeagueActions(context.actionPlan().actions());
+    }
+
     static void printLeagueActions(List<LeagueActionPlanAnalyzer.Action> actions) {
         if (actions == null) throw new IllegalArgumentException("actions must not be null");
         if (actions.isEmpty()) {
@@ -162,9 +231,14 @@ public final class ButlerMain {
         }
     }
 
-    static void printOverviewUsage() {
-        System.out.println("League overview:");
+    static void printIntelligenceUsage() {
+        System.out.println("League intelligence:");
         System.out.println("  butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+        System.out.println("  butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+    }
+
+    static void printOverviewUsage() {
+        printIntelligenceUsage();
     }
 
     private static Database initializedDatabase() throws SQLException {

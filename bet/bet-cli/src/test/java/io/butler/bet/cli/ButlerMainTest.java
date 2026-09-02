@@ -42,6 +42,20 @@ class ButlerMainTest {
     }
 
     @Test
+    void recognizesEverySupportedLeagueTeamContextArgumentForm() {
+        assertTrue(ButlerMain.isSupportedLeagueTeamContext(new String[]{"league", "team-context", "league-id"}));
+        assertTrue(ButlerMain.isSupportedLeagueTeamContext(new String[]{"league", "team-context", "league-id", "source"}));
+        assertTrue(ButlerMain.isSupportedLeagueTeamContext(new String[]{
+            "league", "team-context", "league-id", "--minimum-as-of", "2026-09-01"}));
+        assertTrue(ButlerMain.isSupportedLeagueTeamContext(new String[]{
+            "league", "team-context", "league-id", "source", "--minimum-as-of", "2026-09-01"}));
+
+        assertFalse(ButlerMain.isSupportedLeagueTeamContext(new String[]{"league", "team-context"}));
+        assertFalse(ButlerMain.isSupportedLeagueTeamContext(new String[]{
+            "league", "team-context", "league-id", "--wrong-flag", "2026-09-01"}));
+    }
+
+    @Test
     void printsRequiredAndOptionalActionsWithDeterministicCommands() {
         var actions = List.of(
             new LeagueActionPlanAnalyzer.Action(
@@ -73,9 +87,10 @@ class ButlerMainTest {
     }
 
     @Test
-    void advertisesLeagueOverviewSyntax() {
-        String output = capture(ButlerMain::printOverviewUsage);
+    void advertisesLeagueIntelligenceSyntax() {
+        String output = capture(ButlerMain::printIntelligenceUsage);
         assertTrue(output.contains("butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
+        assertTrue(output.contains("butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
     }
 
     private static String capture(Runnable runnable) {
