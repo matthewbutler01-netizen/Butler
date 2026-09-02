@@ -2,19 +2,37 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueEvidenceOverviewAnalyzer;
+import io.butler.bet.intelligence.LeagueProductionContextAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 
-/** Adds evidence-overview freshness controls while delegating all established commands unchanged. */
+/** Adds focused league evidence/production commands while delegating established commands unchanged. */
 public final class ButlerEvidenceLauncher {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
     private ButlerEvidenceLauncher() {}
 
     public static void main(String[] args) {
+        if (isProductionContextCommand(args)) {
+            if (!isSupportedProductionContext(args)) {
+                printProductionContextUsage();
+                return;
+            }
+            try {
+                printProductionContext(analyzeProductionContext(args));
+            } catch (SQLException e) {
+                System.err.println("Database error while building league production context: " + e.getMessage());
+                System.exit(1);
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                System.err.println("Error: " + e.getMessage());
+                System.exit(2);
+            }
+            return;
+        }
+
         if (!isEvidenceOverviewCommand(args)) {
             ButlerLauncher.main(args);
             return;
@@ -38,6 +56,55 @@ public final class ButlerEvidenceLauncher {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    static boolean isProductionContextCommand(String[] args) {
+        return args != null && args.length >= 2
+            && args[0].equalsIgnoreCase("league")
+            && args[1].equalsIgnoreCase("production-context");
+    }
+
+    static boolean isSupportedProductionContext(String[] args) {
+        return isProductionContextCommand(args) && (args.length == 3 || args.length == 4);
+    }
+
+    private static LeagueProductionContextAnalyzer.ProductionContextReport analyzeProductionContext(String[] args)
+        throws SQLException {
+        Database database = initializedDatabase();
+        LeagueProductionContextAnalyzer analyzer = new LeagueProductionContextAnalyzer(database);
+        return args.length == 3 ? analyzer.analyze(args[2]) : analyzer.analyze(args[2], parseSeason(args[3]));
+    }
+
+    static void printProductionContext(LeagueProductionContextAnalyzer.ProductionContextReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        System.out.println("League production context");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Season: " + report.season());
+        System.out.println("Source: " + report.source());
+        System.out.printf("Coverage: %d/%d (%.1f%%)%n",
+            report.coveredPlayers(), report.totalPlayers(), report.coveragePercent());
+        for (var team : report.teams()) {
+            System.out.printf("%s  coverage=%d/%d (%.1f%%)  as-of=%s..%s  [%s]%n",
+                team.teamName(), team.coveredPlayers(), team.totalPlayers(), team.coveragePercent(),
+                team.earliestAsOf() == null ? "-" : team.earliestAsOf(),
+                team.latestAsOf() == null ? "-" : team.latestAsOf(), team.teamId());
+            for (var position : team.positions().values()) {
+                System.out.printf("  %s  coverage=%d/%d (%.1f%%)  player-games=%d  pass=%d/%d INT=%d  rush=%d/%d  rec=%d-%d/%d  FL=%d%n",
+                    position.position(), position.coveredPlayers(), position.totalPlayers(), position.coveragePercent(),
+                    position.playerGames(), position.passingYards(), position.passingTouchdowns(), position.interceptions(),
+                    position.rushingYards(), position.rushingTouchdowns(), position.receptions(),
+                    position.receivingYards(), position.receivingTouchdowns(), position.fumblesLost());
+            }
+            if (!team.missingPlayers().isEmpty()) {
+                System.out.println("  Missing production:");
+                team.missingPlayers().forEach(player -> System.out.printf(
+                    "    %s  %s  [%s]%n", player.playerName(), player.position(), player.playerId()));
+            }
+        }
+    }
+
+    static void printProductionContextUsage() {
+        System.out.println("  butler league production-context <league-id> [season]");
     }
 
     static boolean isEvidenceOverviewCommand(String[] args) {
@@ -82,8 +149,7 @@ public final class ButlerEvidenceLauncher {
 
     private static LeagueEvidenceOverviewAnalyzer.EvidenceOverviewReport analyze(EvidenceOverviewOptions options)
         throws SQLException {
-        Database database = new Database(DATABASE_PATH);
-        database.initialize();
+        Database database = initializedDatabase();
         LeagueEvidenceOverviewAnalyzer analyzer = new LeagueEvidenceOverviewAnalyzer(database);
         if (options.season() == null) {
             if (options.minimumValueAsOf() == null && options.minimumProfileAsOf() == null) {
@@ -100,6 +166,12 @@ public final class ButlerEvidenceLauncher {
 
     static void printEvidenceOverviewUsage() {
         System.out.println("  butler league evidence-overview <league-id> [season] [--minimum-value-as-of YYYY-MM-DD] [--minimum-profile-as-of YYYY-MM-DD]");
+    }
+
+    private static Database initializedDatabase() throws SQLException {
+        Database database = new Database(DATABASE_PATH);
+        database.initialize();
+        return database;
     }
 
     private static int parseSeason(String value) {
