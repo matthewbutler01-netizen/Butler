@@ -42,6 +42,14 @@ class DynastyProcessValueImporterTest {
         assertEquals(0, result.identityFallbackMatches());
         assertEquals(1, result.unmatchedPlayers());
         assertEquals(2, result.valuesImported());
+        assertEquals(2, result.diagnostics().valueRows());
+        assertEquals(2, result.diagnostics().playerIdRows());
+        assertEquals(2, result.diagnostics().primaryCrosswalkEntries());
+        assertEquals(2, result.diagnostics().providerRowsMappedByPrimaryId());
+        assertEquals(0, result.diagnostics().providerRowsMappedByIdentity());
+        assertEquals(0, result.diagnostics().providerRowsUnmapped());
+        assertEquals(2, result.diagnostics().providerRowsMapped());
+        assertEquals(100.0, result.diagnostics().providerMappingPercent());
         assertEquals("999", result.unmatched().get(0).sleeperId());
         assertEquals("Unmatched Player", result.unmatched().get(0).playerName());
 
@@ -72,12 +80,16 @@ class DynastyProcessValueImporterTest {
         assertEquals(1, result.matchedPlayers());
         assertEquals(1, result.identityFallbackMatches());
         assertEquals(0, result.unmatchedPlayers());
+        assertEquals(0, result.diagnostics().primaryCrosswalkEntries());
+        assertEquals(1, result.diagnostics().uniqueIdentityMappings());
+        assertEquals(1, result.diagnostics().providerRowsMappedByIdentity());
+        assertEquals(0, result.diagnostics().providerRowsUnmapped());
         assertEquals(7939.0, values.findByPlayerIdAndSource("rookie", DynastyProcessValueImporter.SOURCE_1QB)
             .get(0).getValue());
     }
 
     @Test
-    void doesNotUseAmbiguousIdentityFallback() throws Exception {
+    void reportsAmbiguousAndUnmappedProviderIdentityDiagnostics() throws Exception {
         Database database = database();
         PlayerRepository players = new PlayerRepository(database);
         players.save(new Player("p1", "100", "Same Name", "WR", "KC"));
@@ -94,6 +106,11 @@ class DynastyProcessValueImporterTest {
         assertEquals(0, result.matchedPlayers());
         assertEquals(1, result.unmatchedPlayers());
         assertEquals(0, result.identityFallbackMatches());
+        assertEquals(1, result.diagnostics().ambiguousIdentityMappings());
+        assertEquals(1, result.diagnostics().providerRowsMappedByPrimaryId());
+        assertEquals(0, result.diagnostics().providerRowsMappedByIdentity());
+        assertEquals(1, result.diagnostics().providerRowsUnmapped());
+        assertEquals(50.0, result.diagnostics().providerMappingPercent());
     }
 
     @Test
@@ -110,6 +127,7 @@ class DynastyProcessValueImporterTest {
         var result = new DynastyProcessValueImporter(database).importCsv(providerValues, ids);
         assertEquals(0, result.matchedPlayers());
         assertEquals(1, result.unmatchedPlayers());
+        assertEquals(1, result.diagnostics().providerRowsUnmapped());
     }
 
     @Test
