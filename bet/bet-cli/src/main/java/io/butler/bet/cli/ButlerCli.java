@@ -84,6 +84,7 @@ public final class ButlerCli {
             SleeperLeagueImporter.ImportResult result = new SleeperLeagueImporter(initializedDatabase()).importLeague(args[2]);
             System.out.println("Imported Sleeper league.");
             System.out.println("League ID: " + result.leagueId());
+            System.out.println("Value format: " + result.valueFormat());
             System.out.println("Teams: " + result.teamsImported());
             System.out.println("Players: " + result.playersImported());
             System.out.println("Roster entries: " + result.rosterEntriesImported());
@@ -173,15 +174,18 @@ public final class ButlerCli {
             printDynastyProcessResult(result.importResult(), true);
             return;
         }
-        if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
+        if ((args.length == 3 || args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
             TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(database);
-            var report = args.length == 5
-                ? analyzer.rank(args[2], args[3], parseDate(args[4], "minimum-as-of-date"))
-                : analyzer.rank(args[2], args[3]);
+            var report = switch (args.length) {
+                case 3 -> analyzer.rank(args[2]);
+                case 4 -> analyzer.rank(args[2], args[3]);
+                case 5 -> analyzer.rank(args[2], args[3], parseDate(args[4], "minimum-as-of-date"));
+                default -> throw new IllegalStateException("unexpected rank argument count");
+            };
             printStrengthReport(report);
             return;
         }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|team-movement <league-id> <source>|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> <source> [minimum-as-of-date]>");
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|team-movement <league-id> <source>|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> [source [minimum-as-of-date]]>");
     }
 
     private static void printLeagueDynastyProcessPreview(
@@ -476,6 +480,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> [source [minimum-as-of-date]]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
