@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
+import io.butler.bet.intelligence.LeagueAssetConcentrationAnalyzer;
 import io.butler.bet.intelligence.LeagueDecisionReadinessAnalyzer;
 import io.butler.bet.intelligence.LeagueDraftCapitalTimelineAnalyzer;
 import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
@@ -115,6 +116,20 @@ public final class ButlerMain {
             }
             return;
         }
+        if (isLeagueAssetConcentrationCommand(args)) {
+            if (!isSupportedLeagueAssetConcentration(args)) {
+                printIntelligenceUsage();
+                return;
+            }
+            try {
+                printLeagueAssetConcentration(analyzeAssetConcentration(args));
+            } catch (SQLException e) {
+                failDatabase("building league asset concentration", e);
+            } catch (IllegalArgumentException e) {
+                failArgument(e);
+            }
+            return;
+        }
 
         ButlerApp.main(args);
     }
@@ -143,6 +158,10 @@ public final class ButlerMain {
         return isSupportedLeagueCommand(args, "draft-capital");
     }
 
+    static boolean isSupportedLeagueAssetConcentration(String[] args) {
+        return isSupportedLeagueCommand(args, "asset-concentration");
+    }
+
     private static boolean isLeagueOverviewCommand(String[] args) {
         return isLeagueCommand(args, "overview");
     }
@@ -161,6 +180,10 @@ public final class ButlerMain {
 
     private static boolean isLeagueDraftCapitalCommand(String[] args) {
         return isLeagueCommand(args, "draft-capital");
+    }
+
+    private static boolean isLeagueAssetConcentrationCommand(String[] args) {
+        return isLeagueCommand(args, "asset-concentration");
     }
 
     private static boolean isLeagueCommand(String[] args, String command) {
@@ -233,65 +256,62 @@ public final class ButlerMain {
         return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
     }
 
+    private static LeagueAssetConcentrationAnalyzer.ConcentrationReport analyzeAssetConcentration(String[] args)
+        throws SQLException {
+        LeagueAssetConcentrationAnalyzer analyzer = new LeagueAssetConcentrationAnalyzer(initializedDatabase());
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], args[3]);
+        if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
+        return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
+    }
+
     static void printLeagueOverview(LeagueOverviewAnalyzer.OverviewReport overview) {
         if (overview == null) throw new IllegalArgumentException("overview must not be null");
         var health = overview.health();
-
         System.out.println("League overview");
         System.out.println("League: " + health.leagueName() + "  [" + health.leagueId() + "]");
         System.out.println("Status: " + health.status() + "  core-ready=" + health.coreAnalysisReady());
         System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
-        if (health.minimumAsOfDate() != null) {
-            System.out.println("Minimum as-of: " + health.minimumAsOfDate());
-        }
+        if (health.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + health.minimumAsOfDate());
         System.out.println("Requires attention: " + overview.requiresAttention());
-
         if (overview.franchiseRankingsAvailable()) {
             System.out.println("Franchise leaders:");
             for (var team : overview.topFranchises(3)) {
                 System.out.printf("  %d. %s  total=%.2f  players=%.2f  picks=%.2f  [%s]%n",
-                    team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(),
-                    team.draftPickValue(), team.teamId());
+                    team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.teamId());
             }
         } else {
             System.out.println("Franchise rankings: unavailable until current asset coverage is READY.");
         }
-
         if (overview.movementAvailable()) {
             var movement = overview.movement();
             System.out.printf("Top value movers: %s -> %s  coverage=%d/%d (%.1f%%)%n",
-                movement.previousDate(), movement.latestDate(), movement.comparablePlayers(),
-                movement.totalPlayers(), movement.coveragePercent());
+                movement.previousDate(), movement.latestDate(), movement.comparablePlayers(), movement.totalPlayers(), movement.coveragePercent());
             for (var mover : overview.topMovers(5)) {
                 System.out.printf("  %+.2f  %s  %s%s  fantasy-team=%s  %.2f -> %.2f  [%s]%n",
-                    mover.delta(), mover.position(), mover.playerName(), formatTeam(mover.nflTeam()),
-                    mover.teamName(), mover.previousValue(), mover.latestValue(), mover.playerId());
+                    mover.delta(), mover.position(), mover.playerName(), formatTeam(mover.nflTeam()), mover.teamName(),
+                    mover.previousValue(), mover.latestValue(), mover.playerId());
             }
         } else {
             System.out.println("Value movement: unavailable until comparable provider snapshots exist.");
         }
-
         printLeagueActions(overview.actionPlan().actions());
     }
 
     static void printLeagueTeamContext(LeagueTeamContextAnalyzer.TeamContextReport context) {
         if (context == null) throw new IllegalArgumentException("context must not be null");
         var health = context.health();
-
         System.out.println("League team context");
         System.out.println("League: " + health.leagueName() + "  [" + health.leagueId() + "]");
         System.out.println("Status: " + health.status() + "  core-ready=" + health.coreAnalysisReady());
         System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
-        if (health.minimumAsOfDate() != null) {
-            System.out.println("Minimum as-of: " + health.minimumAsOfDate());
-        }
+        if (health.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + health.minimumAsOfDate());
         System.out.println("Franchise ranks available: " + context.ranksAvailable());
         if (context.movementAvailable()) {
             System.out.println("Movement window: " + context.movementPreviousDate() + " -> " + context.movementLatestDate());
         } else {
             System.out.println("Movement window: unavailable");
         }
-
         if (context.teams().isEmpty()) {
             System.out.println("No team context available until a value source can be resolved.");
         } else {
@@ -299,27 +319,22 @@ public final class ButlerMain {
                 String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
                 String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
                 System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
-                    team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
-                    team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
-                    team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
-                    team.risers(), team.fallers(), team.unchanged(), team.teamId());
+                    team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.valuedAssets(),
+                    team.totalAssets(), team.coveragePercent(), movement, team.playersWithMovementHistory(), team.rosterSize(),
+                    team.movementCoveragePercent(), team.risers(), team.fallers(), team.unchanged(), team.teamId());
             }
         }
-
         printLeagueActions(context.actionPlan().actions());
     }
 
     static void printLeagueDecisionReadiness(LeagueDecisionReadinessAnalyzer.DecisionReadinessReport report) {
         if (report == null) throw new IllegalArgumentException("report must not be null");
         var health = report.health();
-
         System.out.println("League decision readiness");
         System.out.println("League: " + health.leagueName() + "  [" + health.leagueId() + "]");
         System.out.println("Readiness: " + report.readiness());
         System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
-        if (health.minimumAsOfDate() != null) {
-            System.out.println("Minimum as-of: " + health.minimumAsOfDate());
-        }
+        if (health.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + health.minimumAsOfDate());
         System.out.println("Current-value decisions ready: " + report.currentValueDecisionsReady());
         System.out.println("Trend-aware decisions ready: " + report.trendAwareDecisionsReady());
         System.out.println("Franchise rankings ready: " + report.franchiseRankingsReady());
@@ -331,25 +346,19 @@ public final class ButlerMain {
         System.out.println("League position value context");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
-        if (report.minimumAsOfDate() != null) {
-            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
-        }
+        if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
         System.out.printf("Player coverage: %d/%d (%.1f%%)  stale=%d  missing=%d%n",
-            report.valuedPlayers(), report.totalPlayers(), report.coveragePercent(),
-            report.stalePlayers(), report.missingPlayers());
-
+            report.valuedPlayers(), report.totalPlayers(), report.coveragePercent(), report.stalePlayers(), report.missingPlayers());
         System.out.println("League positions:");
         report.leaguePositions().values().stream()
             .sorted(java.util.Comparator.comparing(LeaguePositionValueAnalyzer.PositionValue::position))
             .forEach(position -> System.out.printf("  %s  value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d%n",
                 position.position(), position.value(), position.valuedPlayers(), position.totalPlayers(),
                 position.coveragePercent(), position.stalePlayers(), position.missingPlayers()));
-
         System.out.println("Teams:");
         for (var team : report.teams()) {
             System.out.printf("%s  total-player-value=%.2f  coverage=%d/%d (%.1f%%)  [%s]%n",
-                team.teamName(), team.totalPlayerValue(), team.valuedPlayers(), team.totalPlayers(),
-                team.coveragePercent(), team.teamId());
+                team.teamName(), team.totalPlayerValue(), team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(), team.teamId());
             team.positions().values().stream()
                 .sorted(java.util.Comparator.comparing(LeaguePositionValueAnalyzer.PositionValue::position))
                 .forEach(position -> System.out.printf("  %s  value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d%n",
@@ -363,12 +372,9 @@ public final class ButlerMain {
         System.out.println("League draft capital timeline");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
-        if (report.minimumAsOfDate() != null) {
-            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
-        }
+        if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
         System.out.printf("Draft-pick coverage: %d/%d (%.1f%%)  stale=%d  missing=%d  usable-value=%.2f%n",
-            report.valuedPicks(), report.totalPicks(), report.coveragePercent(), report.stalePicks(),
-            report.missingPicks(), report.totalValue());
+            report.valuedPicks(), report.totalPicks(), report.coveragePercent(), report.stalePicks(), report.missingPicks(), report.totalValue());
         for (var team : report.teams()) {
             System.out.printf("%s  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  [%s]%n",
                 team.teamName(), team.value(), team.valuedPicks(), team.totalPicks(), team.coveragePercent(),
@@ -379,8 +385,26 @@ public final class ButlerMain {
                     .map(entry -> "R" + entry.getKey() + "x" + entry.getValue())
                     .collect(java.util.stream.Collectors.joining(","));
                 System.out.printf("  %d  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  rounds=%s%n",
-                    season.season(), season.value(), season.valuedPicks(), season.totalPicks(),
-                    season.coveragePercent(), season.stalePicks(), season.missingPicks(), rounds);
+                    season.season(), season.value(), season.valuedPicks(), season.totalPicks(), season.coveragePercent(),
+                    season.stalePicks(), season.missingPicks(), rounds);
+            }
+        }
+    }
+
+    static void printLeagueAssetConcentration(LeagueAssetConcentrationAnalyzer.ConcentrationReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        System.out.println("League asset concentration");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        for (var team : report.teams()) {
+            System.out.printf("%s  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  top1=%.1f%%  top3=%.1f%%  top5=%.1f%%  hhi=%.4f  [%s]%n",
+                team.teamName(), team.usableAssetValue(), team.valuedAssets(), team.totalAssets(), team.coveragePercent(),
+                team.staleAssets(), team.missingAssets(), team.topAssetSharePercent(), team.topThreeSharePercent(),
+                team.topFiveSharePercent(), team.herfindahlIndex(), team.teamId());
+            for (var asset : team.topAssets(5)) {
+                System.out.printf("  %s  %s  value=%.2f  as-of=%s%n",
+                    asset.type(), asset.label(), asset.value(), asset.asOfDate());
             }
         }
     }
@@ -391,15 +415,11 @@ public final class ButlerMain {
             System.out.println("Next actions: none.");
             return;
         }
-
         System.out.println("Next actions:");
         for (var action : actions) {
             String requirement = action.requiredForCoreAnalysis() ? "REQUIRED" : "OPTIONAL";
-            System.out.printf("  %d. %s  %s  %s%n",
-                action.priority(), requirement, action.kind(), action.description());
-            if (action.hasCommand()) {
-                System.out.println("     " + action.command());
-            }
+            System.out.printf("  %d. %s  %s  %s%n", action.priority(), requirement, action.kind(), action.description());
+            if (action.hasCommand()) System.out.println("     " + action.command());
         }
     }
 
@@ -410,11 +430,10 @@ public final class ButlerMain {
         System.out.println("  butler league decision-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league position-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+        System.out.println("  butler league asset-concentration <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
     }
 
-    static void printOverviewUsage() {
-        printIntelligenceUsage();
-    }
+    static void printOverviewUsage() { printIntelligenceUsage(); }
 
     private static Database initializedDatabase() throws SQLException {
         Database database = new Database(DATABASE_PATH);
@@ -430,9 +449,7 @@ public final class ButlerMain {
         }
     }
 
-    private static String formatTeam(String nflTeam) {
-        return nflTeam == null ? "" : "  " + nflTeam;
-    }
+    private static String formatTeam(String nflTeam) { return nflTeam == null ? "" : "  " + nflTeam; }
 
     private static void failDatabase(String operation, SQLException e) {
         System.err.println("Database error while " + operation + ": " + e.getMessage());
