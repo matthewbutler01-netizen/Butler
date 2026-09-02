@@ -137,13 +137,13 @@ public final class ButlerCli {
             System.out.println("League ID: " + report.leagueId());
             System.out.println("Source: " + report.source());
             if (report.teams().isEmpty()) {
-                System.out.println("No rostered teams have players with at least two persisted snapshots for this source.");
+                System.out.println("No teams found for this league.");
                 return;
             }
             for (var team : report.teams()) {
-                System.out.printf("%+.2f  %s  history=%d  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
-                    team.delta(), team.teamName(), team.playersWithHistory(), team.risers(), team.fallers(),
-                    team.unchanged(), team.teamId());
+                System.out.printf("%+.2f  %s  coverage=%d/%d (%.1f%%)  missing-history=%d  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
+                    team.delta(), team.teamName(), team.playersWithHistory(), team.rosterSize(), team.historyCoveragePercent(),
+                    team.playersWithoutHistory(), team.risers(), team.fallers(), team.unchanged(), team.teamId());
             }
             return;
         }
