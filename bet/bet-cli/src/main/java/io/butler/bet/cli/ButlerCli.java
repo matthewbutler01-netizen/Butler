@@ -309,8 +309,15 @@ public final class ButlerCli {
                 throw new IllegalArgumentException("unknown value provider: " + args[2] + ". Supported: dynastyprocess");
             }
             var result = new DynastyProcessValueImporter(database).refresh();
+            var diagnostics = result.diagnostics();
             System.out.println("Refreshed player values from DynastyProcess.");
             System.out.println("As-of: " + result.asOfDate());
+            System.out.printf("Provider rows: %d values, %d player IDs%n", diagnostics.valueRows(), diagnostics.playerIdRows());
+            System.out.printf("Crosswalk: %d FantasyPros IDs, %d unique exact identities, %d ambiguous exact identities%n",
+                diagnostics.primaryCrosswalkEntries(), diagnostics.uniqueIdentityMappings(), diagnostics.ambiguousIdentityMappings());
+            System.out.printf("Provider mapping: %d/%d (%.1f%%)  primary=%d  exact-identity=%d  unmapped=%d%n",
+                diagnostics.providerRowsMapped(), diagnostics.valueRows(), diagnostics.providerMappingPercent(),
+                diagnostics.providerRowsMappedByPrimaryId(), diagnostics.providerRowsMappedByIdentity(), diagnostics.providerRowsUnmapped());
             System.out.println("Eligible local players: " + result.eligiblePlayers());
             System.out.println("Matched players: " + result.matchedPlayers());
             System.out.println("Exact-identity fallback matches: " + result.identityFallbackMatches());
