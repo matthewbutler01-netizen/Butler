@@ -55,10 +55,11 @@ public final class SleeperLeagueImporter {
         var sourceRosters = gateway.fetchRosters(sleeperLeagueId);
         var sourcePlayers = gateway.fetchPlayers();
         LocalDate profileAsOfDate = LocalDate.now(ZoneOffset.UTC);
+        Integer season = sourceLeague.season() > 0 ? sourceLeague.season() : null;
 
         League league = leagues.findByExternalId(sourceLeague.id())
-                .map(existing -> new League(existing.getId(), sourceLeague.id(), sourceLeague.name()))
-                .orElseGet(() -> new League(UUID.randomUUID().toString(), sourceLeague.id(), sourceLeague.name()));
+                .map(existing -> new League(existing.getId(), sourceLeague.id(), sourceLeague.name(), season))
+                .orElseGet(() -> new League(UUID.randomUUID().toString(), sourceLeague.id(), sourceLeague.name(), season));
         leagues.save(league);
         LeagueValueFormat valueFormat = LeagueValueFormat.fromRosterPositions(sourceLeague.rosterPositions());
         leagueFormats.save(league.getId(), valueFormat);
