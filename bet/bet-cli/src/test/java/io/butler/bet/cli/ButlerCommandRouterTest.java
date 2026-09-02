@@ -1,0 +1,33 @@
+package io.butler.bet.cli;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ButlerCommandRouterTest {
+    @Test
+    void routesSpecializedCommandFamiliesWithoutLauncherChaining() {
+        assertEquals(ButlerCommandRouter.Route.AGE_CONTEXT,
+            ButlerCommandRouter.route(new String[]{"league", "age-context", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.EVIDENCE,
+            ButlerCommandRouter.route(new String[]{"league", "evidence-overview", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.EVIDENCE,
+            ButlerCommandRouter.route(new String[]{"league", "production-context", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED,
+            ButlerCommandRouter.route(new String[]{"league", "team-profile", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED,
+            ButlerCommandRouter.route(new String[]{"league", "player-evidence-readiness", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED,
+            ButlerCommandRouter.route(new String[]{"nflverse", "production-preview", "2025"}));
+    }
+
+    @Test
+    void preservesEstablishedFallbackSurface() {
+        assertEquals(ButlerCommandRouter.Route.COMPOSED, ButlerCommandRouter.route(null));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED, ButlerCommandRouter.route(new String[]{"help"}));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED,
+            ButlerCommandRouter.route(new String[]{"league", "status", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.COMPOSED,
+            ButlerCommandRouter.route(new String[]{"trade", "compare", "l1", "a", "b"}));
+    }
+}

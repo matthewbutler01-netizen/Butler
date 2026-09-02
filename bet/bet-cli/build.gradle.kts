@@ -10,7 +10,7 @@ java {
 }
 
 application {
-    mainClass.set("io.butler.bet.cli.ButlerAgeLauncher")
+    mainClass.set("io.butler.bet.cli.ButlerCommandRouter")
 }
 
 repositories {
