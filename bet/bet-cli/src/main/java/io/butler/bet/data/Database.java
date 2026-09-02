@@ -3,6 +3,7 @@ package io.butler.bet.data;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -32,9 +33,11 @@ public final class Database {
                 CREATE TABLE IF NOT EXISTS leagues (
                     id TEXT PRIMARY KEY,
                     external_id TEXT UNIQUE,
-                    name TEXT NOT NULL
+                    name TEXT NOT NULL,
+                    season INTEGER
                 )
                 """);
+            ensureColumn(connection, "leagues", "season", "INTEGER");
 
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS league_value_formats (
@@ -188,6 +191,24 @@ public final class Database {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_season_production_source_date ON player_season_production(source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_pick_id ON draft_pick_values(draft_pick_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_source_date ON draft_pick_values(source, as_of_date)");
+        }
+    }
+
+    private static void ensureColumn(Connection connection, String table, String column, String definition) throws SQLException {
+        boolean exists = false;
+        try (Statement statement = connection.createStatement();
+             ResultSet rs = statement.executeQuery("PRAGMA table_info(" + table + ")")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+        if (!exists) {
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+            }
         }
     }
 }

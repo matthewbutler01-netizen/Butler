@@ -21,32 +21,34 @@ public final class LeagueRepository {
 
     public void save(League league) throws SQLException {
         Objects.requireNonNull(league, "league must not be null");
-        String sql = "INSERT INTO leagues(id, external_id, name) VALUES(?,?,?) "
-                + "ON CONFLICT(id) DO UPDATE SET external_id=excluded.external_id, name=excluded.name";
+        String sql = "INSERT INTO leagues(id, external_id, name, season) VALUES(?,?,?,?) "
+                + "ON CONFLICT(id) DO UPDATE SET external_id=excluded.external_id, name=excluded.name, season=excluded.season";
         try (Connection connection = database.openConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, league.getId());
             statement.setString(2, league.getExternalId());
             statement.setString(3, league.getName());
+            if (league.getSeason() == null) statement.setObject(4, null);
+            else statement.setInt(4, league.getSeason());
             statement.executeUpdate();
         }
     }
 
     public Optional<League> findById(String id) throws SQLException {
         requireText(id, "id");
-        return findOne("SELECT id, external_id, name FROM leagues WHERE id=?", id);
+        return findOne("SELECT id, external_id, name, season FROM leagues WHERE id=?", id);
     }
 
     public Optional<League> findByExternalId(String externalId) throws SQLException {
         requireText(externalId, "externalId");
-        return findOne("SELECT id, external_id, name FROM leagues WHERE external_id=?", externalId);
+        return findOne("SELECT id, external_id, name, season FROM leagues WHERE external_id=?", externalId);
     }
 
     public List<League> findAll() throws SQLException {
         List<League> result = new ArrayList<>();
         try (Connection connection = database.openConnection();
              Statement statement = connection.createStatement();
-             ResultSet rs = statement.executeQuery("SELECT id, external_id, name FROM leagues ORDER BY name")) {
+             ResultSet rs = statement.executeQuery("SELECT id, external_id, name, season FROM leagues ORDER BY name")) {
             while (rs.next()) {
                 result.add(map(rs));
             }
@@ -74,7 +76,9 @@ public final class LeagueRepository {
     }
 
     private static League map(ResultSet rs) throws SQLException {
-        return new League(rs.getString("id"), rs.getString("external_id"), rs.getString("name"));
+        Object season = rs.getObject("season");
+        return new League(rs.getString("id"), rs.getString("external_id"), rs.getString("name"),
+            season == null ? null : rs.getInt("season"));
     }
 
     private static String requireText(String value, String field) {
