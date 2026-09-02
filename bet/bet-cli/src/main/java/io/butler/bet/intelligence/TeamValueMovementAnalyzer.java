@@ -3,6 +3,7 @@ package io.butler.bet.intelligence;
 import io.butler.bet.data.Database;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -56,10 +57,18 @@ public final class TeamValueMovementAnalyzer {
             .thenComparing(TeamMovement::teamName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(TeamMovement::teamId));
 
-        return new MovementReport(report.leagueId(), report.source(), List.copyOf(teams));
+        return new MovementReport(report.leagueId(), report.source(), report.previousDate(), report.latestDate(),
+            report.totalPlayers(), report.comparablePlayers(), report.missingPlayers(), List.copyOf(teams));
     }
 
-    public record MovementReport(String leagueId, String source, List<TeamMovement> teams) {}
+    public record MovementReport(String leagueId, String source,
+                                 LocalDate previousDate, LocalDate latestDate,
+                                 int totalPlayers, int comparablePlayers, int missingPlayers,
+                                 List<TeamMovement> teams) {
+        public double coveragePercent() {
+            return totalPlayers == 0 ? 0.0 : (comparablePlayers * 100.0) / totalPlayers;
+        }
+    }
 
     public record TeamMovement(String teamId, String teamName, int rosterSize,
                                int playersWithHistory, int risers, int fallers, int unchanged,

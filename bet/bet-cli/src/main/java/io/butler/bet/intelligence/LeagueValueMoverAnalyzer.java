@@ -2,8 +2,10 @@ package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerRepository;
+import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
 import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
 
 import java.sql.SQLException;
@@ -17,29 +19,41 @@ public final class LeagueValueMoverAnalyzer {
     private final LeagueAnalyzer leagues;
     private final RosterRepository rosters;
     private final PlayerRepository players;
-    private final PlayerValueChangeAnalyzer changes;
+    private final PlayerValueRepository values;
+    private final SourceValueWindowResolver windows;
 
     public LeagueValueMoverAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
         this.leagues = new LeagueAnalyzer(database);
         this.rosters = new RosterRepository(database);
         this.players = new PlayerRepository(database);
-        this.changes = new PlayerValueChangeAnalyzer(database);
+        this.values = new PlayerValueRepository(database);
+        this.windows = new SourceValueWindowResolver(database);
     }
 
     public MoverReport analyze(String leagueId, String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedSource = requireText(source, "source");
         var league = leagues.analyze(normalizedLeagueId);
+        int totalPlayers = league.teams().stream().mapToInt(LeagueAnalyzer.TeamReport::rosterSize).sum();
+        var window = windows.latestWindow(normalizedSource);
+        if (window.isEmpty()) {
+            return new MoverReport(normalizedLeagueId, normalizedSource, null, null,
+                totalPlayers, 0, totalPlayers, List.of());
+        }
+
+        LocalDate previousDate = window.orElseThrow().previousDate();
+        LocalDate latestDate = window.orElseThrow().latestDate();
         List<Mover> movers = new ArrayList<>();
 
         for (LeagueAnalyzer.TeamReport team : league.teams()) {
             for (Roster roster : rosters.findByTeamId(team.teamId())) {
-                var change = changes.latestChange(roster.getPlayerId(), normalizedSource);
-                if (change.isEmpty()) continue;
+                List<PlayerValue> history = values.findByPlayerIdAndSource(roster.getPlayerId(), normalizedSource);
+                PlayerValue previous = valueOn(history, previousDate);
+                PlayerValue latest = valueOn(history, latestDate);
+                if (previous == null || latest == null) continue;
                 Player player = players.findById(roster.getPlayerId()).orElseThrow(
                     () -> new IllegalStateException("rostered player not found: " + roster.getPlayerId()));
-                var value = change.orElseThrow();
                 movers.add(new Mover(
                     team.teamId(),
                     team.teamName(),
@@ -47,11 +61,11 @@ public final class LeagueValueMoverAnalyzer {
                     player.getDisplayName(),
                     player.getPosition(),
                     player.getNflTeam(),
-                    value.previousDate(),
-                    value.previousValue(),
-                    value.latestDate(),
-                    value.latestValue(),
-                    value.delta()));
+                    previousDate,
+                    previous.getValue(),
+                    latestDate,
+                    latest.getValue(),
+                    latest.getValue() - previous.getValue()));
             }
         }
 
@@ -59,7 +73,16 @@ public final class LeagueValueMoverAnalyzer {
             .thenComparing(Mover::playerName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(Mover::playerId));
 
-        return new MoverReport(normalizedLeagueId, normalizedSource, List.copyOf(movers));
+        int comparablePlayers = movers.size();
+        return new MoverReport(normalizedLeagueId, normalizedSource, previousDate, latestDate,
+            totalPlayers, comparablePlayers, totalPlayers - comparablePlayers, List.copyOf(movers));
+    }
+
+    private static PlayerValue valueOn(List<PlayerValue> history, LocalDate date) {
+        for (PlayerValue value : history) {
+            if (value.getAsOfDate().equals(date)) return value;
+        }
+        return null;
     }
 
     private static String requireText(String value, String field) {
@@ -67,7 +90,14 @@ public final class LeagueValueMoverAnalyzer {
         return value.trim();
     }
 
-    public record MoverReport(String leagueId, String source, List<Mover> movers) {}
+    public record MoverReport(String leagueId, String source,
+                              LocalDate previousDate, LocalDate latestDate,
+                              int totalPlayers, int comparablePlayers, int missingPlayers,
+                              List<Mover> movers) {
+        public double coveragePercent() {
+            return totalPlayers == 0 ? 0.0 : (comparablePlayers * 100.0) / totalPlayers;
+        }
+    }
 
     public record Mover(String teamId, String teamName,
                         String playerId, String playerName, String position, String nflTeam,
