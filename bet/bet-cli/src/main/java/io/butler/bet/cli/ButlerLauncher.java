@@ -153,7 +153,7 @@ public final class ButlerLauncher {
     }
 
     static void printPlayerEvidenceReadiness(LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport report) {
-        if (report == null) throw new IllegalArgumentException("result must not be null");
+        if (report == null) throw new IllegalArgumentException("report must not be null");
         System.out.println("League player evidence readiness");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Season: " + report.season());
