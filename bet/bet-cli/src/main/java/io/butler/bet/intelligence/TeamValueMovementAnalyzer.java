@@ -21,8 +21,15 @@ public final class TeamValueMovementAnalyzer {
         this.leagueMovers = new LeagueValueMoverAnalyzer(database);
     }
 
+    public MovementReport analyze(String leagueId) throws SQLException {
+        return summarize(leagueMovers.analyze(leagueId));
+    }
+
     public MovementReport analyze(String leagueId, String source) throws SQLException {
-        var report = leagueMovers.analyze(leagueId, source);
+        return summarize(leagueMovers.analyze(leagueId, source));
+    }
+
+    private MovementReport summarize(LeagueValueMoverAnalyzer.MoverReport report) throws SQLException {
         var league = leagues.analyze(report.leagueId());
         Map<String, MutableTeamMovement> byTeam = new LinkedHashMap<>();
 
