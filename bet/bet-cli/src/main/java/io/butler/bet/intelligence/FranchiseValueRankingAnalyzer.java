@@ -3,6 +3,7 @@ package io.butler.bet.intelligence;
 import io.butler.bet.data.Database;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -10,25 +11,42 @@ import java.util.Objects;
 
 /**
  * Ranks complete team asset portfolios by total persisted franchise value.
- * Rankings are intentionally unavailable when any player or draft-pick value is missing.
+ * Rankings are unavailable when any player or draft-pick value is missing. Callers may also supply
+ * an explicit minimum as-of date to prevent rankings from using stale persisted values.
  */
 public final class FranchiseValueRankingAnalyzer {
     private final TeamAssetPortfolioAnalyzer portfolios;
+    private final FranchiseValueReadinessAnalyzer readiness;
 
     public FranchiseValueRankingAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
         this.portfolios = new TeamAssetPortfolioAnalyzer(database);
+        this.readiness = new FranchiseValueReadinessAnalyzer(database);
     }
 
     public RankingReport rank(String leagueId) throws SQLException {
-        return rank(portfolios.analyze(leagueId));
+        return rank(portfolios.analyze(leagueId), null);
     }
 
     public RankingReport rank(String leagueId, String source) throws SQLException {
-        return rank(portfolios.analyze(leagueId, source));
+        return rank(portfolios.analyze(leagueId, source), null);
     }
 
-    private RankingReport rank(TeamAssetPortfolioAnalyzer.PortfolioReport portfolio) {
+    public RankingReport rank(String leagueId, LocalDate minimumAsOfDate) throws SQLException {
+        LocalDate cutoff = Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        var readinessReport = readiness.analyze(leagueId, cutoff);
+        requireRankable(readinessReport);
+        return rank(portfolios.analyze(leagueId), cutoff);
+    }
+
+    public RankingReport rank(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
+        LocalDate cutoff = Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        var readinessReport = readiness.analyze(leagueId, source, cutoff);
+        requireRankable(readinessReport);
+        return rank(portfolios.analyze(leagueId, source), cutoff);
+    }
+
+    private RankingReport rank(TeamAssetPortfolioAnalyzer.PortfolioReport portfolio, LocalDate minimumAsOfDate) {
         if (!portfolio.complete()) {
             List<String> incomplete = new ArrayList<>();
             for (var team : portfolio.teams()) {
@@ -67,19 +85,31 @@ public final class FranchiseValueRankingAnalyzer {
         return new RankingReport(
             portfolio.leagueId(),
             portfolio.source(),
+            minimumAsOfDate,
             portfolio.playerValue(),
             portfolio.draftPickValue(),
             portfolio.totalAssetValue(),
             List.copyOf(ranked));
     }
 
-    public record RankingReport(String leagueId, String source,
+    private static void requireRankable(FranchiseValueReadinessAnalyzer.ReadinessReport report) {
+        if (report.rankable()) return;
+        throw new IllegalArgumentException(
+            "franchise value ranking requires READY asset coverage on or after " + report.minimumAsOfDate()
+                + " for source " + report.source()
+                + ": status=" + report.status()
+                + " missing-assets=" + report.missingAssets()
+                + " stale-assets=" + report.staleAssets()
+                + " oldest-value-date=" + report.oldestValueDate());
+    }
+
+    public record RankingReport(String leagueId, String source, LocalDate minimumAsOfDate,
                                 double playerValue, double draftPickValue, double totalAssetValue,
                                 List<FranchiseValue> teams) {}
 
     public record FranchiseValue(int rank, String teamId, String teamName,
                                  double playerValue, double draftPickValue, double totalAssetValue,
                                  int valuedPlayers, int valuedDraftPicks,
-                                 java.time.LocalDate oldestValueDate,
-                                 java.time.LocalDate latestValueDate) {}
+                                 LocalDate oldestValueDate,
+                                 LocalDate latestValueDate) {}
 }
