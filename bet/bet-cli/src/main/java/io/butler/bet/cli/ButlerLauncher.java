@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueCompositeTeamProfileAnalyzer;
+import io.butler.bet.intelligence.LeagueEvidenceOverviewAnalyzer;
 import io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;
 import io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter;
 
@@ -32,6 +33,23 @@ public final class ButlerLauncher {
                 System.err.println("Database error while building league team profile: " + e.getMessage());
                 System.exit(1);
             } catch (IllegalArgumentException e) {
+                System.err.println("Error: " + e.getMessage());
+                System.exit(2);
+            }
+            return;
+        }
+
+        if (isEvidenceOverviewCommand(args)) {
+            if (!isSupportedEvidenceOverview(args)) {
+                printEvidenceOverviewUsage();
+                return;
+            }
+            try {
+                printEvidenceOverview(analyzeEvidenceOverview(args));
+            } catch (SQLException e) {
+                System.err.println("Database error while building league evidence overview: " + e.getMessage());
+                System.exit(1);
+            } catch (IllegalArgumentException | IllegalStateException e) {
                 System.err.println("Error: " + e.getMessage());
                 System.exit(2);
             }
@@ -83,6 +101,7 @@ public final class ButlerLauncher {
         ButlerMain.main(args);
         if (args == null || args.length == 0 || (args.length == 1 && args[0].equalsIgnoreCase("help"))) {
             printTeamProfileUsage();
+            printEvidenceOverviewUsage();
             printPlayerEvidenceReadinessUsage();
             printNflverseProductionUsage();
         }
@@ -93,6 +112,10 @@ public final class ButlerLauncher {
         if (args.length == 3 || args.length == 4) return true;
         if (args.length == 5) return args[3].equalsIgnoreCase("--minimum-as-of");
         return args.length == 6 && args[4].equalsIgnoreCase("--minimum-as-of");
+    }
+
+    static boolean isSupportedEvidenceOverview(String[] args) {
+        return isEvidenceOverviewCommand(args) && (args.length == 3 || args.length == 4);
     }
 
     static boolean isSupportedPlayerEvidenceReadiness(String[] args) {
@@ -110,6 +133,12 @@ public final class ButlerLauncher {
         return args != null && args.length >= 2
             && args[0].equalsIgnoreCase("league")
             && args[1].equalsIgnoreCase("team-profile");
+    }
+
+    private static boolean isEvidenceOverviewCommand(String[] args) {
+        return args != null && args.length >= 2
+            && args[0].equalsIgnoreCase("league")
+            && args[1].equalsIgnoreCase("evidence-overview");
     }
 
     private static boolean isPlayerEvidenceReadinessCommand(String[] args) {
@@ -135,6 +164,12 @@ public final class ButlerLauncher {
         return analyzer.analyze(args[2], args[3], parseDate(args[5]));
     }
 
+    private static LeagueEvidenceOverviewAnalyzer.EvidenceOverviewReport analyzeEvidenceOverview(String[] args)
+        throws SQLException {
+        LeagueEvidenceOverviewAnalyzer analyzer = new LeagueEvidenceOverviewAnalyzer(initializedDatabase());
+        return args.length == 3 ? analyzer.analyze(args[2]) : analyzer.analyze(args[2], parseSeason(args[3]));
+    }
+
     private static LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport analyzePlayerEvidenceReadiness(String[] args)
         throws SQLException {
         LeaguePlayerEvidenceReadinessAnalyzer analyzer =
@@ -150,6 +185,24 @@ public final class ButlerLauncher {
         NflversePlayerSeasonProductionImporter importer =
             new NflversePlayerSeasonProductionImporter(initializedDatabase());
         return persist ? importer.refresh(season) : importer.preview(season);
+    }
+
+    static void printEvidenceOverview(LeagueEvidenceOverviewAnalyzer.EvidenceOverviewReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        var decisions = report.decisionReadiness();
+        var players = report.playerEvidenceReadiness();
+        System.out.println("League evidence overview");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Player season: " + report.playerSeason());
+        System.out.println("Decision readiness: " + decisions.readiness());
+        System.out.printf("Current-value decisions: %s  trend-aware decisions: %s%n",
+            report.currentValueDecisionsReady() ? "READY" : "BLOCKED",
+            report.trendAwareDecisionsReady() ? "READY" : "BLOCKED");
+        System.out.println("Player-evidence readiness: " + players.readiness());
+        System.out.printf("Age evidence: %d/%d (%.1f%%)  production evidence: %d/%d (%.1f%%)%n",
+            players.ageEvidencePlayers(), players.totalPlayers(), players.ageCoveragePercent(),
+            players.productionEvidencePlayers(), players.totalPlayers(), players.productionCoveragePercent());
+        System.out.println("Readiness dimensions are independent; this command does not combine them into a score.");
     }
 
     static void printPlayerEvidenceReadiness(LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport report) {
@@ -237,6 +290,10 @@ public final class ButlerLauncher {
 
     static void printTeamProfileUsage() {
         System.out.println("  butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+    }
+
+    static void printEvidenceOverviewUsage() {
+        System.out.println("  butler league evidence-overview <league-id> [season]");
     }
 
     static void printPlayerEvidenceReadinessUsage() {
