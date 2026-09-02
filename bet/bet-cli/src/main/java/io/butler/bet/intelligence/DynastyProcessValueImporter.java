@@ -18,6 +18,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -57,13 +58,24 @@ public final class DynastyProcessValueImporter {
         if (idRows.isEmpty()) throw new IllegalArgumentException("DynastyProcess player-id file contains no data rows");
 
         Map<String, String> sleeperByFantasyPros = new LinkedHashMap<>();
+        Map<String, String> sleeperByIdentity = new LinkedHashMap<>();
         for (Map<String, String> row : idRows) {
-            String fpId = normalizeId(first(row, "fantasypros_id", "fp_id"));
             String sleeperId = normalizeId(first(row, "sleeper_id"));
-            if (fpId == null || sleeperId == null) continue;
-            String existing = sleeperByFantasyPros.putIfAbsent(fpId, sleeperId);
-            if (existing != null && !existing.equals(sleeperId)) {
-                throw new IllegalArgumentException("ambiguous DynastyProcess FantasyPros id mapping: " + fpId);
+            if (sleeperId == null) continue;
+
+            String fpId = normalizeId(first(row, "fantasypros_id", "fp_id"));
+            if (fpId != null) {
+                String existing = sleeperByFantasyPros.putIfAbsent(fpId, sleeperId);
+                if (existing != null && !existing.equals(sleeperId)) {
+                    throw new IllegalArgumentException("ambiguous DynastyProcess FantasyPros id mapping: " + fpId);
+                }
+            }
+
+            String identity = identity(first(row, "name", "player"),
+                first(row, "position", "pos"), first(row, "team", "team_abbr"));
+            if (identity != null) {
+                if (!sleeperByIdentity.containsKey(identity)) sleeperByIdentity.put(identity, sleeperId);
+                else if (!Objects.equals(sleeperByIdentity.get(identity), sleeperId)) sleeperByIdentity.put(identity, null);
             }
         }
 
@@ -71,20 +83,27 @@ public final class DynastyProcessValueImporter {
         LocalDate datasetDate = null;
         for (Map<String, String> row : valueRows) {
             String fpId = normalizeId(first(row, "fp_id", "fantasypros_id"));
-            if (fpId == null) continue;
-            String sleeperId = sleeperByFantasyPros.get(fpId);
+            String sleeperId = fpId == null ? null : sleeperByFantasyPros.get(fpId);
+            boolean identityFallback = false;
+            if (sleeperId == null) {
+                String identity = identity(first(row, "player", "name"),
+                    first(row, "pos", "position"), first(row, "team", "team_abbr"));
+                sleeperId = identity == null ? null : sleeperByIdentity.get(identity);
+                identityFallback = sleeperId != null;
+            }
             if (sleeperId == null) continue;
 
-            LocalDate asOf = parseDate(required(row, "scrape_date"), fpId);
+            String providerKey = fpId == null ? sleeperId : fpId;
+            LocalDate asOf = parseDate(required(row, "scrape_date"), providerKey);
             if (datasetDate == null) datasetDate = asOf;
             else if (!datasetDate.equals(asOf)) {
                 throw new IllegalArgumentException("DynastyProcess values contain multiple scrape dates: "
                     + datasetDate + " and " + asOf);
             }
 
-            double oneQb = parseValue(required(row, "value_1qb"), "value_1qb", fpId);
-            double twoQb = parseValue(required(row, "value_2qb"), "value_2qb", fpId);
-            ProviderValue provider = new ProviderValue(fpId, sleeperId, asOf, oneQb, twoQb);
+            double oneQb = parseValue(required(row, "value_1qb"), "value_1qb", providerKey);
+            double twoQb = parseValue(required(row, "value_2qb"), "value_2qb", providerKey);
+            ProviderValue provider = new ProviderValue(fpId, sleeperId, asOf, oneQb, twoQb, identityFallback);
             ProviderValue existing = providerBySleeper.putIfAbsent(sleeperId, provider);
             if (existing != null && !existing.equals(provider)) {
                 throw new IllegalArgumentException("ambiguous DynastyProcess Sleeper id mapping: " + sleeperId);
@@ -98,6 +117,7 @@ public final class DynastyProcessValueImporter {
         List<UnmatchedPlayer> unmatched = new ArrayList<>();
         int eligiblePlayers = 0;
         int matchedPlayers = 0;
+        int identityFallbackMatches = 0;
         for (Player player : players.findAll()) {
             String sleeperId = normalizeId(player.getExternalId());
             if (sleeperId == null) continue;
@@ -108,12 +128,13 @@ public final class DynastyProcessValueImporter {
                 continue;
             }
             matchedPlayers++;
+            if (provider.identityFallback()) identityFallbackMatches++;
             resolved.add(PlayerValue.create(player.getId(), provider.oneQbValue(), SOURCE_1QB, provider.asOfDate()));
             resolved.add(PlayerValue.create(player.getId(), provider.twoQbValue(), SOURCE_2QB, provider.asOfDate()));
         }
 
         values.saveAll(resolved);
-        return new ImportResult(datasetDate, eligiblePlayers, matchedPlayers,
+        return new ImportResult(datasetDate, eligiblePlayers, matchedPlayers, identityFallbackMatches,
             unmatched.size(), resolved.size(), List.copyOf(unmatched));
     }
 
@@ -143,13 +164,26 @@ public final class DynastyProcessValueImporter {
         return null;
     }
 
+    private static String identity(String name, String position, String team) {
+        String normalizedName = normalizeIdentityPart(name);
+        String normalizedPosition = normalizeIdentityPart(position);
+        String normalizedTeam = normalizeIdentityPart(team);
+        if (normalizedName == null || normalizedPosition == null || normalizedTeam == null) return null;
+        return normalizedName + "|" + normalizedPosition + "|" + normalizedTeam;
+    }
+
+    private static String normalizeIdentityPart(String value) {
+        if (value == null || value.isBlank() || value.equalsIgnoreCase("NA")) return null;
+        return value.trim().replace('\u2019', '\'').replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+    }
+
     private static double parseValue(String text, String column, String fpId) {
         try {
             double value = Double.parseDouble(text);
             if (!Double.isFinite(value) || value < 0) throw new NumberFormatException();
             return value;
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("invalid DynastyProcess " + column + " for fp_id " + fpId + ": " + text, e);
+            throw new IllegalArgumentException("invalid DynastyProcess " + column + " for provider id " + fpId + ": " + text, e);
         }
     }
 
@@ -157,7 +191,7 @@ public final class DynastyProcessValueImporter {
         try {
             return LocalDate.parse(text);
         } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("invalid DynastyProcess scrape_date for fp_id " + fpId + ": " + text, e);
+            throw new IllegalArgumentException("invalid DynastyProcess scrape_date for provider id " + fpId + ": " + text, e);
         }
     }
 
@@ -174,13 +208,13 @@ public final class DynastyProcessValueImporter {
     }
 
     public record ImportResult(LocalDate asOfDate, int eligiblePlayers, int matchedPlayers,
-                               int unmatchedPlayers, int valuesImported,
+                               int identityFallbackMatches, int unmatchedPlayers, int valuesImported,
                                List<UnmatchedPlayer> unmatched) {}
 
     public record UnmatchedPlayer(String playerId, String sleeperId, String playerName) {}
 
     private record ProviderValue(String fantasyProsId, String sleeperId, LocalDate asOfDate,
-                                 double oneQbValue, double twoQbValue) {}
+                                 double oneQbValue, double twoQbValue, boolean identityFallback) {}
 
     private static final class Csv {
         private Csv() {}

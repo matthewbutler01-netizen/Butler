@@ -39,6 +39,7 @@ class DynastyProcessValueImporterTest {
         assertEquals(LocalDate.of(2026, 8, 28), result.asOfDate());
         assertEquals(2, result.eligiblePlayers());
         assertEquals(1, result.matchedPlayers());
+        assertEquals(0, result.identityFallbackMatches());
         assertEquals(1, result.unmatchedPlayers());
         assertEquals(2, result.valuesImported());
         assertEquals("999", result.unmatched().get(0).sleeperId());
@@ -52,6 +53,63 @@ class DynastyProcessValueImporterTest {
         assertEquals(1, twoQb.size());
         assertEquals(9055.0, twoQb.get(0).getValue());
         assertEquals(0, values.findByPlayerId("p2").size());
+    }
+
+    @Test
+    void safelyMapsRookieWithoutFantasyProsCrosswalkByUniqueExactIdentity() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+        players.save(new Player("rookie", "7000", "Jeremiyah Love", "RB", "ARI"));
+
+        String ids = "name,position,team,fantasypros_id,sleeper_id\n"
+            + "Jeremiyah Love,RB,ARI,NA,7000\n";
+        String providerValues = "player,pos,team,value_1qb,value_2qb,scrape_date,fp_id\n"
+            + "Jeremiyah Love,RB,ARI,7939,6087,2026-08-28,25403\n";
+
+        var result = new DynastyProcessValueImporter(database).importCsv(providerValues, ids);
+
+        assertEquals(1, result.matchedPlayers());
+        assertEquals(1, result.identityFallbackMatches());
+        assertEquals(0, result.unmatchedPlayers());
+        assertEquals(7939.0, values.findByPlayerIdAndSource("rookie", DynastyProcessValueImporter.SOURCE_1QB)
+            .get(0).getValue());
+    }
+
+    @Test
+    void doesNotUseAmbiguousIdentityFallback() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        players.save(new Player("p1", "100", "Same Name", "WR", "KC"));
+
+        String ids = "name,position,team,fantasypros_id,sleeper_id\n"
+            + "Same Name,WR,KC,NA,100\n"
+            + "Same Name,WR,KC,NA,101\n"
+            + "Mapped Player,RB,DAL,2,200\n";
+        String providerValues = "player,pos,team,value_1qb,value_2qb,scrape_date,fp_id\n"
+            + "Same Name,WR,KC,10,20,2026-08-28,1\n"
+            + "Mapped Player,RB,DAL,30,40,2026-08-28,2\n";
+
+        var result = new DynastyProcessValueImporter(database).importCsv(providerValues, ids);
+        assertEquals(0, result.matchedPlayers());
+        assertEquals(1, result.unmatchedPlayers());
+        assertEquals(0, result.identityFallbackMatches());
+    }
+
+    @Test
+    void exactIdentityFallbackRequiresTeamAndPositionToMatch() throws Exception {
+        Database database = database();
+        PlayerRepository players = new PlayerRepository(database);
+        players.save(new Player("p1", "100", "Rookie", "WR", "KC"));
+
+        String ids = "name,position,team,fantasypros_id,sleeper_id\nRookie,WR,KC,NA,100\nMapped,RB,DAL,2,200\n";
+        String providerValues = "player,pos,team,value_1qb,value_2qb,scrape_date,fp_id\n"
+            + "Rookie,WR,BUF,10,20,2026-08-28,1\n"
+            + "Mapped,RB,DAL,30,40,2026-08-28,2\n";
+
+        var result = new DynastyProcessValueImporter(database).importCsv(providerValues, ids);
+        assertEquals(0, result.matchedPlayers());
+        assertEquals(1, result.unmatchedPlayers());
     }
 
     @Test
