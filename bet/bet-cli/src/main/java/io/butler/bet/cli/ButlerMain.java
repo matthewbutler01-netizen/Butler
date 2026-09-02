@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueDecisionReadinessAnalyzer;
+import io.butler.bet.intelligence.LeagueDraftCapitalTimelineAnalyzer;
 import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
 import io.butler.bet.intelligence.LeaguePositionValueAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
@@ -100,6 +101,20 @@ public final class ButlerMain {
             }
             return;
         }
+        if (isLeagueDraftCapitalCommand(args)) {
+            if (!isSupportedLeagueDraftCapital(args)) {
+                printIntelligenceUsage();
+                return;
+            }
+            try {
+                printLeagueDraftCapital(analyzeDraftCapital(args));
+            } catch (SQLException e) {
+                failDatabase("building league draft capital timeline", e);
+            } catch (IllegalArgumentException e) {
+                failArgument(e);
+            }
+            return;
+        }
 
         ButlerApp.main(args);
     }
@@ -124,6 +139,10 @@ public final class ButlerMain {
         return isSupportedLeagueCommand(args, "position-context");
     }
 
+    static boolean isSupportedLeagueDraftCapital(String[] args) {
+        return isSupportedLeagueCommand(args, "draft-capital");
+    }
+
     private static boolean isLeagueOverviewCommand(String[] args) {
         return isLeagueCommand(args, "overview");
     }
@@ -138,6 +157,10 @@ public final class ButlerMain {
 
     private static boolean isLeaguePositionContextCommand(String[] args) {
         return isLeagueCommand(args, "position-context");
+    }
+
+    private static boolean isLeagueDraftCapitalCommand(String[] args) {
+        return isLeagueCommand(args, "draft-capital");
     }
 
     private static boolean isLeagueCommand(String[] args, String command) {
@@ -195,6 +218,15 @@ public final class ButlerMain {
     private static LeaguePositionValueAnalyzer.PositionContextReport analyzePositionContext(String[] args)
         throws SQLException {
         LeaguePositionValueAnalyzer analyzer = new LeaguePositionValueAnalyzer(initializedDatabase());
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], args[3]);
+        if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
+        return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
+    }
+
+    private static LeagueDraftCapitalTimelineAnalyzer.DraftCapitalReport analyzeDraftCapital(String[] args)
+        throws SQLException {
+        LeagueDraftCapitalTimelineAnalyzer analyzer = new LeagueDraftCapitalTimelineAnalyzer(initializedDatabase());
         if (args.length == 3) return analyzer.analyze(args[2]);
         if (args.length == 4) return analyzer.analyze(args[2], args[3]);
         if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
@@ -326,6 +358,33 @@ public final class ButlerMain {
         }
     }
 
+    static void printLeagueDraftCapital(LeagueDraftCapitalTimelineAnalyzer.DraftCapitalReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        System.out.println("League draft capital timeline");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        if (report.minimumAsOfDate() != null) {
+            System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        }
+        System.out.printf("Draft-pick coverage: %d/%d (%.1f%%)  stale=%d  missing=%d  usable-value=%.2f%n",
+            report.valuedPicks(), report.totalPicks(), report.coveragePercent(), report.stalePicks(),
+            report.missingPicks(), report.totalValue());
+        for (var team : report.teams()) {
+            System.out.printf("%s  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  [%s]%n",
+                team.teamName(), team.value(), team.valuedPicks(), team.totalPicks(), team.coveragePercent(),
+                team.stalePicks(), team.missingPicks(), team.teamId());
+            for (var season : team.seasons()) {
+                String rounds = season.roundCounts().entrySet().stream()
+                    .sorted(java.util.Map.Entry.comparingByKey())
+                    .map(entry -> "R" + entry.getKey() + "x" + entry.getValue())
+                    .collect(java.util.stream.Collectors.joining(","));
+                System.out.printf("  %d  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  rounds=%s%n",
+                    season.season(), season.value(), season.valuedPicks(), season.totalPicks(),
+                    season.coveragePercent(), season.stalePicks(), season.missingPicks(), rounds);
+            }
+        }
+    }
+
     static void printLeagueActions(List<LeagueActionPlanAnalyzer.Action> actions) {
         if (actions == null) throw new IllegalArgumentException("actions must not be null");
         if (actions.isEmpty()) {
@@ -350,6 +409,7 @@ public final class ButlerMain {
         System.out.println("  butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league decision-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league position-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+        System.out.println("  butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
     }
 
     static void printOverviewUsage() {

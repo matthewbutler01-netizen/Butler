@@ -84,6 +84,20 @@ class ButlerMainTest {
     }
 
     @Test
+    void recognizesEverySupportedLeagueDraftCapitalArgumentForm() {
+        assertTrue(ButlerMain.isSupportedLeagueDraftCapital(new String[]{"league", "draft-capital", "league-id"}));
+        assertTrue(ButlerMain.isSupportedLeagueDraftCapital(new String[]{"league", "draft-capital", "league-id", "source"}));
+        assertTrue(ButlerMain.isSupportedLeagueDraftCapital(new String[]{
+            "league", "draft-capital", "league-id", "--minimum-as-of", "2026-09-01"}));
+        assertTrue(ButlerMain.isSupportedLeagueDraftCapital(new String[]{
+            "league", "draft-capital", "league-id", "source", "--minimum-as-of", "2026-09-01"}));
+
+        assertFalse(ButlerMain.isSupportedLeagueDraftCapital(new String[]{"league", "draft-capital"}));
+        assertFalse(ButlerMain.isSupportedLeagueDraftCapital(new String[]{
+            "league", "draft-capital", "league-id", "--wrong-flag", "2026-09-01"}));
+    }
+
+    @Test
     void printsRequiredAndOptionalActionsWithDeterministicCommands() {
         var actions = List.of(
             new LeagueActionPlanAnalyzer.Action(
@@ -121,6 +135,7 @@ class ButlerMainTest {
         assertTrue(output.contains("butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
         assertTrue(output.contains("butler league decision-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
         assertTrue(output.contains("butler league position-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
+        assertTrue(output.contains("butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
     }
 
     private static String capture(Runnable runnable) {
