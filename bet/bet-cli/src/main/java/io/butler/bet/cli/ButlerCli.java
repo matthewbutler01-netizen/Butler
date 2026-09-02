@@ -11,6 +11,8 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import io.butler.bet.intelligence.DynastyProcessLeaguePreviewAnalyzer;
+import io.butler.bet.intelligence.DynastyProcessLeagueRefreshReadiness;
+import io.butler.bet.intelligence.DynastyProcessLeagueStrictRefresh;
 import io.butler.bet.intelligence.DynastyProcessRefreshReadiness;
 import io.butler.bet.intelligence.DynastyProcessValueImporter;
 import io.butler.bet.intelligence.LeagueAnalyzer;
@@ -154,22 +156,21 @@ public final class ButlerCli {
             requireDynastyProcess(args[3]);
             var preview = new DynastyProcessValueImporter(database).preview();
             var report = new DynastyProcessLeaguePreviewAnalyzer(database).analyze(args[2], preview);
-            System.out.println("League DynastyProcess value preview (no snapshots persisted)");
-            System.out.println("League ID: " + report.leagueId());
-            System.out.println("As-of: " + report.asOfDate());
-            System.out.println("Provider readiness: " + DynastyProcessRefreshReadiness.classify(preview.diagnostics()));
-            System.out.printf("League coverage: %d/%d (%.1f%%)  provider-unmatched=%d  no-sleeper-id=%d  affected-teams=%d%n",
-                report.matchedPlayers(), report.rosteredPlayers(), report.coveragePercent(), report.unmatchedPlayers(),
-                report.ineligiblePlayers(), report.affectedTeams());
-            for (var team : report.teams()) {
-                System.out.printf("%s  coverage=%d/%d (%.1f%%)  provider-unmatched=%d  no-sleeper-id=%d  [%s]%n",
-                    team.teamName(), team.matchedPlayers(), team.rosterSize(), team.coveragePercent(),
-                    team.unmatchedPlayers(), team.ineligiblePlayers(), team.teamId());
-                for (var gap : team.gaps()) {
-                    System.out.printf("  %s  %s  reason=%s  [%s]%n",
-                        gap.position(), gap.playerName(), gap.reason(), gap.playerId());
-                }
+            printLeagueDynastyProcessPreview(report, preview);
+            return;
+        }
+        if (args.length == 5 && args[1].equalsIgnoreCase("value-refresh")) {
+            requireDynastyProcess(args[3]);
+            if (!args[4].equalsIgnoreCase("--strict")) {
+                throw new IllegalArgumentException("league value-refresh requires --strict; normal refresh is `butler player value-refresh dynastyprocess`");
             }
+            var result = new DynastyProcessLeagueStrictRefresh(database).refresh(args[2]);
+            System.out.println("Strict league DynastyProcess refresh completed.");
+            System.out.println("League ID: " + result.leaguePreview().leagueId());
+            System.out.println("League readiness: " + DynastyProcessLeagueRefreshReadiness.classify(result.leaguePreview()));
+            System.out.printf("League coverage: %d/%d (%.1f%%)%n",
+                result.leaguePreview().matchedPlayers(), result.leaguePreview().rosteredPlayers(), result.leaguePreview().coveragePercent());
+            printDynastyProcessResult(result.importResult(), true);
             return;
         }
         if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
@@ -180,7 +181,29 @@ public final class ButlerCli {
             printStrengthReport(report);
             return;
         }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|team-movement <league-id> <source>|value-preview <league-id> dynastyprocess|rank <league-id> <source> [minimum-as-of-date]>");
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|team-movement <league-id> <source>|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> <source> [minimum-as-of-date]>");
+    }
+
+    private static void printLeagueDynastyProcessPreview(
+        DynastyProcessLeaguePreviewAnalyzer.LeaguePreview report,
+        DynastyProcessValueImporter.ImportResult preview) {
+        System.out.println("League DynastyProcess value preview (no snapshots persisted)");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("As-of: " + report.asOfDate());
+        System.out.println("Provider readiness: " + DynastyProcessRefreshReadiness.classify(preview.diagnostics()));
+        System.out.println("League readiness: " + DynastyProcessLeagueRefreshReadiness.classify(report));
+        System.out.printf("League coverage: %d/%d (%.1f%%)  provider-unmatched=%d  no-sleeper-id=%d  affected-teams=%d%n",
+            report.matchedPlayers(), report.rosteredPlayers(), report.coveragePercent(), report.unmatchedPlayers(),
+            report.ineligiblePlayers(), report.affectedTeams());
+        for (var team : report.teams()) {
+            System.out.printf("%s  coverage=%d/%d (%.1f%%)  provider-unmatched=%d  no-sleeper-id=%d  [%s]%n",
+                team.teamName(), team.matchedPlayers(), team.rosterSize(), team.coveragePercent(),
+                team.unmatchedPlayers(), team.ineligiblePlayers(), team.teamId());
+            for (var gap : team.gaps()) {
+                System.out.printf("  %s  %s  reason=%s  [%s]%n",
+                    gap.position(), gap.playerName(), gap.reason(), gap.playerId());
+            }
+        }
     }
 
     private static void printLeagueReport(LeagueAnalyzer.LeagueReport report) {
@@ -453,6 +476,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league value-preview <league-id> dynastyprocess\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league team-movement <league-id> <source>\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
