@@ -42,13 +42,30 @@ public final class NflversePlayerSeasonProductionImporter {
     }
 
     public ImportResult refresh(int season) throws IOException, InterruptedException, SQLException {
+        return fetchAndProcess(season, true);
+    }
+
+    public ImportResult preview(int season) throws IOException, InterruptedException, SQLException {
+        return fetchAndProcess(season, false);
+    }
+
+    private ImportResult fetchAndProcess(int season, boolean persist) throws IOException, InterruptedException, SQLException {
         requireSeason(season);
         String statsCsv = download(statsUri(season), "nflverse player stats for " + season);
         String idsCsv = download(PLAYER_IDS_URI, "fantasy player id crosswalk");
-        return importCsv(season, statsCsv, idsCsv, LocalDate.now());
+        return processCsv(season, statsCsv, idsCsv, LocalDate.now(), persist);
     }
 
     public ImportResult importCsv(int season, String statsCsv, String idsCsv, LocalDate asOfDate) throws SQLException {
+        return processCsv(season, statsCsv, idsCsv, asOfDate, true);
+    }
+
+    public ImportResult previewCsv(int season, String statsCsv, String idsCsv, LocalDate asOfDate) throws SQLException {
+        return processCsv(season, statsCsv, idsCsv, asOfDate, false);
+    }
+
+    private ImportResult processCsv(int season, String statsCsv, String idsCsv, LocalDate asOfDate, boolean persist)
+        throws SQLException {
         requireSeason(season);
         Objects.requireNonNull(asOfDate, "asOfDate must not be null");
         List<Map<String, String>> statsRows = Csv.parse(requireText(statsCsv, "statsCsv"));
@@ -70,8 +87,7 @@ public final class NflversePlayerSeasonProductionImporter {
             providerRowsMapped++;
 
             ProviderProduction provider = new ProviderProduction(
-                gsisId,
-                sleeperId,
+                gsisId, sleeperId,
                 parseInt(value(row, "games"), "games", gsisId),
                 parseInt(value(row, "passing_yards"), "passing_yards", gsisId),
                 parseInt(value(row, "passing_tds"), "passing_tds", gsisId),
@@ -94,7 +110,7 @@ public final class NflversePlayerSeasonProductionImporter {
         List<UnmatchedPlayer> unmatched = new ArrayList<>();
         int eligiblePlayers = 0;
         int matchedPlayers = 0;
-        int snapshotsImported = 0;
+        int snapshotsWritten = 0;
         for (Player player : players.findAll()) {
             String sleeperId = normalizeId(player.getExternalId());
             if (sleeperId == null) continue;
@@ -105,16 +121,18 @@ public final class NflversePlayerSeasonProductionImporter {
                 continue;
             }
             matchedPlayers++;
-            PlayerSeasonProduction snapshot = PlayerSeasonProduction.create(
-                player.getId(), season, provider.gamesPlayed(), provider.passingYards(), provider.passingTouchdowns(),
-                provider.interceptions(), provider.rushingYards(), provider.rushingTouchdowns(), provider.receptions(),
-                provider.receivingYards(), provider.receivingTouchdowns(), provider.fumblesLost(), SOURCE, asOfDate);
-            production.save(snapshot);
-            snapshotsImported++;
+            if (persist) {
+                PlayerSeasonProduction snapshot = PlayerSeasonProduction.create(
+                    player.getId(), season, provider.gamesPlayed(), provider.passingYards(), provider.passingTouchdowns(),
+                    provider.interceptions(), provider.rushingYards(), provider.rushingTouchdowns(), provider.receptions(),
+                    provider.receivingYards(), provider.receivingTouchdowns(), provider.fumblesLost(), SOURCE, asOfDate);
+                production.save(snapshot);
+                snapshotsWritten++;
+            }
         }
 
-        return new ImportResult(season, asOfDate, statsRows.size(), providerRowsForSeason, sleeperByGsis.size(),
-            providerRowsMapped, eligiblePlayers, matchedPlayers, unmatched.size(), snapshotsImported, List.copyOf(unmatched));
+        return new ImportResult(season, asOfDate, persist, statsRows.size(), providerRowsForSeason, sleeperByGsis.size(),
+            providerRowsMapped, eligiblePlayers, matchedPlayers, unmatched.size(), snapshotsWritten, List.copyOf(unmatched));
     }
 
     public static URI statsUri(int season) {
@@ -184,10 +202,10 @@ public final class NflversePlayerSeasonProductionImporter {
         return value;
     }
 
-    public record ImportResult(int season, LocalDate asOfDate, int providerRows, int providerRowsForSeason,
-                               int crosswalkEntries, int providerRowsMapped, int eligiblePlayers,
-                               int matchedPlayers, int unmatchedPlayers, int snapshotsImported,
-                               List<UnmatchedPlayer> unmatched) {}
+    public record ImportResult(int season, LocalDate asOfDate, boolean persisted, int providerRows,
+                               int providerRowsForSeason, int crosswalkEntries, int providerRowsMapped,
+                               int eligiblePlayers, int matchedPlayers, int unmatchedPlayers,
+                               int snapshotsWritten, List<UnmatchedPlayer> unmatched) {}
     public record UnmatchedPlayer(String playerId, String sleeperId, String playerName) {}
 
     private record ProviderProduction(String gsisId, String sleeperId, int gamesPlayed, int passingYards,
