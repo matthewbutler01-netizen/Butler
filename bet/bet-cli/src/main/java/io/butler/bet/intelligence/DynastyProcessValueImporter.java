@@ -79,17 +79,24 @@ public final class DynastyProcessValueImporter {
             }
         }
 
+        int uniqueIdentityMappings = (int) sleeperByIdentity.values().stream().filter(Objects::nonNull).count();
+        int ambiguousIdentityMappings = sleeperByIdentity.size() - uniqueIdentityMappings;
         Map<String, ProviderValue> providerBySleeper = new LinkedHashMap<>();
         LocalDate datasetDate = null;
+        int providerRowsMappedByPrimaryId = 0;
+        int providerRowsMappedByIdentity = 0;
         for (Map<String, String> row : valueRows) {
             String fpId = normalizeId(first(row, "fp_id", "fantasypros_id"));
             String sleeperId = fpId == null ? null : sleeperByFantasyPros.get(fpId);
             boolean identityFallback = false;
-            if (sleeperId == null) {
+            if (sleeperId != null) {
+                providerRowsMappedByPrimaryId++;
+            } else {
                 String identity = identity(first(row, "player", "name"),
                     first(row, "pos", "position"), first(row, "team", "team_abbr"));
                 sleeperId = identity == null ? null : sleeperByIdentity.get(identity);
                 identityFallback = sleeperId != null;
+                if (identityFallback) providerRowsMappedByIdentity++;
             }
             if (sleeperId == null) continue;
 
@@ -134,8 +141,12 @@ public final class DynastyProcessValueImporter {
         }
 
         values.saveAll(resolved);
+        ProviderDiagnostics diagnostics = new ProviderDiagnostics(
+            valueRows.size(), idRows.size(), sleeperByFantasyPros.size(), uniqueIdentityMappings,
+            ambiguousIdentityMappings, providerRowsMappedByPrimaryId, providerRowsMappedByIdentity,
+            valueRows.size() - providerRowsMappedByPrimaryId - providerRowsMappedByIdentity);
         return new ImportResult(datasetDate, eligiblePlayers, matchedPlayers, identityFallbackMatches,
-            unmatched.size(), resolved.size(), List.copyOf(unmatched));
+            unmatched.size(), resolved.size(), diagnostics, List.copyOf(unmatched));
     }
 
     private String download(URI uri) throws IOException, InterruptedException {
@@ -209,7 +220,20 @@ public final class DynastyProcessValueImporter {
 
     public record ImportResult(LocalDate asOfDate, int eligiblePlayers, int matchedPlayers,
                                int identityFallbackMatches, int unmatchedPlayers, int valuesImported,
-                               List<UnmatchedPlayer> unmatched) {}
+                               ProviderDiagnostics diagnostics, List<UnmatchedPlayer> unmatched) {}
+
+    public record ProviderDiagnostics(int valueRows, int playerIdRows, int primaryCrosswalkEntries,
+                                      int uniqueIdentityMappings, int ambiguousIdentityMappings,
+                                      int providerRowsMappedByPrimaryId, int providerRowsMappedByIdentity,
+                                      int providerRowsUnmapped) {
+        public int providerRowsMapped() {
+            return providerRowsMappedByPrimaryId + providerRowsMappedByIdentity;
+        }
+
+        public double providerMappingPercent() {
+            return valueRows == 0 ? 0.0 : (providerRowsMapped() * 100.0) / valueRows;
+        }
+    }
 
     public record UnmatchedPlayer(String playerId, String sleeperId, String playerName) {}
 
