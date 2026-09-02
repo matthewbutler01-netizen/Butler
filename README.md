@@ -28,6 +28,7 @@ butler league status <league-id>
 butler league decision-readiness <league-id>
 butler league overview <league-id>
 butler league team-context <league-id>
+butler league team-profile <league-id>
 butler league position-context <league-id>
 butler league draft-capital <league-id>
 butler league asset-concentration <league-id>
@@ -79,6 +80,7 @@ butler league status <league-id> --minimum-as-of 2026-09-01
 butler league decision-readiness <league-id> --minimum-as-of 2026-09-01
 butler league overview <league-id> --minimum-as-of 2026-09-01
 butler league team-context <league-id> --minimum-as-of 2026-09-01
+butler league team-profile <league-id> --minimum-as-of 2026-09-01
 butler league position-context <league-id> --minimum-as-of 2026-09-01
 butler league draft-capital <league-id> --minimum-as-of 2026-09-01
 butler league asset-concentration <league-id> --minimum-as-of 2026-09-01
@@ -97,21 +99,25 @@ Trade comparisons follow the same rule. Butler can preserve asset values for ins
 
 This is intentional: **present data is not automatically complete data, and complete data is not automatically recent enough to support a decision.**
 
-### League overview and team context
+### League overview, team context, and composite profiles
 
 Use `league overview` for a compact league-level intelligence summary: health, safe franchise leaders when available, recent value movers when comparable history exists, and Butler's deterministic next actions.
 
 Use `league team-context` for the neutral team-by-team board. It reports persisted player and draft-pick value, asset coverage, safe franchise rank when available, recent player-value movement, movement coverage, riser/faller counts, and next actions.
 
+Use `league team-profile` to compose Butler's neutral team dimensions into one inspection surface. It combines usable player and draft-pick value, asset concentration, starter-value share, draft-capital coverage, and positional-depth summaries while retaining one shared source and optional recency cutoff. The profile is a composition of existing analyzers, not a new strategy score.
+
 ```text
 butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]
 butler league team-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]
 ```
 
-Use these outputs to answer two different questions:
+Use these outputs to answer different questions:
 
 1. **Can Butler safely analyze this league?** — check league status/readiness.
-2. **What does the league currently look like?** — inspect overview/team context once the relevant readiness conditions are satisfied.
+2. **What does the league currently look like?** — inspect overview/team context.
+3. **How are a team's neutral value dimensions shaped together?** — inspect the composite team profile.
 
 Movement readiness is separate from core franchise readiness because trend analysis requires comparable historical snapshots in addition to current values.
 
@@ -136,6 +142,17 @@ butler league positional-depth <league-id> [source] [--minimum-as-of YYYY-MM-DD]
 ```
 
 When a minimum as-of date is supplied, stale values remain visible in coverage diagnostics but are excluded from the usable value totals shown by these neutral context commands.
+
+### Player evidence foundations
+
+Butler now stores player evidence separately from the core player identity so richer analysis can be added without destabilizing existing league imports.
+
+- `player_profiles` holds optional canonical biographical metadata such as exact birth date and years of experience. Age is derived for a requested date rather than persisted as a number that becomes stale.
+- `player_profile_snapshots` holds versioned provider-reported facts such as age and experience, including source and as-of date.
+- Sleeper league sync reuses its existing NFL player-map fetch to persist reported `age` and `years_exp` snapshots when those fields are available. It does not infer a birth date from reported age and does not add another Sleeper API request.
+- `player_season_production` stores versioned raw season production evidence: games played, passing/rushing/receiving production, interceptions, fumbles lost, source, and as-of date.
+
+Season production intentionally does not store a universal fantasy-point score. Scoring rules belong in a later interpretation layer so the same raw evidence can support different league formats.
 
 ## External fantasy-football data
 
