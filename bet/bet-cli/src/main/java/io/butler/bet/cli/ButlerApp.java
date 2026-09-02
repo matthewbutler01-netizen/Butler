@@ -5,9 +5,11 @@ import io.butler.bet.data.DraftPickRepository;
 import io.butler.bet.data.DraftPickValueRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.intelligence.DynastyProcessDraftPickValueImporter;
+import io.butler.bet.intelligence.DynastyProcessValueImporter;
 import io.butler.bet.intelligence.LeagueValueSourceResolver;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.sleeper.SleeperDraftPickImporter;
+import io.butler.bet.sleeper.SleeperLeagueImporter;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -69,7 +71,8 @@ public final class ButlerApp {
     }
 
     private static boolean isSleeperExtension(String[] args) {
-        return args.length >= 2 && args[1].equalsIgnoreCase("sync-picks");
+        return args.length >= 2 && (args[1].equalsIgnoreCase("sync-picks")
+            || args[1].equalsIgnoreCase("sync-all"));
     }
 
     private static boolean isLeagueExtension(String[] args) {
@@ -94,6 +97,10 @@ public final class ButlerApp {
 
     private static void handleSleeperExtension(String[] args)
         throws SQLException, IOException, InterruptedException {
+        if (args.length == 3 && args[1].equalsIgnoreCase("sync-all")) {
+            runFullLeagueSync(args[2]);
+            return;
+        }
         if (args.length == 3 && args[1].equalsIgnoreCase("sync-picks")) {
             var result = new SleeperDraftPickImporter(initializedDatabase()).importLeague(args[2]);
             System.out.println("Synchronized Sleeper draft-pick ownership.");
@@ -107,6 +114,30 @@ public final class ButlerApp {
             return;
         }
         printDraftPickUsage();
+    }
+
+    private static void runFullLeagueSync(String sleeperLeagueId)
+        throws SQLException, IOException, InterruptedException {
+        Database database = initializedDatabase();
+        var league = new SleeperLeagueImporter(database).importLeague(sleeperLeagueId);
+        var picks = new SleeperDraftPickImporter(database).importLeague(sleeperLeagueId);
+        var playerValues = new DynastyProcessValueImporter(database).refresh();
+        var pickValues = new DynastyProcessDraftPickValueImporter(database).refresh(league.leagueId());
+
+        System.out.println("Full league sync completed.");
+        System.out.println("League ID: " + league.leagueId());
+        System.out.println("Value format: " + league.valueFormat());
+        System.out.printf("Sleeper: teams=%d  players=%d  roster-entries=%d%n",
+            league.teamsImported(), league.playersImported(), league.rosterEntriesImported());
+        System.out.printf("Draft picks: assets=%d  traded-ownership=%d  unsupported-trades=%d  stale-removed=%d%n",
+            picks.picksImported(), picks.tradedOwnershipApplied(), picks.unsupportedTradedPicks(), picks.stalePicksRemoved());
+        System.out.printf("Player values: matched=%d/%d  unmatched=%d  snapshots=%d  as-of=%s%n",
+            playerValues.matchedPlayers(), playerValues.eligiblePlayers(), playerValues.unmatchedPlayers(),
+            playerValues.valuesImported(), playerValues.asOfDate());
+        System.out.printf("Draft-pick values: matched=%d/%d (%.1f%%)  missing=%d  snapshots=%d  as-of=%s%n",
+            pickValues.matchedPicks(), pickValues.draftPicks(), pickValues.coveragePercent(),
+            pickValues.missingPicks(), pickValues.valuesImported(), pickValues.asOfDate());
+        System.out.println("Player value sources remain permissive: mapping gaps are reported and league analysis keeps its existing coverage guards.");
     }
 
     private static void handleLeagueExtension(String[] args)
@@ -286,7 +317,8 @@ public final class ButlerApp {
     }
 
     private static void printDraftPickUsage() {
-        System.out.println("Draft picks:");
+        System.out.println("Draft picks and full sync:");
+        System.out.println("  butler sleeper sync-all <sleeper-league-id>");
         System.out.println("  butler sleeper sync-picks <sleeper-league-id>");
         System.out.println("  butler league draft-pick-values <league-id> dynastyprocess");
         System.out.println("  butler league draft-picks <league-id> [source]");
