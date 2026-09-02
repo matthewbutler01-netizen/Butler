@@ -9,6 +9,8 @@ class ButlerCommandRouterTest {
     void routesSpecializedCommandFamiliesWithoutLauncherChaining() {
         assertEquals(ButlerCommandRouter.Route.AGE_CONTEXT,
             ButlerCommandRouter.route(new String[]{"league", "age-context", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.PLAYER_EVIDENCE_PROFILE,
+            ButlerCommandRouter.route(new String[]{"league", "player-evidence-profile", "l1"}));
         assertEquals(ButlerCommandRouter.Route.EVIDENCE,
             ButlerCommandRouter.route(new String[]{"league", "evidence-overview", "l1"}));
         assertEquals(ButlerCommandRouter.Route.EVIDENCE,
