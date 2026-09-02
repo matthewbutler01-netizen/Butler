@@ -16,14 +16,24 @@ import java.util.Objects;
 
 public final class TeamStrengthAnalyzer {
     private final LeagueAnalyzer leagueAnalyzer;
+    private final LeagueValueSourceResolver sourceResolver;
     private final RosterRepository rosters;
     private final PlayerValueRepository playerValues;
 
     public TeamStrengthAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
         this.leagueAnalyzer = new LeagueAnalyzer(database);
+        this.sourceResolver = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.playerValues = new PlayerValueRepository(database);
+    }
+
+    public StrengthReport rank(String leagueId) throws SQLException {
+        return rank(leagueId, sourceResolver.resolve(leagueId), null);
+    }
+
+    public StrengthReport rank(String leagueId, LocalDate minimumAsOfDate) throws SQLException {
+        return rank(leagueId, sourceResolver.resolve(leagueId), minimumAsOfDate);
     }
 
     public StrengthReport rank(String leagueId, String source) throws SQLException {
