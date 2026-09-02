@@ -101,6 +101,16 @@ public final class DraftPickValueRepository {
         return List.copyOf(result);
     }
 
+    public List<String> findSources() throws SQLException {
+        List<String> result = new ArrayList<>();
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("SELECT DISTINCT source FROM draft_pick_values ORDER BY source");
+             var results = statement.executeQuery()) {
+            while (results.next()) result.add(results.getString("source"));
+        }
+        return List.copyOf(result);
+    }
+
     private static DraftPickValue map(ResultSet results) throws SQLException {
         return new DraftPickValue(
             results.getString("id"),
