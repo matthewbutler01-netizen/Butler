@@ -30,6 +30,9 @@ butler league overview <league-id>
 butler league team-context <league-id>
 butler league position-context <league-id>
 butler league draft-capital <league-id>
+butler league asset-concentration <league-id>
+butler league roster-slot-context <league-id>
+butler league positional-depth <league-id>
 butler league franchise-readiness <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 butler trade compare <league-id> <side-a-assets> <side-b-assets> --minimum-as-of 2026-09-01
@@ -78,6 +81,9 @@ butler league overview <league-id> --minimum-as-of 2026-09-01
 butler league team-context <league-id> --minimum-as-of 2026-09-01
 butler league position-context <league-id> --minimum-as-of 2026-09-01
 butler league draft-capital <league-id> --minimum-as-of 2026-09-01
+butler league asset-concentration <league-id> --minimum-as-of 2026-09-01
+butler league roster-slot-context <league-id> --minimum-as-of 2026-09-01
+butler league positional-depth <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 ```
 
@@ -115,9 +121,18 @@ Use `league position-context` to inspect how each team's usable player value is 
 
 Use `league draft-capital` to inspect future draft-pick value by current owner and season. Butler reports usable pick value, coverage, stale/missing counts, and round counts without inferring rebuild windows or preferred draft strategy.
 
+Use `league asset-concentration` to inspect how much of each team's usable player-and-pick value sits in its highest-valued assets. Butler reports top-1, top-3, and top-5 value shares plus the Herfindahl concentration index and highest-valued assets. It does not define a preferred concentration level or attach a risk grade.
+
+Use `league roster-slot-context` to inspect how usable player value is distributed across persisted STARTER, BENCH, RESERVE, TAXI, and OTHER roster slots. It reports coverage and the starter share of usable player value without defining a preferred starter/bench allocation.
+
+Use `league positional-depth` to inspect how value is distributed within each position. It reports player counts, usable value, top-1/top-2/top-3 value shares, and the highest-valued players at that position without assigning a depth grade or minimum player-count target.
+
 ```text
 butler league position-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]
 butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league asset-concentration <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league roster-slot-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league positional-depth <league-id> [source] [--minimum-as-of YYYY-MM-DD]
 ```
 
 When a minimum as-of date is supplied, stale values remain visible in coverage diagnostics but are excluded from the usable value totals shown by these neutral context commands.
