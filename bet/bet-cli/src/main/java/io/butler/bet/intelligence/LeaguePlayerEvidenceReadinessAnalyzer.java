@@ -60,7 +60,7 @@ public final class LeaguePlayerEvidenceReadinessAnalyzer {
                 profileTeam.counts().ageEvidencePlayers(), profileTeam.counts().exactBirthDatePlayers(),
                 profileTeam.counts().reportedAgePlayers(), profileTeam.counts().experienceEvidencePlayers(),
                 productionTeam.coveredPlayers(),
-                readiness(totalPlayers, profileTeam.counts().ageEvidencePlayers(), productionTeam.coveredPlayers())));
+                classifyReadiness(totalPlayers, profileTeam.counts().ageEvidencePlayers(), productionTeam.coveredPlayers())));
         }
         if (!productionByTeam.isEmpty()) {
             throw new IllegalStateException("profile coverage missing teams: " + productionByTeam.keySet());
@@ -72,7 +72,7 @@ public final class LeaguePlayerEvidenceReadinessAnalyzer {
             productionReport.source(), minimumProfileAsOf, List.copyOf(teams));
     }
 
-    private static Readiness readiness(int totalPlayers, int ageEvidencePlayers, int productionPlayers) {
+    private static Readiness classifyReadiness(int totalPlayers, int ageEvidencePlayers, int productionPlayers) {
         if (totalPlayers == 0) return Readiness.EMPTY;
         if (ageEvidencePlayers == totalPlayers && productionPlayers == totalPlayers) return Readiness.READY;
         if (ageEvidencePlayers == 0 || productionPlayers == 0) return Readiness.BLOCKED;
@@ -90,7 +90,7 @@ public final class LeaguePlayerEvidenceReadinessAnalyzer {
         public int productionEvidencePlayers() { return teams.stream().mapToInt(TeamReadiness::productionEvidencePlayers).sum(); }
         public double ageCoveragePercent() { return percent(ageEvidencePlayers(), totalPlayers()); }
         public double productionCoveragePercent() { return percent(productionEvidencePlayers(), totalPlayers()); }
-        public Readiness readiness() { return readiness(totalPlayers(), ageEvidencePlayers(), productionEvidencePlayers()); }
+        public Readiness readiness() { return classifyReadiness(totalPlayers(), ageEvidencePlayers(), productionEvidencePlayers()); }
         public boolean ready() { return readiness() == Readiness.READY; }
     }
 
