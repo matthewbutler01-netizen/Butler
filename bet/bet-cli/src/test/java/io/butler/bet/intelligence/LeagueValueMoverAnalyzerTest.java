@@ -121,6 +121,74 @@ class LeagueValueMoverAnalyzerTest {
     }
 
     @Test
+    void supportsExplicitHistoricalDateWindows() throws Exception {
+        Database database = database();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        League league = new League("league", null, "League");
+        Team team = new Team("team", null, league.getId(), "Team");
+        Player player = Player.create("Player", "WR", "KC");
+        leagues.save(league);
+        teams.save(team);
+        players.save(player);
+        rosters.save(new Roster("r1", null, team.getId(), player.getId(), "STARTER"));
+        values.save(PlayerValue.create(player.getId(), 40.0, "market", LocalDate.of(2026, 7, 1)));
+        values.save(PlayerValue.create(player.getId(), 50.0, "market", LocalDate.of(2026, 8, 1)));
+        values.save(PlayerValue.create(player.getId(), 70.0, "market", LocalDate.of(2026, 9, 1)));
+
+        var report = new LeagueValueMoverAnalyzer(database).analyze(
+            " league ", " market ", LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 1));
+
+        assertEquals(LocalDate.of(2026, 7, 1), report.previousDate());
+        assertEquals(LocalDate.of(2026, 9, 1), report.latestDate());
+        assertEquals(1, report.comparablePlayers());
+        assertEquals(30.0, report.movers().get(0).delta());
+    }
+
+    @Test
+    void explicitWindowReportsMissingCoverageWithoutSubstitutingNearbyDates() throws Exception {
+        Database database = database();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        PlayerValueRepository values = new PlayerValueRepository(database);
+
+        League league = new League("league", null, "League");
+        Team team = new Team("team", null, league.getId(), "Team");
+        Player player = Player.create("Player", "WR", "KC");
+        leagues.save(league);
+        teams.save(team);
+        players.save(player);
+        rosters.save(new Roster("r1", null, team.getId(), player.getId(), "STARTER"));
+        values.save(PlayerValue.create(player.getId(), 50.0, "market", LocalDate.of(2026, 8, 1)));
+        values.save(PlayerValue.create(player.getId(), 70.0, "market", LocalDate.of(2026, 9, 1)));
+
+        var report = new LeagueValueMoverAnalyzer(database).analyze(
+            "league", "market", LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 1));
+
+        assertEquals(0, report.comparablePlayers());
+        assertEquals(1, report.missingPlayers());
+        assertEquals(0, report.movers().size());
+    }
+
+    @Test
+    void rejectsInvalidExplicitDateOrder() throws Exception {
+        Database database = database();
+        LeagueValueMoverAnalyzer analyzer = new LeagueValueMoverAnalyzer(database);
+        assertThrows(IllegalArgumentException.class, () -> analyzer.analyze(
+            "league", "market", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 1)));
+        assertThrows(IllegalArgumentException.class, () -> analyzer.analyze(
+            "league", "market", LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 1)));
+        assertThrows(NullPointerException.class, () -> analyzer.analyze(
+            "league", "market", null, LocalDate.of(2026, 9, 1)));
+    }
+
+    @Test
     void reportsNoWindowWhenSourceHasFewerThanTwoSnapshotDates() throws Exception {
         Database database = database();
         LeagueRepository leagues = new LeagueRepository(database);
