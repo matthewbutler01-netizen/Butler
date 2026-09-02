@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,8 +27,9 @@ class NflversePlayerSeasonProductionImporterTest {
         var result = importer.importCsv(2025, statsCsv("00-0000001", 17, 12, 1, 0, 999, 8, 42, 321, 3, 0, 1, 1),
             "gsis_id,sleeper_id,name\n00-0000001,1001,Test Runner\n", LocalDate.of(2026, 1, 10));
 
+        assertTrue(result.persisted());
         assertEquals(1, result.matchedPlayers());
-        assertEquals(1, result.snapshotsImported());
+        assertEquals(1, result.snapshotsWritten());
         var saved = new PlayerSeasonProductionRepository(database).findLatest("p1", 2025, "nflverse").orElseThrow();
         assertEquals(17, saved.gamesPlayed());
         assertEquals(12, saved.passingYards());
@@ -39,6 +41,21 @@ class NflversePlayerSeasonProductionImporterTest {
         assertEquals(3, saved.receivingTouchdowns());
         assertEquals(2, saved.fumblesLost());
         assertEquals(LocalDate.of(2026, 1, 10), saved.asOfDate());
+    }
+
+    @Test
+    void previewRunsSameMappingWithoutWritingSnapshot() throws Exception {
+        Database database = initialized();
+        new PlayerRepository(database).save(new Player("p1", "1001", "Test Runner", "RB", "STL"));
+        var importer = new NflversePlayerSeasonProductionImporter(database);
+
+        var result = importer.previewCsv(2025, statsCsv("00-0000001", 17, 0, 0, 0, 100, 1, 5, 50, 0, 0, 0, 0),
+            "gsis_id,sleeper_id\n00-0000001,1001\n", LocalDate.of(2026, 1, 10));
+
+        assertFalse(result.persisted());
+        assertEquals(1, result.matchedPlayers());
+        assertEquals(0, result.snapshotsWritten());
+        assertTrue(new PlayerSeasonProductionRepository(database).findLatest("p1", 2025, "nflverse").isEmpty());
     }
 
     @Test
