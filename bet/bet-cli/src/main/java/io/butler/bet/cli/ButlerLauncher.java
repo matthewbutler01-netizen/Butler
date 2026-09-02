@@ -76,6 +76,11 @@ public final class ButlerLauncher {
             var concentration = team.concentration();
             var slots = team.rosterSlots();
             var picks = team.draftCapital();
+            int slotValued = slots.slots().values().stream().mapToInt(slot -> slot.valuedPlayers()).sum();
+            int slotStale = slots.slots().values().stream().mapToInt(slot -> slot.stalePlayers()).sum();
+            int slotMissing = slots.slots().values().stream().mapToInt(slot -> slot.missingPlayers()).sum();
+            int slotTotal = slots.slots().values().stream().mapToInt(slot -> slot.totalPlayers()).sum();
+
             System.out.printf(
                 "%s  assets=%.2f  players=%.2f  picks=%.2f  starter-share=%.1f%%  top1=%.1f%%  top3=%.1f%%  hhi=%.4f  asset-coverage=%d/%d (%.1f%%)  [%s]%n",
                 team.teamName(), team.usableAssetValue(), team.usablePlayerValue(), team.usableDraftPickValue(),
@@ -84,7 +89,7 @@ public final class ButlerLauncher {
                 concentration.coveragePercent(), team.teamId());
 
             System.out.printf("  roster-slots: valued=%d/%d  stale=%d  missing=%d%n",
-                slots.valuedPlayers(), slots.totalPlayers(), slots.stalePlayers(), slots.missingPlayers());
+                slotValued, slotTotal, slotStale, slotMissing);
             System.out.printf("  draft-capital: valued=%d/%d  stale=%d  missing=%d  seasons=%d%n",
                 picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(), picks.seasons().size());
 
