@@ -23,6 +23,7 @@ import io.butler.bet.intelligence.PlayerValueImporter;
 import io.butler.bet.intelligence.SourceValueMoverAnalyzer;
 import io.butler.bet.intelligence.TeamStrengthAnalyzer;
 import io.butler.bet.intelligence.TeamValueMovementAnalyzer;
+import io.butler.bet.intelligence.TradeValueAnalyzer;
 import io.butler.bet.sleeper.SleeperLeagueImporter;
 
 import java.io.IOException;
@@ -30,6 +31,8 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -51,6 +54,7 @@ public final class ButlerCli {
                 case "player" -> handlePlayer(args);
                 case "roster" -> handleRoster(args);
                 case "sleeper" -> handleSleeper(args);
+                case "trade" -> handleTrade(args);
                 default -> { System.out.println("Unknown command: " + args[0]); System.out.println(); printHelp(); }
             }
         } catch (SQLException e) {
@@ -192,6 +196,62 @@ public final class ButlerCli {
             return;
         }
         System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> [source]|team-movement <league-id> [source]|value-preview <league-id> dynastyprocess|value-refresh <league-id> dynastyprocess --strict|rank <league-id> [source [minimum-as-of-date]]>");
+    }
+
+    private static void handleTrade(String[] args) throws SQLException {
+        if ((args.length == 5 || args.length == 6) && args[1].equalsIgnoreCase("compare")) {
+            TradeValueAnalyzer analyzer = new TradeValueAnalyzer(initializedDatabase());
+            List<String> sideA = parsePlayerIds(args[3], "side-a-player-ids");
+            List<String> sideB = parsePlayerIds(args[4], "side-b-player-ids");
+            var report = args.length == 6
+                ? analyzer.analyze(args[2], sideA, sideB, args[5])
+                : analyzer.analyze(args[2], sideA, sideB);
+            printTradeReport(report);
+            return;
+        }
+        System.out.println("Usage: butler trade compare <league-id> <side-a-player-ids> <side-b-player-ids> [source]");
+        System.out.println("Player lists are comma-separated internal player IDs.");
+    }
+
+    private static void printTradeReport(TradeValueAnalyzer.TradeReport report) {
+        System.out.println("Trade value comparison");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        System.out.printf("Coverage: %d/%d (%.1f%%)%n",
+            report.valuedPlayers(), report.totalPlayers(), report.coveragePercent());
+        printTradeSide("Side A", report.sideA());
+        printTradeSide("Side B", report.sideB());
+        if (report.complete()) {
+            System.out.printf("Side A - Side B: %+.2f%n", report.valueDifference());
+        } else {
+            System.out.println("Side A - Side B: unavailable until all trade players have values.");
+        }
+    }
+
+    private static void printTradeSide(String label, TradeValueAnalyzer.TradeSide side) {
+        System.out.printf("%s: value=%.2f  coverage=%d/%d (%.1f%%)%n",
+            label, side.totalValue(), side.valuedPlayers(), side.players().size(), side.coveragePercent());
+        for (var player : side.players()) {
+            if (player.valued()) {
+                System.out.printf("  %.2f  %s  %s%s  fantasy-team=%s  as-of=%s  [%s]%n",
+                    player.value(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                    player.teamName(), player.asOfDate(), player.playerId());
+            } else {
+                System.out.printf("  MISSING  %s  %s%s  fantasy-team=%s  [%s]%n",
+                    player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                    player.teamName(), player.playerId());
+            }
+        }
+    }
+
+    private static List<String> parsePlayerIds(String value, String field) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
+        List<String> ids = new ArrayList<>();
+        for (String part : value.split(",")) {
+            if (part.isBlank()) throw new IllegalArgumentException(field + " contains a blank player ID");
+            ids.add(part.trim());
+        }
+        return List.copyOf(ids);
     }
 
     private static void printLeagueDynastyProcessPreview(
@@ -486,6 +546,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> [source]\n  butler league team-movement <league-id> [source]\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> [source [minimum-as-of-date]]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> [source]\n  butler league team-movement <league-id> [source]\n  butler league value-preview <league-id> dynastyprocess\n  butler league value-refresh <league-id> dynastyprocess --strict\n  butler league rank <league-id> [source [minimum-as-of-date]]\n  butler trade compare <league-id> <side-a-player-ids> <side-b-player-ids> [source]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-refresh dynastyprocess\n  butler player value-preview dynastyprocess\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
