@@ -12,6 +12,7 @@ import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import io.butler.bet.intelligence.LeagueAnalyzer;
 import io.butler.bet.intelligence.LeagueValueCoverageAnalyzer;
+import io.butler.bet.intelligence.LeagueValueMoverAnalyzer;
 import io.butler.bet.intelligence.PlayerValueChangeAnalyzer;
 import io.butler.bet.intelligence.PlayerValueImporter;
 import io.butler.bet.intelligence.SourceValueMoverAnalyzer;
@@ -113,6 +114,22 @@ public final class ButlerCli {
             printLeagueValueCoverage(report);
             return;
         }
+        if (args.length == 4 && args[1].equalsIgnoreCase("value-movers")) {
+            var report = new LeagueValueMoverAnalyzer(database).analyze(args[2], args[3]);
+            System.out.println("League player value movers");
+            System.out.println("League ID: " + report.leagueId());
+            System.out.println("Source: " + report.source());
+            if (report.movers().isEmpty()) {
+                System.out.println("No rostered players have at least two persisted snapshots for this source.");
+                return;
+            }
+            for (var mover : report.movers()) {
+                System.out.printf("%+.2f  %s  %s%s  team=%s  %.2f@%s -> %.2f@%s  [%s]%n",
+                    mover.delta(), mover.position(), mover.playerName(), formatTeam(mover.nflTeam()), mover.teamName(),
+                    mover.previousValue(), mover.previousDate(), mover.latestValue(), mover.latestDate(), mover.playerId());
+            }
+            return;
+        }
         if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("rank")) {
             TeamStrengthAnalyzer analyzer = new TeamStrengthAnalyzer(database);
             var report = args.length == 5
@@ -121,7 +138,7 @@ public final class ButlerCli {
             printStrengthReport(report);
             return;
         }
-        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|rank <league-id> <source> [minimum-as-of-date]>");
+        System.out.println("Usage: butler league <add <name>|list|analyze <league-id>|value-sources <league-id> [minimum-as-of-date]|value-movers <league-id> <source>|rank <league-id> <source> [minimum-as-of-date]>");
     }
 
     private static void printLeagueReport(LeagueAnalyzer.LeagueReport report) {
@@ -350,6 +367,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league value-movers <league-id> <source>\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
