@@ -10,6 +10,7 @@ import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
+import io.butler.bet.intelligence.DynastyProcessRefreshReadiness;
 import io.butler.bet.intelligence.DynastyProcessValueImporter;
 import io.butler.bet.intelligence.LeagueAnalyzer;
 import io.butler.bet.intelligence.LeagueValueCoverageAnalyzer;
@@ -312,6 +313,7 @@ public final class ButlerCli {
             var diagnostics = result.diagnostics();
             System.out.println("Refreshed player values from DynastyProcess.");
             System.out.println("As-of: " + result.asOfDate());
+            System.out.println("Refresh readiness: " + DynastyProcessRefreshReadiness.classify(diagnostics));
             System.out.printf("Provider rows: %d values, %d player IDs%n", diagnostics.valueRows(), diagnostics.playerIdRows());
             System.out.printf("Crosswalk: %d FantasyPros IDs, %d unique exact identities, %d ambiguous exact identities%n",
                 diagnostics.primaryCrosswalkEntries(), diagnostics.uniqueIdentityMappings(), diagnostics.ambiguousIdentityMappings());
