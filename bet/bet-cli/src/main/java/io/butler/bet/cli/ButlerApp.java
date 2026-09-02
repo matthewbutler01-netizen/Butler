@@ -8,6 +8,7 @@ import io.butler.bet.intelligence.DynastyProcessDraftPickValueImporter;
 import io.butler.bet.intelligence.DynastyProcessValueImporter;
 import io.butler.bet.intelligence.FranchiseValueRankingAnalyzer;
 import io.butler.bet.intelligence.LeagueAssetInventoryAnalyzer;
+import io.butler.bet.intelligence.LeagueAssetSearchAnalyzer;
 import io.butler.bet.intelligence.LeagueValueSourceResolver;
 import io.butler.bet.intelligence.TeamAssetPortfolioAnalyzer;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
@@ -83,7 +84,8 @@ public final class ButlerApp {
             || args[1].equalsIgnoreCase("draft-pick-values")
             || args[1].equalsIgnoreCase("portfolio")
             || args[1].equalsIgnoreCase("franchise-rank")
-            || args[1].equalsIgnoreCase("assets"));
+            || args[1].equalsIgnoreCase("assets")
+            || args[1].equalsIgnoreCase("asset-search"));
     }
 
     static void handleTrade(String[] args) throws SQLException {
@@ -148,6 +150,10 @@ public final class ButlerApp {
 
     private static void handleLeagueExtension(String[] args)
         throws SQLException, IOException, InterruptedException {
+        if ((args.length == 4 || args.length == 5) && args[1].equalsIgnoreCase("asset-search")) {
+            printAssetSearch(args[2], args[3], args.length == 5 ? args[4] : null);
+            return;
+        }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("assets")) {
             printLeagueAssets(args[2], args.length == 4 ? args[3] : null);
             return;
@@ -184,6 +190,47 @@ public final class ButlerApp {
             return;
         }
         printDraftPickUsage();
+    }
+
+    private static void printAssetSearch(String leagueId, String query, String sourceOverride) throws SQLException {
+        Database database = initializedDatabase();
+        LeagueAssetSearchAnalyzer analyzer = new LeagueAssetSearchAnalyzer(database);
+        var report = sourceOverride == null
+            ? analyzer.search(leagueId, query)
+            : analyzer.search(leagueId, query, sourceOverride);
+
+        System.out.println("League asset search");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        System.out.println("Query: " + report.query());
+        System.out.println("Matches: " + report.totalMatches());
+        if (report.totalMatches() == 0) {
+            System.out.println("No current league assets matched this query.");
+            return;
+        }
+        for (var player : report.players()) {
+            if (player.valued()) {
+                System.out.printf("PLAYER  %.2f  %s  %s%s  team=%s  slot=%s  as-of=%s  [%s]%n",
+                    player.value(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                    player.teamName(), player.slot(), player.asOfDate(), player.playerId());
+            } else {
+                System.out.printf("PLAYER  MISSING  %s  %s%s  team=%s  slot=%s  [%s]%n",
+                    player.position(), player.playerName(), formatTeam(player.nflTeam()),
+                    player.teamName(), player.slot(), player.playerId());
+            }
+        }
+        for (var pick : report.draftPicks()) {
+            String original = pick.originalTeamName().equals(pick.teamName())
+                ? "" : "  original=" + pick.originalTeamName();
+            String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
+            if (pick.valued()) {
+                System.out.printf("PICK  %.2f  %s  team=%s%s%s  as-of=%s  [%s]%n",
+                    pick.value(), pick.label(), pick.teamName(), original, slot, pick.asOfDate(), pick.draftPickId());
+            } else {
+                System.out.printf("PICK  MISSING  %s  team=%s%s%s  [%s]%n",
+                    pick.label(), pick.teamName(), original, slot, pick.draftPickId());
+            }
+        }
     }
 
     private static void printLeagueAssets(String leagueId, String sourceOverride) throws SQLException {
@@ -333,7 +380,7 @@ public final class ButlerApp {
             }
             int separator = token.indexOf(':');
             if (separator < 0) {
-                players.add(token); // Backward-compatible player-only syntax.
+                players.add(token);
                 continue;
             }
             String type = token.substring(0, separator).trim();
@@ -440,12 +487,13 @@ public final class ButlerApp {
     }
 
     private static void printDraftPickUsage() {
-        System.out.println("Draft picks, portfolios, rankings, inventories, and full sync:");
+        System.out.println("Draft picks, portfolios, rankings, inventories, search, and full sync:");
         System.out.println("  butler sleeper sync-all <sleeper-league-id>");
         System.out.println("  butler sleeper sync-picks <sleeper-league-id>");
         System.out.println("  butler league draft-pick-values <league-id> dynastyprocess");
         System.out.println("  butler league draft-picks <league-id> [source]");
         System.out.println("  butler league assets <league-id> [source]");
+        System.out.println("  butler league asset-search <league-id> <query> [source]");
         System.out.println("  butler league portfolio <league-id> [source]");
         System.out.println("  butler league franchise-rank <league-id> [source]");
     }
