@@ -6,6 +6,7 @@ import io.butler.bet.intelligence.LeagueAssetConcentrationAnalyzer;
 import io.butler.bet.intelligence.LeagueDecisionReadinessAnalyzer;
 import io.butler.bet.intelligence.LeagueDraftCapitalTimelineAnalyzer;
 import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
+import io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer;
 import io.butler.bet.intelligence.LeaguePositionValueAnalyzer;
 import io.butler.bet.intelligence.LeagueRosterSlotValueAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
@@ -92,6 +93,13 @@ public final class ButlerMain {
             catch (IllegalArgumentException e) { failArgument(e); }
             return;
         }
+        if (isLeaguePositionalDepthCommand(args)) {
+            if (!isSupportedLeaguePositionalDepth(args)) { printIntelligenceUsage(); return; }
+            try { printLeaguePositionalDepth(analyzePositionalDepth(args)); }
+            catch (SQLException e) { failDatabase("building league positional depth context", e); }
+            catch (IllegalArgumentException e) { failArgument(e); }
+            return;
+        }
         ButlerApp.main(args);
     }
 
@@ -103,6 +111,7 @@ public final class ButlerMain {
     static boolean isSupportedLeagueDraftCapital(String[] args) { return isSupportedLeagueCommand(args, "draft-capital"); }
     static boolean isSupportedLeagueAssetConcentration(String[] args) { return isSupportedLeagueCommand(args, "asset-concentration"); }
     static boolean isSupportedLeagueRosterSlotContext(String[] args) { return isSupportedLeagueCommand(args, "roster-slot-context"); }
+    static boolean isSupportedLeaguePositionalDepth(String[] args) { return isSupportedLeagueCommand(args, "positional-depth"); }
 
     private static boolean isLeagueOverviewCommand(String[] args) { return isLeagueCommand(args, "overview"); }
     private static boolean isLeagueTeamContextCommand(String[] args) { return isLeagueCommand(args, "team-context"); }
@@ -111,6 +120,7 @@ public final class ButlerMain {
     private static boolean isLeagueDraftCapitalCommand(String[] args) { return isLeagueCommand(args, "draft-capital"); }
     private static boolean isLeagueAssetConcentrationCommand(String[] args) { return isLeagueCommand(args, "asset-concentration"); }
     private static boolean isLeagueRosterSlotContextCommand(String[] args) { return isLeagueCommand(args, "roster-slot-context"); }
+    private static boolean isLeaguePositionalDepthCommand(String[] args) { return isLeagueCommand(args, "positional-depth"); }
 
     private static boolean isLeagueCommand(String[] args, String command) {
         return args != null && args.length >= 2 && args[0].equalsIgnoreCase("league") && args[1].equalsIgnoreCase(command);
@@ -185,6 +195,14 @@ public final class ButlerMain {
 
     private static LeagueRosterSlotValueAnalyzer.RosterSlotReport analyzeRosterSlotContext(String[] args) throws SQLException {
         LeagueRosterSlotValueAnalyzer analyzer = new LeagueRosterSlotValueAnalyzer(initializedDatabase());
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], args[3]);
+        if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
+        return analyzer.analyze(args[2], args[3], parseMinimumAsOfDate(args[5]));
+    }
+
+    private static LeaguePositionalDepthAnalyzer.DepthReport analyzePositionalDepth(String[] args) throws SQLException {
+        LeaguePositionalDepthAnalyzer analyzer = new LeaguePositionalDepthAnalyzer(initializedDatabase());
         if (args.length == 3) return analyzer.analyze(args[2]);
         if (args.length == 4) return analyzer.analyze(args[2], args[3]);
         if (args.length == 5) return analyzer.analyze(args[2], parseMinimumAsOfDate(args[4]));
@@ -328,6 +346,27 @@ public final class ButlerMain {
         }
     }
 
+    static void printLeaguePositionalDepth(LeaguePositionalDepthAnalyzer.DepthReport report) {
+        if (report == null) throw new IllegalArgumentException("report must not be null");
+        System.out.println("League positional depth context");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Source: " + report.source());
+        if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
+        for (var team : report.teams()) {
+            System.out.printf("%s  [%s]%n", team.teamName(), team.teamId());
+            team.positions().values().stream().sorted(java.util.Comparator.comparing(LeaguePositionalDepthAnalyzer.PositionDepth::position))
+                .forEach(position -> {
+                    System.out.printf("  %s  usable-value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  top1=%.1f%%  top2=%.1f%%  top3=%.1f%%%n",
+                        position.position(), position.totalUsableValue(), position.valuedPlayers(), position.totalPlayers(), position.coveragePercent(),
+                        position.stalePlayers(), position.missingPlayers(), position.topOneSharePercent(), position.topTwoSharePercent(), position.topThreeSharePercent());
+                    for (var player : position.topPlayers(3)) {
+                        System.out.printf("    %s  value=%.2f  slot=%s  as-of=%s  [%s]%n", player.playerName(), player.value(), player.rosterSlot(),
+                            player.asOfDate(), player.playerId());
+                    }
+                });
+        }
+    }
+
     static void printLeagueActions(List<LeagueActionPlanAnalyzer.Action> actions) {
         if (actions == null) throw new IllegalArgumentException("actions must not be null");
         if (actions.isEmpty()) { System.out.println("Next actions: none."); return; }
@@ -348,6 +387,7 @@ public final class ButlerMain {
         System.out.println("  butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league asset-concentration <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  butler league roster-slot-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
+        System.out.println("  butler league positional-depth <league-id> [source] [--minimum-as-of YYYY-MM-DD]");
     }
 
     static void printOverviewUsage() { printIntelligenceUsage(); }
