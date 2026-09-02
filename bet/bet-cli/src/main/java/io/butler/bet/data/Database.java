@@ -37,6 +37,14 @@ public final class Database {
                 """);
 
             statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS league_value_formats (
+                    league_id TEXT PRIMARY KEY,
+                    format TEXT NOT NULL,
+                    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
+                )
+                """);
+
+            statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS teams (
                     id TEXT PRIMARY KEY,
                     external_id TEXT,
