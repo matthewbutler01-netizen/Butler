@@ -10,7 +10,7 @@ java {
 }
 
 application {
-    mainClass.set("io.butler.bet.cli.ButlerCli")
+    mainClass.set("io.butler.bet.cli.ButlerApp")
 }
 
 repositories {
