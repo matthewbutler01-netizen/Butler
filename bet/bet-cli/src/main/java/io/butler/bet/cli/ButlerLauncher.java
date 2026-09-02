@@ -97,7 +97,8 @@ public final class ButlerLauncher {
 
     static boolean isSupportedPlayerEvidenceReadiness(String[] args) {
         if (!isPlayerEvidenceReadinessCommand(args)) return false;
-        if (args.length == 4) return true;
+        if (args.length == 3 || args.length == 4) return true;
+        if (args.length == 5) return args[3].equalsIgnoreCase("--minimum-profile-as-of");
         return args.length == 6 && args[4].equalsIgnoreCase("--minimum-profile-as-of");
     }
 
@@ -138,9 +139,10 @@ public final class ButlerLauncher {
         throws SQLException {
         LeaguePlayerEvidenceReadinessAnalyzer analyzer =
             new LeaguePlayerEvidenceReadinessAnalyzer(initializedDatabase());
-        int season = parseSeason(args[3]);
-        if (args.length == 4) return analyzer.analyze(args[2], season);
-        return analyzer.analyze(args[2], season, parseDate(args[5]));
+        if (args.length == 3) return analyzer.analyze(args[2]);
+        if (args.length == 4) return analyzer.analyze(args[2], parseSeason(args[3]));
+        if (args.length == 5) return analyzer.analyze(args[2], parseDate(args[4]));
+        return analyzer.analyze(args[2], parseSeason(args[3]), parseDate(args[5]));
     }
 
     private static NflversePlayerSeasonProductionImporter.ImportResult runNflverseProduction(int season, boolean persist)
@@ -238,7 +240,7 @@ public final class ButlerLauncher {
     }
 
     static void printPlayerEvidenceReadinessUsage() {
-        System.out.println("  butler league player-evidence-readiness <league-id> <season> [--minimum-profile-as-of YYYY-MM-DD]");
+        System.out.println("  butler league player-evidence-readiness <league-id> [season] [--minimum-profile-as-of YYYY-MM-DD]");
     }
 
     static void printNflverseProductionUsage() {
