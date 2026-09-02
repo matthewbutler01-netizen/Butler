@@ -14,6 +14,7 @@ import io.butler.bet.intelligence.LeagueAnalyzer;
 import io.butler.bet.intelligence.LeagueValueCoverageAnalyzer;
 import io.butler.bet.intelligence.PlayerValueChangeAnalyzer;
 import io.butler.bet.intelligence.PlayerValueImporter;
+import io.butler.bet.intelligence.SourceValueMoverAnalyzer;
 import io.butler.bet.intelligence.TeamStrengthAnalyzer;
 import io.butler.bet.sleeper.SleeperLeagueImporter;
 
@@ -213,6 +214,21 @@ public final class ButlerCli {
             }
             return;
         }
+        if (args.length == 3 && args[1].equalsIgnoreCase("value-movers")) {
+            var report = new SourceValueMoverAnalyzer(database).analyze(args[2]);
+            System.out.println("Player value movers");
+            System.out.println("Source: " + report.source());
+            if (report.movers().isEmpty()) {
+                System.out.println("No players have at least two persisted snapshots for this source.");
+                return;
+            }
+            for (var mover : report.movers()) {
+                System.out.printf("%+.2f  %s  %s%s  %.2f@%s -> %.2f@%s  [%s]%n",
+                    mover.delta(), mover.position(), mover.playerName(), formatTeam(mover.nflTeam()),
+                    mover.previousValue(), mover.previousDate(), mover.latestValue(), mover.latestDate(), mover.playerId());
+            }
+            return;
+        }
         if (args.length == 3 && args[1].equalsIgnoreCase("values")) {
             PlayerValueRepository values = new PlayerValueRepository(database);
             var snapshots = values.findLatestBySource(args[2]);
@@ -259,7 +275,7 @@ public final class ButlerCli {
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|value-sources|values <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-movers <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
@@ -334,6 +350,6 @@ public final class ButlerCli {
 
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-movers <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
