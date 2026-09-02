@@ -25,7 +25,7 @@ class TeamValueMovementAnalyzerTest {
     Path tempDir;
 
     @Test
-    void aggregatesPlayerMovementByTeamAndRanksByAbsoluteDelta() throws Exception {
+    void aggregatesPlayerMovementByTeamRanksByAbsoluteDeltaAndExposesCoverage() throws Exception {
         Database database = database();
         LeagueRepository leagues = new LeagueRepository(database);
         TeamRepository teams = new TeamRepository(database);
@@ -36,23 +36,28 @@ class TeamValueMovementAnalyzerTest {
         League league = new League("league-a", null, "League A");
         Team alpha = new Team("team-a", null, league.getId(), "Alpha");
         Team beta = new Team("team-b", null, league.getId(), "Beta");
+        Team gamma = new Team("team-c", null, league.getId(), "Gamma");
         leagues.save(league);
         teams.save(alpha);
         teams.save(beta);
+        teams.save(gamma);
 
         Player aRiser = Player.create("Alpha Riser", "WR", "KC");
         Player aFaller = Player.create("Alpha Faller", "RB", "DET");
         Player bFaller = Player.create("Beta Faller", "QB", "BUF");
         Player insufficient = Player.create("Insufficient", "TE", "DAL");
+        Player noHistory = Player.create("No History", "WR", "CHI");
         players.save(aRiser);
         players.save(aFaller);
         players.save(bFaller);
         players.save(insufficient);
+        players.save(noHistory);
 
         rosters.save(new Roster("r1", null, alpha.getId(), aRiser.getId(), "STARTER"));
         rosters.save(new Roster("r2", null, alpha.getId(), aFaller.getId(), "BENCH"));
         rosters.save(new Roster("r3", null, beta.getId(), bFaller.getId(), "STARTER"));
         rosters.save(new Roster("r4", null, beta.getId(), insufficient.getId(), "BENCH"));
+        rosters.save(new Roster("r5", null, gamma.getId(), noHistory.getId(), "STARTER"));
 
         saveHistory(values, aRiser, 60.0, 80.0);
         saveHistory(values, aFaller, 70.0, 60.0);
@@ -63,12 +68,15 @@ class TeamValueMovementAnalyzerTest {
 
         assertEquals("league-a", report.leagueId());
         assertEquals("market", report.source());
-        assertEquals(2, report.teams().size());
+        assertEquals(3, report.teams().size());
 
         var betaMovement = report.teams().get(0);
         assertEquals("Beta", betaMovement.teamName());
         assertEquals(-35.0, betaMovement.delta());
+        assertEquals(2, betaMovement.rosterSize());
         assertEquals(1, betaMovement.playersWithHistory());
+        assertEquals(1, betaMovement.playersWithoutHistory());
+        assertEquals(50.0, betaMovement.historyCoveragePercent());
         assertEquals(0, betaMovement.risers());
         assertEquals(1, betaMovement.fallers());
         assertEquals(0, betaMovement.unchanged());
@@ -77,8 +85,18 @@ class TeamValueMovementAnalyzerTest {
         assertEquals("Alpha", alphaMovement.teamName());
         assertEquals(10.0, alphaMovement.delta());
         assertEquals(2, alphaMovement.playersWithHistory());
+        assertEquals(0, alphaMovement.playersWithoutHistory());
+        assertEquals(100.0, alphaMovement.historyCoveragePercent());
         assertEquals(1, alphaMovement.risers());
         assertEquals(1, alphaMovement.fallers());
+
+        var gammaMovement = report.teams().get(2);
+        assertEquals("Gamma", gammaMovement.teamName());
+        assertEquals(0.0, gammaMovement.delta());
+        assertEquals(1, gammaMovement.rosterSize());
+        assertEquals(0, gammaMovement.playersWithHistory());
+        assertEquals(1, gammaMovement.playersWithoutHistory());
+        assertEquals(0.0, gammaMovement.historyCoveragePercent());
     }
 
     @Test
