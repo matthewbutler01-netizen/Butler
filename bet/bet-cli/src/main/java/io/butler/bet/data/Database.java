@@ -66,6 +66,16 @@ public final class Database {
                 """);
 
             statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_profiles (
+                    player_id TEXT PRIMARY KEY,
+                    birth_date TEXT,
+                    years_experience INTEGER,
+                    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                    CHECK (years_experience IS NULL OR years_experience >= 0)
+                )
+                """);
+
+            statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS rosters (
                     id TEXT PRIMARY KEY,
                     external_id TEXT,
