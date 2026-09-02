@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FranchiseValueRankingAnalyzerTest {
@@ -41,6 +42,7 @@ class FranchiseValueRankingAnalyzerTest {
         var report = new FranchiseValueRankingAnalyzer(f.database).rank(f.league.getId());
 
         assertEquals(DynastyProcessValueImporter.SOURCE_2QB, report.source());
+        assertNull(report.minimumAsOfDate());
         assertEquals(800.0, report.totalAssetValue());
         assertEquals(1, report.teams().get(0).rank());
         assertEquals("Beta", report.teams().get(0).teamName());
@@ -64,6 +66,57 @@ class FranchiseValueRankingAnalyzerTest {
         assertEquals(DynastyProcessValueImporter.SOURCE_1QB, report.source());
         assertEquals("Alpha", report.teams().get(0).teamName());
         assertEquals(300.0, report.teams().get(0).totalAssetValue());
+    }
+
+    @Test
+    void explicitMinimumDateAllowsValuesOnTheCutoffDate() throws Exception {
+        Fixture f = fixture(LeagueValueFormat.TWO_QB);
+        savePlayer(f, f.alphaPlayer, 300, DynastyProcessValueImporter.SOURCE_2QB);
+        savePlayer(f, f.betaPlayer, 260, DynastyProcessValueImporter.SOURCE_2QB);
+        savePick(f, f.alphaPickOwnedByBeta, 160, DynastyProcessValueImporter.SOURCE_2QB);
+        savePick(f, f.betaPickOwnedByAlpha, 80, DynastyProcessValueImporter.SOURCE_2QB);
+
+        LocalDate cutoff = LocalDate.of(2026, 8, 28);
+        var report = new FranchiseValueRankingAnalyzer(f.database).rank(f.league.getId(), cutoff);
+
+        assertEquals(cutoff, report.minimumAsOfDate());
+        assertEquals(DynastyProcessValueImporter.SOURCE_2QB, report.source());
+        assertEquals("Beta", report.teams().getFirst().teamName());
+    }
+
+    @Test
+    void refusesRankingWhenAnyValuedAssetPredatesExplicitMinimumDate() throws Exception {
+        Fixture f = fixture(LeagueValueFormat.TWO_QB);
+        savePlayer(f, f.alphaPlayer, 300, DynastyProcessValueImporter.SOURCE_2QB);
+        savePlayer(f, f.betaPlayer, 260, DynastyProcessValueImporter.SOURCE_2QB);
+        savePick(f, f.alphaPickOwnedByBeta, 160, DynastyProcessValueImporter.SOURCE_2QB);
+        savePick(f, f.betaPickOwnedByAlpha, 80, DynastyProcessValueImporter.SOURCE_2QB);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new FranchiseValueRankingAnalyzer(f.database)
+                .rank(f.league.getId(), LocalDate.of(2026, 8, 29)));
+
+        assertEquals(true, error.getMessage().contains("requires READY asset coverage on or after 2026-08-29"));
+        assertEquals(true, error.getMessage().contains("status=STALE"));
+        assertEquals(true, error.getMessage().contains("stale-assets=2"));
+        assertEquals(true, error.getMessage().contains("oldest-value-date=2026-08-28"));
+    }
+
+    @Test
+    void explicitSourceAndMinimumDateUseTheRequestedSource() throws Exception {
+        Fixture f = fixture(LeagueValueFormat.TWO_QB);
+        savePlayer(f, f.alphaPlayer, 100, DynastyProcessValueImporter.SOURCE_1QB);
+        savePlayer(f, f.betaPlayer, 150, DynastyProcessValueImporter.SOURCE_1QB);
+        savePick(f, f.alphaPickOwnedByBeta, 50, DynastyProcessValueImporter.SOURCE_1QB);
+        savePick(f, f.betaPickOwnedByAlpha, 200, DynastyProcessValueImporter.SOURCE_1QB);
+
+        LocalDate cutoff = LocalDate.of(2026, 8, 28);
+        var report = new FranchiseValueRankingAnalyzer(f.database)
+            .rank(f.league.getId(), DynastyProcessValueImporter.SOURCE_1QB, cutoff);
+
+        assertEquals(DynastyProcessValueImporter.SOURCE_1QB, report.source());
+        assertEquals(cutoff, report.minimumAsOfDate());
+        assertEquals("Alpha", report.teams().getFirst().teamName());
     }
 
     @Test
