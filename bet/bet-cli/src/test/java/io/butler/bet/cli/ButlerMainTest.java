@@ -28,6 +28,20 @@ class ButlerMainTest {
     }
 
     @Test
+    void recognizesEverySupportedLeagueOverviewArgumentForm() {
+        assertTrue(ButlerMain.isSupportedLeagueOverview(new String[]{"league", "overview", "league-id"}));
+        assertTrue(ButlerMain.isSupportedLeagueOverview(new String[]{"league", "overview", "league-id", "source"}));
+        assertTrue(ButlerMain.isSupportedLeagueOverview(new String[]{
+            "league", "overview", "league-id", "--minimum-as-of", "2026-09-01"}));
+        assertTrue(ButlerMain.isSupportedLeagueOverview(new String[]{
+            "league", "overview", "league-id", "source", "--minimum-as-of", "2026-09-01"}));
+
+        assertFalse(ButlerMain.isSupportedLeagueOverview(new String[]{"league", "overview"}));
+        assertFalse(ButlerMain.isSupportedLeagueOverview(new String[]{
+            "league", "overview", "league-id", "--wrong-flag", "2026-09-01"}));
+    }
+
+    @Test
     void printsRequiredAndOptionalActionsWithDeterministicCommands() {
         var actions = List.of(
             new LeagueActionPlanAnalyzer.Action(
@@ -56,6 +70,12 @@ class ButlerMainTest {
     void printsExplicitNoActionState() {
         String output = capture(() -> ButlerMain.printLeagueActions(List.of()));
         assertTrue(output.contains("Next actions: none."));
+    }
+
+    @Test
+    void advertisesLeagueOverviewSyntax() {
+        String output = capture(ButlerMain::printOverviewUsage);
+        assertTrue(output.contains("butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
     }
 
     private static String capture(Runnable runnable) {
