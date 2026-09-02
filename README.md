@@ -25,8 +25,11 @@ A typical workflow is:
 ```text
 butler sleeper sync-all <sleeper-league-id>
 butler league status <league-id>
+butler league decision-readiness <league-id>
 butler league overview <league-id>
 butler league team-context <league-id>
+butler league position-context <league-id>
+butler league draft-capital <league-id>
 butler league franchise-readiness <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 butler trade compare <league-id> <side-a-assets> <side-b-assets> --minimum-as-of 2026-09-01
@@ -48,6 +51,20 @@ Franchise readiness uses explicit states rather than treating any stored value a
 
 When source resolution cannot safely determine a value source, Butler reports that a source is required instead of guessing.
 
+### Decision readiness
+
+Use `league decision-readiness` to check what kind of evidence-backed decisions Butler can safely support without inventing strategy assumptions:
+
+- `BLOCKED` — current-value decisions are not safe yet because core league evidence is incomplete, stale, unavailable, or unresolved.
+- `CURRENT_READY` — current-value decisions are supported, but trend-aware decisions are not yet supported by comparable historical snapshots.
+- `TREND_READY` — both current-value and trend-aware decision context are available.
+
+```text
+butler league decision-readiness <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+```
+
+This command does not recommend trades, label teams as contenders/rebuilders, or assign buyer/seller posture. It reports which decision modes the underlying evidence can safely support and reuses Butler's deterministic next actions when more data is required.
+
 ### Recency guards
 
 `--minimum-as-of YYYY-MM-DD` is optional. Without it, existing commands preserve their normal no-cutoff behavior. With it, Butler requires applicable values to be dated on or after the supplied date. The cutoff is inclusive.
@@ -56,8 +73,11 @@ For example:
 
 ```text
 butler league status <league-id> --minimum-as-of 2026-09-01
+butler league decision-readiness <league-id> --minimum-as-of 2026-09-01
 butler league overview <league-id> --minimum-as-of 2026-09-01
 butler league team-context <league-id> --minimum-as-of 2026-09-01
+butler league position-context <league-id> --minimum-as-of 2026-09-01
+butler league draft-capital <league-id> --minimum-as-of 2026-09-01
 butler league franchise-rank <league-id> --minimum-as-of 2026-09-01
 ```
 
@@ -88,6 +108,19 @@ Use these outputs to answer two different questions:
 2. **What does the league currently look like?** — inspect overview/team context once the relevant readiness conditions are satisfied.
 
 Movement readiness is separate from core franchise readiness because trend analysis requires comparable historical snapshots in addition to current values.
+
+### Neutral roster and draft-capital context
+
+Use `league position-context` to inspect how each team's usable player value is distributed across positions. Butler reports value and coverage by position, including missing and stale counts, without declaring any position mix good or bad.
+
+Use `league draft-capital` to inspect future draft-pick value by current owner and season. Butler reports usable pick value, coverage, stale/missing counts, and round counts without inferring rebuild windows or preferred draft strategy.
+
+```text
+butler league position-context <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+butler league draft-capital <league-id> [source] [--minimum-as-of YYYY-MM-DD]
+```
+
+When a minimum as-of date is supplied, stale values remain visible in coverage diagnostics but are excluded from the usable value totals shown by these neutral context commands.
 
 ## External fantasy-football data
 
