@@ -17,6 +17,7 @@ import java.util.Objects;
 
 public final class LeagueValueMoverAnalyzer {
     private final LeagueAnalyzer leagues;
+    private final LeagueValueSourceResolver sourceResolver;
     private final RosterRepository rosters;
     private final PlayerRepository players;
     private final PlayerValueRepository values;
@@ -25,10 +26,19 @@ public final class LeagueValueMoverAnalyzer {
     public LeagueValueMoverAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
         this.leagues = new LeagueAnalyzer(database);
+        this.sourceResolver = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.players = new PlayerRepository(database);
         this.values = new PlayerValueRepository(database);
         this.windows = new SourceValueWindowResolver(database);
+    }
+
+    public MoverReport analyze(String leagueId) throws SQLException {
+        return analyze(leagueId, sourceResolver.resolve(leagueId));
+    }
+
+    public MoverReport analyze(String leagueId, LocalDate previousDate, LocalDate latestDate) throws SQLException {
+        return analyze(leagueId, sourceResolver.resolve(leagueId), previousDate, latestDate);
     }
 
     public MoverReport analyze(String leagueId, String source) throws SQLException {
