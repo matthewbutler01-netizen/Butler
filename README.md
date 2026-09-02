@@ -24,8 +24,11 @@ A typical workflow is:
 
 ```text
 butler sleeper sync-all <sleeper-league-id>
+butler nflverse production-preview <season>
+butler nflverse production-refresh <season>
 butler league status <league-id>
 butler league decision-readiness <league-id>
+butler league player-evidence-readiness <league-id> <season>
 butler league overview <league-id>
 butler league team-context <league-id>
 butler league team-profile <league-id>
@@ -145,7 +148,7 @@ When a minimum as-of date is supplied, stale values remain visible in coverage d
 
 ### Player evidence foundations
 
-Butler now stores player evidence separately from the core player identity so richer analysis can be added without destabilizing existing league imports.
+Butler stores player evidence separately from core player identity so richer analysis can be added without destabilizing existing league imports.
 
 - `player_profiles` holds optional canonical biographical metadata such as exact birth date and years of experience. Age is derived for a requested date rather than persisted as a number that becomes stale.
 - `player_profile_snapshots` holds versioned provider-reported facts such as age and experience, including source and as-of date.
@@ -153,6 +156,41 @@ Butler now stores player evidence separately from the core player identity so ri
 - `player_season_production` stores versioned raw season production evidence: games played, passing/rushing/receiving production, interceptions, fumbles lost, source, and as-of date.
 
 Season production intentionally does not store a universal fantasy-point score. Scoring rules belong in a later interpretation layer so the same raw evidence can support different league formats.
+
+### nflverse production import
+
+Butler imports regular-season player production from nflverse's official `stats_player` release assets. Provider `player_id` values are treated as GSIS identifiers and are reconciled to Butler/Sleeper players through the GSIS-to-Sleeper crosswalk. Butler does not fall back to player-name matching for production imports.
+
+Use preview before refresh when inspecting a new season or identity state:
+
+```text
+butler nflverse production-preview <season>
+butler nflverse production-refresh <season>
+```
+
+Both commands run the same download, schema validation, season filtering, and identity-reconciliation pipeline. Preview performs no writes. Refresh persists versioned raw production snapshots. Output reports provider rows, requested-season rows, crosswalk entries, mapped provider rows, eligible Butler players, matched players, unmatched players, and snapshot writes.
+
+A requested season that has not yet been published upstream fails explicitly rather than silently substituting another season. Lost fumbles are persisted as the sum of nflverse's sack, rushing, and receiving lost-fumble components.
+
+### Player-evidence readiness
+
+Use `league player-evidence-readiness` to determine whether rostered players have the profile/age and season-production evidence required for richer downstream analysis:
+
+```text
+butler league player-evidence-readiness <league-id> <season>
+butler league player-evidence-readiness <league-id> <season> --minimum-profile-as-of YYYY-MM-DD
+```
+
+The readiness states are deliberately about evidence availability only:
+
+- `EMPTY` — the league/team has no rostered players to evaluate.
+- `BLOCKED` — one entire required evidence dimension is absent: usable age evidence or requested-season production evidence.
+- `PARTIAL` — both dimensions exist, but one or both are incomplete across the roster.
+- `READY` — every rostered player has usable age evidence and requested-season production evidence.
+
+Age/profile provenance is preserved rather than flattened. Exact canonical birth dates are distinguished from provider-reported ages, and experience-only evidence does not count as age evidence. When `--minimum-profile-as-of` is supplied, stale provider-reported ages remain visible in coverage diagnostics but do not satisfy the fresh-age requirement. Exact birth dates remain usable because age is derived from the canonical date instead of a stale reported number.
+
+`READY` does **not** mean a player is good, a roster is competitive, or a strategy recommendation is safe by itself. It only means these player-evidence inputs are complete enough to be used by a later interpretation layer.
 
 ## External fantasy-football data
 
@@ -164,3 +202,5 @@ Butler can import dynasty player values from the open-data repository maintained
 - Upstream license: GNU General Public License v3.0 (GPL-3.0)
 
 Butler fetches the upstream CSV files at runtime rather than vendoring a copy of the dataset. Imported 1QB and 2QB values are persisted separately as `dynastyprocess-1qb` and `dynastyprocess-2qb`, with the upstream `scrape_date` retained as the value snapshot date. FantasyPros-to-Sleeper IDs are the primary identity mapping. When that crosswalk is missing, Butler only falls back to a unique exact player-name + position + NFL-team match present in both upstream files; ambiguous or incomplete identities remain unmatched rather than being guessed.
+
+For nflverse production evidence, Butler fetches the official regular-season `stats_player` release CSV for the requested season and uses the DynastyProcess player-ID crosswalk for GSIS-to-Sleeper reconciliation. Production import intentionally rejects ambiguous ID mappings and never uses player-name fallback.
