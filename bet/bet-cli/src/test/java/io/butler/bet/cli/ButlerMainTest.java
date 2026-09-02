@@ -42,6 +42,21 @@ class ButlerMainTest {
     }
 
     @Test
+    void recognizesEverySupportedLeagueFranchisesArgumentForm() {
+        assertTrue(ButlerMain.isSupportedLeagueFranchises(new String[]{"league", "franchises", "league-id"}));
+        assertTrue(ButlerMain.isSupportedLeagueFranchises(new String[]{
+            "league", "franchises", "league-id", "source"}));
+        assertTrue(ButlerMain.isSupportedLeagueFranchises(new String[]{
+            "league", "franchises", "league-id", "--minimum-as-of", "2026-09-01"}));
+        assertTrue(ButlerMain.isSupportedLeagueFranchises(new String[]{
+            "league", "franchises", "league-id", "source", "--minimum-as-of", "2026-09-01"}));
+
+        assertFalse(ButlerMain.isSupportedLeagueFranchises(new String[]{"league", "franchises"}));
+        assertFalse(ButlerMain.isSupportedLeagueFranchises(new String[]{
+            "league", "franchises", "league-id", "--wrong-flag", "2026-09-01"}));
+    }
+
+    @Test
     void printsRequiredAndOptionalActionsWithDeterministicCommands() {
         var actions = List.of(
             new LeagueActionPlanAnalyzer.Action(
@@ -73,9 +88,10 @@ class ButlerMainTest {
     }
 
     @Test
-    void advertisesLeagueOverviewSyntax() {
-        String output = capture(ButlerMain::printOverviewUsage);
+    void advertisesNewLeagueWorkflowSyntax() {
+        String output = capture(ButlerMain::printWorkflowUsage);
         assertTrue(output.contains("butler league overview <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
+        assertTrue(output.contains("butler league franchises <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
     }
 
     private static String capture(Runnable runnable) {
