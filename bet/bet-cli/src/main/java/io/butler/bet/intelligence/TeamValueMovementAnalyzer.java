@@ -11,21 +11,27 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class TeamValueMovementAnalyzer {
+    private final LeagueAnalyzer leagues;
     private final LeagueValueMoverAnalyzer leagueMovers;
 
     public TeamValueMovementAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
+        this.leagues = new LeagueAnalyzer(database);
         this.leagueMovers = new LeagueValueMoverAnalyzer(database);
     }
 
     public MovementReport analyze(String leagueId, String source) throws SQLException {
         var report = leagueMovers.analyze(leagueId, source);
+        var league = leagues.analyze(report.leagueId());
         Map<String, MutableTeamMovement> byTeam = new LinkedHashMap<>();
 
+        for (var team : league.teams()) {
+            byTeam.put(team.teamId(), new MutableTeamMovement(team.teamId(), team.teamName(), team.rosterSize()));
+        }
+
         for (var mover : report.movers()) {
-            var team = byTeam.computeIfAbsent(
-                mover.teamId(),
-                ignored -> new MutableTeamMovement(mover.teamId(), mover.teamName()));
+            var team = byTeam.get(mover.teamId());
+            if (team == null) throw new IllegalStateException("mover team not found in league: " + mover.teamId());
             team.delta += mover.delta();
             team.playersWithHistory++;
             if (mover.delta() > 0) team.risers++;
@@ -38,6 +44,7 @@ public final class TeamValueMovementAnalyzer {
             teams.add(new TeamMovement(
                 team.teamId,
                 team.teamName,
+                team.rosterSize,
                 team.playersWithHistory,
                 team.risers,
                 team.fallers,
@@ -54,22 +61,32 @@ public final class TeamValueMovementAnalyzer {
 
     public record MovementReport(String leagueId, String source, List<TeamMovement> teams) {}
 
-    public record TeamMovement(String teamId, String teamName,
+    public record TeamMovement(String teamId, String teamName, int rosterSize,
                                int playersWithHistory, int risers, int fallers, int unchanged,
-                               double delta) {}
+                               double delta) {
+        public int playersWithoutHistory() {
+            return rosterSize - playersWithHistory;
+        }
+
+        public double historyCoveragePercent() {
+            return rosterSize == 0 ? 0.0 : (playersWithHistory * 100.0) / rosterSize;
+        }
+    }
 
     private static final class MutableTeamMovement {
         private final String teamId;
         private final String teamName;
+        private final int rosterSize;
         private int playersWithHistory;
         private int risers;
         private int fallers;
         private int unchanged;
         private double delta;
 
-        private MutableTeamMovement(String teamId, String teamName) {
+        private MutableTeamMovement(String teamId, String teamName, int rosterSize) {
             this.teamId = teamId;
             this.teamName = teamName;
+            this.rosterSize = rosterSize;
         }
     }
 }
