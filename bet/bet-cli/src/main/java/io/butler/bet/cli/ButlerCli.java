@@ -12,6 +12,7 @@ import io.butler.bet.domain.Roster;
 import io.butler.bet.domain.Team;
 import io.butler.bet.intelligence.LeagueAnalyzer;
 import io.butler.bet.intelligence.LeagueValueCoverageAnalyzer;
+import io.butler.bet.intelligence.PlayerValueChangeAnalyzer;
 import io.butler.bet.intelligence.PlayerValueImporter;
 import io.butler.bet.intelligence.TeamStrengthAnalyzer;
 import io.butler.bet.sleeper.SleeperLeagueImporter;
@@ -27,6 +28,7 @@ import java.util.TreeMap;
 public final class ButlerCli {
     private static final String VERSION = "0.1.0-SNAPSHOT";
     private static final Path DATABASE_PATH = Path.of("butler.db");
+
     private ButlerCli() {}
 
     public static void main(String[] args) {
@@ -43,14 +45,28 @@ public final class ButlerCli {
                 case "sleeper" -> handleSleeper(args);
                 default -> { System.out.println("Unknown command: " + args[0]); System.out.println(); printHelp(); }
             }
-        } catch (SQLException e) { System.err.println("Database error: " + e.getMessage()); System.exit(1);
-        } catch (IOException e) { System.err.println("I/O error: " + e.getMessage()); System.exit(3);
-        } catch (InterruptedException e) { Thread.currentThread().interrupt(); System.err.println("Sleeper import interrupted."); System.exit(4);
-        } catch (IllegalArgumentException e) { System.err.println("Error: " + e.getMessage()); System.exit(2); }
+        } catch (SQLException e) {
+            System.err.println("Database error: " + e.getMessage());
+            System.exit(1);
+        } catch (IOException e) {
+            System.err.println("I/O error: " + e.getMessage());
+            System.exit(3);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Sleeper import interrupted.");
+            System.exit(4);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.exit(2);
+        }
     }
 
     private static void handleDatabase(String[] args) throws SQLException {
-        if (args.length == 2 && args[1].equalsIgnoreCase("init")) { database().initialize(); System.out.println("Initialized Butler database: " + DATABASE_PATH.toAbsolutePath()); return; }
+        if (args.length == 2 && args[1].equalsIgnoreCase("init")) {
+            database().initialize();
+            System.out.println("Initialized Butler database: " + DATABASE_PATH.toAbsolutePath());
+            return;
+        }
         if (args.length == 2 && args[1].equalsIgnoreCase("seed")) { seedDemoData(); return; }
         System.out.println("Usage: butler db <init|seed>");
     }
@@ -72,13 +88,22 @@ public final class ButlerCli {
         Database database = initializedDatabase();
         LeagueRepository leagues = new LeagueRepository(database);
         if (args.length >= 3 && args[1].equalsIgnoreCase("add")) {
-            League league = League.create(joinArgs(args, 2)); leagues.save(league);
-            System.out.println("Created league: " + league.getName()); System.out.println("ID: " + league.getId()); return;
+            League league = League.create(joinArgs(args, 2));
+            leagues.save(league);
+            System.out.println("Created league: " + league.getName());
+            System.out.println("ID: " + league.getId());
+            return;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
-            var all = leagues.findAll(); if (all.isEmpty()) System.out.println("No leagues found."); else all.forEach(league -> System.out.println(league.getId() + "  " + league.getName())); return;
+            var all = leagues.findAll();
+            if (all.isEmpty()) System.out.println("No leagues found.");
+            else all.forEach(league -> System.out.println(league.getId() + "  " + league.getName()));
+            return;
         }
-        if (args.length == 3 && args[1].equalsIgnoreCase("analyze")) { printLeagueReport(new LeagueAnalyzer(database).analyze(args[2])); return; }
+        if (args.length == 3 && args[1].equalsIgnoreCase("analyze")) {
+            printLeagueReport(new LeagueAnalyzer(database).analyze(args[2]));
+            return;
+        }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("value-sources")) {
             LeagueValueCoverageAnalyzer analyzer = new LeagueValueCoverageAnalyzer(database);
             var report = args.length == 4
@@ -104,7 +129,8 @@ public final class ButlerCli {
         System.out.println("Rostered players: " + report.rosteredPlayers());
         System.out.println("Positions: " + formatCounts(report.positionCounts()));
         for (LeagueAnalyzer.TeamReport team : report.teams()) {
-            System.out.println(); System.out.println(team.teamName() + "  [" + team.teamId() + "]");
+            System.out.println();
+            System.out.println(team.teamName() + "  [" + team.teamId() + "]");
             System.out.println("  Roster: " + team.rosterSize());
             System.out.println("  Positions: " + formatCounts(team.positionCounts()));
             System.out.println("  Slots: " + formatCounts(team.slotCounts()));
@@ -149,14 +175,20 @@ public final class ButlerCli {
     private static String formatCounts(Map<String, Integer> counts) {
         if (counts.isEmpty()) return "none";
         StringBuilder value = new StringBuilder();
-        new TreeMap<>(counts).forEach((key, count) -> { if (!value.isEmpty()) value.append(", "); value.append(key).append('=').append(count); });
+        new TreeMap<>(counts).forEach((key, count) -> {
+            if (!value.isEmpty()) value.append(", ");
+            value.append(key).append('=').append(count);
+        });
         return value.toString();
     }
 
     private static void handleTeam(String[] args) throws SQLException {
         if (args.length == 3 && args[1].equalsIgnoreCase("list")) {
-            TeamRepository teams = new TeamRepository(initializedDatabase()); var all = teams.findByLeagueId(args[2]);
-            if (all.isEmpty()) System.out.println("No teams found for league " + args[2]); else all.forEach(team -> System.out.println(team.getId() + "  " + team.getName())); return;
+            TeamRepository teams = new TeamRepository(initializedDatabase());
+            var all = teams.findByLeagueId(args[2]);
+            if (all.isEmpty()) System.out.println("No teams found for league " + args[2]);
+            else all.forEach(team -> System.out.println(team.getId() + "  " + team.getName()));
+            return;
         }
         System.out.println("Usage: butler team list <league-id>");
     }
@@ -165,7 +197,10 @@ public final class ButlerCli {
         Database database = initializedDatabase();
         PlayerRepository players = new PlayerRepository(database);
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
-            var all = players.findAll(); if (all.isEmpty()) System.out.println("No players found."); else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()))); return;
+            var all = players.findAll();
+            if (all.isEmpty()) System.out.println("No players found.");
+            else all.forEach(player -> System.out.println(player.getId() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam())));
+            return;
         }
         if (args.length == 2 && args[1].equalsIgnoreCase("value-sources")) {
             var summaries = new PlayerValueRepository(database).findSourceSummaries();
@@ -188,6 +223,22 @@ public final class ButlerCli {
             }
             return;
         }
+        if (args.length == 4 && args[1].equalsIgnoreCase("value-change")) {
+            Player player = players.findById(args[2]).orElseThrow(() -> new IllegalArgumentException("player not found: " + args[2]));
+            var change = new PlayerValueChangeAnalyzer(database).latestChange(player.getId(), args[3]);
+            System.out.println("Player value change");
+            System.out.println(player.getDisplayName() + "  [" + player.getId() + "]");
+            System.out.println("Source: " + args[3].trim());
+            if (change.isEmpty()) {
+                System.out.println("Need at least two persisted snapshots for this player and source.");
+                return;
+            }
+            var value = change.orElseThrow();
+            System.out.printf("Previous: %.2f  as-of=%s%n", value.previousValue(), value.previousDate());
+            System.out.printf("Latest: %.2f  as-of=%s%n", value.latestValue(), value.latestDate());
+            System.out.printf("Change: %+.2f%n", value.delta());
+            return;
+        }
         if ((args.length == 3 || args.length == 4) && args[1].equalsIgnoreCase("value-history")) {
             Player player = players.findById(args[2]).orElseThrow(() -> new IllegalArgumentException("player not found: " + args[2]));
             PlayerValueRepository values = new PlayerValueRepository(database);
@@ -208,24 +259,44 @@ public final class ButlerCli {
             System.out.println("Imported: " + result.valuesImported());
             return;
         }
-        System.out.println("Usage: butler player <list|value-sources|values <source>|value-history <player-id> [source]|value-import <json-file>>");
+        System.out.println("Usage: butler player <list|value-sources|values <source>|value-change <player-id> <source>|value-history <player-id> [source]|value-import <json-file>>");
     }
 
     private static void handleRoster(String[] args) throws SQLException {
         if (args.length == 3 && args[1].equalsIgnoreCase("list")) {
-            Database database = initializedDatabase(); RosterRepository rosters = new RosterRepository(database); PlayerRepository players = new PlayerRepository(database); var memberships = rosters.findByTeamId(args[2]);
+            Database database = initializedDatabase();
+            RosterRepository rosters = new RosterRepository(database);
+            PlayerRepository players = new PlayerRepository(database);
+            var memberships = rosters.findByTeamId(args[2]);
             if (memberships.isEmpty()) { System.out.println("No roster entries found for team " + args[2]); return; }
-            for (Roster membership : memberships) { Player player = players.findById(membership.getPlayerId()).orElseThrow(); System.out.println(membership.getSlot() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam())); }
+            for (Roster membership : memberships) {
+                Player player = players.findById(membership.getPlayerId()).orElseThrow();
+                System.out.println(membership.getSlot() + "  " + player.getPosition() + "  " + player.getDisplayName() + formatTeam(player.getNflTeam()));
+            }
             return;
         }
         System.out.println("Usage: butler roster list <team-id>");
     }
 
     private static void seedDemoData() throws SQLException {
-        Database database = initializedDatabase(); LeagueRepository leagues = new LeagueRepository(database); TeamRepository teams = new TeamRepository(database); PlayerRepository players = new PlayerRepository(database); RosterRepository rosters = new RosterRepository(database);
-        League league = new League("demo-league", "demo-sleeper-league", "Butler Demo Dynasty"); Team team = new Team("demo-team", "demo-sleeper-roster", league.getId(), "The Butler"); Player quarterback = new Player("demo-player-qb", "demo-sleeper-qb", "Demo Quarterback", "QB", "CHI"); Player receiver = new Player("demo-player-wr", "demo-sleeper-wr", "Demo Receiver", "WR", "KC");
-        leagues.save(league); teams.save(team); players.save(quarterback); players.save(receiver); rosters.save(new Roster("demo-roster-qb", null, team.getId(), quarterback.getId(), "STARTER")); rosters.save(new Roster("demo-roster-wr", null, team.getId(), receiver.getId(), "STARTER"));
-        System.out.println("Seeded demo fantasy data."); System.out.println("League ID: " + league.getId()); System.out.println("Team ID: " + team.getId());
+        Database database = initializedDatabase();
+        LeagueRepository leagues = new LeagueRepository(database);
+        TeamRepository teams = new TeamRepository(database);
+        PlayerRepository players = new PlayerRepository(database);
+        RosterRepository rosters = new RosterRepository(database);
+        League league = new League("demo-league", "demo-sleeper-league", "Butler Demo Dynasty");
+        Team team = new Team("demo-team", "demo-sleeper-roster", league.getId(), "The Butler");
+        Player quarterback = new Player("demo-player-qb", "demo-sleeper-qb", "Demo Quarterback", "QB", "CHI");
+        Player receiver = new Player("demo-player-wr", "demo-sleeper-wr", "Demo Receiver", "WR", "KC");
+        leagues.save(league);
+        teams.save(team);
+        players.save(quarterback);
+        players.save(receiver);
+        rosters.save(new Roster("demo-roster-qb", null, team.getId(), quarterback.getId(), "STARTER"));
+        rosters.save(new Roster("demo-roster-wr", null, team.getId(), receiver.getId(), "STARTER"));
+        System.out.println("Seeded demo fantasy data.");
+        System.out.println("League ID: " + league.getId());
+        System.out.println("Team ID: " + team.getId());
     }
 
     private static LocalDate parseDate(String value, String field) {
@@ -236,13 +307,33 @@ public final class ButlerCli {
         }
     }
 
-    private static Database initializedDatabase() throws SQLException { Database database = database(); database.initialize(); return database; }
+    private static Database initializedDatabase() throws SQLException {
+        Database database = database();
+        database.initialize();
+        return database;
+    }
+
     private static Database database() { return new Database(DATABASE_PATH); }
-    private static String joinArgs(String[] args, int start) { StringBuilder value = new StringBuilder(); for (int i = start; i < args.length; i++) { if (!value.isEmpty()) value.append(' '); value.append(args[i]); } return value.toString(); }
+
+    private static String joinArgs(String[] args, int start) {
+        StringBuilder value = new StringBuilder();
+        for (int i = start; i < args.length; i++) {
+            if (!value.isEmpty()) value.append(' ');
+            value.append(args[i]);
+        }
+        return value.toString();
+    }
+
     private static String formatTeam(String nflTeam) { return nflTeam == null ? "" : "  " + nflTeam; }
-    private static void printVersion() { System.out.println("Butler Fantasy Football Toolkit"); System.out.println("Version: " + VERSION); System.out.println("Java: " + Runtime.version()); }
+
+    private static void printVersion() {
+        System.out.println("Butler Fantasy Football Toolkit");
+        System.out.println("Version: " + VERSION);
+        System.out.println("Java: " + Runtime.version());
+    }
+
     private static void printHelp() {
         System.out.println("Butler Fantasy Football Toolkit\n\nUsage:");
-        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
+        System.out.println("  butler version\n  butler help\n  butler db init\n  butler db seed\n  butler sleeper import <sleeper-league-id>\n  butler league add <name>\n  butler league list\n  butler league analyze <league-id>\n  butler league value-sources <league-id> [minimum-as-of-date]\n  butler league rank <league-id> <source> [minimum-as-of-date]\n  butler team list <league-id>\n  butler player list\n  butler player value-sources\n  butler player values <source>\n  butler player value-change <player-id> <source>\n  butler player value-history <player-id> [source]\n  butler player value-import <json-file>\n  butler roster list <team-id>");
     }
 }
