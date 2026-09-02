@@ -27,12 +27,16 @@ class ButlerLauncherTest {
     @Test
     void recognizesPlayerEvidenceReadinessArgumentForms() {
         assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id"}));
+        assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
             "league", "player-evidence-readiness", "league-id", "2025"}));
+        assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
+            "league", "player-evidence-readiness", "league-id", "--minimum-profile-as-of", "2026-09-01"}));
         assertTrue(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
             "league", "player-evidence-readiness", "league-id", "2025", "--minimum-profile-as-of", "2026-09-01"}));
 
         assertFalse(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
-            "league", "player-evidence-readiness", "league-id"}));
+            "league", "player-evidence-readiness"}));
         assertFalse(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
             "league", "player-evidence-readiness", "league-id", "2025", "--wrong", "2026-09-01"}));
     }
@@ -52,6 +56,6 @@ class ButlerLauncherTest {
         assertTrue(output.contains(
             "butler league team-profile <league-id> [source] [--minimum-as-of YYYY-MM-DD]"));
         assertTrue(output.contains(
-            "butler league player-evidence-readiness <league-id> <season> [--minimum-profile-as-of YYYY-MM-DD]"));
+            "butler league player-evidence-readiness <league-id> [season] [--minimum-profile-as-of YYYY-MM-DD]"));
     }
 }
