@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   evidence:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation' || github.head_ref == 'bf-181-fix-temporal-holdout-unit-mixing' || github.head_ref == 'bf-184-capture-aging-model-smoothing-sensitivity' || github.head_ref == 'bf-187-capture-aging-model-transition-stability' || github.head_ref == 'bf-190-capture-aging-model-normalized-stability' || github.head_ref == 'bf-193-capture-aging-model-support-thresholds' || github.head_ref == 'bf-195-capture-threshold-worst-cell-evidence' || github.head_ref == 'bf-198-capture-aging-model-age-band-stability' || github.head_ref == 'bf-200-capture-age-band-retention-coverage'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation' || github.head_ref == 'bf-181-fix-temporal-holdout-unit-mixing' || github.head_ref == 'bf-184-capture-aging-model-smoothing-sensitivity' || github.head_ref == 'bf-187-capture-aging-model-transition-stability' || github.head_ref == 'bf-190-capture-aging-model-normalized-stability' || github.head_ref == 'bf-193-capture-aging-model-support-thresholds' || github.head_ref == 'bf-195-capture-threshold-worst-cell-evidence' || github.head_ref == 'bf-198-capture-aging-model-age-band-stability' || github.head_ref == 'bf-200-capture-age-band-retention-coverage' || github.head_ref == 'bf-203-capture-age-band-threshold-frontier-evidence'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -74,6 +74,9 @@ jobs:
             echo
             echo "## Age-band stability"
             run_butler aging-model age-band-stability
+            echo
+            echo "## Age-band threshold frontier"
+            run_butler aging-model age-band-threshold-frontier
           } | tee aging-model-evidence.txt
 
       - name: Upload empirical evidence
