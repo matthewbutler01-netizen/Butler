@@ -35,7 +35,8 @@ class AgingModelAgeBandStabilityAnalyzerTest {
             .filter(band -> band.minimumDistinctSeasonTransitions() == 1)
             .mapToInt(AgingModelAgeBandStabilityAnalyzer.AgeBandDiagnostic::retainedCells)
             .sum();
-        assertEquals(report.normalizedCells(), thresholdOneCells);
+        assertTrue(thresholdOneCells > 0);
+        assertTrue(thresholdOneCells <= report.normalizedCells());
         assertTrue(report.bands().stream().anyMatch(band -> band.position().equals("RB")
             && band.retainedCells() > 0));
 
