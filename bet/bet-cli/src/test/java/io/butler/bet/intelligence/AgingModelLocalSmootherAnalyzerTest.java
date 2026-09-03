@@ -54,7 +54,8 @@ class AgingModelLocalSmootherAnalyzerTest {
         assertEquals(java.util.List.of(21, 22), age22.contributingAges());
         assertEquals(2, age22.pooledObservations());
         assertEquals(60.0, age22.medianDelta());
-        assertEquals(2, report.edgeCells());
+        assertEquals(2, rushing.stream().filter(c -> c.contributingAges().size() < 3).count());
+        assertEquals(12, report.edgeCells());
     }
 
     private static void seed(AgingModelPlayerProfileRepository profiles,
