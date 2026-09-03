@@ -23,6 +23,7 @@ public final class ButlerCommandRouter {
             case AGING_MODEL_TRANSITION_STABILITY -> ButlerAgingModelTransitionStabilityCli.main(args);
             case AGING_MODEL_NORMALIZED_STABILITY -> ButlerAgingModelNormalizedStabilityCli.main(args);
             case AGING_MODEL_SUPPORT_THRESHOLDS -> ButlerAgingModelSupportThresholdTradeoffCli.main(args);
+            case AGING_MODEL_AGE_BAND_STABILITY -> ButlerAgingModelAgeBandStabilityCli.main(args);
             case PRODUCTION_HISTORY -> ButlerProductionHistoryCli.main(args);
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
             case COMPOSED -> ButlerLauncher.main(args);
@@ -48,6 +49,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "aging-model") && equals(args[1], "transition-stability")) return Route.AGING_MODEL_TRANSITION_STABILITY;
             if (equals(args[0], "aging-model") && equals(args[1], "normalized-stability")) return Route.AGING_MODEL_NORMALIZED_STABILITY;
             if (equals(args[0], "aging-model") && equals(args[1], "support-thresholds")) return Route.AGING_MODEL_SUPPORT_THRESHOLDS;
+            if (equals(args[0], "aging-model") && equals(args[1], "age-band-stability")) return Route.AGING_MODEL_AGE_BAND_STABILITY;
             if (equals(args[0], "nflverse")
                 && (equals(args[1], "production-history-preview") || equals(args[1], "production-history-refresh"))) {
                 return Route.PRODUCTION_HISTORY;
@@ -71,5 +73,6 @@ public final class ButlerCommandRouter {
                  AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_TEMPORAL_HOLDOUT,
                  AGING_MODEL_SMOOTHING_SENSITIVITY, AGING_MODEL_TRANSITION_STABILITY,
                  AGING_MODEL_NORMALIZED_STABILITY, AGING_MODEL_SUPPORT_THRESHOLDS,
+                 AGING_MODEL_AGE_BAND_STABILITY,
                  PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
