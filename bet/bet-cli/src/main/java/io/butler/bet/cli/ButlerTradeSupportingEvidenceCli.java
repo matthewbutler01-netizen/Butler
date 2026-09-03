@@ -1,16 +1,16 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.TradeFutureCapitalContextAnalyzer;
 import io.butler.bet.intelligence.TradeRosterContextAnalyzer;
 import io.butler.bet.intelligence.TradeSupportingEvidenceAnalyzer;
-import io.butler.bet.intelligence.TradeTeamPostureContextAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 
-/** Read-only CLI for player-only trade value, supporting evidence, market context, roster context, and team posture. */
+/** Read-only CLI for player-only trade evidence, roster context, posture, and future capital. */
 public final class ButlerTradeSupportingEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -27,13 +27,13 @@ public final class ButlerTradeSupportingEvidenceCli {
         }
 
         try {
-            var analyzer = new TradeTeamPostureContextAnalyzer(initializedDatabase());
+            var analyzer = new TradeFutureCapitalContextAnalyzer(initializedDatabase());
             var report = options.source() == null
                 ? analyzer.analyze(options.leagueId(), options.season(), options.sideAPlayerIds(), options.sideBPlayerIds())
                 : analyzer.analyze(options.leagueId(), options.season(), options.sideAPlayerIds(), options.sideBPlayerIds(), options.source());
             print(report);
         } catch (SQLException e) {
-            System.err.println("Database error while building trade posture context: " + e.getMessage());
+            System.err.println("Database error while building trade future-capital context: " + e.getMessage());
             System.exit(1);
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
@@ -59,13 +59,14 @@ public final class ButlerTradeSupportingEvidenceCli {
             && "supporting-evidence".equalsIgnoreCase(args[1]);
     }
 
-    static void print(TradeTeamPostureContextAnalyzer.TradePostureContextReport postureContext) {
-        if (postureContext == null) throw new IllegalArgumentException("postureContext must not be null");
+    static void print(TradeFutureCapitalContextAnalyzer.TradeFutureCapitalReport futureContext) {
+        if (futureContext == null) throw new IllegalArgumentException("futureContext must not be null");
+        var postureContext = futureContext.trade();
         var context = postureContext.trade();
         var report = context.trade();
         var trade = report.tradeValue();
         var marketEdge = context.marketEdge();
-        System.out.println("Trade supporting evidence + roster context + governed team posture");
+        System.out.println("Trade supporting evidence + roster context + governed posture + future capital");
         System.out.println("League ID: " + trade.leagueId());
         System.out.println("Season: " + report.season());
         System.out.println("Value source: " + trade.source());
@@ -75,6 +76,8 @@ public final class ButlerTradeSupportingEvidenceCli {
         System.out.println("Outlook policy: " + report.outlookPolicyId());
         System.out.println("Posture policy: " + postureContext.posturePolicyId());
         System.out.println("Posture available: " + postureContext.postureAvailable());
+        System.out.println("Future-capital policy: " + futureContext.futureCapitalPolicyId());
+        System.out.println("Future-capital available: " + futureContext.futureCapitalAvailable());
         System.out.println("Model sources: " + report.modelProfileSource() + "+" + report.modelProductionSource());
         System.out.printf("Market-value coverage: %d/%d (%.1f%%) complete=%s%n",
             trade.valuedPlayers(), trade.totalPlayers(), trade.coveragePercent(), trade.complete());
@@ -86,11 +89,11 @@ public final class ButlerTradeSupportingEvidenceCli {
         System.out.println("Market-edge policy: " + marketEdge.policyId());
         System.out.println("Market-value edge: " + marketEdge.direction());
         System.out.printf("Supporting flags: %d directional=%d%n", report.supportingFlags(), report.directionalSupportingFlags());
-        System.out.println("Market fairness and market edge are based only on market values. Team posture is governed descriptive context only and still does not create a winner or accept/reject/counter recommendation.");
+        System.out.println("Market fairness, posture, and future capital remain independent governed dimensions. They do not create a winner or accept/reject/counter recommendation.");
         printTradeSide("A", report.sideA());
-        printRosterContext("A", postureContext.sideA());
+        printRosterContext("A", futureContext.sideA());
         printTradeSide("B", report.sideB());
-        printRosterContext("B", postureContext.sideB());
+        printRosterContext("B", futureContext.sideB());
     }
 
     static String formatGap(Double symmetricGapPercent) {
@@ -115,14 +118,18 @@ public final class ButlerTradeSupportingEvidenceCli {
         }
     }
 
-    private static void printRosterContext(String label, TradeTeamPostureContextAnalyzer.TeamTradePosture team) {
-        TradeRosterContextAnalyzer.TeamRosterContext context = team.context();
-        var posture = team.posture();
+    private static void printRosterContext(String label, TradeFutureCapitalContextAnalyzer.TeamTradeFutureCapital team) {
+        var teamPosture = team.posture();
+        TradeRosterContextAnalyzer.TeamRosterContext context = teamPosture.context();
+        var posture = teamPosture.posture();
+        var capital = team.futureCapital();
         var profile = context.profile();
         var production = context.production();
         System.out.printf("Side %s roster context: %s [%s]%n", label, context.teamName(), context.teamId());
         System.out.printf("  posture=%s competitive-tier=%s roster-tier=%s%n",
             posture.posture(), posture.competitiveTier(), posture.rosterTier());
+        System.out.printf("  future-capital=%s value=%.2f coverage=%d/%d (%.1f%%)%n",
+            capital.tier(), capital.value(), capital.valuedPicks(), capital.totalPicks(), capital.coveragePercent());
         System.out.printf("  usable-values player=%.2f draft-picks=%.2f assets=%.2f starter-share=%.1f%%%n",
             profile.usablePlayerValue(), profile.usableDraftPickValue(), profile.usableAssetValue(),
             profile.starterValueSharePercent());
