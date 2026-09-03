@@ -106,6 +106,9 @@ public final class ButlerTradeStrategicContextCli {
         System.out.println("Positional-pressure policy: " + report.positionalPressurePolicyId());
         System.out.println("Lineup policy: " + report.lineupPolicyId()
             + " flex-slots=" + report.flexSlots() + " superflex-slots=" + report.superFlexSlots());
+        for (String position : CORE_POSITIONS) {
+            System.out.println(formatPositionAvailability(report.positionAvailability().get(position)));
+        }
         System.out.println("These are independent descriptive dimensions; no winner or accept/reject/counter recommendation is produced.");
         printSide("A", trade.sideA(), strategic.sideA(), report.sideA());
         printSide("B", trade.sideB(), strategic.sideB(), report.sideB());
@@ -136,6 +139,12 @@ public final class ButlerTradeStrategicContextCli {
                 pick.label(), pick.draftPickId(), pick.valued() ? pick.value() : "unavailable",
                 pick.asOfDate() == null ? "-" : pick.asOfDate(), pick.stale() ? " STALE" : "");
         }
+    }
+
+    static String formatPositionAvailability(TradeAssetPositionalContextAnalyzer.PositionAvailability availability) {
+        String base = String.format("  %s-context available=%s direct-starters=%d",
+            availability.position(), availability.available(), availability.directStarterRequirement());
+        return availability.available() ? base : base + " reason=" + availability.insufficiencyReason();
     }
 
     static String formatPositionPressure(
