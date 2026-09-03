@@ -43,66 +43,63 @@ public final class LeagueRosterStrengthTierAnalyzer {
 
     public static RosterStrengthReport compose(LeagueCompositeTeamProfileAnalyzer.CompositeProfileReport profileReport) {
         Objects.requireNonNull(profileReport, "profileReport must not be null");
-        if (profileReport.teams().isEmpty()) {
-            throw new IllegalArgumentException("profile report must contain teams");
-        }
+        if (profileReport.teams().isEmpty()) throw new IllegalArgumentException("profile report must contain teams");
 
         List<TeamRosterStrength> evidence = new ArrayList<>();
-        boolean completeCoverage = true;
         for (var team : profileReport.teams()) {
-            int totalPlayers = team.rosterSlots().slots().values().stream()
-                .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::totalPlayers).sum();
-            int valuedPlayers = team.rosterSlots().slots().values().stream()
-                .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::valuedPlayers).sum();
-            int stalePlayers = team.rosterSlots().slots().values().stream()
-                .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::stalePlayers).sum();
-            int missingPlayers = team.rosterSlots().slots().values().stream()
-                .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::missingPlayers).sum();
-            boolean teamComplete = totalPlayers > 0 && valuedPlayers == totalPlayers && stalePlayers == 0 && missingPlayers == 0;
-            completeCoverage &= teamComplete;
-            evidence.add(new TeamRosterStrength(
-                team.teamId(), team.teamName(), starterValue(team), team.usablePlayerValue(),
+            int totalPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::totalPlayers).sum();
+            int valuedPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::valuedPlayers).sum();
+            int stalePlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::stalePlayers).sum();
+            int missingPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::missingPlayers).sum();
+            evidence.add(new TeamRosterStrength(team.teamId(), team.teamName(), starterValue(team), team.usablePlayerValue(),
                 totalPlayers, valuedPlayers, stalePlayers, missingPlayers,
                 LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE));
         }
+        return classify(profileReport.leagueId(), profileReport.source(), profileReport.minimumAsOfDate(), evidence);
+    }
 
+    static RosterStrengthReport classify(String leagueId, String source, LocalDate minimumAsOfDate,
+                                         List<TeamRosterStrength> evidence) {
+        Objects.requireNonNull(evidence, "evidence must not be null");
+        if (evidence.isEmpty()) throw new IllegalArgumentException("evidence must contain teams");
+        boolean completeCoverage = evidence.stream().allMatch(team -> team.totalPlayers() > 0
+            && team.valuedPlayers() == team.totalPlayers() && team.stalePlayers() == 0 && team.missingPlayers() == 0);
         if (!completeCoverage) {
-            return new RosterStrengthReport(profileReport.leagueId(), profileReport.source(), profileReport.minimumAsOfDate(),
-                LeagueRosterStrengthTierPolicy.POLICY_ID, false,
-                "Complete usable player-value coverage is required for every roster.", List.copyOf(evidence));
+            return new RosterStrengthReport(leagueId, source, minimumAsOfDate, LeagueRosterStrengthTierPolicy.POLICY_ID,
+                false, "Complete usable player-value coverage is required for every roster.", reset(evidence));
         }
         if (evidence.size() < LeagueRosterStrengthTierPolicy.MINIMUM_LEAGUE_TEAMS) {
-            return new RosterStrengthReport(profileReport.leagueId(), profileReport.source(), profileReport.minimumAsOfDate(),
-                LeagueRosterStrengthTierPolicy.POLICY_ID, false,
-                "At least four league teams are required for relative roster tiers.", List.copyOf(evidence));
+            return new RosterStrengthReport(leagueId, source, minimumAsOfDate, LeagueRosterStrengthTierPolicy.POLICY_ID,
+                false, "At least four league teams are required for relative roster tiers.", reset(evidence));
         }
 
         List<TeamRosterStrength> ranked = new ArrayList<>(evidence);
         ranked.sort(Comparator.comparingDouble(TeamRosterStrength::starterValue).reversed()
             .thenComparing(Comparator.comparingDouble(TeamRosterStrength::totalPlayerValue).reversed())
             .thenComparing(TeamRosterStrength::teamId));
-
         int outerCount = (int) Math.floor(ranked.size() * 0.25);
-        Map<String, LeagueRosterStrengthTierPolicy.Tier> tiers = new HashMap<>();
-        for (var team : ranked) tiers.put(team.teamId(), LeagueRosterStrengthTierPolicy.Tier.MIDDLE_ROSTER_TIER);
-
         RankKey frontBoundary = key(ranked.get(outerCount - 1));
         RankKey backBoundary = key(ranked.get(ranked.size() - outerCount));
+
+        Map<String, LeagueRosterStrengthTierPolicy.Tier> tiers = new HashMap<>();
         for (var team : ranked) {
             boolean front = compare(key(team), frontBoundary) >= 0;
             boolean back = compare(key(team), backBoundary) <= 0;
-            if (front && !back) tiers.put(team.teamId(), LeagueRosterStrengthTierPolicy.Tier.FRONT_ROSTER_TIER);
-            else if (back && !front) tiers.put(team.teamId(), LeagueRosterStrengthTierPolicy.Tier.BACK_ROSTER_TIER);
-            else tiers.put(team.teamId(), LeagueRosterStrengthTierPolicy.Tier.MIDDLE_ROSTER_TIER);
+            LeagueRosterStrengthTierPolicy.Tier tier = front && !back
+                ? LeagueRosterStrengthTierPolicy.Tier.FRONT_ROSTER_TIER
+                : back && !front ? LeagueRosterStrengthTierPolicy.Tier.BACK_ROSTER_TIER
+                : LeagueRosterStrengthTierPolicy.Tier.MIDDLE_ROSTER_TIER;
+            tiers.put(team.teamId(), tier);
         }
-
-        List<TeamRosterStrength> classified = evidence.stream()
-            .map(team -> team.withTier(tiers.get(team.teamId())))
-            .sorted(Comparator.comparing(TeamRosterStrength::teamName, String.CASE_INSENSITIVE_ORDER)
-                .thenComparing(TeamRosterStrength::teamId))
+        List<TeamRosterStrength> classified = evidence.stream().map(team -> team.withTier(tiers.get(team.teamId())))
+            .sorted(Comparator.comparing(TeamRosterStrength::teamName, String.CASE_INSENSITIVE_ORDER).thenComparing(TeamRosterStrength::teamId))
             .toList();
-        return new RosterStrengthReport(profileReport.leagueId(), profileReport.source(), profileReport.minimumAsOfDate(),
-            LeagueRosterStrengthTierPolicy.POLICY_ID, true, null, classified);
+        return new RosterStrengthReport(leagueId, source, minimumAsOfDate, LeagueRosterStrengthTierPolicy.POLICY_ID,
+            true, null, classified);
+    }
+
+    private static List<TeamRosterStrength> reset(List<TeamRosterStrength> teams) {
+        return teams.stream().map(team -> team.withTier(LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE)).toList();
     }
 
     private static double starterValue(LeagueCompositeTeamProfileAnalyzer.TeamProfile team) {
@@ -110,15 +107,11 @@ public final class LeagueRosterStrengthTierAnalyzer {
             new LeagueRosterSlotValueAnalyzer.SlotValue("STARTER", 0.0, 0, 0, 0, 0)).value();
     }
 
-    private static RankKey key(TeamRosterStrength team) {
-        return new RankKey(team.starterValue(), team.totalPlayerValue());
-    }
-
+    private static RankKey key(TeamRosterStrength team) { return new RankKey(team.starterValue(), team.totalPlayerValue()); }
     private static int compare(RankKey left, RankKey right) {
         int starter = Double.compare(left.starterValue(), right.starterValue());
         return starter != 0 ? starter : Double.compare(left.totalPlayerValue(), right.totalPlayerValue());
     }
-
     private record RankKey(double starterValue, double totalPlayerValue) {}
 
     public record TeamRosterStrength(String teamId, String teamName, double starterValue, double totalPlayerValue,
@@ -129,31 +122,25 @@ public final class LeagueRosterStrengthTierAnalyzer {
             if (teamName == null || teamName.isBlank()) throw new IllegalArgumentException("teamName must not be blank");
             if (!Double.isFinite(starterValue) || starterValue < 0.0) throw new IllegalArgumentException("starterValue invalid");
             if (!Double.isFinite(totalPlayerValue) || totalPlayerValue < 0.0) throw new IllegalArgumentException("totalPlayerValue invalid");
+            if (totalPlayers < 0 || valuedPlayers < 0 || stalePlayers < 0 || missingPlayers < 0) throw new IllegalArgumentException("coverage counts must not be negative");
             Objects.requireNonNull(tier, "tier must not be null");
         }
-
         TeamRosterStrength withTier(LeagueRosterStrengthTierPolicy.Tier replacement) {
-            return new TeamRosterStrength(teamId, teamName, starterValue, totalPlayerValue,
-                totalPlayers, valuedPlayers, stalePlayers, missingPlayers, replacement);
+            return new TeamRosterStrength(teamId, teamName, starterValue, totalPlayerValue, totalPlayers, valuedPlayers,
+                stalePlayers, missingPlayers, replacement);
         }
-
-        public double coveragePercent() {
-            return totalPlayers == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers;
-        }
+        public double coveragePercent() { return totalPlayers == 0 ? 0.0 : valuedPlayers * 100.0 / totalPlayers; }
     }
 
-    public record RosterStrengthReport(String leagueId, String source, LocalDate minimumAsOfDate,
-                                       String policyId, boolean available, String insufficiencyReason,
-                                       List<TeamRosterStrength> teams) {
+    public record RosterStrengthReport(String leagueId, String source, LocalDate minimumAsOfDate, String policyId,
+                                       boolean available, String insufficiencyReason, List<TeamRosterStrength> teams) {
         public RosterStrengthReport {
             if (leagueId == null || leagueId.isBlank()) throw new IllegalArgumentException("leagueId must not be blank");
             if (source == null || source.isBlank()) throw new IllegalArgumentException("source must not be blank");
             if (!LeagueRosterStrengthTierPolicy.POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             teams = List.copyOf(Objects.requireNonNull(teams, "teams must not be null"));
             if (available && insufficiencyReason != null) throw new IllegalArgumentException("available report cannot have insufficiencyReason");
-            if (!available && (insufficiencyReason == null || insufficiencyReason.isBlank())) {
-                throw new IllegalArgumentException("unavailable report requires insufficiencyReason");
-            }
+            if (!available && (insufficiencyReason == null || insufficiencyReason.isBlank())) throw new IllegalArgumentException("unavailable report requires insufficiencyReason");
         }
     }
 }
