@@ -24,8 +24,10 @@ class AgingModelSampleBreadthAnalyzerTest {
         var production = new AgingModelPlayerSeasonProductionRepository(database);
         LocalDate asOf = LocalDate.of(2026, 9, 2);
 
-        profiles.save(new AgingModelPlayerProfile("p1", "One", LocalDate.of(2000, 1, 1), "RB", "nflverse", asOf));
-        profiles.save(new AgingModelPlayerProfile("p2", "Two", LocalDate.of(2000, 1, 1), "RB", "nflverse", asOf));
+        profiles.save(new AgingModelPlayerProfile("p1", "One", LocalDate.of(2000, 1, 1), "RB",
+            NflverseAgingModelPlayerImporter.SOURCE, asOf));
+        profiles.save(new AgingModelPlayerProfile("p2", "Two", LocalDate.of(2000, 1, 1), "RB",
+            NflverseAgingModelPlayerImporter.SOURCE, asOf));
 
         // p1 contributes ages 20 and 23; the zero-game season blocks the intervening pairs.
         save(production, "p1", 2020, 10, 100, asOf);
@@ -75,6 +77,6 @@ class AgingModelSampleBreadthAnalyzerTest {
     private static void save(AgingModelPlayerSeasonProductionRepository repository, String gsis, int season,
                              int games, int rushingYards, LocalDate asOf) throws Exception {
         repository.save(new AgingModelPlayerSeasonProduction(gsis, season, "RB", games,
-            0, 0, 0, rushingYards, 0, 0, 0, 0, 0, "nflverse", asOf));
+            0, 0, 0, rushingYards, 0, 0, 0, 0, 0, NflverseAgingModelProductionImporter.SOURCE, asOf));
     }
 }
