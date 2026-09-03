@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.LeaguePositionalPressureAnalyzer;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
 import io.butler.bet.intelligence.TradeAssetStrategicContextAnalyzer;
@@ -122,10 +123,7 @@ public final class ButlerTradeStrategicContextCli {
             context.futureCapital().tier(), context.futureCapital().value(), context.futureCapital().valuedPicks(),
             context.futureCapital().totalPicks(), context.futureCapital().coveragePercent());
         for (String position : CORE_POSITIONS) {
-            var pressure = positional.positions().get(position);
-            System.out.printf("  %s-pressure=%s starter-value=%.2f total-value=%.2f coverage=%d/%d stale=%d missing=%d%n",
-                position, pressure.tier(), pressure.starterCoverageValue(), pressure.totalPositionValue(),
-                pressure.valuedPlayers(), pressure.totalPlayers(), pressure.stalePlayers(), pressure.missingPlayers());
+            System.out.println(formatPositionPressure(position, positional.positions().get(position)));
         }
         for (var player : side.players()) {
             System.out.printf("  PLAYER %s %s [%s] value=%s as-of=%s%s%n",
@@ -138,6 +136,13 @@ public final class ButlerTradeStrategicContextCli {
                 pick.label(), pick.draftPickId(), pick.valued() ? pick.value() : "unavailable",
                 pick.asOfDate() == null ? "-" : pick.asOfDate(), pick.stale() ? " STALE" : "");
         }
+    }
+
+    static String formatPositionPressure(
+        String position, LeaguePositionalPressureAnalyzer.TeamPositionPressure pressure) {
+        return String.format("  %s-pressure=%s starter-value=%.2f total-value=%.2f coverage=%d/%d stale=%d missing=%d",
+            position, pressure.tier(), pressure.starterCoverageValue(), pressure.totalPositionValue(),
+            pressure.valuedPlayers(), pressure.totalPlayers(), pressure.stalePlayers(), pressure.missingPlayers());
     }
 
     static void printUsage() {
