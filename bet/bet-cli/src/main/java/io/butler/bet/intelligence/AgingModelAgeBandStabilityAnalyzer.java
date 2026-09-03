@@ -24,6 +24,11 @@ public final class AgingModelAgeBandStabilityAnalyzer {
         for (int threshold : CANDIDATE_THRESHOLDS) {
             for (String position : POSITIONS) {
                 for (AgeBand ageBand : AgeBand.values()) {
+                    int baselineCells = (int) report.cells().stream()
+                        .filter(cell -> cell.maximumShiftToHoldoutMae() != null)
+                        .filter(cell -> cell.position().equals(position))
+                        .filter(cell -> AgeBand.fromAge(cell.age()) == ageBand)
+                        .count();
                     double[] ratios = report.cells().stream()
                         .filter(cell -> cell.maximumShiftToHoldoutMae() != null)
                         .filter(cell -> cell.distinctSeasonTransitions() >= threshold)
@@ -32,7 +37,8 @@ public final class AgingModelAgeBandStabilityAnalyzer {
                         .mapToDouble(cell -> cell.maximumShiftToHoldoutMae())
                         .sorted()
                         .toArray();
-                    diagnostics.add(new AgeBandDiagnostic(threshold, position, ageBand, ratios.length,
+                    diagnostics.add(new AgeBandDiagnostic(threshold, position, ageBand, baselineCells, ratios.length,
+                        baselineCells == 0 ? 0.0 : ratios.length / (double) baselineCells,
                         percentile(ratios, 0.50), percentile(ratios, 0.90),
                         ratios.length == 0 ? null : ratios[ratios.length - 1]));
                 }
@@ -77,7 +83,8 @@ public final class AgingModelAgeBandStabilityAnalyzer {
     }
 
     public record AgeBandDiagnostic(int minimumDistinctSeasonTransitions, String position,
-                                    AgeBand ageBand, int retainedCells,
+                                    AgeBand ageBand, int baselineCells, int retainedCells,
+                                    double retainedFraction,
                                     Double medianMaximumShiftToHoldoutMae,
                                     Double p90MaximumShiftToHoldoutMae,
                                     Double maximumShiftToHoldoutMae) {}
