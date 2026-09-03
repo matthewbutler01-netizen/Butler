@@ -4,7 +4,9 @@ import io.butler.bet.data.Database;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** Identifies non-dominated age-band support-threshold tradeoffs without selecting a production cutoff. */
@@ -31,15 +33,25 @@ public final class AgingModelAgeBandThresholdFrontierAnalyzer {
                     .map(ThresholdPoint::from)
                     .toList();
 
-                List<ThresholdPoint> frontier = candidates.stream()
+                List<ThresholdPoint> nonDominated = candidates.stream()
                     .filter(candidate -> candidates.stream().noneMatch(other -> dominates(other, candidate)))
                     .toList();
+                List<ThresholdPoint> frontier = collapseEquivalentObjectives(nonDominated);
 
                 frontiers.add(new AgeBandFrontier(position, ageBand, candidates, frontier));
             }
         }
 
         return new ThresholdFrontierReport(report.cellsAnalyzed(), report.normalizedCells(), frontiers);
+    }
+
+    private static List<ThresholdPoint> collapseEquivalentObjectives(List<ThresholdPoint> points) {
+        Map<ObjectiveKey, ThresholdPoint> representatives = new LinkedHashMap<>();
+        for (ThresholdPoint point : points) {
+            ObjectiveKey key = new ObjectiveKey(point.retainedFraction(), point.p90MaximumShiftToHoldoutMae());
+            representatives.putIfAbsent(key, point);
+        }
+        return List.copyOf(representatives.values());
     }
 
     private static boolean dominates(ThresholdPoint left, ThresholdPoint right) {
@@ -50,6 +62,8 @@ public final class AgingModelAgeBandThresholdFrontierAnalyzer {
             || left.p90MaximumShiftToHoldoutMae() < right.p90MaximumShiftToHoldoutMae();
         return noWorseCoverage && noWorseInstability && strictlyBetter;
     }
+
+    private record ObjectiveKey(double retainedFraction, double p90MaximumShiftToHoldoutMae) {}
 
     public record ThresholdPoint(int minimumDistinctSeasonTransitions,
                                  int baselineCells,
