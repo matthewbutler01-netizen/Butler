@@ -73,6 +73,7 @@ public final class TradeAssetPositionalContextAnalyzer {
         for (String position : CORE_POSITIONS) {
             var positionReport = positional.positions().get(position);
             if (positionReport == null) throw new IllegalStateException("positional-pressure report missing position: " + position);
+            validateAvailabilityTiers(positionReport);
             availability.put(position, new PositionAvailability(position, positionReport.directStarterRequirement(),
                 positionReport.available(), positionReport.insufficiencyReason()));
         }
@@ -80,6 +81,22 @@ public final class TradeAssetPositionalContextAnalyzer {
         var sideB = attach(strategic.sideB().identity(), positional);
         return new TradePositionalContextReport(strategic, positional.policyId(), positional.lineupPolicyId(),
             positional.flexSlots(), positional.superFlexSlots(), Map.copyOf(availability), sideA, sideB);
+    }
+
+    static void validateAvailabilityTiers(LeaguePositionalPressureAnalyzer.PositionPressure positionReport) {
+        Objects.requireNonNull(positionReport, "positionReport must not be null");
+        boolean hasInsufficientTier = positionReport.teams().stream()
+            .anyMatch(team -> team.tier() == LeaguePositionalPressurePolicy.Tier.INSUFFICIENT_EVIDENCE);
+        boolean hasClassifiedTier = positionReport.teams().stream()
+            .anyMatch(team -> team.tier() != LeaguePositionalPressurePolicy.Tier.INSUFFICIENT_EVIDENCE);
+        if (positionReport.available() && hasInsufficientTier) {
+            throw new IllegalStateException("available positional pressure contains insufficient-evidence tier: "
+                + positionReport.position());
+        }
+        if (!positionReport.available() && hasClassifiedTier) {
+            throw new IllegalStateException("unavailable positional pressure contains classified tier: "
+                + positionReport.position());
+        }
     }
 
     private static TeamPositionalContext attach(
