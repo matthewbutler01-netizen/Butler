@@ -22,11 +22,11 @@ public final class AgingModelPlayerSeasonProductionRepository {
     public void save(AgingModelPlayerSeasonProduction production) throws SQLException {
         Objects.requireNonNull(production, "production must not be null");
         String sql = "INSERT INTO aging_model_player_season_production(" +
-            "gsis_id, season, games_played, passing_yards, passing_touchdowns, interceptions, " +
+            "gsis_id, season, position, games_played, passing_yards, passing_touchdowns, interceptions, " +
             "rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns, " +
-            "fumbles_lost, source, as_of_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+            "fumbles_lost, source, as_of_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
             "ON CONFLICT(gsis_id, season, source, as_of_date) DO UPDATE SET " +
-            "games_played=excluded.games_played, passing_yards=excluded.passing_yards, " +
+            "position=excluded.position, games_played=excluded.games_played, passing_yards=excluded.passing_yards, " +
             "passing_touchdowns=excluded.passing_touchdowns, interceptions=excluded.interceptions, " +
             "rushing_yards=excluded.rushing_yards, rushing_touchdowns=excluded.rushing_touchdowns, " +
             "receptions=excluded.receptions, receiving_yards=excluded.receiving_yards, " +
@@ -35,18 +35,19 @@ public final class AgingModelPlayerSeasonProductionRepository {
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, production.gsisId());
             statement.setInt(2, production.season());
-            statement.setInt(3, production.gamesPlayed());
-            statement.setInt(4, production.passingYards());
-            statement.setInt(5, production.passingTouchdowns());
-            statement.setInt(6, production.interceptions());
-            statement.setInt(7, production.rushingYards());
-            statement.setInt(8, production.rushingTouchdowns());
-            statement.setInt(9, production.receptions());
-            statement.setInt(10, production.receivingYards());
-            statement.setInt(11, production.receivingTouchdowns());
-            statement.setInt(12, production.fumblesLost());
-            statement.setString(13, production.source());
-            statement.setString(14, production.asOfDate().toString());
+            statement.setString(3, production.position());
+            statement.setInt(4, production.gamesPlayed());
+            statement.setInt(5, production.passingYards());
+            statement.setInt(6, production.passingTouchdowns());
+            statement.setInt(7, production.interceptions());
+            statement.setInt(8, production.rushingYards());
+            statement.setInt(9, production.rushingTouchdowns());
+            statement.setInt(10, production.receptions());
+            statement.setInt(11, production.receivingYards());
+            statement.setInt(12, production.receivingTouchdowns());
+            statement.setInt(13, production.fumblesLost());
+            statement.setString(14, production.source());
+            statement.setString(15, production.asOfDate().toString());
             statement.executeUpdate();
         }
     }
@@ -88,7 +89,7 @@ public final class AgingModelPlayerSeasonProductionRepository {
     }
 
     private static AgingModelPlayerSeasonProduction map(ResultSet rs) throws SQLException {
-        return new AgingModelPlayerSeasonProduction(rs.getString("gsis_id"), rs.getInt("season"),
+        return new AgingModelPlayerSeasonProduction(rs.getString("gsis_id"), rs.getInt("season"), rs.getString("position"),
             rs.getInt("games_played"), rs.getInt("passing_yards"), rs.getInt("passing_touchdowns"),
             rs.getInt("interceptions"), rs.getInt("rushing_yards"), rs.getInt("rushing_touchdowns"),
             rs.getInt("receptions"), rs.getInt("receiving_yards"), rs.getInt("receiving_touchdowns"),
