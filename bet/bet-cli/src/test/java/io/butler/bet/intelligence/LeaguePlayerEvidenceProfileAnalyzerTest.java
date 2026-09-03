@@ -25,7 +25,7 @@ class LeaguePlayerEvidenceProfileAnalyzerTest {
     @TempDir Path tempDir;
 
     @Test
-    void preservesIndependentAgeAndProductionCoverage() throws Exception {
+    void preservesIndependentAgeProductionAndSupportingEvidenceDimensions() throws Exception {
         Database database = seeded();
         var profiles = new PlayerProfileRepository(database);
         profiles.save(new PlayerProfile("p1", LocalDate.of(2000, 1, 1), 5));
@@ -40,10 +40,14 @@ class LeaguePlayerEvidenceProfileAnalyzerTest {
         assertEquals(2, report.totalPlayers());
         assertEquals(100.0, report.ageCoveragePercent());
         assertEquals(50.0, report.productionCoveragePercent());
+        assertEquals(0, report.supportingFlags());
+        assertEquals(0, report.directionalSupportingFlags());
+        assertEquals(LocalDate.of(2025, 9, 1), report.modelAgeAsOf());
         assertEquals(1, report.teams().size());
         var team = report.teams().getFirst();
         assertEquals(100.0, team.ageCoveragePercent());
         assertEquals(50.0, team.productionCoveragePercent());
+        assertEquals(0, team.supportingFlags());
         assertEquals(25.0, team.age().averageAge());
         assertEquals(1, team.production().missingPlayers().size());
         assertEquals("p2", team.production().missingPlayers().getFirst().playerId());
@@ -60,6 +64,7 @@ class LeaguePlayerEvidenceProfileAnalyzerTest {
         var report = new LeaguePlayerEvidenceProfileAnalyzer(database).analyze("l1");
 
         assertEquals(2025, report.season());
+        assertEquals(LocalDate.of(2025, 9, 1), report.modelAgeAsOf());
     }
 
     private Database seeded() throws Exception {
