@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.TradeMarketEdgeAnalyzer;
 import io.butler.bet.intelligence.TradeSupportingEvidenceAnalyzer;
 
 import java.nio.file.Path;
@@ -60,6 +61,7 @@ public final class ButlerTradeSupportingEvidenceCli {
     static void print(TradeSupportingEvidenceAnalyzer.TradeEvidencePackage report) {
         if (report == null) throw new IllegalArgumentException("report must not be null");
         var trade = report.tradeValue();
+        var marketEdge = new TradeMarketEdgeAnalyzer().analyze(report);
         System.out.println("Trade supporting evidence");
         System.out.println("League ID: " + trade.leagueId());
         System.out.println("Season: " + report.season());
@@ -75,8 +77,10 @@ public final class ButlerTradeSupportingEvidenceCli {
         System.out.println("Fairness policy: " + report.fairnessPolicyId());
         System.out.println("Symmetric market-value gap: " + formatGap(report.fairnessGapPercent()));
         System.out.println("Market fairness: " + report.fairnessClassification());
+        System.out.println("Market-edge policy: " + marketEdge.policyId());
+        System.out.println("Market-value edge: " + marketEdge.direction());
         System.out.printf("Supporting flags: %d directional=%d%n", report.supportingFlags(), report.directionalSupportingFlags());
-        System.out.println("Market fairness is based only on market values. Supporting evidence is descriptive only and does not modify values, fairness, or create a winner/recommendation.");
+        System.out.println("Market fairness and market edge are based only on market values. Market edge is not a winner. Supporting evidence is descriptive only and does not modify values, fairness, edge, or create an accept/reject recommendation.");
         printSide("A", report.sideA());
         printSide("B", report.sideB());
     }
