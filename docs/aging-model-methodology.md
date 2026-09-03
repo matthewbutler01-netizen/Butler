@@ -8,6 +8,14 @@ Estimate how observed NFL production rates change from one season to the next as
 
 The model is not a dynasty-value model, player grade, career-stage classifier, or team-strategy engine.
 
+## Modeling population
+
+The aging model must not be trained from only the players currently rostered in a Butler fantasy league. League sync persists league-relevant players, which would condition the training sample on current fantasy-roster survival and create avoidable survivor/selection bias.
+
+The model-training universe must come from a broader historical NFL player population with stable player identity, exact birth date, and historical production evidence. League-specific outputs may later consume a validated model, but league membership must not define the training population.
+
+The training-universe importer must preserve provider identity and provenance separately from Butler fantasy-league roster ownership. A later reconciliation layer may connect model-universe players to Butler players through exact provider IDs.
+
 ## Unit of observation
 
 One candidate observation is a player with two consecutive regular seasons, `S` and `S+1`, where:
@@ -124,6 +132,12 @@ This methodology does not permit Butler to infer that a player is:
 
 Those are downstream interpretation decisions and require separate governed rules plus validation.
 
-## Next implementation step
+## Next implementation steps
 
-The next code layer should build a deterministic aging-observation/sample-audit analyzer from the stored exact birth dates and historical production snapshots. It should expose the observation counts and robust raw deltas without fitting a curve.
+Before fitting any curve:
+
+1. add a provider-backed historical NFL modeling-universe store/import that is independent of current fantasy-league rosters;
+2. preserve exact provider player ID, exact birth date, position, production season, source, and as-of provenance;
+3. build a deterministic aging-observation/sample-audit analyzer over that broader universe;
+4. expose observation counts and robust raw deltas without fitting a curve;
+5. inspect the actual sample distribution before choosing thresholds or smoothing.
