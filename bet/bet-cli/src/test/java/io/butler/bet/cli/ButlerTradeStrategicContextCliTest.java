@@ -1,5 +1,7 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.intelligence.LeaguePositionalPressureAnalyzer;
+import io.butler.bet.intelligence.LeaguePositionalPressurePolicy;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -31,6 +33,17 @@ class ButlerTradeStrategicContextCliTest {
             "dynastyprocess", "--minimum-as-of", "2026-09-01"});
         assertEquals("dynastyprocess", options.source());
         assertEquals(LocalDate.of(2026, 9, 1), options.minimumAsOf());
+    }
+
+    @Test
+    void formatsPositionalPressureContract() {
+        var pressure = new LeaguePositionalPressureAnalyzer.TeamPositionPressure(
+            "t1", "Team 1", 125.5, 240.25, 3, 4, 1, 1,
+            LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE);
+
+        assertEquals(
+            "  QB-pressure=POSITION_PRESSURE starter-value=125.50 total-value=240.25 coverage=3/4 stale=1 missing=1",
+            ButlerTradeStrategicContextCli.formatPositionPressure("QB", pressure));
     }
 
     @Test
