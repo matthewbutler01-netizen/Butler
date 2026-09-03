@@ -5,6 +5,7 @@ import io.butler.bet.data.Database;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -27,6 +28,9 @@ public final class AgingModelSupportThresholdTradeoffAnalyzer {
                 .filter(cell -> cell.maximumShiftToHoldoutMae() != null)
                 .toList();
             double[] ratios = retained.stream().mapToDouble(cell -> cell.maximumShiftToHoldoutMae()).sorted().toArray();
+            var worst = retained.stream()
+                .max(Comparator.comparingDouble(cell -> cell.maximumShiftToHoldoutMae()))
+                .orElse(null);
             diagnostics.add(new ThresholdDiagnostic(
                 threshold,
                 retained.size(),
@@ -35,7 +39,10 @@ public final class AgingModelSupportThresholdTradeoffAnalyzer {
                 percentile(ratios, 0.50),
                 percentile(ratios, 0.75),
                 percentile(ratios, 0.90),
-                ratios.length == 0 ? null : ratios[ratios.length - 1]
+                ratios.length == 0 ? null : ratios[ratios.length - 1],
+                worst == null ? null : new WorstCell(worst.position(), worst.metric(), worst.age(),
+                    worst.distinctSeasonTransitions(), worst.maximumShiftToHoldoutMae(),
+                    worst.mostInfluentialStartSeason(), worst.mostInfluentialEndSeason())
             ));
         }
         return new ThresholdTradeoffReport(report.cellsAnalyzed(), report.normalizedCells(), List.copyOf(diagnostics));
@@ -58,7 +65,12 @@ public final class AgingModelSupportThresholdTradeoffAnalyzer {
                                       Double medianMaximumShiftToHoldoutMae,
                                       Double p75MaximumShiftToHoldoutMae,
                                       Double p90MaximumShiftToHoldoutMae,
-                                      Double maximumShiftToHoldoutMae) {}
+                                      Double maximumShiftToHoldoutMae,
+                                      WorstCell worstCell) {}
+
+    public record WorstCell(String position, AgingModelSampleAuditAnalyzer.Metric metric, int age,
+                            int distinctSeasonTransitions, double maximumShiftToHoldoutMae,
+                            Integer mostInfluentialStartSeason, Integer mostInfluentialEndSeason) {}
 
     public record ThresholdTradeoffReport(int cellsAnalyzed,
                                           int normalizedCells,
