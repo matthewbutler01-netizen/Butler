@@ -13,6 +13,7 @@ public final class ButlerCommandRouter {
             case AGE_CONTEXT -> ButlerAgeLauncher.main(args);
             case AGE_PRODUCTION_CONTEXT -> ButlerAgeProductionContextCli.main(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
+            case PRODUCTION_HISTORY -> ButlerProductionHistoryCli.main(args);
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
             case COMPOSED -> ButlerLauncher.main(args);
         }
@@ -28,6 +29,11 @@ public final class ButlerCommandRouter {
             }
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) {
                 return Route.PLAYER_EVIDENCE_PROFILE;
+            }
+            if (equals(args[0], "nflverse")
+                && (equals(args[1], "production-history-preview")
+                    || equals(args[1], "production-history-refresh"))) {
+                return Route.PRODUCTION_HISTORY;
             }
             if (equals(args[0], "league")
                 && (equals(args[1], "evidence-overview") || equals(args[1], "production-context"))) {
@@ -49,5 +55,6 @@ public final class ButlerCommandRouter {
         return actual != null && actual.equalsIgnoreCase(expected);
     }
 
-    enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, PLAYER_EVIDENCE_PROFILE, EVIDENCE, COMPOSED }
+    enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, PLAYER_EVIDENCE_PROFILE,
+                 PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
