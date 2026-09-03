@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
+import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
 import io.butler.bet.intelligence.TradeAssetStrategicContextAnalyzer;
 
 import java.nio.file.Path;
@@ -12,6 +13,7 @@ import java.time.format.DateTimeParseException;
 /** Read-only mixed player/draft-pick strategic trade context. */
 public final class ButlerTradeStrategicContextCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
+    private static final String[] CORE_POSITIONS = {"QB", "RB", "WR", "TE"};
 
     private ButlerTradeStrategicContextCli() {}
 
@@ -26,7 +28,7 @@ public final class ButlerTradeStrategicContextCli {
         }
 
         try {
-            var analyzer = new TradeAssetStrategicContextAnalyzer(initializedDatabase());
+            var analyzer = new TradeAssetPositionalContextAnalyzer(initializedDatabase());
             var report = analyze(analyzer, options);
             print(report, options.season());
         } catch (SQLException e) {
@@ -70,8 +72,8 @@ public final class ButlerTradeStrategicContextCli {
             && "strategic-context".equalsIgnoreCase(args[1]);
     }
 
-    private static TradeAssetStrategicContextAnalyzer.StrategicTradeReport analyze(
-        TradeAssetStrategicContextAnalyzer analyzer, Options options) throws SQLException {
+    private static TradeAssetPositionalContextAnalyzer.TradePositionalContextReport analyze(
+        TradeAssetPositionalContextAnalyzer analyzer, Options options) throws SQLException {
         if (options.minimumAsOf() != null) {
             return options.source() == null
                 ? analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.minimumAsOf())
@@ -82,8 +84,9 @@ public final class ButlerTradeStrategicContextCli {
             : analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.source());
     }
 
-    static void print(TradeAssetStrategicContextAnalyzer.StrategicTradeReport report, int season) {
-        var trade = report.trade();
+    static void print(TradeAssetPositionalContextAnalyzer.TradePositionalContextReport report, int season) {
+        var strategic = report.strategic();
+        var trade = strategic.trade();
         System.out.println("Trade strategic context (players + draft picks)");
         System.out.println("League ID: " + trade.leagueId());
         System.out.println("Season: " + season);
@@ -91,21 +94,25 @@ public final class ButlerTradeStrategicContextCli {
         if (trade.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + trade.minimumAsOfDate());
         System.out.printf("Market coverage: %d/%d (%.1f%%) stale=%d comparable=%s%n",
             trade.valuedAssets(), trade.totalAssets(), trade.coveragePercent(), trade.staleAssets(), trade.comparable());
-        System.out.println("Fairness measurement policy: " + report.fairnessMeasurementPolicyId());
-        System.out.println("Fairness policy: " + report.fairnessPolicyId());
-        System.out.println("Symmetric market gap: " + (report.fairnessGapPercent() == null ? "unavailable" : String.format("%.3f%%", report.fairnessGapPercent())));
-        System.out.println("Market fairness: " + report.fairnessClassification());
-        System.out.println("Market-edge policy: " + report.marketEdgePolicyId());
-        System.out.println("Market edge: " + report.marketEdge());
-        System.out.println("Posture policy: " + report.posturePolicyId() + " available=" + report.postureAvailable());
-        System.out.println("Future-capital policy: " + report.futureCapitalPolicyId() + " available=" + report.futureCapitalAvailable());
+        System.out.println("Fairness measurement policy: " + strategic.fairnessMeasurementPolicyId());
+        System.out.println("Fairness policy: " + strategic.fairnessPolicyId());
+        System.out.println("Symmetric market gap: " + (strategic.fairnessGapPercent() == null ? "unavailable" : String.format("%.3f%%", strategic.fairnessGapPercent())));
+        System.out.println("Market fairness: " + strategic.fairnessClassification());
+        System.out.println("Market-edge policy: " + strategic.marketEdgePolicyId());
+        System.out.println("Market edge: " + strategic.marketEdge());
+        System.out.println("Posture policy: " + strategic.posturePolicyId() + " available=" + strategic.postureAvailable());
+        System.out.println("Future-capital policy: " + strategic.futureCapitalPolicyId() + " available=" + strategic.futureCapitalAvailable());
+        System.out.println("Positional-pressure policy: " + report.positionalPressurePolicyId());
+        System.out.println("Lineup policy: " + report.lineupPolicyId()
+            + " flex-slots=" + report.flexSlots() + " superflex-slots=" + report.superFlexSlots());
         System.out.println("These are independent descriptive dimensions; no winner or accept/reject/counter recommendation is produced.");
-        printSide("A", trade.sideA(), report.sideA());
-        printSide("B", trade.sideB(), report.sideB());
+        printSide("A", trade.sideA(), strategic.sideA(), report.sideA());
+        printSide("B", trade.sideB(), strategic.sideB(), report.sideB());
     }
 
     private static void printSide(String label, TradeAssetAnalyzer.TradeSide side,
-                                  TradeAssetStrategicContextAnalyzer.TeamStrategicContext context) {
+                                  TradeAssetStrategicContextAnalyzer.TeamStrategicContext context,
+                                  TradeAssetPositionalContextAnalyzer.TeamPositionalContext positional) {
         System.out.printf("Side %s: %s [%s] value=%.2f coverage=%d/%d (%.1f%%) stale=%d%n",
             label, context.identity().teamName(), context.identity().teamId(), side.totalValue(),
             side.valuedAssets(), side.totalAssets(), side.coveragePercent(), side.staleAssets());
@@ -114,6 +121,12 @@ public final class ButlerTradeStrategicContextCli {
         System.out.printf("  future-capital=%s value=%.2f coverage=%d/%d (%.1f%%)%n",
             context.futureCapital().tier(), context.futureCapital().value(), context.futureCapital().valuedPicks(),
             context.futureCapital().totalPicks(), context.futureCapital().coveragePercent());
+        for (String position : CORE_POSITIONS) {
+            var pressure = positional.positions().get(position);
+            System.out.printf("  %s-pressure=%s starter-value=%.2f total-value=%.2f coverage=%d/%d stale=%d missing=%d%n",
+                position, pressure.tier(), pressure.starterCoverageValue(), pressure.totalPositionValue(),
+                pressure.valuedPlayers(), pressure.totalPlayers(), pressure.stalePlayers(), pressure.missingPlayers());
+        }
         for (var player : side.players()) {
             System.out.printf("  PLAYER %s %s [%s] value=%s as-of=%s%s%n",
                 player.position(), player.playerName(), player.playerId(),
