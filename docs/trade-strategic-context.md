@@ -1,20 +1,43 @@
 # Trade strategic context
 
-Butler's player-only `trade supporting-evidence` surface now presents several independently governed evidence dimensions around the same trade package. These dimensions are intentionally not blended into one hidden score.
+Butler's strategic trade surface presents independently governed evidence dimensions around the same trade package. These dimensions are intentionally not blended into one hidden score.
 
-## Market value
+## Mixed asset surface
 
-Persisted player market values remain the authoritative basis for trade-package totals, coverage, symmetric fairness gap, the governed 5% market-fairness band, and market-edge direction.
+`trade strategic-context` supports both players and draft picks:
 
-Missing market value keeps the trade incomplete. Supporting context cannot manufacture a missing value or fairness result.
+```text
+butler trade strategic-context <league-id> <season> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]
+```
+
+Assets use the same grammar as `trade compare`:
+
+- bare IDs are players;
+- `player:<id>` explicitly names a player;
+- `pick:<draft-pick-id>` names a draft pick;
+- comma-separated assets may mix players and picks on either side.
+
+Every trade side must resolve to exactly one current fantasy team. Player roster ownership and current draft-pick ownership are both used for that identity check. A package spanning multiple fantasy teams fails closed instead of receiving misleading strategic context.
+
+## Market value and freshness
+
+Persisted player and draft-pick market values remain the authoritative basis for mixed-package totals, coverage, symmetric fairness gap, the governed 5% market-fairness band, and market-edge direction.
+
+Missing market values suppress comparability. When `--minimum-as-of` is supplied, a stale valued asset also suppresses comparability. Strategic context does not manufacture a fairness result from incomplete or stale market evidence.
+
+The optional source and freshness boundary are carried through the roster-strength and future-capital evidence used alongside the trade so those dimensions do not silently rely on older value snapshots than the trade itself.
+
+A malformed `--minimum-as-of` flag without a date is rejected rather than being interpreted as a market-value source.
 
 ## Age-outlook evidence
 
-Governed age-outlook flags remain per-player descriptive evidence. They do not alter market value, fairness, market edge, team posture, or future capital.
+Governed age-outlook flags remain player-specific descriptive evidence. They do not alter market value, fairness, market edge, team posture, or future capital.
+
+Draft picks do not receive fabricated aging evidence. Mixed-asset strategic context therefore treats player age evidence as a separate optional player dimension rather than pretending every asset shares the same evidence model.
 
 ## Neutral roster and production context
 
-The trade surface preserves current roster structure, positional depth, concentration, player/draft-pick asset totals, and raw production coverage. These dimensions remain inspectable evidence rather than a hidden weighted score.
+Current roster structure, positional depth, concentration, player/draft-pick asset totals, and raw production remain inspectable evidence rather than a hidden weighted score.
 
 ## Team posture
 
@@ -44,18 +67,19 @@ Draft capital does not change current roster strength or team posture. Season/ro
 
 ## Identity and evidence guards
 
-Trade context fails closed on incompatible league, season, market-value source, team ID, or team-name evidence. Governed dimensions also retain their own coverage requirements.
+Strategic trade context fails closed on incompatible league, season, market-value source, fantasy-team ownership, team ID, team name, or stale/incomplete evidence where the governed component requires complete evidence.
 
 ## Current decision boundary
 
-The assembled trade context can now describe:
+The assembled mixed-asset trade context can now describe:
 
-- what the two player packages are worth on the persisted market;
+- what player/draft-pick packages are worth on the persisted market;
+- whether all trade values are present and meet an optional freshness boundary;
 - whether the market-value gap falls inside the 5% fairness band;
 - which side has the market-value edge when outside that band;
-- relevant player age-outlook evidence;
+- player-specific age evidence where applicable;
 - each participating team's roster/production context;
 - each team's governed contender/mixed/rebuilder posture; and
 - each team's governed future draft-capital tier.
 
-Butler still does **not** convert those dimensions into `ACCEPT`, `REJECT`, or `COUNTER`, a trade winner, a buy/sell instruction, or a dynasty recommendation. Any such behavior requires a separately governed decision policy defining how team posture, positional need, future capital, market fairness, player production, and supporting evidence interact.
+Butler still does **not** convert those dimensions into `ACCEPT`, `REJECT`, or `COUNTER`, a trade winner, a buy/sell instruction, or a dynasty recommendation. Any such behavior requires separately governed policy defining how team posture, positional need, future capital, market fairness, player production, and supporting evidence interact.
