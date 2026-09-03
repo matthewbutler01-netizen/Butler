@@ -49,6 +49,9 @@ public final class ButlerTradeStrategicContextCli {
         String source = null;
         LocalDate minimumAsOf = null;
         if (args.length == 7) {
+            if ("--minimum-as-of".equalsIgnoreCase(args[6])) {
+                throw new IllegalArgumentException("--minimum-as-of requires a YYYY-MM-DD value");
+            }
             source = requireText(args[6], "source");
         } else if (args.length == 8 && "--minimum-as-of".equalsIgnoreCase(args[6])) {
             minimumAsOf = parseDate(args[7]);
