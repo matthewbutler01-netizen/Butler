@@ -25,16 +25,16 @@ class AgingModelSampleBreadthAnalyzerTest {
         LocalDate asOf = LocalDate.of(2026, 9, 2);
 
         profiles.save(new AgingModelPlayerProfile("p1", "One", LocalDate.of(2000, 1, 1), "RB", "nflverse", asOf));
-        profiles.save(new AgingModelPlayerProfile("p2", "Two", LocalDate.of(1998, 1, 1), "RB", "nflverse", asOf));
+        profiles.save(new AgingModelPlayerProfile("p2", "Two", LocalDate.of(2000, 1, 1), "RB", "nflverse", asOf));
 
-        // p1 contributes ages 20 and 22, intentionally leaving an age-21 gap.
+        // p1 contributes ages 20 and 23; the zero-game season blocks the intervening pairs.
         save(production, "p1", 2020, 10, 100, asOf);
         save(production, "p1", 2021, 10, 110, asOf);
         save(production, "p1", 2022, 0, 0, asOf);
         save(production, "p1", 2023, 10, 130, asOf);
         save(production, "p1", 2024, 10, 140, asOf);
 
-        // p2 adds a second observation to age 22.
+        // p2 adds a second observation to age 20.
         save(production, "p2", 2020, 10, 80, asOf);
         save(production, "p2", 2021, 10, 90, asOf);
 
@@ -46,15 +46,17 @@ class AgingModelSampleBreadthAnalyzerTest {
 
         assertEquals(2, rushing.ageCells());
         assertEquals(20, rushing.minimumAge());
-        assertEquals(24, rushing.maximumAge());
-        assertTrue(rushing.missingAges().contains(21));
-        assertTrue(rushing.missingAges().contains(22));
-        assertTrue(rushing.missingAges().contains(23));
-        assertEquals(2, rushing.totalObservations());
+        assertEquals(23, rushing.maximumAge());
+        assertEquals(java.util.List.of(21, 22), rushing.missingAges());
+        assertEquals(3, rushing.totalObservations());
         assertEquals(1, rushing.minimumCellObservations());
-        assertEquals(1.0, rushing.medianCellObservations());
-        assertEquals(1, rushing.maximumCellObservations());
-        assertEquals(2, rushing.singleObservationCells());
+        assertEquals(1.5, rushing.medianCellObservations());
+        assertEquals(2, rushing.maximumCellObservations());
+        assertEquals(1, rushing.singleObservationCells());
+        assertEquals(1, rushing.singlePlayerCells());
+        assertEquals(2, rushing.singleTransitionCells());
+        assertEquals(1, rushing.maximumDistinctTransitions());
+        assertEquals(50.0, rushing.ageCellCoveragePercent());
         assertTrue(report.dimensionsWithAgeGaps() > 0);
     }
 
