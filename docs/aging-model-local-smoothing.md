@@ -20,7 +20,7 @@ Observed cell density is strong through the central age ranges but falls sharply
 
 ## First smoother
 
-For a requested position, metric, and integer age `A`, Butler may calculate a **centered local pooled summary** from raw eligible observations whose starting ages are in:
+For a requested position, metric, and integer age `A`, Butler calculates a **centered local pooled summary** from raw eligible observations whose starting ages are in:
 
 ```text
 A - 1, A, A + 1
@@ -32,13 +32,33 @@ For the pooled window Butler reports:
 
 - median year-over-year rate delta;
 - 25th and 75th percentile delta;
-- total observation count;
+- target-age observation count;
+- total pooled observation count;
 - unique-player count;
 - distinct season-transition count;
-- minimum and maximum transition season represented;
 - which integer ages actually contributed observations.
 
-The raw center-age sample cell remains available alongside the smoothed output.
+The raw center-age sample remains represented by `target-n` alongside the pooled output.
+
+## CLI
+
+The implemented descriptive surface is:
+
+```text
+butler aging-model local-smoother
+```
+
+The command accepts no additional arguments. It reads the broad aging-model universe from `butler.db` and prints every observed position/metric/age cell with its governed local summary.
+
+Example output shape:
+
+```text
+RB RUSHING_YARDS_PER_GAME age=25 ages=[24, 25, 26] target-n=... pooled-n=... players=... transitions=... delta[p25=... median=... p75=...]
+```
+
+The header also reports total smoothed cells and the number of edge cells with fewer than three contributing ages.
+
+The lack of CLI knobs is intentional: callers cannot silently change the window, add a support cutoff, combine positions, or turn the descriptive output into a player adjustment.
 
 ## Why a three-age window
 
@@ -62,7 +82,7 @@ A two-age boundary window is therefore valid and must disclose the contributing 
 
 This methodology version defines **no hard publication threshold** for observation count, unique players, or season transitions.
 
-Sparse outputs are not hidden. Butler must expose support counts so downstream consumers can distinguish a well-supported local estimate from an edge estimate built from few observations.
+Sparse outputs are not hidden. Butler exposes support counts so downstream consumers can distinguish a well-supported local estimate from an edge estimate built from few observations.
 
 A future publication/readiness rule may suppress or qualify low-support estimates only after validation against this empirical distribution and out-of-sample behavior.
 
@@ -82,9 +102,22 @@ Ages `A-1`, `A`, and `A+1` are pooled equally at the observation level. Larger a
 
 ## Position and metric isolation
 
-The local smoother must preserve the same position/metric boundaries as the sample audit. No cross-position or cross-metric pooling is permitted.
+The local smoother preserves the same position/metric boundaries as the sample audit. No cross-position or cross-metric pooling is permitted.
 
-It must not create a fantasy-point composite or universal aging coefficient.
+It does not create a fantasy-point composite or universal aging coefficient.
+
+## Current implementation boundary
+
+BF-175 implements the governed local-window analyzer. BF-176 exposes it through the consolidated CLI router.
+
+Neither layer:
+
+- changes player values;
+- labels career stage;
+- predicts an individual player's next season;
+- declares a sample sufficient or insufficient;
+- applies a publication threshold;
+- generates trade or roster recommendations.
 
 ## Interpretation boundary
 
@@ -102,10 +135,10 @@ Individual-player age adjustment requires separate validation and governance.
 
 Before this smoother may influence a downstream player adjustment, Butler must add and inspect:
 
-1. deterministic local-window extraction tests;
+1. deterministic local-window extraction tests — implemented in BF-175;
 2. temporal holdout diagnostics;
 3. sensitivity comparison against the unsmoothed center-age median;
 4. stability diagnostics when one season transition is removed;
-5. explicit support/provenance rendering.
+5. explicit support/provenance rendering — implemented in BF-175/BF-176 for descriptive output.
 
-The first implementation should expose the local descriptive summary only. It must not yet alter player values or recommendations.
+The current implementation remains descriptive only. It does not alter player values or recommendations.
