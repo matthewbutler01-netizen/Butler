@@ -16,15 +16,31 @@ class TradeAssetPositionalContextAnalyzerTest {
     }
 
     @Test
-    void rejectsPositionEvidenceFromDifferentTeam() {
+    void rejectsUnexpectedPositions() {
         var identity = new TradeAssetStrategicContextAnalyzer.TeamIdentity("t1", "Team 1");
-        Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> positions = new LinkedHashMap<>();
-        positions.put("QB", team("QB", "t1", "Team 1"));
-        positions.put("RB", team("RB", "t1", "Team 1"));
-        positions.put("WR", team("WR", "t2", "Team 2"));
-        positions.put("TE", team("TE", "t1", "Team 1"));
+        Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> positions = corePositions("t1", "Team 1");
+        positions.put("K", team("K", "t1", "Team 1"));
         assertThrows(IllegalArgumentException.class,
             () -> new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(identity, positions));
+    }
+
+    @Test
+    void rejectsPositionEvidenceFromDifferentTeam() {
+        var identity = new TradeAssetStrategicContextAnalyzer.TeamIdentity("t1", "Team 1");
+        Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> positions = corePositions("t1", "Team 1");
+        positions.put("WR", team("WR", "t2", "Team 2"));
+        assertThrows(IllegalArgumentException.class,
+            () -> new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(identity, positions));
+    }
+
+    private static Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> corePositions(
+        String teamId, String teamName) {
+        Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> positions = new LinkedHashMap<>();
+        positions.put("QB", team("QB", teamId, teamName));
+        positions.put("RB", team("RB", teamId, teamName));
+        positions.put("WR", team("WR", teamId, teamName));
+        positions.put("TE", team("TE", teamId, teamName));
+        return positions;
     }
 
     private static LeaguePositionalPressureAnalyzer.TeamPositionPressure team(
