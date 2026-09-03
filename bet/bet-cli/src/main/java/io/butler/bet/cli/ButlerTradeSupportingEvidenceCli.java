@@ -8,7 +8,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 
-/** Read-only CLI for player-only trade value plus governed supporting evidence. */
+/** Read-only CLI for player-only trade value plus governed supporting evidence and market fairness. */
 public final class ButlerTradeSupportingEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -71,10 +71,18 @@ public final class ButlerTradeSupportingEvidenceCli {
         System.out.printf("Market-value coverage: %d/%d (%.1f%%) complete=%s%n",
             trade.valuedPlayers(), trade.totalPlayers(), trade.coveragePercent(), trade.complete());
         System.out.println("Market-value difference A-B: " + (trade.valueDifference() == null ? "unavailable" : trade.valueDifference()));
+        System.out.println("Fairness measurement policy: " + report.fairnessMeasurementPolicyId());
+        System.out.println("Fairness policy: " + report.fairnessPolicyId());
+        System.out.println("Symmetric market-value gap: " + formatGap(report.symmetricGapPercent()));
+        System.out.println("Market fairness: " + report.fairnessClassification());
         System.out.printf("Supporting flags: %d directional=%d%n", report.supportingFlags(), report.directionalSupportingFlags());
-        System.out.println("Supporting evidence is descriptive only and does not modify market value, completeness, value difference, or create a winner/recommendation.");
+        System.out.println("Market fairness is based only on market values. Supporting evidence is descriptive only and does not modify values, fairness, or create a winner/recommendation.");
         printSide("A", report.sideA());
         printSide("B", report.sideB());
+    }
+
+    static String formatGap(Double symmetricGapPercent) {
+        return symmetricGapPercent == null ? "unavailable" : String.format("%.3f%%", symmetricGapPercent);
     }
 
     private static void printSide(String label, TradeSupportingEvidenceAnalyzer.TradeEvidenceSide side) {
