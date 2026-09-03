@@ -127,6 +127,18 @@ public final class Database {
                 """);
 
             statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS aging_model_player_profiles (
+                    gsis_id TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    birth_date TEXT,
+                    position TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    as_of_date TEXT NOT NULL,
+                    PRIMARY KEY (gsis_id, source, as_of_date)
+                )
+                """);
+
+            statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS rosters (
                     id TEXT PRIMARY KEY,
                     external_id TEXT,
@@ -189,6 +201,8 @@ public final class Database {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_profile_snapshots_player_source_date ON player_profile_snapshots(player_id, source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_season_production_player_season ON player_season_production(player_id, season)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_player_season_production_source_date ON player_season_production(source, as_of_date)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_player_profiles_source_date ON aging_model_player_profiles(source, as_of_date)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_player_profiles_birth_date ON aging_model_player_profiles(birth_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_pick_id ON draft_pick_values(draft_pick_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_source_date ON draft_pick_values(source, as_of_date)");
         }
