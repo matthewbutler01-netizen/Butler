@@ -8,11 +8,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public final class AgingModelPlayerSeasonProductionRepository {
+    private static final String UPSERT_SQL = "INSERT INTO aging_model_player_season_production(" +
+        "gsis_id, season, position, games_played, passing_yards, passing_touchdowns, interceptions, " +
+        "rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns, " +
+        "fumbles_lost, source, as_of_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
+        "ON CONFLICT(gsis_id, season, source, as_of_date) DO UPDATE SET " +
+        "position=excluded.position, games_played=excluded.games_played, passing_yards=excluded.passing_yards, " +
+        "passing_touchdowns=excluded.passing_touchdowns, interceptions=excluded.interceptions, " +
+        "rushing_yards=excluded.rushing_yards, rushing_touchdowns=excluded.rushing_touchdowns, " +
+        "receptions=excluded.receptions, receiving_yards=excluded.receiving_yards, " +
+        "receiving_touchdowns=excluded.receiving_touchdowns, fumbles_lost=excluded.fumbles_lost";
+
     private final Database database;
 
     public AgingModelPlayerSeasonProductionRepository(Database database) {
@@ -20,35 +32,31 @@ public final class AgingModelPlayerSeasonProductionRepository {
     }
 
     public void save(AgingModelPlayerSeasonProduction production) throws SQLException {
-        Objects.requireNonNull(production, "production must not be null");
-        String sql = "INSERT INTO aging_model_player_season_production(" +
-            "gsis_id, season, position, games_played, passing_yards, passing_touchdowns, interceptions, " +
-            "rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns, " +
-            "fumbles_lost, source, as_of_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) " +
-            "ON CONFLICT(gsis_id, season, source, as_of_date) DO UPDATE SET " +
-            "position=excluded.position, games_played=excluded.games_played, passing_yards=excluded.passing_yards, " +
-            "passing_touchdowns=excluded.passing_touchdowns, interceptions=excluded.interceptions, " +
-            "rushing_yards=excluded.rushing_yards, rushing_touchdowns=excluded.rushing_touchdowns, " +
-            "receptions=excluded.receptions, receiving_yards=excluded.receiving_yards, " +
-            "receiving_touchdowns=excluded.receiving_touchdowns, fumbles_lost=excluded.fumbles_lost";
-        try (Connection connection = database.openConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, production.gsisId());
-            statement.setInt(2, production.season());
-            statement.setString(3, production.position());
-            statement.setInt(4, production.gamesPlayed());
-            statement.setInt(5, production.passingYards());
-            statement.setInt(6, production.passingTouchdowns());
-            statement.setInt(7, production.interceptions());
-            statement.setInt(8, production.rushingYards());
-            statement.setInt(9, production.rushingTouchdowns());
-            statement.setInt(10, production.receptions());
-            statement.setInt(11, production.receivingYards());
-            statement.setInt(12, production.receivingTouchdowns());
-            statement.setInt(13, production.fumblesLost());
-            statement.setString(14, production.source());
-            statement.setString(15, production.asOfDate().toString());
-            statement.executeUpdate();
+        saveAll(List.of(Objects.requireNonNull(production, "production must not be null")));
+    }
+
+    public int saveAll(Collection<AgingModelPlayerSeasonProduction> values) throws SQLException {
+        Objects.requireNonNull(values, "values must not be null");
+        if (values.isEmpty()) return 0;
+        try (Connection connection = database.openConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(UPSERT_SQL)) {
+                int count = 0;
+                for (AgingModelPlayerSeasonProduction production : values) {
+                    bind(statement, Objects.requireNonNull(production, "production must not be null"));
+                    statement.addBatch();
+                    count++;
+                }
+                statement.executeBatch();
+                connection.commit();
+                return count;
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
         }
     }
 
@@ -86,6 +94,24 @@ public final class AgingModelPlayerSeasonProductionRepository {
             }
         }
         return List.copyOf(result);
+    }
+
+    private static void bind(PreparedStatement statement, AgingModelPlayerSeasonProduction production) throws SQLException {
+        statement.setString(1, production.gsisId());
+        statement.setInt(2, production.season());
+        statement.setString(3, production.position());
+        statement.setInt(4, production.gamesPlayed());
+        statement.setInt(5, production.passingYards());
+        statement.setInt(6, production.passingTouchdowns());
+        statement.setInt(7, production.interceptions());
+        statement.setInt(8, production.rushingYards());
+        statement.setInt(9, production.rushingTouchdowns());
+        statement.setInt(10, production.receptions());
+        statement.setInt(11, production.receivingYards());
+        statement.setInt(12, production.receivingTouchdowns());
+        statement.setInt(13, production.fumblesLost());
+        statement.setString(14, production.source());
+        statement.setString(15, production.asOfDate().toString());
     }
 
     private static AgingModelPlayerSeasonProduction map(ResultSet rs) throws SQLException {
