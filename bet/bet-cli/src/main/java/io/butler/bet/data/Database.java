@@ -142,6 +142,7 @@ public final class Database {
                 CREATE TABLE IF NOT EXISTS aging_model_player_season_production (
                     gsis_id TEXT NOT NULL,
                     season INTEGER NOT NULL,
+                    position TEXT NOT NULL DEFAULT 'UNKNOWN',
                     games_played INTEGER NOT NULL,
                     passing_yards INTEGER NOT NULL,
                     passing_touchdowns INTEGER NOT NULL,
@@ -168,6 +169,8 @@ public final class Database {
                     CHECK (fumbles_lost >= 0)
                 )
                 """);
+            ensureColumn(connection, "aging_model_player_season_production", "position",
+                "TEXT NOT NULL DEFAULT 'UNKNOWN'");
 
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS rosters (
@@ -235,6 +238,7 @@ public final class Database {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_player_profiles_source_date ON aging_model_player_profiles(source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_player_profiles_birth_date ON aging_model_player_profiles(birth_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_production_gsis_season ON aging_model_player_season_production(gsis_id, season)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_production_position_season ON aging_model_player_season_production(position, season)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_production_source_date ON aging_model_player_season_production(source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_pick_id ON draft_pick_values(draft_pick_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_source_date ON draft_pick_values(source, as_of_date)");
