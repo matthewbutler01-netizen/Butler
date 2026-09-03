@@ -29,6 +29,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"aging-model", "published-smoother"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_PUBLISHED_CELL,
             ButlerCommandRouter.route(new String[]{"aging-model", "published-cell", "WR", "RECEIVING_YARDS_PER_GAME", "38"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_POSITION_AGE_EVIDENCE,
+            ButlerCommandRouter.route(new String[]{"aging-model", "position-age-evidence", "WR", "28"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_TEMPORAL_HOLDOUT,
             ButlerCommandRouter.route(new String[]{"aging-model", "temporal-holdout"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_SMOOTHING_SENSITIVITY,
