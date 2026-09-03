@@ -84,9 +84,11 @@ Before any curve is fitted, Butler must report for every position/metric/age cel
 - delta distribution summary;
 - excluded zero-game and missing-follow-up counts when available.
 
-No fixed minimum sample threshold is declared in this methodology version. A later calibration ticket must inspect the actual sample distribution and establish any publication/smoothing thresholds explicitly.
+The governed publication-support minimum is **5 distinct season transitions** per position/metric/age cell. This threshold was selected after the BF-191 through BF-205 calibration sequence inspected support tradeoffs, worst retained cells, age-band coverage, normalized instability, and canonical Pareto frontiers. The corresponding versioned policy identifier is `aging-support-v1-min-transitions-5`.
 
-This prevents an arbitrary threshold from being embedded before Butler knows the shape of its evidence.
+A cell below 5 distinct season transitions remains observable in diagnostics and sample audits but is not publication-eligible for downstream aging-model output. The threshold is global across QB/RB/WR/TE and is based on transition diversity, not raw pair count. It does not create an age limit, dynasty-value adjustment, or strategic player classification.
+
+Any future threshold change requires a new empirical calibration record, a new policy identifier, and explicit methodology revision rather than silently changing the constant.
 
 ## First empirical summary
 
@@ -134,10 +136,10 @@ Those are downstream interpretation decisions and require separate governed rule
 
 ## Next implementation steps
 
-Before fitting any curve:
+With the support threshold governed, the next implementation work should:
 
-1. add a provider-backed historical NFL modeling-universe store/import that is independent of current fantasy-league rosters;
-2. preserve exact provider player ID, exact birth date, position, production season, source, and as-of provenance;
-3. build a deterministic aging-observation/sample-audit analyzer over that broader universe;
-4. expose observation counts and robust raw deltas without fitting a curve;
-5. inspect the actual sample distribution before choosing thresholds or smoothing.
+1. apply `AgingModelSupportPolicy` only at the publication/model-consumption boundary while preserving sub-threshold cells in diagnostics;
+2. expose publication eligibility and policy provenance alongside any fitted or smoothed aging-model output;
+3. retain holdout, uncertainty, source, and as-of diagnostics for every publication-eligible cell;
+4. validate that downstream consumers fail closed when a requested cell does not satisfy the governed support policy;
+5. keep strategic age interpretation and dynasty-value adjustments prohibited until separately governed.
