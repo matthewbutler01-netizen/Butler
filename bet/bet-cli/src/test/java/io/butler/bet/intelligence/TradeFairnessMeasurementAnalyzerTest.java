@@ -60,8 +60,23 @@ class TradeFairnessMeasurementAnalyzerTest {
             tradeValue.sideB(), tradeValue.sideB().players().stream()
                 .map(player -> new TradeSupportingEvidenceAnalyzer.TradePlayerEvidence(player, List.of()))
                 .toList());
+        Double symmetricGapPercent = tradeValue.complete()
+            ? TradeFairnessMeasurementPolicy.symmetricGapPercent(sideA.value().totalValue(), sideB.value().totalValue())
+            : null;
         return new TradeSupportingEvidenceAnalyzer.TradeEvidencePackage(
-            tradeValue, 2026, LocalDate.of(2026, 9, 1), "support", "outlook", "profiles", "production", sideA, sideB);
+            tradeValue,
+            2026,
+            LocalDate.of(2026, 9, 1),
+            "support",
+            "outlook",
+            "profiles",
+            "production",
+            TradeFairnessMeasurementPolicy.POLICY_ID,
+            TradeFairnessPolicy.POLICY_ID,
+            symmetricGapPercent,
+            TradeFairnessPolicy.classify(symmetricGapPercent),
+            sideA,
+            sideB);
     }
 
     private static TradeValueAnalyzer.TradePlayer player(String id, Double value) {
