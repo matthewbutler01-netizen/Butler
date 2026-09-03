@@ -30,7 +30,10 @@ public final class NflverseAgingModelPlayerImporter {
     private final HttpClient http;
 
     public NflverseAgingModelPlayerImporter(Database database) {
-        this(database, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build());
+        this(database, HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build());
     }
 
     NflverseAgingModelPlayerImporter(Database database, HttpClient http) {
