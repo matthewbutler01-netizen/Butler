@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   evidence:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation' || github.head_ref == 'bf-181-fix-temporal-holdout-unit-mixing'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation' || github.head_ref == 'bf-181-fix-temporal-holdout-unit-mixing' || github.head_ref == 'bf-184-capture-aging-model-smoothing-sensitivity'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -59,6 +59,9 @@ jobs:
             echo
             echo "## Temporal holdout"
             run_butler aging-model temporal-holdout
+            echo
+            echo "## Smoothing sensitivity"
+            run_butler aging-model smoothing-sensitivity
           } | tee aging-model-evidence.txt
 
       - name: Upload empirical evidence
