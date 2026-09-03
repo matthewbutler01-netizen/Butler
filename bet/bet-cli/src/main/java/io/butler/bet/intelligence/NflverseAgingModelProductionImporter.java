@@ -89,7 +89,7 @@ public final class NflverseAgingModelProductionImporter {
         Map<String, AgingModelPlayerSeasonProduction> byGsis = new LinkedHashMap<>();
         int providerRowsForSeason = 0;
         for (Map<String, String> row : rows) {
-            int rowSeason = parseInt(required(row, "season"), "season", "provider row");
+            int rowSeason = parseNonNegativeInt(required(row, "season"), "season", "provider row");
             if (rowSeason != season) continue;
             providerRowsForSeason++;
             String gsis = normalizeId(required(row, "player_id"));
@@ -97,18 +97,18 @@ public final class NflverseAgingModelProductionImporter {
             String position = normalizePosition(required(row, "position"));
             AgingModelPlayerSeasonProduction value = new AgingModelPlayerSeasonProduction(
                 gsis, season, position,
-                parseInt(value(row, "games"), "games", gsis),
-                parseInt(value(row, "passing_yards"), "passing_yards", gsis),
-                parseInt(value(row, "passing_tds"), "passing_tds", gsis),
-                parseInt(value(row, "passing_interceptions"), "passing_interceptions", gsis),
-                parseInt(value(row, "rushing_yards"), "rushing_yards", gsis),
-                parseInt(value(row, "rushing_tds"), "rushing_tds", gsis),
-                parseInt(value(row, "receptions"), "receptions", gsis),
-                parseInt(value(row, "receiving_yards"), "receiving_yards", gsis),
-                parseInt(value(row, "receiving_tds"), "receiving_tds", gsis),
-                parseInt(value(row, "sack_fumbles_lost"), "sack_fumbles_lost", gsis)
-                    + parseInt(value(row, "rushing_fumbles_lost"), "rushing_fumbles_lost", gsis)
-                    + parseInt(value(row, "receiving_fumbles_lost"), "receiving_fumbles_lost", gsis),
+                parseNonNegativeInt(value(row, "games"), "games", gsis),
+                parseSignedInt(value(row, "passing_yards"), "passing_yards", gsis),
+                parseNonNegativeInt(value(row, "passing_tds"), "passing_tds", gsis),
+                parseNonNegativeInt(value(row, "passing_interceptions"), "passing_interceptions", gsis),
+                parseSignedInt(value(row, "rushing_yards"), "rushing_yards", gsis),
+                parseNonNegativeInt(value(row, "rushing_tds"), "rushing_tds", gsis),
+                parseNonNegativeInt(value(row, "receptions"), "receptions", gsis),
+                parseSignedInt(value(row, "receiving_yards"), "receiving_yards", gsis),
+                parseNonNegativeInt(value(row, "receiving_tds"), "receiving_tds", gsis),
+                parseNonNegativeInt(value(row, "sack_fumbles_lost"), "sack_fumbles_lost", gsis)
+                    + parseNonNegativeInt(value(row, "rushing_fumbles_lost"), "rushing_fumbles_lost", gsis)
+                    + parseNonNegativeInt(value(row, "receiving_fumbles_lost"), "receiving_fumbles_lost", gsis),
                 SOURCE, asOfDate);
             AgingModelPlayerSeasonProduction existing = byGsis.putIfAbsent(gsis, value);
             if (existing != null && !existing.equals(value)) {
@@ -137,16 +137,31 @@ public final class NflverseAgingModelProductionImporter {
         return value == null || value.isBlank() || value.equalsIgnoreCase("NA") ? "0" : value;
     }
 
-    private static int parseInt(String text, String field, String id) {
+    private static int parseNonNegativeInt(String text, String field, String id) {
+        int parsed = parseIntegralInt(text, field, id);
+        if (parsed < 0) throw invalidNumber(text, field, id);
+        return parsed;
+    }
+
+    private static int parseSignedInt(String text, String field, String id) {
+        return parseIntegralInt(text, field, id);
+    }
+
+    private static int parseIntegralInt(String text, String field, String id) {
         try {
             double value = Double.parseDouble(text.trim());
-            if (!Double.isFinite(value) || value < 0 || value != Math.rint(value) || value > Integer.MAX_VALUE) {
+            if (!Double.isFinite(value) || value != Math.rint(value)
+                || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
                 throw new NumberFormatException();
             }
             return (int) value;
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("invalid nflverse " + field + " for " + id + ": " + text, e);
         }
+    }
+
+    private static IllegalArgumentException invalidNumber(String text, String field, String id) {
+        return new IllegalArgumentException("invalid nflverse " + field + " for " + id + ": " + text);
     }
 
     private static String normalizeId(String value) {
