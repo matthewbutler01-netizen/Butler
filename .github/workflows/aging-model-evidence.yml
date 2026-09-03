@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   evidence:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -53,6 +53,12 @@ jobs:
             echo
             echo "## Sample breadth"
             run_butler aging-model sample-breadth
+            echo
+            echo "## Local smoother"
+            run_butler aging-model local-smoother
+            echo
+            echo "## Temporal holdout"
+            run_butler aging-model temporal-holdout
           } | tee aging-model-evidence.txt
 
       - name: Upload empirical evidence
