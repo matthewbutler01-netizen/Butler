@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.LeaguePositionalPressureAnalyzer;
 import io.butler.bet.intelligence.LeaguePositionalPressurePolicy;
+import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -33,6 +34,16 @@ class ButlerTradeStrategicContextCliTest {
             "dynastyprocess", "--minimum-as-of", "2026-09-01"});
         assertEquals("dynastyprocess", options.source());
         assertEquals(LocalDate.of(2026, 9, 1), options.minimumAsOf());
+    }
+
+    @Test
+    void formatsUnavailablePositionalContextReason() {
+        var availability = new TradeAssetPositionalContextAnalyzer.PositionAvailability(
+            "QB", 1, false, "Complete current value coverage is required for every rostered QB.");
+
+        assertEquals(
+            "  QB-context available=false direct-starters=1 reason=Complete current value coverage is required for every rostered QB.",
+            ButlerTradeStrategicContextCli.formatPositionAvailability(availability));
     }
 
     @Test
