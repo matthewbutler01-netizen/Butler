@@ -1,6 +1,6 @@
 # Governed Trade Fairness
 
-Butler's first trade-fairness interpretation is deliberately narrow. It answers only whether two complete player-trade packages are close in persisted market value under the governed v1 tolerance. It does not decide which side wins and it does not recommend accepting or rejecting a trade.
+Butler's first trade-fairness interpretation is deliberately narrow. It answers whether two complete player-trade packages are close in persisted market value under the governed v1 tolerance and, when they are outside that band, which side carries the higher persisted market value. It does not declare a winner and it does not recommend accepting or rejecting a trade.
 
 ## Market-value measurement
 
@@ -26,9 +26,24 @@ The governed v1 tolerance is exactly 5.000%:
 
 The boundary is intentional: 5.000% is `MARKET_FAIR`; 5.001% is `OUTSIDE_FAIRNESS_BAND`.
 
+## Market-edge direction
+
+The directional policy is `trade-market-edge-v1-outside-fairness-band`.
+
+Market-edge direction is derived only after the fairness classification is known:
+
+- `MARKET_FAIR`: no directional edge is declared inside the 5% fairness band.
+- `SIDE_A_MARKET_EDGE`: the trade is outside the fairness band and Side A has the higher persisted market-value total.
+- `SIDE_B_MARKET_EDGE`: the trade is outside the fairness band and Side B has the higher persisted market-value total.
+- `UNAVAILABLE`: market-value coverage is incomplete.
+
+The signed A-B market-value difference determines direction outside the band. Positive means Side A has the market-value edge; negative means Side B has the market-value edge.
+
+A market-value edge is not a winner label. It does not say the higher-valued side should accept the trade, that the lower-valued side should reject it, or that the higher-valued package is strategically better for a specific roster.
+
 ## Supporting evidence is independent
 
-Age-outlook supporting flags do not modify either side's persisted market value, the symmetric gap, or the fairness classification. A favorable or unfavorable age flag cannot pull an outside-band trade into `MARKET_FAIR` or push a market-fair trade outside the band.
+Age-outlook supporting flags do not modify either side's persisted market value, the symmetric gap, the fairness classification, or the market-edge direction. A favorable or unfavorable age flag cannot pull an outside-band trade into `MARKET_FAIR`, push a market-fair trade outside the band, or flip which side carries the market-value edge.
 
 Supporting evidence remains descriptive context beside the market-value result. Empty supporting evidence is valid and does not make an otherwise complete market-value comparison unavailable.
 
@@ -46,15 +61,17 @@ The output includes:
 - fairness policy ID,
 - symmetric market-value gap,
 - `MARKET_FAIR`, `OUTSIDE_FAIRNESS_BAND`, or `UNAVAILABLE`,
+- market-edge policy ID,
+- `MARKET_FAIR`, `SIDE_A_MARKET_EDGE`, `SIDE_B_MARKET_EDGE`, or `UNAVAILABLE`,
 - governed supporting-evidence flags and their provenance.
 
 Draft picks are not accepted by this supporting-evidence surface because the current supporting flags are player aging evidence.
 
 ## Interpretation boundary
 
-`MARKET_FAIR` means only that the two complete packages fall within the governed 5% market-value band. It does not mean that the trade is strategically good, equally useful to both franchises, safe, or advisable.
+`MARKET_FAIR` means only that the two complete packages fall within the governed 5% market-value band. `SIDE_A_MARKET_EDGE` and `SIDE_B_MARKET_EDGE` mean only that the named side has the higher persisted market value when the trade is outside that band.
 
-This policy does not provide:
+These policies do not provide:
 
 - a winning side,
 - accept/reject guidance,
