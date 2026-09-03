@@ -13,13 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TradeSupportingEvidenceAnalyzerTest {
     @Test
-    void attachesFlagsWithoutChangingTradeValueSemantics() {
+    void attachesFlagsAndFairnessWithoutChangingTradeValueSemantics() {
         var sideAPlayer = new TradeValueAnalyzer.TradePlayer(
-            "p1", "Player One", "WR", "CHI", "t1", "Alpha", 100.0, LocalDate.of(2026, 9, 1));
+            "p1", "Player One", "WR", "CHI", "t1", "Alpha", 102.5, LocalDate.of(2026, 9, 1));
         var sideBPlayer = new TradeValueAnalyzer.TradePlayer(
-            "p2", "Player Two", "WR", "MIN", "t2", "Beta", 90.0, LocalDate.of(2026, 9, 1));
-        var sideA = new TradeValueAnalyzer.TradeSide(List.of(sideAPlayer), 100.0, 1, 0);
-        var sideB = new TradeValueAnalyzer.TradeSide(List.of(sideBPlayer), 90.0, 1, 0);
+            "p2", "Player Two", "WR", "MIN", "t2", "Beta", 97.5, LocalDate.of(2026, 9, 1));
+        var sideA = new TradeValueAnalyzer.TradeSide(List.of(sideAPlayer), 102.5, 1, 0);
+        var sideB = new TradeValueAnalyzer.TradeSide(List.of(sideBPlayer), 97.5, 1, 0);
         var trade = new TradeValueAnalyzer.TradeReport("l1", "dynastyprocess-1qb", sideA, sideB);
 
         var flag = new DecisionSupportingEvidenceFlag(
@@ -36,9 +36,13 @@ class TradeSupportingEvidenceAnalyzerTest {
         var report = TradeSupportingEvidenceAnalyzer.compose(trade, supporting);
 
         assertTrue(report.complete());
-        assertEquals(10.0, report.valueDifference());
-        assertEquals(100.0, report.sideA().value().totalValue());
-        assertEquals(90.0, report.sideB().value().totalValue());
+        assertEquals(5.0, report.valueDifference());
+        assertEquals(102.5, report.sideA().value().totalValue());
+        assertEquals(97.5, report.sideB().value().totalValue());
+        assertEquals(TradeFairnessMeasurementPolicy.POLICY_ID, report.fairnessMeasurementPolicyId());
+        assertEquals(TradeFairnessPolicy.POLICY_ID, report.fairnessPolicyId());
+        assertEquals(5.0, report.fairnessGapPercent());
+        assertEquals(TradeFairnessPolicy.Classification.MARKET_FAIR, report.fairnessClassification());
         assertEquals(1, report.supportingFlags());
         assertEquals(1, report.directionalSupportingFlags());
         assertEquals(1, report.sideA().players().getFirst().unfavorableFlags());
@@ -46,7 +50,32 @@ class TradeSupportingEvidenceAnalyzerTest {
     }
 
     @Test
-    void missingMarketValueStillControlsCompletenessEvenWhenFlagsExist() {
+    void supportingFlagsDoNotChangeOutsideBandClassification() {
+        var sideAPlayer = new TradeValueAnalyzer.TradePlayer(
+            "p1", "Player One", "WR", "CHI", "t1", "Alpha", 110.0, LocalDate.of(2026, 9, 1));
+        var sideBPlayer = new TradeValueAnalyzer.TradePlayer(
+            "p2", "Player Two", "WR", "MIN", "t2", "Beta", 90.0, LocalDate.of(2026, 9, 1));
+        var trade = new TradeValueAnalyzer.TradeReport(
+            "l1", "dynastyprocess-1qb",
+            new TradeValueAnalyzer.TradeSide(List.of(sideAPlayer), 110.0, 1, 0),
+            new TradeValueAnalyzer.TradeSide(List.of(sideBPlayer), 90.0, 1, 0));
+        var favorable = new DecisionSupportingEvidenceFlag(
+            "p2", "AGE_OUTLOOK", "RECEIVING_YARDS_PER_GAME",
+            DecisionSupportingEvidenceFlag.Signal.FAVORABLE, "summary", "outlook", "profiles+production");
+        var supporting = new LeagueAgeOutlookSupportingEvidenceAnalyzer.SupportingEvidenceReport(
+            "l1", 2026, LocalDate.of(2026, 9, 1), "support", "outlook", "profiles", "production",
+            List.of(new LeagueAgeOutlookSupportingEvidenceAnalyzer.PlayerSupportingEvidence(
+                "t2", "Beta", "p2", "Player Two", "WR", 28, List.of(favorable))));
+
+        var report = TradeSupportingEvidenceAnalyzer.compose(trade, supporting);
+
+        assertEquals(20.0, report.fairnessGapPercent());
+        assertEquals(TradeFairnessPolicy.Classification.OUTSIDE_FAIRNESS_BAND, report.fairnessClassification());
+        assertEquals(1, report.supportingFlags());
+    }
+
+    @Test
+    void missingMarketValueMakesFairnessUnavailableEvenWhenFlagsExist() {
         var sideAPlayer = new TradeValueAnalyzer.TradePlayer(
             "p1", "Player One", "RB", "CHI", "t1", "Alpha", 100.0, LocalDate.of(2026, 9, 1));
         var sideBPlayer = new TradeValueAnalyzer.TradePlayer(
@@ -69,6 +98,8 @@ class TradeSupportingEvidenceAnalyzerTest {
 
         assertFalse(report.complete());
         assertNull(report.valueDifference());
+        assertNull(report.fairnessGapPercent());
+        assertEquals(TradeFairnessPolicy.Classification.UNAVAILABLE, report.fairnessClassification());
         assertEquals(1, report.supportingFlags());
     }
 
