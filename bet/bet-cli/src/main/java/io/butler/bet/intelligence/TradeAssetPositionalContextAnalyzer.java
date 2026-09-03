@@ -8,10 +8,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Adds governed positional-pressure context to mixed-asset strategic trade evidence. */
 public final class TradeAssetPositionalContextAnalyzer {
     private static final List<String> CORE_POSITIONS = List.of("QB", "RB", "WR", "TE");
+    private static final Set<String> CORE_POSITION_SET = Set.copyOf(CORE_POSITIONS);
     private final TradeAssetStrategicContextAnalyzer strategic;
     private final LeaguePositionalPressureAnalyzer positional;
 
@@ -96,8 +98,8 @@ public final class TradeAssetPositionalContextAnalyzer {
         public TeamPositionalContext {
             Objects.requireNonNull(identity, "identity must not be null");
             positions = Map.copyOf(Objects.requireNonNull(positions, "positions must not be null"));
-            if (!positions.keySet().containsAll(CORE_POSITIONS)) {
-                throw new IllegalArgumentException("team positional context must contain QB/RB/WR/TE");
+            if (!positions.keySet().equals(CORE_POSITION_SET)) {
+                throw new IllegalArgumentException("team positional context must contain exactly QB/RB/WR/TE");
             }
             for (var value : positions.values()) {
                 if (!identity.teamId().equals(value.teamId()) || !identity.teamName().equals(value.teamName())) {
