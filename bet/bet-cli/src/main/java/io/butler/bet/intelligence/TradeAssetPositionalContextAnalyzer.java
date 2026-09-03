@@ -69,10 +69,17 @@ public final class TradeAssetPositionalContextAnalyzer {
             throw new IllegalStateException("trade and positional-pressure reports use different freshness boundaries");
         }
 
+        Map<String, PositionAvailability> availability = new LinkedHashMap<>();
+        for (String position : CORE_POSITIONS) {
+            var positionReport = positional.positions().get(position);
+            if (positionReport == null) throw new IllegalStateException("positional-pressure report missing position: " + position);
+            availability.put(position, new PositionAvailability(position, positionReport.directStarterRequirement(),
+                positionReport.available(), positionReport.insufficiencyReason()));
+        }
         var sideA = attach(strategic.sideA().identity(), positional);
         var sideB = attach(strategic.sideB().identity(), positional);
         return new TradePositionalContextReport(strategic, positional.policyId(), positional.lineupPolicyId(),
-            positional.flexSlots(), positional.superFlexSlots(), sideA, sideB);
+            positional.flexSlots(), positional.superFlexSlots(), Map.copyOf(availability), sideA, sideB);
     }
 
     private static TeamPositionalContext attach(
@@ -90,6 +97,18 @@ public final class TradeAssetPositionalContextAnalyzer {
             byPosition.put(position, team);
         }
         return new TeamPositionalContext(identity, Map.copyOf(byPosition));
+    }
+
+    public record PositionAvailability(String position, int directStarterRequirement,
+                                       boolean available, String insufficiencyReason) {
+        public PositionAvailability {
+            if (position == null || position.isBlank()) throw new IllegalArgumentException("position must not be blank");
+            if (directStarterRequirement < 0) throw new IllegalArgumentException("directStarterRequirement must not be negative");
+            if (available && insufficiencyReason != null) throw new IllegalArgumentException("available position cannot have insufficiencyReason");
+            if (!available && (insufficiencyReason == null || insufficiencyReason.isBlank())) {
+                throw new IllegalArgumentException("unavailable position requires insufficiencyReason");
+            }
+        }
     }
 
     public record TeamPositionalContext(
@@ -115,6 +134,7 @@ public final class TradeAssetPositionalContextAnalyzer {
         String lineupPolicyId,
         int flexSlots,
         int superFlexSlots,
+        Map<String, PositionAvailability> positionAvailability,
         TeamPositionalContext sideA,
         TeamPositionalContext sideB) {
         public TradePositionalContextReport {
@@ -122,6 +142,10 @@ public final class TradeAssetPositionalContextAnalyzer {
             Objects.requireNonNull(positionalPressurePolicyId, "positionalPressurePolicyId must not be null");
             Objects.requireNonNull(lineupPolicyId, "lineupPolicyId must not be null");
             if (flexSlots < 0 || superFlexSlots < 0) throw new IllegalArgumentException("flex exposure counts must be non-negative");
+            positionAvailability = Map.copyOf(Objects.requireNonNull(positionAvailability, "positionAvailability must not be null"));
+            if (!positionAvailability.keySet().equals(CORE_POSITION_SET)) {
+                throw new IllegalArgumentException("position availability must contain exactly QB/RB/WR/TE");
+            }
             Objects.requireNonNull(sideA, "sideA must not be null");
             Objects.requireNonNull(sideB, "sideB must not be null");
         }
