@@ -93,38 +93,7 @@ public final class Database {
                 )
                 """);
 
-            statement.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS player_season_production (
-                    id TEXT PRIMARY KEY,
-                    player_id TEXT NOT NULL,
-                    season INTEGER NOT NULL,
-                    games_played INTEGER NOT NULL,
-                    passing_yards INTEGER NOT NULL,
-                    passing_touchdowns INTEGER NOT NULL,
-                    interceptions INTEGER NOT NULL,
-                    rushing_yards INTEGER NOT NULL,
-                    rushing_touchdowns INTEGER NOT NULL,
-                    receptions INTEGER NOT NULL,
-                    receiving_yards INTEGER NOT NULL,
-                    receiving_touchdowns INTEGER NOT NULL,
-                    fumbles_lost INTEGER NOT NULL,
-                    source TEXT NOT NULL,
-                    as_of_date TEXT NOT NULL,
-                    FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
-                    UNIQUE (player_id, season, source, as_of_date),
-                    CHECK (season > 0),
-                    CHECK (games_played >= 0),
-                    CHECK (passing_yards >= 0),
-                    CHECK (passing_touchdowns >= 0),
-                    CHECK (interceptions >= 0),
-                    CHECK (rushing_yards >= 0),
-                    CHECK (rushing_touchdowns >= 0),
-                    CHECK (receptions >= 0),
-                    CHECK (receiving_yards >= 0),
-                    CHECK (receiving_touchdowns >= 0),
-                    CHECK (fumbles_lost >= 0)
-                )
-                """);
+            statement.executeUpdate(playerSeasonProductionTableSql());
 
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS aging_model_player_profiles (
@@ -138,39 +107,11 @@ public final class Database {
                 )
                 """);
 
-            statement.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS aging_model_player_season_production (
-                    gsis_id TEXT NOT NULL,
-                    season INTEGER NOT NULL,
-                    position TEXT NOT NULL DEFAULT 'UNKNOWN',
-                    games_played INTEGER NOT NULL,
-                    passing_yards INTEGER NOT NULL,
-                    passing_touchdowns INTEGER NOT NULL,
-                    interceptions INTEGER NOT NULL,
-                    rushing_yards INTEGER NOT NULL,
-                    rushing_touchdowns INTEGER NOT NULL,
-                    receptions INTEGER NOT NULL,
-                    receiving_yards INTEGER NOT NULL,
-                    receiving_touchdowns INTEGER NOT NULL,
-                    fumbles_lost INTEGER NOT NULL,
-                    source TEXT NOT NULL,
-                    as_of_date TEXT NOT NULL,
-                    PRIMARY KEY (gsis_id, season, source, as_of_date),
-                    CHECK (season > 0),
-                    CHECK (games_played >= 0),
-                    CHECK (passing_yards >= 0),
-                    CHECK (passing_touchdowns >= 0),
-                    CHECK (interceptions >= 0),
-                    CHECK (rushing_yards >= 0),
-                    CHECK (rushing_touchdowns >= 0),
-                    CHECK (receptions >= 0),
-                    CHECK (receiving_yards >= 0),
-                    CHECK (receiving_touchdowns >= 0),
-                    CHECK (fumbles_lost >= 0)
-                )
-                """);
+            statement.executeUpdate(agingModelProductionTableSql());
             ensureColumn(connection, "aging_model_player_season_production", "position",
                 "TEXT NOT NULL DEFAULT 'UNKNOWN'");
+
+            migrateSignedYardageConstraints(connection);
 
             statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS rosters (
@@ -242,6 +183,130 @@ public final class Database {
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_aging_model_production_source_date ON aging_model_player_season_production(source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_pick_id ON draft_pick_values(draft_pick_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_pick_values_source_date ON draft_pick_values(source, as_of_date)");
+        }
+    }
+
+    private static String playerSeasonProductionTableSql() {
+        return """
+            CREATE TABLE IF NOT EXISTS player_season_production (
+                id TEXT PRIMARY KEY,
+                player_id TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                games_played INTEGER NOT NULL,
+                passing_yards INTEGER NOT NULL,
+                passing_touchdowns INTEGER NOT NULL,
+                interceptions INTEGER NOT NULL,
+                rushing_yards INTEGER NOT NULL,
+                rushing_touchdowns INTEGER NOT NULL,
+                receptions INTEGER NOT NULL,
+                receiving_yards INTEGER NOT NULL,
+                receiving_touchdowns INTEGER NOT NULL,
+                fumbles_lost INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                as_of_date TEXT NOT NULL,
+                FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE,
+                UNIQUE (player_id, season, source, as_of_date),
+                CHECK (season > 0),
+                CHECK (games_played >= 0),
+                CHECK (passing_touchdowns >= 0),
+                CHECK (interceptions >= 0),
+                CHECK (rushing_touchdowns >= 0),
+                CHECK (receptions >= 0),
+                CHECK (receiving_touchdowns >= 0),
+                CHECK (fumbles_lost >= 0)
+            )
+            """;
+    }
+
+    private static String agingModelProductionTableSql() {
+        return """
+            CREATE TABLE IF NOT EXISTS aging_model_player_season_production (
+                gsis_id TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                position TEXT NOT NULL DEFAULT 'UNKNOWN',
+                games_played INTEGER NOT NULL,
+                passing_yards INTEGER NOT NULL,
+                passing_touchdowns INTEGER NOT NULL,
+                interceptions INTEGER NOT NULL,
+                rushing_yards INTEGER NOT NULL,
+                rushing_touchdowns INTEGER NOT NULL,
+                receptions INTEGER NOT NULL,
+                receiving_yards INTEGER NOT NULL,
+                receiving_touchdowns INTEGER NOT NULL,
+                fumbles_lost INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                as_of_date TEXT NOT NULL,
+                PRIMARY KEY (gsis_id, season, source, as_of_date),
+                CHECK (season > 0),
+                CHECK (games_played >= 0),
+                CHECK (passing_touchdowns >= 0),
+                CHECK (interceptions >= 0),
+                CHECK (rushing_touchdowns >= 0),
+                CHECK (receptions >= 0),
+                CHECK (receiving_touchdowns >= 0),
+                CHECK (fumbles_lost >= 0)
+            )
+            """;
+    }
+
+    private static void migrateSignedYardageConstraints(Connection connection) throws SQLException {
+        if (hasLegacyUnsignedYardageConstraint(connection, "player_season_production")) {
+            rebuildPlayerSeasonProduction(connection);
+        }
+        if (hasLegacyUnsignedYardageConstraint(connection, "aging_model_player_season_production")) {
+            rebuildAgingModelProduction(connection);
+        }
+    }
+
+    private static boolean hasLegacyUnsignedYardageConstraint(Connection connection, String table) throws SQLException {
+        try (var statement = connection.prepareStatement(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name=?")) {
+            statement.setString(1, table);
+            try (ResultSet rs = statement.executeQuery()) {
+                if (!rs.next()) return false;
+                String sql = rs.getString(1);
+                if (sql == null) return false;
+                String normalized = sql.toLowerCase();
+                return normalized.contains("passing_yards >= 0")
+                    || normalized.contains("rushing_yards >= 0")
+                    || normalized.contains("receiving_yards >= 0");
+            }
+        }
+    }
+
+    private static void rebuildPlayerSeasonProduction(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("ALTER TABLE player_season_production RENAME TO player_season_production_legacy_unsigned_yards");
+            statement.executeUpdate(playerSeasonProductionTableSql());
+            statement.executeUpdate("""
+                INSERT INTO player_season_production(
+                    id, player_id, season, games_played, passing_yards, passing_touchdowns, interceptions,
+                    rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns,
+                    fumbles_lost, source, as_of_date)
+                SELECT id, player_id, season, games_played, passing_yards, passing_touchdowns, interceptions,
+                    rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns,
+                    fumbles_lost, source, as_of_date
+                FROM player_season_production_legacy_unsigned_yards
+                """);
+            statement.executeUpdate("DROP TABLE player_season_production_legacy_unsigned_yards");
+        }
+    }
+
+    private static void rebuildAgingModelProduction(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("ALTER TABLE aging_model_player_season_production RENAME TO aging_model_player_season_production_legacy_unsigned_yards");
+            statement.executeUpdate(agingModelProductionTableSql());
+            statement.executeUpdate("""
+                INSERT INTO aging_model_player_season_production(
+                    gsis_id, season, position, games_played, passing_yards, passing_touchdowns, interceptions,
+                    rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns,
+                    fumbles_lost, source, as_of_date)
+                SELECT gsis_id, season, position, games_played, passing_yards, passing_touchdowns, interceptions,
+                    rushing_yards, rushing_touchdowns, receptions, receiving_yards, receiving_touchdowns,
+                    fumbles_lost, source, as_of_date
+                FROM aging_model_player_season_production_legacy_unsigned_yards
+                """);
+            statement.executeUpdate("DROP TABLE aging_model_player_season_production_legacy_unsigned_yards");
         }
     }
 
