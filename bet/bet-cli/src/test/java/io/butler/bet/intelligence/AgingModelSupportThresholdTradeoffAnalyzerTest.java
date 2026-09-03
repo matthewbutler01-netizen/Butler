@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgingModelSupportThresholdTradeoffAnalyzerTest {
@@ -33,6 +34,12 @@ class AgingModelSupportThresholdTradeoffAnalyzerTest {
         assertEquals(7, report.thresholds().size());
         assertEquals(1, report.thresholds().get(0).minimumDistinctSeasonTransitions());
         assertEquals(25, report.thresholds().get(6).minimumDistinctSeasonTransitions());
+        var leastRestrictive = report.thresholds().get(0);
+        assertNotNull(leastRestrictive.worstCell());
+        assertEquals(leastRestrictive.maximumShiftToHoldoutMae(),
+            leastRestrictive.worstCell().maximumShiftToHoldoutMae());
+        assertTrue(leastRestrictive.worstCell().distinctSeasonTransitions()
+            >= leastRestrictive.minimumDistinctSeasonTransitions());
         for (int i = 1; i < report.thresholds().size(); i++) {
             assertTrue(report.thresholds().get(i).retainedCells() <= report.thresholds().get(i - 1).retainedCells());
             assertTrue(report.thresholds().get(i).excludedCells() >= report.thresholds().get(i - 1).excludedCells());

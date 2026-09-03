@@ -51,11 +51,22 @@ public final class ButlerAgingModelSupportThresholdTradeoffCli {
                 threshold.retainedFraction(), formatNullable(threshold.medianMaximumShiftToHoldoutMae()),
                 formatNullable(threshold.p75MaximumShiftToHoldoutMae()), formatNullable(threshold.p90MaximumShiftToHoldoutMae()),
                 formatNullable(threshold.maximumShiftToHoldoutMae()));
+            if (threshold.worstCell() != null) {
+                var worst = threshold.worstCell();
+                System.out.printf("  worst-cell=%s %s age=%d transitions=%d max-ratio=%.4f influential=%s%n",
+                    worst.position(), worst.metric(), worst.age(), worst.distinctSeasonTransitions(),
+                    worst.maximumShiftToHoldoutMae(), formatTransition(worst.mostInfluentialStartSeason(),
+                        worst.mostInfluentialEndSeason()));
+            }
         }
     }
 
     static void printUsage() {
         System.out.println("  butler aging-model support-thresholds");
+    }
+
+    private static String formatTransition(Integer startSeason, Integer endSeason) {
+        return startSeason == null || endSeason == null ? "n/a" : startSeason + "-" + endSeason;
     }
 
     private static String formatNullable(Double value) {
