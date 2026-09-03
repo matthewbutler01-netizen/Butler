@@ -29,15 +29,14 @@ public record PlayerSeasonProduction(
         Objects.requireNonNull(asOfDate, "asOfDate must not be null");
         if (season <= 0) throw new IllegalArgumentException("season must be positive");
         requireNonNegative(gamesPlayed, "gamesPlayed");
-        requireNonNegative(passingYards, "passingYards");
         requireNonNegative(passingTouchdowns, "passingTouchdowns");
         requireNonNegative(interceptions, "interceptions");
-        requireNonNegative(rushingYards, "rushingYards");
         requireNonNegative(rushingTouchdowns, "rushingTouchdowns");
         requireNonNegative(receptions, "receptions");
-        requireNonNegative(receivingYards, "receivingYards");
         requireNonNegative(receivingTouchdowns, "receivingTouchdowns");
         requireNonNegative(fumblesLost, "fumblesLost");
+        // Passing, rushing, and receiving yardage remain signed because legitimate NFL
+        // production rows may be negative.
     }
 
     public static PlayerSeasonProduction create(
