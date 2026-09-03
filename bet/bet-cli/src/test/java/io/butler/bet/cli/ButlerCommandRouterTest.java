@@ -21,6 +21,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"nflverse", "aging-model-production-refresh", "2018", "2025"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_SAMPLE_AUDIT,
             ButlerCommandRouter.route(new String[]{"aging-model", "sample-audit"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_SAMPLE_BREADTH,
+            ButlerCommandRouter.route(new String[]{"aging-model", "sample-breadth"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
             ButlerCommandRouter.route(new String[]{"nflverse", "production-history-preview", "2022", "2025"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
