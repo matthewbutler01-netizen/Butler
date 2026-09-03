@@ -52,10 +52,11 @@ public final class ButlerAgingModelTemporalHoldoutCli {
                 dimension.medianError(), dimension.meanAbsoluteError(),
                 dimension.medianAbsoluteError(), dimension.absoluteErrorP75());
         }
-        System.out.println("Season transitions:");
+        System.out.println("Season transitions by position/metric:");
         for (var transition : report.transitions()) {
-            System.out.printf("  %d-%d n=%d mae=%.4f med-abs=%.4f%n",
-                transition.startSeason(), transition.endSeason(), transition.evaluatedObservations(),
+            System.out.printf("  %d-%d %s %s n=%d error[median=%.4f mae=%.4f med-abs=%.4f]%n",
+                transition.startSeason(), transition.endSeason(), transition.position(), transition.metric(),
+                transition.evaluatedObservations(), transition.medianError(),
                 transition.meanAbsoluteError(), transition.medianAbsoluteError());
         }
     }

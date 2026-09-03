@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   evidence:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation'
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence' || github.head_ref == 'bf-180-capture-aging-model-validation' || github.head_ref == 'bf-181-fix-temporal-holdout-unit-mixing'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

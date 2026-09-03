@@ -18,7 +18,7 @@ class AgingModelTemporalHoldoutAnalyzerTest {
     @TempDir Path tempDir;
 
     @Test
-    void evaluatesEachTransitionUsingOnlyEarlierTransitions() throws Exception {
+    void evaluatesEachTransitionUsingOnlyEarlierTransitionsAndNeverMixesMetricUnits() throws Exception {
         Database database = new Database(tempDir.resolve("test.db"));
         database.initialize();
         var profiles = new AgingModelPlayerProfileRepository(database);
@@ -60,6 +60,18 @@ class AgingModelTemporalHoldoutAnalyzerTest {
         assertEquals(2, dimension.evaluatedObservations());
         assertEquals(10.0, dimension.meanAbsoluteError());
         assertEquals(10.0, dimension.medianAbsoluteError());
+
+        var transition = report.transitions().stream()
+            .filter(d -> d.startSeason() == 2021 && d.endSeason() == 2022)
+            .filter(d -> d.position().equals("RB"))
+            .filter(d -> d.metric() == AgingModelSampleAuditAnalyzer.Metric.RUSHING_YARDS_PER_GAME)
+            .findFirst().orElseThrow();
+        assertEquals(1, transition.evaluatedObservations());
+        assertEquals(10.0, transition.meanAbsoluteError());
+        assertEquals(10.0, transition.medianAbsoluteError());
+        assertEquals(6, report.transitions().stream()
+            .filter(d -> d.startSeason() == 2021 && d.endSeason() == 2022)
+            .count());
         assertTrue(report.observationsWithoutPriorTraining() > 0);
     }
 
