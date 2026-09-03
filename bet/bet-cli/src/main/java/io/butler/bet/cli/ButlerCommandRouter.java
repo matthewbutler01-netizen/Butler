@@ -20,6 +20,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
             case LEAGUE_FUTURE_CAPITAL -> ButlerLeagueFutureCapitalCli.main(args);
             case TRADE_SUPPORTING_EVIDENCE -> ButlerTradeSupportingEvidenceCli.main(args);
+            case TRADE_STRATEGIC_CONTEXT -> ButlerTradeStrategicContextCli.main(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
@@ -57,6 +58,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
             if (equals(args[0], "league") && equals(args[1], "future-capital")) return Route.LEAGUE_FUTURE_CAPITAL;
             if (equals(args[0], "trade") && equals(args[1], "supporting-evidence")) return Route.TRADE_SUPPORTING_EVIDENCE;
+            if (equals(args[0], "trade") && equals(args[1], "strategic-context")) return Route.TRADE_STRATEGIC_CONTEXT;
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) return Route.PLAYER_EVIDENCE_PROFILE;
             if (equals(args[0], "league") && equals(args[1], "longitudinal-evidence")) return Route.LONGITUDINAL_EVIDENCE;
             if (equals(args[0], "nflverse")
@@ -99,13 +101,13 @@ public final class ButlerCommandRouter {
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_ROSTER_STRENGTH,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL, TRADE_SUPPORTING_EVIDENCE,
-                 PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE,
-                 AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER,
-                 AGING_MODEL_PUBLISHED_SMOOTHER, AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK,
-                 AGING_MODEL_PUBLISHED_CELL, AGING_MODEL_POSITION_AGE_EVIDENCE,
-                 AGING_MODEL_POSITION_AGE_COVERAGE, AGING_MODEL_TEMPORAL_HOLDOUT,
-                 AGING_MODEL_SMOOTHING_SENSITIVITY, AGING_MODEL_TRANSITION_STABILITY,
-                 AGING_MODEL_NORMALIZED_STABILITY, AGING_MODEL_SUPPORT_THRESHOLDS,
-                 AGING_MODEL_AGE_BAND_STABILITY, AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER,
-                 PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
+                 TRADE_STRATEGIC_CONTEXT, PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE,
+                 AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH,
+                 AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
+                 AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK, AGING_MODEL_PUBLISHED_CELL,
+                 AGING_MODEL_POSITION_AGE_EVIDENCE, AGING_MODEL_POSITION_AGE_COVERAGE,
+                 AGING_MODEL_TEMPORAL_HOLDOUT, AGING_MODEL_SMOOTHING_SENSITIVITY,
+                 AGING_MODEL_TRANSITION_STABILITY, AGING_MODEL_NORMALIZED_STABILITY,
+                 AGING_MODEL_SUPPORT_THRESHOLDS, AGING_MODEL_AGE_BAND_STABILITY,
+                 AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER, PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
