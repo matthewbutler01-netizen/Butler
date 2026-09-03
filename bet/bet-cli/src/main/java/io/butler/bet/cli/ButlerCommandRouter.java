@@ -13,6 +13,7 @@ public final class ButlerCommandRouter {
             case AGE_CONTEXT -> ButlerAgeLauncher.main(args);
             case AGE_PRODUCTION_CONTEXT -> ButlerAgeProductionContextCli.main(args);
             case LEAGUE_AGING_MODEL_EVIDENCE -> ButlerLeagueAgingModelEvidenceCli.main(args);
+            case LEAGUE_AGE_OUTLOOK -> ButlerLeagueAgeOutlookCli.main(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
@@ -43,6 +44,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "age-context")) return Route.AGE_CONTEXT;
             if (equals(args[0], "league") && equals(args[1], "age-production-context")) return Route.AGE_PRODUCTION_CONTEXT;
             if (equals(args[0], "league") && equals(args[1], "aging-model-evidence")) return Route.LEAGUE_AGING_MODEL_EVIDENCE;
+            if (equals(args[0], "league") && equals(args[1], "age-outlook")) return Route.LEAGUE_AGE_OUTLOOK;
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) return Route.PLAYER_EVIDENCE_PROFILE;
             if (equals(args[0], "league") && equals(args[1], "longitudinal-evidence")) return Route.LONGITUDINAL_EVIDENCE;
             if (equals(args[0], "nflverse")
@@ -92,7 +94,7 @@ public final class ButlerCommandRouter {
         return actual != null && actual.equalsIgnoreCase(expected);
     }
 
-    enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE,
+    enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE,
                  AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER,
                  AGING_MODEL_PUBLISHED_SMOOTHER, AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK,
