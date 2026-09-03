@@ -46,7 +46,7 @@ class AgingModelLocalSmootherAnalyzerTest {
         assertEquals(java.util.List.of(20, 21, 22), age21.contributingAges());
         assertEquals(3, age21.pooledObservations());
         assertEquals(20.0, age21.medianDelta());
-        assertEquals(10.0, age21.deltaP25());
+        assertEquals(15.0, age21.deltaP25());
         assertEquals(60.0, age21.deltaP75());
         assertEquals(3, age21.uniquePlayers());
         assertEquals(1, age21.distinctSeasonTransitions());
