@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -93,8 +94,9 @@ public final class NflverseAgingModelProductionImporter {
             providerRowsForSeason++;
             String gsis = normalizeId(required(row, "player_id"));
             if (gsis == null) continue;
+            String position = normalizePosition(required(row, "position"));
             AgingModelPlayerSeasonProduction value = new AgingModelPlayerSeasonProduction(
-                gsis, season,
+                gsis, season, position,
                 parseInt(value(row, "games"), "games", gsis),
                 parseInt(value(row, "passing_yards"), "passing_yards", gsis),
                 parseInt(value(row, "passing_tds"), "passing_tds", gsis),
@@ -156,6 +158,11 @@ public final class NflverseAgingModelProductionImporter {
     private static String normalizeId(String value) {
         if (value == null || value.isBlank() || value.equalsIgnoreCase("NA")) return null;
         return value.trim();
+    }
+
+    private static String normalizePosition(String value) {
+        if (value == null || value.isBlank() || value.equalsIgnoreCase("NA")) return "UNKNOWN";
+        return value.trim().toUpperCase(Locale.ROOT);
     }
 
     private static void requireSeason(int season) {

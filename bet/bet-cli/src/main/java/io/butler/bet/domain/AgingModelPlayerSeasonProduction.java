@@ -4,13 +4,14 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 /** Versioned raw season production keyed directly by provider GSIS identity for model training. */
-public record AgingModelPlayerSeasonProduction(String gsisId, int season, int gamesPlayed,
+public record AgingModelPlayerSeasonProduction(String gsisId, int season, String position, int gamesPlayed,
                                                 int passingYards, int passingTouchdowns, int interceptions,
                                                 int rushingYards, int rushingTouchdowns, int receptions,
                                                 int receivingYards, int receivingTouchdowns, int fumblesLost,
                                                 String source, LocalDate asOfDate) {
     public AgingModelPlayerSeasonProduction {
         gsisId = requireText(gsisId, "gsisId");
+        position = requireText(position, "position");
         source = requireText(source, "source");
         Objects.requireNonNull(asOfDate, "asOfDate must not be null");
         if (season <= 0) throw new IllegalArgumentException("season must be positive");
