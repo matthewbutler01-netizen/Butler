@@ -1,12 +1,13 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.LeagueCompetitiveTierAnalyzer;
 import io.butler.bet.intelligence.LeaguePerformanceEvidenceAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
 
-/** Read-only CLI for observed team-season competitive performance. */
+/** Read-only CLI for observed team-season competitive performance and governed relative tiers. */
 public final class ButlerLeaguePerformanceEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -44,22 +45,28 @@ public final class ButlerLeaguePerformanceEvidenceCli {
     }
 
     static void print(LeaguePerformanceEvidenceAnalyzer.PerformanceReport report) {
+        var tiers = new LeagueCompetitiveTierAnalyzer().analyze(report);
         System.out.println("League performance evidence");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Season: " + report.season());
         System.out.println("Source: " + report.source());
         System.out.printf("Coverage: %d/%d (%.1f%%) complete=%s%n",
             report.coveredTeams(), report.teams().size(), report.coveragePercent(), report.complete());
-        System.out.println("Observed performance is descriptive only; no contender/rebuilder posture or recommendation is inferred.");
+        System.out.println("Competitive-tier policy: " + tiers.policyId());
+        System.out.println("Competitive tiers available: " + tiers.available());
+        if (!tiers.available()) System.out.println("Competitive-tier reason: " + tiers.unavailableReason());
+        System.out.println("Competitive tiers are league-relative descriptive context only; no contender/rebuilder posture or recommendation is inferred.");
         for (var team : report.teams()) {
+            var tier = tiers.teams().stream().filter(item -> item.teamId().equals(team.teamId())).findFirst().orElseThrow();
             if (!team.available()) {
-                System.out.println(team.teamName() + " [" + team.teamId() + "]: unavailable");
+                System.out.println(team.teamName() + " [" + team.teamId() + "]: unavailable tier=" + tier.tier());
                 continue;
             }
             var p = team.performance();
-            System.out.printf("%s [%s]: %d-%d-%d games=%d win%%=%.3f PF=%.2f PA=%.2f diff=%.2f as-of=%s%n",
+            System.out.printf("%s [%s]: %d-%d-%d games=%d win%%=%.3f PF=%.2f PA=%.2f diff=%.2f PF/game=%.2f diff/game=%.2f tier=%s as-of=%s%n",
                 team.teamName(), team.teamId(), p.wins(), p.losses(), p.ties(), p.gamesPlayed(),
-                p.winPercentage(), p.pointsFor(), p.pointsAgainst(), p.pointDifferential(), p.asOfDate());
+                p.winPercentage(), p.pointsFor(), p.pointsAgainst(), p.pointDifferential(),
+                tier.pointsForPerGame(), tier.pointDifferentialPerGame(), tier.tier(), p.asOfDate());
         }
     }
 
