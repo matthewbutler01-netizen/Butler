@@ -3,8 +3,10 @@ package io.butler.bet.intelligence;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TradeAssetPositionalContextAnalyzerTest {
@@ -31,6 +33,36 @@ class TradeAssetPositionalContextAnalyzerTest {
         positions.put("WR", team("WR", "t2", "Team 2"));
         assertThrows(IllegalArgumentException.class,
             () -> new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(identity, positions));
+    }
+
+    @Test
+    void rejectsAvailablePositionWithInsufficientEvidenceTier() {
+        var report = position(true, null, LeaguePositionalPressurePolicy.Tier.INSUFFICIENT_EVIDENCE);
+        assertThrows(IllegalStateException.class,
+            () -> TradeAssetPositionalContextAnalyzer.validateAvailabilityTiers(report));
+    }
+
+    @Test
+    void rejectsUnavailablePositionWithClassifiedTier() {
+        var report = position(false, "missing current values", LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE);
+        assertThrows(IllegalStateException.class,
+            () -> TradeAssetPositionalContextAnalyzer.validateAvailabilityTiers(report));
+    }
+
+    @Test
+    void acceptsConsistentAvailabilityAndTiers() {
+        assertDoesNotThrow(() -> TradeAssetPositionalContextAnalyzer.validateAvailabilityTiers(
+            position(true, null, LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED)));
+        assertDoesNotThrow(() -> TradeAssetPositionalContextAnalyzer.validateAvailabilityTiers(
+            position(false, "missing current values", LeaguePositionalPressurePolicy.Tier.INSUFFICIENT_EVIDENCE)));
+    }
+
+    private static LeaguePositionalPressureAnalyzer.PositionPressure position(
+        boolean available, String reason, LeaguePositionalPressurePolicy.Tier tier) {
+        return new LeaguePositionalPressureAnalyzer.PositionPressure(
+            "QB", 1, available, reason,
+            List.of(new LeaguePositionalPressureAnalyzer.TeamPositionPressure(
+                "t1", "Team 1", 10.0, 20.0, 1, 1, 0, 0, tier)));
     }
 
     private static Map<String, LeaguePositionalPressureAnalyzer.TeamPositionPressure> corePositions(
