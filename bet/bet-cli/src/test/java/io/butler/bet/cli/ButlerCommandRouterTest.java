@@ -15,6 +15,10 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"league", "player-evidence-profile", "l1"}));
         assertEquals(ButlerCommandRouter.Route.LONGITUDINAL_EVIDENCE,
             ButlerCommandRouter.route(new String[]{"league", "longitudinal-evidence", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_UNIVERSE,
+            ButlerCommandRouter.route(new String[]{"nflverse", "aging-model-players-preview"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_UNIVERSE,
+            ButlerCommandRouter.route(new String[]{"nflverse", "aging-model-production-refresh", "2018", "2025"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
             ButlerCommandRouter.route(new String[]{"nflverse", "production-history-preview", "2022", "2025"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
