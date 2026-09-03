@@ -39,6 +39,11 @@ class AgingModelAgeBandStabilityAnalyzerTest {
         assertTrue(thresholdOneCells <= report.normalizedCells());
         assertTrue(report.bands().stream().anyMatch(band -> band.position().equals("RB")
             && band.retainedCells() > 0));
+        for (var band : report.bands()) {
+            assertTrue(band.retainedCells() <= band.baselineCells());
+            assertTrue(band.retainedFraction() >= 0.0 && band.retainedFraction() <= 1.0);
+            if (band.baselineCells() == 0) assertEquals(0.0, band.retainedFraction());
+        }
 
         int previous = Integer.MAX_VALUE;
         for (int threshold : new int[]{1, 3, 5, 10, 15, 20, 25}) {
