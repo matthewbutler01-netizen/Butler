@@ -82,11 +82,10 @@ public final class ButlerLeagueAgeOutlookCli {
                             baseMetric.metric(), baseMetric.status());
                         continue;
                     }
-                    var outlook = metric.outlook();
                     var validation = validated.validation();
                     System.out.printf("    %s outlook=%s direction=%s delta[p25=%.4f median=%.4f p75=%.4f] holdout-mae=%.4f stability-max-shift/mae=%s%n",
-                        baseMetric.metric(), metric.label(), metric.direction(), outlook.deltaP25(), outlook.medianDelta(),
-                        outlook.deltaP75(), validation.holdout().meanAbsoluteError(),
+                        baseMetric.metric(), metric.label(), metric.direction(), validation.deltaP25(), validation.medianDelta(),
+                        validation.deltaP75(), validation.holdout().meanAbsoluteError(),
                         validation.stability().maximumShiftToHoldoutMae() == null ? "-" : String.format("%.4f", validation.stability().maximumShiftToHoldoutMae()));
                 }
             }
