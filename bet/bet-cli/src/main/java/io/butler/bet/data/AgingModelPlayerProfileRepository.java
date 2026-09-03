@@ -8,11 +8,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 public final class AgingModelPlayerProfileRepository {
+    private static final String UPSERT_SQL = "INSERT INTO aging_model_player_profiles(" +
+        "gsis_id, display_name, birth_date, position, source, as_of_date) VALUES(?,?,?,?,?,?) " +
+        "ON CONFLICT(gsis_id, source, as_of_date) DO UPDATE SET " +
+        "display_name=excluded.display_name, birth_date=excluded.birth_date, position=excluded.position";
+
     private final Database database;
 
     public AgingModelPlayerProfileRepository(Database database) {
@@ -20,20 +26,31 @@ public final class AgingModelPlayerProfileRepository {
     }
 
     public void save(AgingModelPlayerProfile profile) throws SQLException {
-        Objects.requireNonNull(profile, "profile must not be null");
-        String sql = "INSERT INTO aging_model_player_profiles(" +
-            "gsis_id, display_name, birth_date, position, source, as_of_date) VALUES(?,?,?,?,?,?) " +
-            "ON CONFLICT(gsis_id, source, as_of_date) DO UPDATE SET " +
-            "display_name=excluded.display_name, birth_date=excluded.birth_date, position=excluded.position";
-        try (Connection connection = database.openConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, profile.gsisId());
-            statement.setString(2, profile.displayName());
-            statement.setString(3, profile.birthDate() == null ? null : profile.birthDate().toString());
-            statement.setString(4, profile.position());
-            statement.setString(5, profile.source());
-            statement.setString(6, profile.asOfDate().toString());
-            statement.executeUpdate();
+        saveAll(List.of(Objects.requireNonNull(profile, "profile must not be null")));
+    }
+
+    public int saveAll(Collection<AgingModelPlayerProfile> profiles) throws SQLException {
+        Objects.requireNonNull(profiles, "profiles must not be null");
+        if (profiles.isEmpty()) return 0;
+        try (Connection connection = database.openConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(UPSERT_SQL)) {
+                int count = 0;
+                for (AgingModelPlayerProfile profile : profiles) {
+                    bind(statement, Objects.requireNonNull(profile, "profile must not be null"));
+                    statement.addBatch();
+                    count++;
+                }
+                statement.executeBatch();
+                connection.commit();
+                return count;
+            } catch (SQLException | RuntimeException e) {
+                connection.rollback();
+                throw e;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
         }
     }
 
@@ -72,6 +89,15 @@ public final class AgingModelPlayerProfileRepository {
 
     public int countLatestWithBirthDate(String source) throws SQLException {
         return (int) findLatestBySource(source).stream().filter(p -> p.birthDate() != null).count();
+    }
+
+    private static void bind(PreparedStatement statement, AgingModelPlayerProfile profile) throws SQLException {
+        statement.setString(1, profile.gsisId());
+        statement.setString(2, profile.displayName());
+        statement.setString(3, profile.birthDate() == null ? null : profile.birthDate().toString());
+        statement.setString(4, profile.position());
+        statement.setString(5, profile.source());
+        statement.setString(6, profile.asOfDate().toString());
     }
 
     private static AgingModelPlayerProfile map(ResultSet rs) throws SQLException {

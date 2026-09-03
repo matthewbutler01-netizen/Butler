@@ -31,7 +31,10 @@ public final class NflversePlayerSeasonProductionImporter {
     private final HttpClient http;
 
     public NflversePlayerSeasonProductionImporter(Database database) {
-        this(database, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build());
+        this(database, HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build());
     }
 
     NflversePlayerSeasonProductionImporter(Database database, HttpClient http) {
@@ -78,7 +81,7 @@ public final class NflversePlayerSeasonProductionImporter {
         int providerRowsForSeason = 0;
         int providerRowsMapped = 0;
         for (Map<String, String> row : statsRows) {
-            int rowSeason = parseInt(required(row, "season"), "season", "provider row");
+            int rowSeason = parseNonNegativeInt(required(row, "season"), "season", "provider row");
             if (rowSeason != season) continue;
             providerRowsForSeason++;
             String gsisId = normalizeId(required(row, "player_id"));
@@ -88,18 +91,18 @@ public final class NflversePlayerSeasonProductionImporter {
 
             ProviderProduction provider = new ProviderProduction(
                 gsisId, sleeperId,
-                parseInt(value(row, "games"), "games", gsisId),
-                parseInt(value(row, "passing_yards"), "passing_yards", gsisId),
-                parseInt(value(row, "passing_tds"), "passing_tds", gsisId),
-                parseInt(value(row, "passing_interceptions"), "passing_interceptions", gsisId),
-                parseInt(value(row, "rushing_yards"), "rushing_yards", gsisId),
-                parseInt(value(row, "rushing_tds"), "rushing_tds", gsisId),
-                parseInt(value(row, "receptions"), "receptions", gsisId),
-                parseInt(value(row, "receiving_yards"), "receiving_yards", gsisId),
-                parseInt(value(row, "receiving_tds"), "receiving_tds", gsisId),
-                parseInt(value(row, "sack_fumbles_lost"), "sack_fumbles_lost", gsisId)
-                    + parseInt(value(row, "rushing_fumbles_lost"), "rushing_fumbles_lost", gsisId)
-                    + parseInt(value(row, "receiving_fumbles_lost"), "receiving_fumbles_lost", gsisId));
+                parseNonNegativeInt(value(row, "games"), "games", gsisId),
+                parseSignedInt(value(row, "passing_yards"), "passing_yards", gsisId),
+                parseNonNegativeInt(value(row, "passing_tds"), "passing_tds", gsisId),
+                parseNonNegativeInt(value(row, "passing_interceptions"), "passing_interceptions", gsisId),
+                parseSignedInt(value(row, "rushing_yards"), "rushing_yards", gsisId),
+                parseNonNegativeInt(value(row, "rushing_tds"), "rushing_tds", gsisId),
+                parseNonNegativeInt(value(row, "receptions"), "receptions", gsisId),
+                parseSignedInt(value(row, "receiving_yards"), "receiving_yards", gsisId),
+                parseNonNegativeInt(value(row, "receiving_tds"), "receiving_tds", gsisId),
+                parseNonNegativeInt(value(row, "sack_fumbles_lost"), "sack_fumbles_lost", gsisId)
+                    + parseNonNegativeInt(value(row, "rushing_fumbles_lost"), "rushing_fumbles_lost", gsisId)
+                    + parseNonNegativeInt(value(row, "receiving_fumbles_lost"), "receiving_fumbles_lost", gsisId));
             ProviderProduction existing = bySleeper.putIfAbsent(sleeperId, provider);
             if (existing != null && !existing.equals(provider)) {
                 throw new IllegalArgumentException("ambiguous nflverse production mapping for Sleeper id: " + sleeperId);
@@ -176,10 +179,21 @@ public final class NflversePlayerSeasonProductionImporter {
         return value == null || value.isBlank() || value.equalsIgnoreCase("NA") ? "0" : value;
     }
 
-    private static int parseInt(String text, String field, String id) {
+    private static int parseNonNegativeInt(String text, String field, String id) {
+        int parsed = parseIntegralInt(text, field, id);
+        if (parsed < 0) throw new IllegalArgumentException("invalid nflverse " + field + " for " + id + ": " + text);
+        return parsed;
+    }
+
+    private static int parseSignedInt(String text, String field, String id) {
+        return parseIntegralInt(text, field, id);
+    }
+
+    private static int parseIntegralInt(String text, String field, String id) {
         try {
             double value = Double.parseDouble(text.trim());
-            if (!Double.isFinite(value) || value < 0 || value != Math.rint(value) || value > Integer.MAX_VALUE) throw new NumberFormatException();
+            if (!Double.isFinite(value) || value != Math.rint(value)
+                || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) throw new NumberFormatException();
             return (int) value;
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("invalid nflverse " + field + " for " + id + ": " + text, e);

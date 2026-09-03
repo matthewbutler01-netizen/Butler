@@ -1,0 +1,63 @@
+name: Aging Model Evidence
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'bf-173-capture-aging-model-evidence'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Build Butler
+        run: ./gradlew :bet:bet-cli:classes
+
+      - name: Capture empirical aging-model evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f butler.db aging-model-evidence.txt
+          run_butler() {
+            ./gradlew --quiet :bet:bet-cli:run --args="$*"
+          }
+          {
+            echo "# Aging model empirical evidence"
+            echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "## Player universe refresh"
+            run_butler nflverse aging-model-players-refresh
+            echo
+            echo "## Production universe refresh"
+            run_butler nflverse aging-model-production-refresh 1999 2025
+            echo
+            echo "## Sample audit"
+            run_butler aging-model sample-audit
+            echo
+            echo "## Sample breadth"
+            run_butler aging-model sample-breadth
+          } | tee aging-model-evidence.txt
+
+      - name: Upload empirical evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: aging-model-evidence
+          path: aging-model-evidence.txt
+          if-no-files-found: error

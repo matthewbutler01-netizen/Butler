@@ -15,11 +15,13 @@ public record AgingModelPlayerSeasonProduction(String gsisId, int season, String
         source = requireText(source, "source");
         Objects.requireNonNull(asOfDate, "asOfDate must not be null");
         if (season <= 0) throw new IllegalArgumentException("season must be positive");
-        if (gamesPlayed < 0 || passingYards < 0 || passingTouchdowns < 0 || interceptions < 0
-            || rushingYards < 0 || rushingTouchdowns < 0 || receptions < 0 || receivingYards < 0
+        if (gamesPlayed < 0 || passingTouchdowns < 0 || interceptions < 0
+            || rushingTouchdowns < 0 || receptions < 0
             || receivingTouchdowns < 0 || fumblesLost < 0) {
-            throw new IllegalArgumentException("production values must not be negative");
+            throw new IllegalArgumentException("count production values must not be negative");
         }
+        // Yardage is intentionally signed. Legitimate NFL season rows can contain negative
+        // passing, rushing, or receiving yards; those are evidence, not malformed data.
     }
 
     private static String requireText(String value, String field) {
