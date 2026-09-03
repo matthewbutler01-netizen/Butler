@@ -1,7 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
-import io.butler.bet.intelligence.TradeMarketEdgeAnalyzer;
+import io.butler.bet.intelligence.TradeRosterContextAnalyzer;
 import io.butler.bet.intelligence.TradeSupportingEvidenceAnalyzer;
 
 import java.nio.file.Path;
@@ -9,7 +9,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 
-/** Read-only CLI for player-only trade value plus governed supporting evidence and market fairness. */
+/** Read-only CLI for player-only trade value, supporting evidence, market context, and neutral roster context. */
 public final class ButlerTradeSupportingEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -26,13 +26,13 @@ public final class ButlerTradeSupportingEvidenceCli {
         }
 
         try {
-            var analyzer = new TradeSupportingEvidenceAnalyzer(initializedDatabase());
+            var analyzer = new TradeRosterContextAnalyzer(initializedDatabase());
             var report = options.source() == null
                 ? analyzer.analyze(options.leagueId(), options.season(), options.sideAPlayerIds(), options.sideBPlayerIds())
                 : analyzer.analyze(options.leagueId(), options.season(), options.sideAPlayerIds(), options.sideBPlayerIds(), options.source());
             print(report);
         } catch (SQLException e) {
-            System.err.println("Database error while building trade supporting evidence: " + e.getMessage());
+            System.err.println("Database error while building trade roster context: " + e.getMessage());
             System.exit(1);
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
@@ -58,14 +58,16 @@ public final class ButlerTradeSupportingEvidenceCli {
             && "supporting-evidence".equalsIgnoreCase(args[1]);
     }
 
-    static void print(TradeSupportingEvidenceAnalyzer.TradeEvidencePackage report) {
-        if (report == null) throw new IllegalArgumentException("report must not be null");
+    static void print(TradeRosterContextAnalyzer.RosterContextReport context) {
+        if (context == null) throw new IllegalArgumentException("context must not be null");
+        var report = context.trade();
         var trade = report.tradeValue();
-        var marketEdge = new TradeMarketEdgeAnalyzer().analyze(report);
-        System.out.println("Trade supporting evidence");
+        var marketEdge = context.marketEdge();
+        System.out.println("Trade supporting evidence + neutral roster context");
         System.out.println("League ID: " + trade.leagueId());
         System.out.println("Season: " + report.season());
         System.out.println("Value source: " + trade.source());
+        System.out.println("Production source: " + context.productionSource());
         System.out.println("Model age as-of: " + report.modelAgeAsOf());
         System.out.println("Support policy: " + report.supportPolicyId());
         System.out.println("Outlook policy: " + report.outlookPolicyId());
@@ -80,17 +82,19 @@ public final class ButlerTradeSupportingEvidenceCli {
         System.out.println("Market-edge policy: " + marketEdge.policyId());
         System.out.println("Market-value edge: " + marketEdge.direction());
         System.out.printf("Supporting flags: %d directional=%d%n", report.supportingFlags(), report.directionalSupportingFlags());
-        System.out.println("Market fairness and market edge are based only on market values. Market edge is not a winner. Supporting evidence is descriptive only and does not modify values, fairness, edge, or create an accept/reject recommendation.");
-        printSide("A", report.sideA());
-        printSide("B", report.sideB());
+        System.out.println("Market fairness and market edge are based only on market values. Roster and production context are descriptive only: no contender/rebuilder posture, positional-need grade, weighting, winner, or accept/reject recommendation is produced.");
+        printTradeSide("A", report.sideA());
+        printRosterContext("A", context.sideA());
+        printTradeSide("B", report.sideB());
+        printRosterContext("B", context.sideB());
     }
 
     static String formatGap(Double symmetricGapPercent) {
         return symmetricGapPercent == null ? "unavailable" : String.format("%.3f%%", symmetricGapPercent);
     }
 
-    private static void printSide(String label, TradeSupportingEvidenceAnalyzer.TradeEvidenceSide side) {
-        System.out.printf("Side %s: value=%.2f coverage=%d/%d (%.1f%%) supporting-flags=%d directional=%d%n",
+    private static void printTradeSide(String label, TradeSupportingEvidenceAnalyzer.TradeEvidenceSide side) {
+        System.out.printf("Side %s package: value=%.2f coverage=%d/%d (%.1f%%) supporting-flags=%d directional=%d%n",
             label, side.value().totalValue(), side.value().valuedPlayers(), side.value().players().size(),
             side.value().coveragePercent(), side.supportingFlags(), side.directionalSupportingFlags());
         for (var evidence : side.players()) {
@@ -107,9 +111,38 @@ public final class ButlerTradeSupportingEvidenceCli {
         }
     }
 
+    private static void printRosterContext(String label, TradeRosterContextAnalyzer.TeamRosterContext context) {
+        var profile = context.profile();
+        var production = context.production();
+        System.out.printf("Side %s roster context: %s [%s]%n", label, context.teamName(), context.teamId());
+        System.out.printf("  usable-values player=%.2f draft-picks=%.2f assets=%.2f starter-share=%.1f%%%n",
+            profile.usablePlayerValue(), profile.usableDraftPickValue(), profile.usableAssetValue(),
+            profile.starterValueSharePercent());
+        System.out.printf("  concentration top-asset=%.1f%% top-three=%.1f%% index=%.4f%n",
+            profile.topAssetSharePercent(), profile.topThreeAssetSharePercent(), profile.concentrationIndex());
+        System.out.printf("  production coverage=%d/%d (%.1f%%) as-of=%s..%s%n",
+            production.coveredPlayers(), production.totalPlayers(), production.coveragePercent(),
+            production.earliestAsOf() == null ? "-" : production.earliestAsOf(),
+            production.latestAsOf() == null ? "-" : production.latestAsOf());
+        profile.positionalDepth().positions().entrySet().stream().sorted(java.util.Map.Entry.comparingByKey())
+            .forEach(entry -> {
+                var depth = entry.getValue();
+                var raw = production.positions().get(entry.getKey());
+                System.out.printf("  %s depth: players=%d valued=%d coverage=%.1f%% usable-value=%.2f top1=%.2f top2=%.2f top3=%.2f%n",
+                    entry.getKey(), depth.totalPlayers(), depth.valuedPlayers(), depth.coveragePercent(),
+                    depth.totalUsableValue(), depth.topOneValue(), depth.topTwoValue(), depth.topThreeValue());
+                if (raw != null) {
+                    System.out.printf("    raw-production covered=%d/%d games=%d passYds=%d passTD=%d INT=%d rushYds=%d rushTD=%d rec=%d recYds=%d recTD=%d fumblesLost=%d%n",
+                        raw.coveredPlayers(), raw.totalPlayers(), raw.playerGames(), raw.passingYards(),
+                        raw.passingTouchdowns(), raw.interceptions(), raw.rushingYards(), raw.rushingTouchdowns(),
+                        raw.receptions(), raw.receivingYards(), raw.receivingTouchdowns(), raw.fumblesLost());
+                }
+            });
+    }
+
     static void printUsage() {
         System.out.println("  butler trade supporting-evidence <league-id> <season> <side-a-player-ids> <side-b-player-ids> [source]");
-        System.out.println("  player-id lists are comma-separated and player-only; draft picks are not accepted by this evidence surface");
+        System.out.println("  player-id lists are comma-separated, must each belong to one fantasy team, and remain player-only; draft picks are not accepted by this evidence surface");
     }
 
     private static List<String> parsePlayerIds(String value, String field) {
