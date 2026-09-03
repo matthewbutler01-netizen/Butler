@@ -38,7 +38,7 @@ class ButlerTradeStrategicContextCliTest {
     @Test
     void formatsPositionalPressureContract() {
         var pressure = new LeaguePositionalPressureAnalyzer.TeamPositionPressure(
-            "t1", "Team 1", 125.5, 240.25, 3, 4, 1, 1,
+            "t1", "Team 1", 125.5, 240.25, 4, 3, 1, 1,
             LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE);
 
         assertEquals(
