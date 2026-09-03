@@ -1,6 +1,7 @@
 package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.LeagueLineupConfigurationRepository;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.LeagueValueFormatRepository;
 import io.butler.bet.data.PlayerProfileSnapshotRepository;
@@ -34,6 +35,7 @@ public final class SleeperLeagueImporter {
     private final SleeperGateway gateway;
     private final LeagueRepository leagues;
     private final LeagueValueFormatRepository leagueFormats;
+    private final LeagueLineupConfigurationRepository lineupConfiguration;
     private final TeamRepository teams;
     private final PlayerRepository players;
     private final PlayerProfileSnapshotRepository playerProfiles;
@@ -47,6 +49,7 @@ public final class SleeperLeagueImporter {
         this.gateway = Objects.requireNonNull(gateway, "gateway must not be null");
         this.leagues = new LeagueRepository(database);
         this.leagueFormats = new LeagueValueFormatRepository(database);
+        this.lineupConfiguration = new LeagueLineupConfigurationRepository(database);
         this.teams = new TeamRepository(database);
         this.players = new PlayerRepository(database);
         this.playerProfiles = new PlayerProfileSnapshotRepository(database);
@@ -68,6 +71,7 @@ public final class SleeperLeagueImporter {
         leagues.save(league);
         LeagueValueFormat valueFormat = LeagueValueFormat.fromRosterPositions(sourceLeague.rosterPositions());
         leagueFormats.save(league.getId(), valueFormat);
+        lineupConfiguration.replace(league.getId(), sourceLeague.rosterPositions());
 
         Map<String, SleeperJsonParser.SleeperUser> owners = new HashMap<>();
         sourceUsers.forEach(user -> owners.put(user.id(), user));
