@@ -185,7 +185,10 @@ public final class NflverseAgingModelProductionImporter {
     }
 
     private static Downloader httpDownloader() {
-        HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(20)).build();
+        HttpClient http = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(20))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
         return (uri, description) -> {
             HttpRequest request = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(60))
                 .header("User-Agent", "Butler-FF/0.1").GET().build();
