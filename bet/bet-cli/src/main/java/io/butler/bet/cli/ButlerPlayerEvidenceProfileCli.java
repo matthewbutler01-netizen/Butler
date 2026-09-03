@@ -93,6 +93,10 @@ public final class ButlerPlayerEvidenceProfileCli {
         System.out.println("Age as-of: " + report.ageAsOf());
         System.out.println("Profile source: " + report.profileSource());
         System.out.println("Production source: " + report.productionSource());
+        System.out.println("Aging-model age as-of: " + report.modelAgeAsOf());
+        System.out.println("Aging support policy: " + report.supportPolicyId());
+        System.out.println("Age outlook policy: " + report.outlookPolicyId());
+        System.out.println("Aging model sources: " + report.modelProfileSource() + "+" + report.modelProductionSource());
         if (report.minimumProfileAsOf() != null) {
             System.out.println("Minimum profile as-of: " + report.minimumProfileAsOf());
         }
@@ -100,21 +104,34 @@ public final class ButlerPlayerEvidenceProfileCli {
             report.ageCoveredPlayers(), report.totalPlayers(), report.ageCoveragePercent());
         System.out.printf("Production coverage: %d/%d (%.1f%%)%n",
             report.productionCoveredPlayers(), report.totalPlayers(), report.productionCoveragePercent());
-        System.out.println("Age and production remain independent evidence dimensions; no blended score is produced.");
+        System.out.printf("Supporting flags: total=%d directional=%d%n",
+            report.supportingFlags(), report.directionalSupportingFlags());
+        System.out.println("Age, production, and supporting flags remain independent evidence dimensions; no blended score, dynasty adjustment, or recommendation is produced.");
 
         for (var team : report.teams()) {
             var age = team.age();
             var production = team.production();
-            System.out.printf("%s  age=%d/%d (%.1f%%) avg=%s min=%s max=%s  production=%d/%d (%.1f%%)  [%s]%n",
+            System.out.printf("%s  age=%d/%d (%.1f%%) avg=%s min=%s max=%s  production=%d/%d (%.1f%%) supporting-flags=%d directional=%d  [%s]%n",
                 team.teamName(), age.coveredPlayers(), age.totalPlayers(), age.coveragePercent(),
                 formatAge(age.averageAge()), formatAge(age.minimumAge()), formatAge(age.maximumAge()),
-                production.coveredPlayers(), production.totalPlayers(), production.coveragePercent(), team.teamId());
+                production.coveredPlayers(), production.totalPlayers(), production.coveragePercent(),
+                team.supportingFlags(), team.directionalSupportingFlags(), team.teamId());
             for (var position : production.positions().values()) {
                 System.out.printf("  production %s: coverage=%d/%d (%.1f%%) games=%d pass=%d/%d INT=%d rush=%d/%d rec=%d-%d/%d FL=%d%n",
                     position.position(), position.coveredPlayers(), position.totalPlayers(), position.coveragePercent(),
                     position.playerGames(), position.passingYards(), position.passingTouchdowns(), position.interceptions(),
                     position.rushingYards(), position.rushingTouchdowns(), position.receptions(),
                     position.receivingYards(), position.receivingTouchdowns(), position.fumblesLost());
+            }
+            for (var player : team.supportingEvidence()) {
+                if (player.flags().isEmpty()) continue;
+                System.out.printf("  supporting %s %s model-age=%s favorable=%d inconclusive=%d unfavorable=%d [%s]%n",
+                    player.playerName(), player.position(), player.modelAge() == null ? "-" : player.modelAge(),
+                    player.favorableFlags(), player.inconclusiveFlags(), player.unfavorableFlags(), player.playerId());
+                for (var flag : player.flags()) {
+                    System.out.printf("    %s/%s signal=%s policy=%s source=%s summary=%s%n",
+                        flag.category(), flag.dimension(), flag.signal(), flag.policyId(), flag.evidenceSource(), flag.summary());
+                }
             }
         }
     }
