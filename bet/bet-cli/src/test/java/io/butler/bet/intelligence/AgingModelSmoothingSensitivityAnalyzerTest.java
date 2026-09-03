@@ -41,10 +41,11 @@ class AgingModelSmoothingSensitivityAnalyzerTest {
         season(production, "pC", 2020, 100, asOf);
         season(production, "pC", 2021, 600, asOf);
 
-        // pD first appears at age 23; local has nearby prior age-22 history but center has none.
-        profile(profiles, "pD", LocalDate.of(1997, 1, 1), asOf);
-        season(production, "pD", 2020, 100, asOf);
-        season(production, "pD", 2021, 400, asOf);
+        // pD's 2021->2022 transition starts at age 23. Prior age-22 history exists from pC,
+        // but no earlier exact age-23 observation exists, so local is available and center is not.
+        profile(profiles, "pD", LocalDate.of(1998, 1, 1), asOf);
+        season(production, "pD", 2021, 100, asOf);
+        season(production, "pD", 2022, 400, asOf);
 
         var report = new AgingModelSmoothingSensitivityAnalyzer(database).analyze();
         var rushing = report.observations().stream()
