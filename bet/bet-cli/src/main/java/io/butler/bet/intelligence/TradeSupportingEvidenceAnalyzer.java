@@ -10,9 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Composes persisted trade market values with governed supporting evidence.
+ * Composes persisted trade market values with governed supporting evidence and market-fairness context.
  * Supporting flags remain descriptive context and never modify market value, completeness,
- * value difference, or produce a winner/fairness/recommendation label.
+ * value difference, fairness classification, or produce a winner/recommendation label.
  */
 public final class TradeSupportingEvidenceAnalyzer {
     private final TradeValueAnalyzer tradeValues;
@@ -57,6 +57,11 @@ public final class TradeSupportingEvidenceAnalyzer {
             }
         }
 
+        Double fairnessGap = trade.complete()
+            ? TradeFairnessMeasurementPolicy.symmetricGapPercent(trade.sideA().totalValue(), trade.sideB().totalValue())
+            : null;
+        TradeFairnessPolicy.Classification fairnessClassification = TradeFairnessPolicy.classify(fairnessGap);
+
         return new TradeEvidencePackage(
             trade,
             supporting.season(),
@@ -65,6 +70,10 @@ public final class TradeSupportingEvidenceAnalyzer {
             supporting.outlookPolicyId(),
             supporting.modelProfileSource(),
             supporting.modelProductionSource(),
+            TradeFairnessMeasurementPolicy.POLICY_ID,
+            TradeFairnessPolicy.POLICY_ID,
+            fairnessGap,
+            fairnessClassification,
             attach(trade.sideA(), byPlayer),
             attach(trade.sideB(), byPlayer));
     }
@@ -129,6 +138,10 @@ public final class TradeSupportingEvidenceAnalyzer {
                                        String outlookPolicyId,
                                        String modelProfileSource,
                                        String modelProductionSource,
+                                       String fairnessMeasurementPolicyId,
+                                       String fairnessPolicyId,
+                                       Double fairnessGapPercent,
+                                       TradeFairnessPolicy.Classification fairnessClassification,
                                        TradeEvidenceSide sideA,
                                        TradeEvidenceSide sideB) {
         public TradeEvidencePackage {
@@ -138,10 +151,22 @@ public final class TradeSupportingEvidenceAnalyzer {
             Objects.requireNonNull(outlookPolicyId, "outlookPolicyId must not be null");
             Objects.requireNonNull(modelProfileSource, "modelProfileSource must not be null");
             Objects.requireNonNull(modelProductionSource, "modelProductionSource must not be null");
+            Objects.requireNonNull(fairnessMeasurementPolicyId, "fairnessMeasurementPolicyId must not be null");
+            Objects.requireNonNull(fairnessPolicyId, "fairnessPolicyId must not be null");
+            Objects.requireNonNull(fairnessClassification, "fairnessClassification must not be null");
             Objects.requireNonNull(sideA, "sideA must not be null");
             Objects.requireNonNull(sideB, "sideB must not be null");
             if (sideA.value() != tradeValue.sideA() || sideB.value() != tradeValue.sideB()) {
                 throw new IllegalArgumentException("trade evidence sides must wrap the trade value sides");
+            }
+            if (tradeValue.complete() != (fairnessGapPercent != null)) {
+                throw new IllegalArgumentException("fairness gap availability must match market-value completeness");
+            }
+            if (fairnessClassification == TradeFairnessPolicy.Classification.UNAVAILABLE && fairnessGapPercent != null) {
+                throw new IllegalArgumentException("unavailable fairness classification must not have a gap percentage");
+            }
+            if (fairnessClassification != TradeFairnessPolicy.Classification.UNAVAILABLE && fairnessGapPercent == null) {
+                throw new IllegalArgumentException("available fairness classification requires a gap percentage");
             }
         }
 
