@@ -3,6 +3,7 @@ package io.butler.bet.intelligence;
 import io.butler.bet.data.Database;
 
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +41,29 @@ public final class TradeAssetStrategicContextAnalyzer {
         return compose(trade,
             posture.analyze(leagueId, season, trade.source()),
             futureCapital.analyze(leagueId, trade.source()));
+    }
+
+    public StrategicTradeReport analyze(String leagueId, int season,
+                                        TradeAssetAnalyzer.TradePackage sideA,
+                                        TradeAssetAnalyzer.TradePackage sideB,
+                                        LocalDate minimumAsOfDate) throws SQLException {
+        Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        var trade = trades.analyze(leagueId, sideA, sideB, minimumAsOfDate);
+        return compose(trade,
+            posture.analyze(leagueId, season, trade.source(), minimumAsOfDate),
+            futureCapital.analyze(leagueId, trade.source(), minimumAsOfDate));
+    }
+
+    public StrategicTradeReport analyze(String leagueId, int season,
+                                        TradeAssetAnalyzer.TradePackage sideA,
+                                        TradeAssetAnalyzer.TradePackage sideB,
+                                        String source,
+                                        LocalDate minimumAsOfDate) throws SQLException {
+        Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
+        var trade = trades.analyze(leagueId, sideA, sideB, source, minimumAsOfDate);
+        return compose(trade,
+            posture.analyze(leagueId, season, trade.source(), minimumAsOfDate),
+            futureCapital.analyze(leagueId, trade.source(), minimumAsOfDate));
     }
 
     public static StrategicTradeReport compose(
@@ -140,8 +164,8 @@ public final class TradeAssetStrategicContextAnalyzer {
         return new TeamStrategicContext(identity, teamPosture, teamCapital);
     }
 
-    record TeamIdentity(String teamId, String teamName) {
-        TeamIdentity {
+    public record TeamIdentity(String teamId, String teamName) {
+        public TeamIdentity {
             if (teamId == null || teamId.isBlank()) throw new IllegalArgumentException("teamId must not be blank");
             if (teamName == null || teamName.isBlank()) throw new IllegalArgumentException("teamName must not be blank");
         }
