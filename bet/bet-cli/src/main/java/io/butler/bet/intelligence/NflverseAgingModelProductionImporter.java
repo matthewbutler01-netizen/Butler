@@ -120,13 +120,7 @@ public final class NflverseAgingModelProductionImporter {
             throw new IllegalArgumentException("nflverse stats contain no rows for season: " + season);
         }
 
-        int written = 0;
-        if (persist) {
-            for (AgingModelPlayerSeasonProduction value : byGsis.values()) {
-                production.save(value);
-                written++;
-            }
-        }
+        int written = persist ? production.saveAll(byGsis.values()) : 0;
         int zeroGame = (int) byGsis.values().stream().filter(v -> v.gamesPlayed() == 0).count();
         return new SeasonImportResult(season, asOfDate, persist, rows.size(), providerRowsForSeason,
             byGsis.size(), zeroGame, written);
