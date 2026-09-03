@@ -68,11 +68,11 @@ public final class LeagueAgeProductionContextAnalyzer {
                                                         PlayerSeasonProduction production) {
         if (production == null) {
             return new PlayerAgeProductionContext(age.playerId(), age.playerName(), age.position(), age.rosterSlot(),
-                age.age(), age.provenance(), 0, null, null, null, null, null, null, null, null, null);
+                age.age(), age.provenance(), false, 0, null, null, null, null, null, null, null, null, null);
         }
         int games = production.gamesPlayed();
         return new PlayerAgeProductionContext(age.playerId(), age.playerName(), age.position(), age.rosterSlot(),
-            age.age(), age.provenance(), games,
+            age.age(), age.provenance(), true, games,
             rate(production.passingYards(), games), rate(production.passingTouchdowns(), games),
             rate(production.interceptions(), games), rate(production.rushingYards(), games),
             rate(production.rushingTouchdowns(), games), rate(production.receptions(), games),
@@ -97,6 +97,7 @@ public final class LeagueAgeProductionContextAnalyzer {
         public int totalPlayers() { return teams.stream().mapToInt(team -> team.players().size()).sum(); }
         public int ageCoveredPlayers() { return teams.stream().mapToInt(TeamAgeProductionContext::ageCoveredPlayers).sum(); }
         public int productionCoveredPlayers() { return teams.stream().mapToInt(TeamAgeProductionContext::productionCoveredPlayers).sum(); }
+        public int rateCoveredPlayers() { return teams.stream().mapToInt(TeamAgeProductionContext::rateCoveredPlayers).sum(); }
         public int jointCoveredPlayers() { return teams.stream().mapToInt(TeamAgeProductionContext::jointCoveredPlayers).sum(); }
         public double jointCoveragePercent() { return percent(jointCoveredPlayers(), totalPlayers()); }
     }
@@ -110,17 +111,19 @@ public final class LeagueAgeProductionContextAnalyzer {
         }
         public int ageCoveredPlayers() { return (int) players.stream().filter(PlayerAgeProductionContext::ageAvailable).count(); }
         public int productionCoveredPlayers() { return (int) players.stream().filter(PlayerAgeProductionContext::productionAvailable).count(); }
+        public int rateCoveredPlayers() { return (int) players.stream().filter(PlayerAgeProductionContext::ratesAvailable).count(); }
         public int jointCoveredPlayers() { return (int) players.stream().filter(PlayerAgeProductionContext::jointEvidenceAvailable).count(); }
         public double jointCoveragePercent() { return percent(jointCoveredPlayers(), players.size()); }
     }
 
     public record PlayerAgeProductionContext(String playerId, String playerName, String position, String rosterSlot,
                                              Integer age, LeagueAgeContextAnalyzer.AgeProvenance ageProvenance,
-                                             int gamesPlayed, Double passingYardsPerGame,
-                                             Double passingTouchdownsPerGame, Double interceptionsPerGame,
-                                             Double rushingYardsPerGame, Double rushingTouchdownsPerGame,
-                                             Double receptionsPerGame, Double receivingYardsPerGame,
-                                             Double receivingTouchdownsPerGame, Double fumblesLostPerGame) {
+                                             boolean productionSnapshotAvailable, int gamesPlayed,
+                                             Double passingYardsPerGame, Double passingTouchdownsPerGame,
+                                             Double interceptionsPerGame, Double rushingYardsPerGame,
+                                             Double rushingTouchdownsPerGame, Double receptionsPerGame,
+                                             Double receivingYardsPerGame, Double receivingTouchdownsPerGame,
+                                             Double fumblesLostPerGame) {
         public PlayerAgeProductionContext {
             Objects.requireNonNull(playerId, "playerId must not be null");
             Objects.requireNonNull(playerName, "playerName must not be null");
@@ -128,7 +131,8 @@ public final class LeagueAgeProductionContextAnalyzer {
             Objects.requireNonNull(ageProvenance, "ageProvenance must not be null");
         }
         public boolean ageAvailable() { return age != null; }
-        public boolean productionAvailable() { return gamesPlayed > 0; }
+        public boolean productionAvailable() { return productionSnapshotAvailable; }
+        public boolean ratesAvailable() { return productionSnapshotAvailable && gamesPlayed > 0; }
         public boolean jointEvidenceAvailable() { return ageAvailable() && productionAvailable(); }
     }
 
