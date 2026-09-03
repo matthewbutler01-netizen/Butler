@@ -59,6 +59,27 @@ public final class Database {
                 """);
 
             statement.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS team_season_performance (
+                    league_id TEXT NOT NULL,
+                    team_id TEXT NOT NULL,
+                    season INTEGER NOT NULL,
+                    wins INTEGER NOT NULL,
+                    losses INTEGER NOT NULL,
+                    ties INTEGER NOT NULL,
+                    points_for REAL NOT NULL,
+                    points_against REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    as_of_date TEXT NOT NULL,
+                    PRIMARY KEY (league_id, team_id, season, source, as_of_date),
+                    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE,
+                    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+                    CHECK (season BETWEEN 1999 AND 2100),
+                    CHECK (wins >= 0), CHECK (losses >= 0), CHECK (ties >= 0),
+                    CHECK (points_for >= 0), CHECK (points_against >= 0)
+                )
+                """);
+
+            statement.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS players (
                     id TEXT PRIMARY KEY,
                     external_id TEXT UNIQUE,
@@ -167,6 +188,8 @@ public final class Database {
                 """);
 
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_teams_league_id ON teams(league_id)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_team_season_performance_league_season ON team_season_performance(league_id, season)");
+            statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_team_season_performance_team_source_date ON team_season_performance(team_id, source, as_of_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_rosters_team_id ON rosters(team_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_rosters_player_id ON rosters(player_id)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_draft_picks_league_id ON draft_picks(league_id)");
