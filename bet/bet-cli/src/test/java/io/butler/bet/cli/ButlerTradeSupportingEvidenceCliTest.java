@@ -29,6 +29,13 @@ class ButlerTradeSupportingEvidenceCliTest {
     }
 
     @Test
+    void formatsGovernedFairnessGapWithoutInventingUnavailableValue() {
+        assertEquals("5.000%", ButlerTradeSupportingEvidenceCli.formatGap(5.0));
+        assertEquals("5.001%", ButlerTradeSupportingEvidenceCli.formatGap(5.001));
+        assertEquals("unavailable", ButlerTradeSupportingEvidenceCli.formatGap(null));
+    }
+
+    @Test
     void rejectsMalformedInputs() {
         assertThrows(IllegalArgumentException.class, () -> ButlerTradeSupportingEvidenceCli.parse(new String[]{
             "trade", "supporting-evidence", "l1", "bad", "p1", "p2"}));
