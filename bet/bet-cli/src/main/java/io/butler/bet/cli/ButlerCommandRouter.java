@@ -17,6 +17,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_SUPPORTING_EVIDENCE -> ButlerLeagueSupportingEvidenceCli.main(args);
             case LEAGUE_PERFORMANCE_EVIDENCE -> ButlerLeaguePerformanceEvidenceCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
+            case LEAGUE_POSITIONAL_PRESSURE -> ButlerLeaguePositionalPressureCli.main(args);
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
             case LEAGUE_FUTURE_CAPITAL -> ButlerLeagueFutureCapitalCli.main(args);
             case TRADE_SUPPORTING_EVIDENCE -> ButlerTradeSupportingEvidenceCli.main(args);
@@ -55,6 +56,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "supporting-evidence")) return Route.LEAGUE_SUPPORTING_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "performance-evidence")) return Route.LEAGUE_PERFORMANCE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
+            if (equals(args[0], "league") && equals(args[1], "positional-pressure")) return Route.LEAGUE_POSITIONAL_PRESSURE;
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
             if (equals(args[0], "league") && equals(args[1], "future-capital")) return Route.LEAGUE_FUTURE_CAPITAL;
             if (equals(args[0], "trade") && equals(args[1], "supporting-evidence")) return Route.TRADE_SUPPORTING_EVIDENCE;
@@ -100,10 +102,10 @@ public final class ButlerCommandRouter {
 
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_ROSTER_STRENGTH,
-                 LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL, TRADE_SUPPORTING_EVIDENCE,
-                 TRADE_STRATEGIC_CONTEXT, PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE,
-                 AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH,
-                 AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
+                 LEAGUE_POSITIONAL_PRESSURE, LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
+                 TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, PLAYER_EVIDENCE_PROFILE,
+                 LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
+                 AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
                  AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK, AGING_MODEL_PUBLISHED_CELL,
                  AGING_MODEL_POSITION_AGE_EVIDENCE, AGING_MODEL_POSITION_AGE_COVERAGE,
                  AGING_MODEL_TEMPORAL_HOLDOUT, AGING_MODEL_SMOOTHING_SENSITIVITY,
