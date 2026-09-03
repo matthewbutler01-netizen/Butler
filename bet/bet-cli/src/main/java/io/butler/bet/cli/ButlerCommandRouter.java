@@ -18,6 +18,7 @@ public final class ButlerCommandRouter {
             case AGING_MODEL_SAMPLE_AUDIT -> ButlerAgingModelSampleAuditCli.main(args);
             case AGING_MODEL_SAMPLE_BREADTH -> ButlerAgingModelSampleBreadthCli.main(args);
             case AGING_MODEL_LOCAL_SMOOTHER -> ButlerAgingModelLocalSmootherCli.main(args);
+            case AGING_MODEL_PUBLISHED_SMOOTHER -> ButlerAgingModelPublishedSmootherCli.main(args);
             case AGING_MODEL_TEMPORAL_HOLDOUT -> ButlerAgingModelTemporalHoldoutCli.main(args);
             case AGING_MODEL_SMOOTHING_SENSITIVITY -> ButlerAgingModelSmoothingSensitivityCli.main(args);
             case AGING_MODEL_TRANSITION_STABILITY -> ButlerAgingModelTransitionStabilityCli.main(args);
@@ -45,6 +46,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "aging-model") && equals(args[1], "sample-audit")) return Route.AGING_MODEL_SAMPLE_AUDIT;
             if (equals(args[0], "aging-model") && equals(args[1], "sample-breadth")) return Route.AGING_MODEL_SAMPLE_BREADTH;
             if (equals(args[0], "aging-model") && equals(args[1], "local-smoother")) return Route.AGING_MODEL_LOCAL_SMOOTHER;
+            if (equals(args[0], "aging-model") && equals(args[1], "published-smoother")) return Route.AGING_MODEL_PUBLISHED_SMOOTHER;
             if (equals(args[0], "aging-model") && equals(args[1], "temporal-holdout")) return Route.AGING_MODEL_TEMPORAL_HOLDOUT;
             if (equals(args[0], "aging-model") && equals(args[1], "smoothing-sensitivity")) return Route.AGING_MODEL_SMOOTHING_SENSITIVITY;
             if (equals(args[0], "aging-model") && equals(args[1], "transition-stability")) return Route.AGING_MODEL_TRANSITION_STABILITY;
@@ -74,9 +76,9 @@ public final class ButlerCommandRouter {
 
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, PLAYER_EVIDENCE_PROFILE,
                  LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
-                 AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_TEMPORAL_HOLDOUT,
-                 AGING_MODEL_SMOOTHING_SENSITIVITY, AGING_MODEL_TRANSITION_STABILITY,
-                 AGING_MODEL_NORMALIZED_STABILITY, AGING_MODEL_SUPPORT_THRESHOLDS,
-                 AGING_MODEL_AGE_BAND_STABILITY, AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER,
-                 PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
+                 AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
+                 AGING_MODEL_TEMPORAL_HOLDOUT, AGING_MODEL_SMOOTHING_SENSITIVITY,
+                 AGING_MODEL_TRANSITION_STABILITY, AGING_MODEL_NORMALIZED_STABILITY,
+                 AGING_MODEL_SUPPORT_THRESHOLDS, AGING_MODEL_AGE_BAND_STABILITY,
+                 AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER, PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
