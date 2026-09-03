@@ -123,23 +123,42 @@ Before a fitted aging model may be used downstream, Butler must support at least
 
 A model that cannot expose these inputs and diagnostics is not eligible to influence Butler recommendations.
 
+## Governed descriptive age outlook
+
+BF-225 introduces the first permitted interpretation layer after all 411 publication-eligible cells were shown to have complete validation envelopes.
+
+The interpretation is intentionally **per metric** and descriptive. It does not aggregate metrics or modify dynasty value. The versioned policy identifier is `aging-outlook-v1-iqr-direction`.
+
+For metrics where higher production is favorable (yards, touchdowns, receptions), Butler classifies the validated historical age-cell interval as:
+
+- **FAVORABLE** only when the full interquartile delta interval is above zero;
+- **UNFAVORABLE** only when the full interquartile delta interval is below zero;
+- **NEUTRAL_OR_MIXED** when the interval includes or touches zero.
+
+For turnover metrics where lower production is favorable (interceptions/game and fumbles lost/game), the direction is reversed before applying the same rule.
+
+This rule deliberately uses the full 25th-to-75th percentile interval instead of only the median so a mixed historical distribution is not converted into a directional label. It introduces no minimum effect-size threshold and no cross-metric weighting.
+
+A future player-level age outlook may consume these per-metric labels only after a separate governed aggregation rule is chosen and empirically inspected.
+
 ## Prohibited interpretations
 
-This methodology does not permit Butler to infer that a player is:
+This methodology still does not permit Butler to infer that a player is:
 
 - "young" or "old" in a strategic sense;
 - ascending, declining, washed, breaking out, or at peak age;
 - a buy, sell, hold, contender piece, or rebuild piece;
 - worth a specific dynasty-value adjustment because of age.
 
-Those are downstream interpretation decisions and require separate governed rules plus validation.
+The BF-225 `FAVORABLE`, `NEUTRAL_OR_MIXED`, and `UNFAVORABLE` labels describe only the historical per-metric trajectory interval at a governed position/age cell. They are not player grades or recommendations.
+
+Those downstream interpretations require separate governed rules plus validation.
 
 ## Next implementation steps
 
-With the support threshold governed, the next implementation work should:
+With publication support and validation complete, the next implementation work should:
 
-1. apply `AgingModelSupportPolicy` only at the publication/model-consumption boundary while preserving sub-threshold cells in diagnostics;
-2. expose publication eligibility and policy provenance alongside any fitted or smoothed aging-model output;
-3. retain holdout, uncertainty, source, and as-of diagnostics for every publication-eligible cell;
-4. validate that downstream consumers fail closed when a requested cell does not satisfy the governed support policy;
-5. keep strategic age interpretation and dynasty-value adjustments prohibited until separately governed.
+1. apply `AgingModelAgeOutlookPolicy` only to validation-complete, publication-eligible metric cells;
+2. expose the outlook policy identifier, metric direction, interval, and validation provenance together;
+3. inspect the empirical distribution of favorable, neutral/mixed, and unfavorable labels across position/age cells before defining any player-level aggregation;
+4. keep dynasty-value adjustments and recommendations prohibited until separately governed.
