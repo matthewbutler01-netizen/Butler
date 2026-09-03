@@ -46,8 +46,9 @@ public final class ButlerAgingModelAgeBandStabilityCli {
         System.out.println("Bands compare maximum transition sensitivity normalized to temporal-holdout MAE.");
         System.out.println("No support cutoff, age limit, publication rule, or player adjustment is selected or applied.");
         for (var band : report.bands()) {
-            System.out.printf("min-transitions=%d position=%s age-band=%s retained=%d max-ratio[median=%s p90=%s max=%s]%n",
-                band.minimumDistinctSeasonTransitions(), band.position(), band.ageBand().label(), band.retainedCells(),
+            System.out.printf("min-transitions=%d position=%s age-band=%s baseline=%d retained=%d coverage=%.4f max-ratio[median=%s p90=%s max=%s]%n",
+                band.minimumDistinctSeasonTransitions(), band.position(), band.ageBand().label(), band.baselineCells(),
+                band.retainedCells(), band.retainedFraction(),
                 formatNullable(band.medianMaximumShiftToHoldoutMae()),
                 formatNullable(band.p90MaximumShiftToHoldoutMae()),
                 formatNullable(band.maximumShiftToHoldoutMae()));
