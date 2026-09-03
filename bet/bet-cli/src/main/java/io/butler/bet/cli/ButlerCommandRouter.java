@@ -15,6 +15,7 @@ public final class ButlerCommandRouter {
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
+            case AGING_MODEL_SAMPLE_AUDIT -> ButlerAgingModelSampleAuditCli.main(args);
             case PRODUCTION_HISTORY -> ButlerProductionHistoryCli.main(args);
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
             case COMPOSED -> ButlerLauncher.main(args);
@@ -42,6 +43,9 @@ public final class ButlerCommandRouter {
                     || equals(args[1], "aging-model-production-refresh"))) {
                 return Route.AGING_MODEL_UNIVERSE;
             }
+            if (equals(args[0], "aging-model") && equals(args[1], "sample-audit")) {
+                return Route.AGING_MODEL_SAMPLE_AUDIT;
+            }
             if (equals(args[0], "nflverse")
                 && (equals(args[1], "production-history-preview")
                     || equals(args[1], "production-history-refresh"))) {
@@ -68,5 +72,6 @@ public final class ButlerCommandRouter {
     }
 
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, PLAYER_EVIDENCE_PROFILE,
-                 LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
+                 LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
+                 PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
