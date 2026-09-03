@@ -56,14 +56,16 @@ public final class AgingModelTemporalHoldoutAnalyzer {
                 .thenComparing(d -> d.metric().name()))
             .toList();
 
-        Map<String, List<HoldoutObservation>> byTransition = new LinkedHashMap<>();
+        Map<TransitionDimensionKey, List<HoldoutObservation>> byTransitionDimension = new LinkedHashMap<>();
         for (var value : evaluated) {
-            String key = (value.endSeason() - 1) + "-" + value.endSeason();
-            byTransition.computeIfAbsent(key, ignored -> new ArrayList<>()).add(value);
+            var key = new TransitionDimensionKey(value.position(), value.metric(), value.startSeason(), value.endSeason());
+            byTransitionDimension.computeIfAbsent(key, ignored -> new ArrayList<>()).add(value);
         }
-        List<TransitionDiagnostic> transitions = byTransition.entrySet().stream()
+        List<TransitionDiagnostic> transitions = byTransitionDimension.entrySet().stream()
             .map(entry -> transition(entry.getKey(), entry.getValue()))
-            .sorted(Comparator.comparingInt(TransitionDiagnostic::endSeason))
+            .sorted(Comparator.comparingInt(TransitionDiagnostic::endSeason)
+                .thenComparing(TransitionDiagnostic::position)
+                .thenComparing(d -> d.metric().name()))
             .toList();
 
         return new TemporalHoldoutReport(audit.metricObservations(), evaluated.size(), withoutPriorTraining,
@@ -98,17 +100,18 @@ public final class AgingModelTemporalHoldoutAnalyzer {
             AgingModelSampleAuditAnalyzer.percentile(absoluteErrors, .75));
     }
 
-    private static TransitionDiagnostic transition(String transition, List<HoldoutObservation> values) {
-        int separator = transition.indexOf('-');
-        int start = Integer.parseInt(transition.substring(0, separator));
-        int end = Integer.parseInt(transition.substring(separator + 1));
+    private static TransitionDiagnostic transition(TransitionDimensionKey key, List<HoldoutObservation> values) {
+        List<Double> errors = values.stream().map(HoldoutObservation::error).toList();
         List<Double> absoluteErrors = values.stream().map(HoldoutObservation::absoluteError).toList();
-        return new TransitionDiagnostic(start, end, values.size(),
+        return new TransitionDiagnostic(key.position(), key.metric(), key.startSeason(), key.endSeason(), values.size(),
+            AgingModelSampleAuditAnalyzer.percentile(errors, .5),
             absoluteErrors.stream().mapToDouble(Double::doubleValue).average().orElseThrow(),
             AgingModelSampleAuditAnalyzer.percentile(absoluteErrors, .5));
     }
 
     private record DimensionKey(String position, AgingModelSampleAuditAnalyzer.Metric metric) {}
+    private record TransitionDimensionKey(String position, AgingModelSampleAuditAnalyzer.Metric metric,
+                                          int startSeason, int endSeason) {}
 
     public record HoldoutObservation(String gsisId, String position, AgingModelSampleAuditAnalyzer.Metric metric,
                                      int age, int startSeason, int endSeason, double observedDelta,
@@ -125,8 +128,10 @@ public final class AgingModelTemporalHoldoutAnalyzer {
                                       double meanAbsoluteError, double medianAbsoluteError,
                                       double absoluteErrorP75) {}
 
-    public record TransitionDiagnostic(int startSeason, int endSeason, int evaluatedObservations,
-                                       double meanAbsoluteError, double medianAbsoluteError) {}
+    public record TransitionDiagnostic(String position, AgingModelSampleAuditAnalyzer.Metric metric,
+                                       int startSeason, int endSeason, int evaluatedObservations,
+                                       double medianError, double meanAbsoluteError,
+                                       double medianAbsoluteError) {}
 
     public record TemporalHoldoutReport(int candidateObservations, int evaluatedObservations,
                                         int observationsWithoutPriorTraining,
