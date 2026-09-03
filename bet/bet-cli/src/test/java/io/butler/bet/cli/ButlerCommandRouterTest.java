@@ -33,6 +33,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"aging-model", "transition-stability"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_NORMALIZED_STABILITY,
             ButlerCommandRouter.route(new String[]{"aging-model", "normalized-stability"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_SUPPORT_THRESHOLDS,
+            ButlerCommandRouter.route(new String[]{"aging-model", "support-thresholds"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
             ButlerCommandRouter.route(new String[]{"nflverse", "production-history-preview", "2022", "2025"}));
         assertEquals(ButlerCommandRouter.Route.PRODUCTION_HISTORY,
