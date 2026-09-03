@@ -25,6 +25,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"aging-model", "sample-breadth"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_LOCAL_SMOOTHER,
             ButlerCommandRouter.route(new String[]{"aging-model", "local-smoother"}));
+        assertEquals(ButlerCommandRouter.Route.AGING_MODEL_PUBLISHED_SMOOTHER,
+            ButlerCommandRouter.route(new String[]{"aging-model", "published-smoother"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_TEMPORAL_HOLDOUT,
             ButlerCommandRouter.route(new String[]{"aging-model", "temporal-holdout"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_SMOOTHING_SENSITIVITY,
