@@ -51,13 +51,19 @@ public final class SleeperJsonParser {
         for (JsonNode node : root) {
             int rosterId = node.path("roster_id").asInt(0);
             if (rosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
+            JsonNode settings = node.path("settings");
             rosters.add(new SleeperRoster(
                     rosterId,
                     optionalText(node, "owner_id"),
                     stringList(node, "players"),
                     stringList(node, "starters"),
                     stringList(node, "reserve"),
-                    stringList(node, "taxi")));
+                    stringList(node, "taxi"),
+                    nonNegativeInt(settings, "wins"),
+                    nonNegativeInt(settings, "losses"),
+                    nonNegativeInt(settings, "ties"),
+                    sleeperPoints(settings, "fpts", "fpts_decimal"),
+                    sleeperPoints(settings, "fpts_against", "fpts_against_decimal")));
         }
         return List.copyOf(rosters);
     }
@@ -106,6 +112,18 @@ public final class SleeperJsonParser {
     private static int positiveInt(JsonNode node, String field) {
         Integer value = optionalNonNegativeInt(node, field);
         return value == null || value <= 0 ? 0 : value;
+    }
+
+    private static int nonNegativeInt(JsonNode node, String field) {
+        Integer value = optionalNonNegativeInt(node, field);
+        return value == null ? 0 : value;
+    }
+
+    private static double sleeperPoints(JsonNode settings, String wholeField, String decimalField) {
+        int whole = nonNegativeInt(settings, wholeField);
+        int decimal = nonNegativeInt(settings, decimalField);
+        if (decimal > 99) throw new IllegalArgumentException("Invalid Sleeper decimal points field: " + decimalField);
+        return whole + decimal / 100.0;
     }
 
     private static Integer optionalNonNegativeInt(JsonNode node, String field) {
@@ -164,7 +182,22 @@ public final class SleeperJsonParser {
     }
     public record SleeperUser(String id, String displayName, String teamName) {}
     public record SleeperRoster(int rosterId, String ownerId, List<String> playerIds,
-                                List<String> starterIds, List<String> reserveIds, List<String> taxiIds) {}
+                                List<String> starterIds, List<String> reserveIds, List<String> taxiIds,
+                                int wins, int losses, int ties, double pointsFor, double pointsAgainst) {
+        public SleeperRoster(int rosterId, String ownerId, List<String> playerIds,
+                             List<String> starterIds, List<String> reserveIds, List<String> taxiIds) {
+            this(rosterId, ownerId, playerIds, starterIds, reserveIds, taxiIds, 0, 0, 0, 0.0, 0.0);
+        }
+        public SleeperRoster {
+            playerIds = playerIds == null ? List.of() : List.copyOf(playerIds);
+            starterIds = starterIds == null ? List.of() : List.copyOf(starterIds);
+            reserveIds = reserveIds == null ? List.of() : List.copyOf(reserveIds);
+            taxiIds = taxiIds == null ? List.of() : List.copyOf(taxiIds);
+            if (wins < 0 || losses < 0 || ties < 0) throw new IllegalArgumentException("Sleeper record counts must be non-negative");
+            if (!Double.isFinite(pointsFor) || pointsFor < 0.0) throw new IllegalArgumentException("Sleeper pointsFor must be finite and non-negative");
+            if (!Double.isFinite(pointsAgainst) || pointsAgainst < 0.0) throw new IllegalArgumentException("Sleeper pointsAgainst must be finite and non-negative");
+        }
+    }
     public record SleeperTradedPick(int season, int round, int originalRosterId,
                                     int previousOwnerRosterId, int ownerRosterId) {}
     public record SleeperPlayer(String id, String displayName, String position, String nflTeam,
