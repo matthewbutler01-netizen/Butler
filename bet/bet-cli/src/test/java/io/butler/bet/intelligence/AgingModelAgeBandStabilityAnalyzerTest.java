@@ -58,7 +58,8 @@ class AgingModelAgeBandStabilityAnalyzerTest {
             NflverseAgingModelPlayerImporter.SOURCE, asOf));
         for (int i = 0; i < seasons.length; i++) {
             production.save(new AgingModelPlayerSeasonProduction(id, seasons[i], "RB", 10,
-                0, 0, 0, 100 + (i * 150), 0, 0, 0, 0, 0,
+                0, 0, 0, 100 + (i * 150) + Math.floorMod(id.hashCode() * 31 + seasons[i] * 17, 97),
+                0, 0, 0, 0, 0,
                 NflverseAgingModelProductionImporter.SOURCE, asOf));
         }
     }
