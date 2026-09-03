@@ -85,13 +85,7 @@ public final class NflverseAgingModelPlayerImporter {
         }
         if (byGsis.isEmpty()) throw new IllegalArgumentException("nflverse players contain no usable GSIS identities");
 
-        int written = 0;
-        if (persist) {
-            for (AgingModelPlayerProfile profile : byGsis.values()) {
-                profiles.save(profile);
-                written++;
-            }
-        }
+        int written = persist ? profiles.saveAll(byGsis.values()) : 0;
         int usableBirthDates = (int) byGsis.values().stream().filter(p -> p.birthDate() != null).count();
         return new ImportResult(asOfDate, persist, rows.size(), byGsis.size(), rowsWithBirthDate,
             usableBirthDates, written);
