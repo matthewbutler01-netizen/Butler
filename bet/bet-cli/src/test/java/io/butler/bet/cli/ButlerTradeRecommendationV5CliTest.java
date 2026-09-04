@@ -130,6 +130,22 @@ class ButlerTradeRecommendationV5CliTest {
     }
 
     @Test
+    void v5OutputExplainsBlockedDirectionalHoldAsStrategicVeto() {
+        var context = context(40.0, 35.0, 20.0);
+
+        String output = captureOutput(context);
+
+        assertTrue(output.contains("Strategic veto: BLOCKED"));
+        assertTrue(output.contains("Veto reason: FLEX/SUPERFLEX transition to pressure: legal coverage value"));
+        assertTrue(output.contains("Package recommendation: HOLD"));
+        assertTrue(output.contains("Action: HOLD"));
+        assertTrue(output.contains(
+            "Reason: a governed strategic material-loss veto blocked the directional market recommendation."));
+        assertFalse(output.contains(
+            "Reason: the governed market comparison is inside the fairness band."));
+    }
+
+    @Test
     void v5OutputExplainsMissingFlexiblePressureAsInconclusive() {
         var context = context(
             40.0,
