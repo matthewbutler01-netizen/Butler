@@ -1,6 +1,7 @@
 package io.butler.bet.integration.sleeper;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.TradeCounterExecutionRequestRepository;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 
 import java.sql.Connection;
@@ -25,6 +26,7 @@ public final class SleeperManualCounterHandoffRepository {
     }
 
     public void initialize() throws SQLException {
+        new TradeCounterExecutionRequestRepository(database).initialize();
         try (var connection = database.openConnection();
              var statement = connection.createStatement()) {
             statement.executeUpdate("""
@@ -310,7 +312,9 @@ public final class SleeperManualCounterHandoffRepository {
             if (!SleeperPlatformCapabilityPolicy.POLICY_ID.equals(capabilityPolicyId)) {
                 throw new IllegalArgumentException("unexpected capabilityPolicyId");
             }
-            requireText(executionRequestPolicyId, "executionRequestPolicyId");
+            if (!TradeCounterExecutionRequestRepository.REQUEST_POLICY_ID.equals(executionRequestPolicyId)) {
+                throw new IllegalArgumentException("unexpected executionRequestPolicyId");
+            }
             requireText(claimId, "claimId");
             requireText(attemptId, "attemptId");
             requireText(grantId, "grantId");
