@@ -103,6 +103,34 @@ public final class TradeCounterAuthorizationGrantRepository {
         }
     }
 
+    public Optional<StoredGrant> findActive(
+        String proposalFingerprint,
+        TradeCounterAuthorizationPolicy.Action action,
+        TradeCounterAuthorizationPolicy.Destination destination) throws SQLException {
+        proposalFingerprint = requireFingerprint(proposalFingerprint);
+        Objects.requireNonNull(action, "action must not be null");
+        Objects.requireNonNull(destination, "destination must not be null");
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("""
+                 SELECT *
+                 FROM trade_counter_authorization_grants
+                 WHERE proposal_fingerprint = ?
+                   AND action = ?
+                   AND destination_type = ?
+                   AND destination_id = ?
+                   AND consumed_at IS NULL
+                 LIMIT 1
+                 """)) {
+            statement.setString(1, proposalFingerprint);
+            statement.setString(2, action.name());
+            statement.setString(3, destination.type().name());
+            statement.setString(4, destination.id());
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? Optional.of(read(rs)) : Optional.empty();
+            }
+        }
+    }
+
     /**
      * Atomically consumes one trusted grant only when all expected authorization coordinates match.
      * Exactly one caller can change consumed_at from NULL for a given grant.
