@@ -38,4 +38,4 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build and test
-        run: ./gradlew clean build
+        run: ./gradlew --dependency-verification=strict clean build
