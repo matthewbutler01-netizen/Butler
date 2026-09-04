@@ -13,10 +13,6 @@ application {
     mainClass.set("io.butler.bet.cli.ButlerCommandRouter")
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     implementation("org.xerial:sqlite-jdbc:3.53.4.0")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.22.2")
