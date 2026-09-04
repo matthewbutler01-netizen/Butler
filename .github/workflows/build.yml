@@ -39,3 +39,8 @@ jobs:
 
       - name: Build and test
         run: ./gradlew --dependency-verification=strict clean build
+
+      - name: Verify dependency lockfile is current
+        run: |
+          ./gradlew --dependency-verification=strict :bet:bet-cli:dependencies --write-locks
+          git diff --exit-code -- bet/bet-cli/gradle.lockfile
