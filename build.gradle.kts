@@ -8,7 +8,21 @@ allprojects {
 
     configurations.configureEach {
         resolutionStrategy {
-            failOnDynamicVersions()
+            eachDependency {
+                val requestedVersion = requested.version
+                val isDynamic = requestedVersion != null && (
+                    requestedVersion.contains("+") ||
+                        requestedVersion.startsWith("latest.") ||
+                        requestedVersion.startsWith("[") ||
+                        requestedVersion.startsWith("(")
+                    )
+                if (isDynamic) {
+                    throw GradleException(
+                        "Dynamic dependency versions are not allowed: " +
+                            "${requested.group}:${requested.name}:$requestedVersion"
+                    )
+                }
+            }
             failOnChangingVersions()
         }
     }
