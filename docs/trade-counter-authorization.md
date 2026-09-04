@@ -1,6 +1,6 @@
 # Trade Counter Authorization
 
-BF-384 defines the first explicit authorization boundary for a fingerprinted Butler counter proposal. BF-385 exposes that contract through a dedicated `trade counter-authorize` CLI without performing any external action.
+BF-384 defines the first explicit authorization boundary for a fingerprinted Butler counter proposal. BF-385 exposes that contract through a dedicated `trade counter-authorize` CLI without performing any external action. BF-386 adds durable trusted grant storage and atomic single-use consumption state.
 
 Policy: `trade-counter-authorization-v1-explicit-fingerprint-action-destination-once`
 
@@ -8,7 +8,7 @@ CLI:
 
 `butler trade counter-authorize <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD] -- <message|submit> <destination-id> [--confirm "<exact-confirmation>"]`
 
-The policy and CLI create and validate authorization artifacts only. They do **not** send a negotiation message, submit a trade, mutate league state, or contact any external platform.
+The authorization policy and CLI do **not** send a negotiation message, submit a trade, mutate league state, or contact any external platform. BF-386 only persists and consumes authorization state.
 
 ## Preconditions
 
@@ -69,7 +69,7 @@ It creates no grant.
 
 ### CLI confirmation mode
 
-When `--confirm` is supplied, the complete confirmation phrase must be passed as one quoted command-line argument.
+When `--confirm` is supplied, the complete confirmation phrase must be passed as one quoted command-line argument. The CLI does not trim, normalize, or change case in the confirmation value.
 
 If it matches exactly, BF-385 can create an in-memory `AuthorizationGrant` artifact. If it differs at all, authorization is rejected and no grant is created.
 
@@ -88,15 +88,50 @@ A successful decision creates an `AuthorizationGrant` containing:
 - exact destination; and
 - `maxUses = 1`.
 
-The grant is a governed intent artifact. BF-384/BF-385 do not persist or consume grants, so they do not claim to enforce atomic one-time use by themselves. A future execution layer must persist the grant and atomically mark it consumed before or as the external side effect is committed.
+## BF-386 durable trusted grant store
 
-A future executor must not accept arbitrary client-supplied grant fields as authority. It must load the persisted trusted grant by grant ID, verify the stored action/destination/fingerprint, revalidate current evidence, and atomically enforce the one-use limit.
+`TradeCounterAuthorizationGrantRepository` creates an idempotent SQLite table named `trade_counter_authorization_grants`.
+
+The durable row stores the complete governed grant plus nullable `consumed_at` state. Database constraints independently enforce:
+
+- the BF-384 policy ID;
+- valid season range;
+- lowercase 64-character proposal fingerprint;
+- the two governed action values;
+- the two governed destination types;
+- `max_uses = 1`;
+- message action -> manager destination;
+- submit action -> league destination; and
+- submit destination ID = proposal league ID.
+
+A partial unique index permits at most one **active, unconsumed** grant for the same proposal fingerprint + action + destination. Once that grant is consumed, a new authorization for the same intent requires a new grant ID and therefore a new explicit authorization event.
+
+The persisted row is the future executor's trusted authorization source. Execution code must load the row by grant ID and must not trust action, destination, fingerprint, or consumption state supplied by a caller.
+
+### Atomic single-use consumption
+
+Grant consumption is one conditional SQLite update:
+
+`UPDATE ... SET consumed_at = ? WHERE grant_id = ? AND consumed_at IS NULL AND max_uses = 1 AND fingerprint/action/destination match`
+
+Exactly one successful update can move a grant from active to consumed. Results are governed as:
+
+- `CONSUMED`: this caller performed the one allowed transition;
+- `ALREADY_CONSUMED`: the grant was previously consumed;
+- `MISMATCH`: the grant exists and is active, but expected fingerprint/action/destination do not match;
+- `NOT_FOUND`: no trusted persisted grant exists for the ID.
+
+A mismatch never consumes the grant.
+
+This is intentionally an **at-most-once** authorization design. A future executor should perform final fresh-evidence revalidation and then atomically consume the trusted grant immediately before attempting the external side effect. If the external platform fails after consumption, Butler must not silently retry under the same grant. A retry requires a newly reviewed proposal if necessary and a new explicit authorization. This avoids duplicate messages or duplicate trade submissions when the external platform's idempotency guarantees are unknown.
+
+BF-386 does not claim end-to-end exactly-once delivery. Exactly-once external execution would require a platform-supported idempotency key or a transactional integration unavailable at this layer.
 
 ## Fresh-evidence revalidation
 
 Before any future execution, the full proposal pipeline must be re-run using current evidence and must produce a fresh BF-382 proposal identity.
 
-`TradeCounterAuthorizationPolicy.revalidate(...)` compares that newly produced identity with the grant.
+`TradeCounterAuthorizationPolicy.revalidate(...)` compares that newly produced identity with the trusted persisted grant.
 
 Results:
 
@@ -110,7 +145,7 @@ The policy cannot prove by itself that the supplied identity was freshly recompu
 
 ## Safety boundary
 
-BF-384/BF-385 do not:
+BF-384 through BF-386 do not:
 
 - treat blanket project approval as trade authorization;
 - authorize more than one action or destination;
@@ -118,9 +153,10 @@ BF-384/BF-385 do not:
 - send the BF-378 negotiation message;
 - submit the BF-380 revised packages;
 - infer a manager recipient;
-- persist or consume authorization grants;
 - call an external fantasy platform;
 - change Trade Recommendation v5; or
 - change BF-369 through BF-383 decision semantics.
 
-The next execution capability is a separate product and safety boundary. It must independently enforce trusted grant persistence, fresh proposal revalidation, exact action/destination binding, and atomic single-use consumption before any external side effect is possible.
+BF-386 adds persistence and single-use state only. It does not wire BF-385 to persistence and it does not expose a consume command.
+
+A later execution capability must independently enforce trusted grant loading, fresh proposal revalidation, exact action/destination binding, and atomic single-use consumption before any external side effect is possible.
