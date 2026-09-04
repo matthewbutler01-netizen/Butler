@@ -28,6 +28,9 @@ final class ButlerTradeCounterFreshArtifacts {
 
         var recommendationContext = analyzeRecommendation(
             new TradeFlexibleRecommendationContextAnalyzer(database), options);
+        var strategic = recommendationContext.trade().strategic();
+        String sideATeamId = strategic.sideA().identity().teamId();
+        String sideBTeamId = strategic.sideB().identity().teamId();
         var v5 = ButlerTradeRecommendationV5Cli.recommend(
             recommendationContext, options.perspective());
 
@@ -35,9 +38,9 @@ final class ButlerTradeCounterFreshArtifacts {
             && v5.action() == TradeTeamPerspectiveRecommendationPolicy.Action.REJECT;
         TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility;
         if (eligibilityEvaluated) {
-            var strategic = analyzeStrategic(
+            var strategicCandidates = analyzeStrategic(
                 new TradeCounterStrategicCandidateVettingAnalyzer(database), options);
-            eligibility = TradeCounterStrategicEligibilityPolicy.classify(strategic);
+            eligibility = TradeCounterStrategicEligibilityPolicy.classify(strategicCandidates);
         } else {
             eligibility = notEvaluatedEligibility(recommendationContext, options.season());
         }
@@ -55,7 +58,7 @@ final class ButlerTradeCounterFreshArtifacts {
         var materialized = TradeCounterMaterializedPackagePolicy.materialize(envelope);
         var identity = TradeCounterProposalIdentityPolicy.identify(envelope, materialized);
         var message = TradeCounterNegotiationMessagePolicy.compose(envelope);
-        return new Artifacts(materialized, identity, message);
+        return new Artifacts(sideATeamId, sideBTeamId, materialized, identity, message);
     }
 
     private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport analyzeRecommendation(
@@ -97,10 +100,21 @@ final class ButlerTradeCounterFreshArtifacts {
     }
 
     record Artifacts(
+        String sideATeamId,
+        String sideBTeamId,
         TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
         TradeCounterProposalIdentityPolicy.Identity identity,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
         Artifacts {
+            if (sideATeamId == null || sideATeamId.isBlank()) {
+                throw new IllegalArgumentException("sideATeamId must not be blank");
+            }
+            if (sideBTeamId == null || sideBTeamId.isBlank()) {
+                throw new IllegalArgumentException("sideBTeamId must not be blank");
+            }
+            if (sideATeamId.equals(sideBTeamId)) {
+                throw new IllegalArgumentException("trade teams must differ");
+            }
             Objects.requireNonNull(materialized, "materialized must not be null");
             Objects.requireNonNull(identity, "identity must not be null");
             Objects.requireNonNull(message, "message must not be null");
