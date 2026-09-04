@@ -31,6 +31,7 @@ public final class ButlerCommandRouter {
             case TRADE_COUNTER_VALUE -> ButlerTradeCounterValueCli.main(args);
             case TRADE_COUNTER_STRATEGIC -> ButlerTradeCounterStrategicCli.main(args);
             case TRADE_COUNTER_DECISION -> ButlerTradeCounterDecisionCli.main(args);
+            case TRADE_COUNTER_PROPOSAL -> ButlerTradeCounterProposalCli.main(args);
             case TRADE_RECOMMENDATION -> TRADE_RECOMMENDATION_TARGET.run(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
@@ -78,6 +79,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "trade") && equals(args[1], "counter-value")) return Route.TRADE_COUNTER_VALUE;
             if (equals(args[0], "trade") && equals(args[1], "counter-strategic")) return Route.TRADE_COUNTER_STRATEGIC;
             if (equals(args[0], "trade") && equals(args[1], "counter-decision")) return Route.TRADE_COUNTER_DECISION;
+            if (equals(args[0], "trade") && equals(args[1], "counter-proposal")) return Route.TRADE_COUNTER_PROPOSAL;
             if (equals(args[0], "trade") && equals(args[1], "recommendation")) return Route.TRADE_RECOMMENDATION;
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) return Route.PLAYER_EVIDENCE_PROFILE;
             if (equals(args[0], "league") && equals(args[1], "longitudinal-evidence")) return Route.LONGITUDINAL_EVIDENCE;
@@ -128,8 +130,8 @@ public final class ButlerCommandRouter {
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_ROSTER_STRENGTH,
                  LEAGUE_POSITIONAL_PRESSURE, LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
-                 TRADE_COUNTER_DECISION, TRADE_RECOMMENDATION, PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE,
-                 AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH,
+                 TRADE_COUNTER_DECISION, TRADE_COUNTER_PROPOSAL, TRADE_RECOMMENDATION, PLAYER_EVIDENCE_PROFILE,
+                 LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH,
                  AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER, AGING_MODEL_PUBLICATION_VALIDATION,
                  AGING_MODEL_AGE_OUTLOOK, AGING_MODEL_PUBLISHED_CELL, AGING_MODEL_POSITION_AGE_EVIDENCE,
                  AGING_MODEL_POSITION_AGE_COVERAGE, AGING_MODEL_TEMPORAL_HOLDOUT,
