@@ -12,12 +12,12 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Reconstructs the selected trade team's positional depth after a trade and replaces only that team
- * inside the full league depth report. This is neutral evidence plumbing; it does not classify
- * pressure, materiality, recommendations, or vetoes.
+ * Reconstructs both trade teams' positional depth after the exchange and replaces both teams inside
+ * the full league depth report. This is neutral evidence plumbing; it does not classify pressure,
+ * materiality, recommendations, or vetoes.
  */
 public final class TradeFlexiblePostTradeDepthAnalyzer {
-    public static final String POLICY_ID = "trade-flexible-post-trade-depth-v1-selected-team-replacement";
+    public static final String POLICY_ID = "trade-flexible-post-trade-depth-v1-two-team-exchange";
 
     private TradeFlexiblePostTradeDepthAnalyzer() {}
 
@@ -30,53 +30,81 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
         Objects.requireNonNull(teamContext, "teamContext must not be null");
         Objects.requireNonNull(outgoing, "outgoing must not be null");
         Objects.requireNonNull(incoming, "incoming must not be null");
-        boolean knownTeam = teamContext.equals(context.flexible().sideA())
-            || teamContext.equals(context.flexible().sideB());
-        if (!knownTeam) {
+        boolean selectedIsSideA = teamContext.equals(context.flexible().sideA());
+        boolean selectedIsSideB = teamContext.equals(context.flexible().sideB());
+        if (!selectedIsSideA && !selectedIsSideB) {
             throw new IllegalArgumentException("team flexible context must belong to recommendation context");
         }
         if (context.flexible().flexSlots() + context.flexible().superFlexSlots() == 0) {
             throw new IllegalArgumentException("post-trade flexible depth requires FLEX or SUPERFLEX exposure");
         }
 
-        var identity = teamContext.identity();
-        var currentTeam = context.depth().teams().stream()
-            .filter(team -> team.teamId().equals(identity.teamId()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException(
-                "positional depth missing for trade team: " + identity.teamId()));
-        if (!currentTeam.teamName().equals(identity.teamName())) {
-            throw new IllegalStateException("trade and positional-depth team names differ: " + identity.teamId());
-        }
+        var selectedIdentity = teamContext.identity();
+        var oppositeContext = selectedIsSideA ? context.flexible().sideB() : context.flexible().sideA();
+        var oppositeIdentity = oppositeContext.identity();
+        var selectedCurrent = findTeam(context.depth(), selectedIdentity);
+        var oppositeCurrent = findTeam(context.depth(), oppositeIdentity);
 
-        var postTradeTeam = applyTrade(
-            currentTeam,
-            identity,
+        var selectedPostTrade = applyTrade(
+            selectedCurrent,
+            selectedIdentity,
             context.flexible().flexSlots(),
             context.flexible().superFlexSlots(),
             context.flexible().minimumAsOfDate(),
             outgoing,
             incoming);
+        var oppositePostTrade = applyTrade(
+            oppositeCurrent,
+            oppositeIdentity,
+            context.flexible().flexSlots(),
+            context.flexible().superFlexSlots(),
+            context.flexible().minimumAsOfDate(),
+            incoming,
+            outgoing);
 
         List<LeaguePositionalDepthAnalyzer.TeamDepth> teams = new ArrayList<>();
-        boolean replaced = false;
+        boolean selectedReplaced = false;
+        boolean oppositeReplaced = false;
         for (var team : context.depth().teams()) {
-            if (team.teamId().equals(identity.teamId())) {
-                teams.add(postTradeTeam);
-                replaced = true;
+            if (team.teamId().equals(selectedIdentity.teamId())) {
+                teams.add(selectedPostTrade);
+                selectedReplaced = true;
+            } else if (team.teamId().equals(oppositeIdentity.teamId())) {
+                teams.add(oppositePostTrade);
+                oppositeReplaced = true;
             } else {
                 teams.add(team);
             }
         }
-        if (!replaced) {
-            throw new IllegalStateException("selected trade team was not present in league depth");
+        if (!selectedReplaced || !oppositeReplaced) {
+            throw new IllegalStateException("both trade teams must be present in league depth");
         }
         var postTradeDepth = new LeaguePositionalDepthAnalyzer.DepthReport(
             context.depth().leagueId(),
             context.depth().source(),
             context.depth().minimumAsOfDate(),
             List.copyOf(teams));
-        return new PostTradeDepthReport(POLICY_ID, identity, postTradeTeam, postTradeDepth);
+        return new PostTradeDepthReport(
+            POLICY_ID,
+            selectedIdentity,
+            oppositeIdentity,
+            selectedPostTrade,
+            oppositePostTrade,
+            postTradeDepth);
+    }
+
+    private static LeaguePositionalDepthAnalyzer.TeamDepth findTeam(
+        LeaguePositionalDepthAnalyzer.DepthReport depth,
+        TradeAssetStrategicContextAnalyzer.TeamIdentity identity) {
+        var team = depth.teams().stream()
+            .filter(candidate -> candidate.teamId().equals(identity.teamId()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "positional depth missing for trade team: " + identity.teamId()));
+        if (!team.teamName().equals(identity.teamName())) {
+            throw new IllegalStateException("trade and positional-depth team names differ: " + identity.teamId());
+        }
+        return team;
     }
 
     private static LeaguePositionalDepthAnalyzer.TeamDepth applyTrade(
@@ -100,7 +128,7 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
         for (var player : outgoing.players()) {
             if (!identity.teamId().equals(player.teamId()) || !identity.teamName().equals(player.teamName())) {
                 throw new IllegalArgumentException(
-                    "outgoing player does not belong to selected trade team: " + player.playerId());
+                    "outgoing player does not belong to trade team " + identity.teamId() + ": " + player.playerId());
             }
             var removed = playersById.remove(player.playerId());
             if (removed == null && relevantPositions.contains(normalizePosition(player.position()))) {
@@ -114,7 +142,7 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
             if (!relevantPositions.contains(position)) continue;
             if (playersById.containsKey(player.playerId())) {
                 throw new IllegalArgumentException(
-                    "incoming player is already rostered by selected team: " + player.playerId());
+                    "incoming player is already rostered by trade team " + identity.teamId() + ": " + player.playerId());
             }
             if (player.value() == null || !Double.isFinite(player.value()) || player.value() < 0.0 || player.stale()) {
                 throw new IllegalArgumentException(
@@ -172,22 +200,34 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
     public record PostTradeDepthReport(
         String policyId,
         TradeAssetStrategicContextAnalyzer.TeamIdentity selectedTeam,
+        TradeAssetStrategicContextAnalyzer.TeamIdentity oppositeTeam,
         LeaguePositionalDepthAnalyzer.TeamDepth selectedTeamDepth,
+        LeaguePositionalDepthAnalyzer.TeamDepth oppositeTeamDepth,
         LeaguePositionalDepthAnalyzer.DepthReport leagueDepth) {
         public PostTradeDepthReport {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             Objects.requireNonNull(selectedTeam, "selectedTeam must not be null");
+            Objects.requireNonNull(oppositeTeam, "oppositeTeam must not be null");
             Objects.requireNonNull(selectedTeamDepth, "selectedTeamDepth must not be null");
+            Objects.requireNonNull(oppositeTeamDepth, "oppositeTeamDepth must not be null");
             Objects.requireNonNull(leagueDepth, "leagueDepth must not be null");
-            if (!selectedTeam.teamId().equals(selectedTeamDepth.teamId())
-                || !selectedTeam.teamName().equals(selectedTeamDepth.teamName())) {
-                throw new IllegalArgumentException("selected team identity mismatch");
+            if (selectedTeam.teamId().equals(oppositeTeam.teamId())) {
+                throw new IllegalArgumentException("post-trade depth requires distinct trade teams");
             }
-            long matches = leagueDepth.teams().stream()
+            if (!selectedTeam.teamId().equals(selectedTeamDepth.teamId())
+                || !selectedTeam.teamName().equals(selectedTeamDepth.teamName())
+                || !oppositeTeam.teamId().equals(oppositeTeamDepth.teamId())
+                || !oppositeTeam.teamName().equals(oppositeTeamDepth.teamName())) {
+                throw new IllegalArgumentException("post-trade team identity mismatch");
+            }
+            long selectedMatches = leagueDepth.teams().stream()
                 .filter(team -> team.teamId().equals(selectedTeam.teamId()))
                 .count();
-            if (matches != 1) {
-                throw new IllegalArgumentException("post-trade league depth must contain selected team exactly once");
+            long oppositeMatches = leagueDepth.teams().stream()
+                .filter(team -> team.teamId().equals(oppositeTeam.teamId()))
+                .count();
+            if (selectedMatches != 1 || oppositeMatches != 1) {
+                throw new IllegalArgumentException("post-trade league depth must contain both trade teams exactly once");
             }
         }
     }
