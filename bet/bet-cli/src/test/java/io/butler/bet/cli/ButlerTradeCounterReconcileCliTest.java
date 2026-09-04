@@ -82,7 +82,9 @@ class ButlerTradeCounterReconcileCliTest {
         assertTrue(output.contains("Outcome eligibility reason code: NO_EXACT_TRADE_OBSERVED"));
         assertTrue(output.contains("Terminal outcome eligibility: NONE"));
         assertTrue(output.contains("No terminal execution finalization is eligible"));
-        assertFalse(output.contains("FAILED"));
+        assertTrue(output.contains("does not mark execution SUCCEEDED, FAILED, or UNKNOWN"));
+        assertFalse(output.contains("Execution failed"));
+        assertFalse(output.contains("Trade failed"));
         assertFalse(output.contains("failure confirmed"));
     }
 
