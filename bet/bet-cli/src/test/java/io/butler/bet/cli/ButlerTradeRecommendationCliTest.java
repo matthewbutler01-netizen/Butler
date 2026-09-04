@@ -19,6 +19,9 @@ import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -140,6 +143,53 @@ class ButlerTradeRecommendationCliTest {
         assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, sideB.vetoAssessment().state());
         assertEquals(TradeRecommendationPolicy.Recommendation.HOLD, sideB.packageRecommendation());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.HOLD, sideB.action());
+    }
+
+    @Test
+    void printsExactVetoDrivenHoldContract() {
+        var report = report(
+            LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL,
+            LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            side(List.of(), List.of(pick("pick-a", "a", "Team A"))),
+            side(List.of(player("wr-b", "WR", "b", "Team B")), List.of()),
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE);
+        var options = new ButlerTradeRecommendationCli.Options(
+            "l1",
+            2026,
+            TradeAssetAnalyzer.TradePackage.picks(List.of("pick-a")),
+            TradeAssetAnalyzer.TradePackage.players(List.of("wr-b")),
+            TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM,
+            null,
+            null);
+
+        PrintStream original = System.out;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(bytes, true, StandardCharsets.UTF_8));
+            ButlerTradeRecommendationCli.print(report, options);
+        } finally {
+            System.setOut(original);
+        }
+
+        String expected = String.join(System.lineSeparator(), List.of(
+            "Trade recommendation (conservative market-first strategic veto)",
+            "League ID: l1",
+            "Season: 2026",
+            "Perspective: Team A [a]",
+            "Recommendation policy: trade-recommendation-v2-market-first-strategic-veto",
+            "Strategic veto policy: trade-strategic-veto-v1-explicit-weakness-protection",
+            "Perspective policy: trade-team-perspective-v1-explicit-owner",
+            "Evidence complete: true",
+            "Evidence gates: market-direction=true posture=true future-capital=true positional-pressure=true",
+            "Strategic veto: BLOCKED",
+            "Veto reason: low future capital: sending future pick(s) without receiving a future pick",
+            "Package recommendation: HOLD",
+            "Action: HOLD",
+            "Reason: a governed strategic veto blocked the directional market recommendation.",
+            "No hidden weighting, side flipping, or strategic score blending is applied.")) + System.lineSeparator();
+        assertEquals(expected, bytes.toString(StandardCharsets.UTF_8));
     }
 
     @Test
