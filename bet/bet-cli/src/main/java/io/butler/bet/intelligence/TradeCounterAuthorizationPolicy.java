@@ -51,11 +51,8 @@ public final class TradeCounterAuthorizationPolicy {
         Objects.requireNonNull(action, "action must not be null");
         Objects.requireNonNull(destination, "destination must not be null");
         requireIdentified(identity);
-        requireCompatibleDestination(identity, action, destination);
+        requireCompatibleDestination(identity.leagueId(), action, destination);
 
-        String confirmation = "AUTHORIZE_ONCE action=" + action
-            + " proposal=" + identity.fingerprint()
-            + " destination=" + destination.type() + ":" + destination.id();
         return new AuthorizationRequest(
             POLICY_ID,
             TradeCounterProposalIdentityPolicy.POLICY_ID,
@@ -67,7 +64,7 @@ public final class TradeCounterAuthorizationPolicy {
             identity.fingerprint(),
             action,
             destination,
-            confirmation,
+            canonicalConfirmation(action, identity.fingerprint(), destination),
             MAX_USES);
     }
 
@@ -149,7 +146,7 @@ public final class TradeCounterAuthorizationPolicy {
     }
 
     private static void requireCompatibleDestination(
-        TradeCounterProposalIdentityPolicy.Identity identity,
+        String leagueId,
         Action action,
         Destination destination) {
         switch (action) {
@@ -164,12 +161,21 @@ public final class TradeCounterAuthorizationPolicy {
                     throw new IllegalArgumentException(
                         "SUBMIT_COUNTER_TRADE requires LEAGUE destination");
                 }
-                if (!identity.leagueId().equals(destination.id())) {
+                if (!leagueId.equals(destination.id())) {
                     throw new IllegalArgumentException(
                         "SUBMIT_COUNTER_TRADE destination must match proposal leagueId");
                 }
             }
         }
+    }
+
+    private static String canonicalConfirmation(
+        Action action,
+        String proposalFingerprint,
+        Destination destination) {
+        return "AUTHORIZE_ONCE action=" + action
+            + " proposal=" + proposalFingerprint
+            + " destination=" + destination.type() + ":" + destination.id();
     }
 
     public record AuthorizationRequest(
@@ -197,7 +203,13 @@ public final class TradeCounterAuthorizationPolicy {
             proposalFingerprint = requireFingerprint(proposalFingerprint);
             Objects.requireNonNull(action, "action must not be null");
             Objects.requireNonNull(destination, "destination must not be null");
+            requireCompatibleDestination(leagueId, action, destination);
             requiredConfirmation = requireText(requiredConfirmation, "requiredConfirmation");
+            if (!canonicalConfirmation(action, proposalFingerprint, destination)
+                .equals(requiredConfirmation)) {
+                throw new IllegalArgumentException(
+                    "requiredConfirmation must exactly match the governed authorization request");
+            }
             if (maxUses != MAX_USES) throw new IllegalArgumentException("authorization must be single-use");
         }
     }
@@ -217,7 +229,7 @@ public final class TradeCounterAuthorizationPolicy {
         int maxUses) {
         public AuthorizationGrant {
             requirePolicy(policyId);
-            grantId = requireText(grantId, "grantId");
+            grantId = requireUuid(grantId);
             Objects.requireNonNull(grantedAt, "grantedAt must not be null");
             leagueId = requireText(leagueId, "leagueId");
             if (season < 1999 || season > 2100) throw new IllegalArgumentException("invalid season");
@@ -226,6 +238,7 @@ public final class TradeCounterAuthorizationPolicy {
             proposalFingerprint = requireFingerprint(proposalFingerprint);
             Objects.requireNonNull(action, "action must not be null");
             Objects.requireNonNull(destination, "destination must not be null");
+            requireCompatibleDestination(leagueId, action, destination);
             if (maxUses != MAX_USES) throw new IllegalArgumentException("authorization must be single-use");
         }
     }
@@ -268,6 +281,15 @@ public final class TradeCounterAuthorizationPolicy {
             throw new IllegalArgumentException("proposalFingerprint must be lowercase SHA-256");
         }
         return value;
+    }
+
+    private static String requireUuid(String value) {
+        value = requireText(value, "grantId");
+        try {
+            return UUID.fromString(value).toString();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("grantId must be UUID", e);
+        }
     }
 
     private static String requireStableId(String value, String field) {
