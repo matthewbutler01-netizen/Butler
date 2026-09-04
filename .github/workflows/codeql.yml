@@ -58,7 +58,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Java for CodeQL
-        run: ./gradlew --no-build-cache :bet:bet-cli:clean :bet:bet-cli:classes
+        run: ./gradlew --dependency-verification=strict --no-build-cache :bet:bet-cli:clean :bet:bet-cli:classes
 
       - name: Analyze
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4

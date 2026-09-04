@@ -33,7 +33,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Butler
-        run: ./gradlew :bet:bet-cli:classes
+        run: ./gradlew --dependency-verification=strict :bet:bet-cli:classes
 
       - name: Capture empirical aging-model evidence
         shell: bash
@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           rm -f butler.db aging-model-evidence.txt
           run_butler() {
-            ./gradlew --quiet :bet:bet-cli:run --args="$*"
+            ./gradlew --dependency-verification=strict --quiet :bet:bet-cli:run --args="$*"
           }
           {
             echo "# Aging model empirical evidence"
