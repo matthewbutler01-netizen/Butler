@@ -10,6 +10,7 @@ import io.butler.bet.intelligence.TradeRecommendationMaterialLossPolicy;
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
 import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
 import io.butler.bet.intelligence.TradeStrategicMaterialLossVetoDetector;
+import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 
 import java.nio.file.Path;
@@ -102,23 +103,17 @@ public final class ButlerTradeRecommendationCli {
             var incoming = sideA ? report.strategic().trade().sideB() : report.strategic().trade().sideA();
             veto = evaluated(TradeStrategicMaterialLossVetoDetector.assess(team, positional, outgoing, incoming));
         } else {
-            veto = new VetoEvaluation(VetoEvaluationState.NOT_EVALUATED, List.of());
+            veto = new VetoEvaluation(false, TradeRecommendationVetoPolicy.VetoState.CLEAR, List.of());
         }
 
-        var policyVetoState = veto.state() == VetoEvaluationState.BLOCKED
-            ? TradeRecommendationVetoPolicy.VetoState.BLOCKED
-            : TradeRecommendationVetoPolicy.VetoState.CLEAR;
         var packageRecommendation = TradeRecommendationMaterialLossPolicy.classify(
-            report.strategic().marketEdge(), evidence, policyVetoState);
+            report.strategic().marketEdge(), evidence, veto.state());
         var action = TradeTeamPerspectiveRecommendationPolicy.classify(packageRecommendation, perspective);
         return new RecommendationResult(packageRecommendation, action, status, veto);
     }
 
     private static VetoEvaluation evaluated(TradeStrategicMaterialLossVetoDetector.VetoAssessment assessment) {
-        var state = assessment.state() == TradeRecommendationVetoPolicy.VetoState.BLOCKED
-            ? VetoEvaluationState.BLOCKED
-            : VetoEvaluationState.CLEAR;
-        return new VetoEvaluation(state, assessment.reasons());
+        return new VetoEvaluation(true, assessment.state(), assessment.reasons());
     }
 
     static String formatEvidenceGates(EvidenceStatus status) {
@@ -155,6 +150,16 @@ public final class ButlerTradeRecommendationCli {
             TradeProtectedValueMaterialityPolicy.MAX_ALLOWED_LOSS_FRACTION * 100.0);
     }
 
+    /** Retained for the versioned v1 detector contract; the live recommendation path uses v2. */
+    static String formatVetoReason(TradeStrategicVetoDetector.VetoReason reason) {
+        return switch (reason.code()) {
+            case LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN ->
+                "low future capital: sending future pick(s) without receiving a future pick";
+            case POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN ->
+                reason.position() + " pressure: sending " + reason.position() + " without receiving " + reason.position();
+        };
+    }
+
     private static TradeAssetPositionalContextAnalyzer.TradePositionalContextReport analyze(
         TradeAssetPositionalContextAnalyzer analyzer, Options options) throws SQLException {
         if (options.minimumAsOf() != null) {
@@ -183,7 +188,9 @@ public final class ButlerTradeRecommendationCli {
         System.out.println("Perspective policy: " + TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
         System.out.println("Evidence complete: " + result.evidenceStatus().complete());
         System.out.println(formatEvidenceGates(result.evidenceStatus()));
-        System.out.println("Strategic veto: " + result.vetoAssessment().state());
+        System.out.println("Strategic veto: " + (result.vetoAssessment().evaluated()
+            ? result.vetoAssessment().state()
+            : "NOT_EVALUATED"));
         for (var reason : result.vetoAssessment().reasons()) {
             System.out.println("Veto reason: " + formatVetoReason(reason));
         }
@@ -192,7 +199,8 @@ public final class ButlerTradeRecommendationCli {
         if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.INCONCLUSIVE) {
             System.out.println("Reason: " + formatInconclusiveReason(result.evidenceStatus()) + ".");
         } else if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.HOLD) {
-            if (result.vetoAssessment().state() == VetoEvaluationState.BLOCKED
+            if (result.vetoAssessment().evaluated()
+                && result.vetoAssessment().state() == TradeRecommendationVetoPolicy.VetoState.BLOCKED
                 && report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.MARKET_FAIR) {
                 System.out.println("Reason: a governed strategic material-loss veto blocked the directional market recommendation.");
             } else {
@@ -244,22 +252,23 @@ public final class ButlerTradeRecommendationCli {
         return database;
     }
 
-    enum VetoEvaluationState {
-        NOT_EVALUATED,
-        CLEAR,
-        BLOCKED
-    }
-
-    record VetoEvaluation(VetoEvaluationState state,
+    record VetoEvaluation(boolean evaluated,
+                          TradeRecommendationVetoPolicy.VetoState state,
                           List<TradeStrategicMaterialLossVetoDetector.VetoReason> reasons) {
         VetoEvaluation {
             Objects.requireNonNull(state, "state must not be null");
             reasons = List.copyOf(Objects.requireNonNull(reasons, "reasons must not be null"));
-            if (state == VetoEvaluationState.BLOCKED && reasons.isEmpty()) {
+            if (!evaluated && state != TradeRecommendationVetoPolicy.VetoState.CLEAR) {
+                throw new IllegalArgumentException("not-evaluated veto state must be CLEAR for policy input");
+            }
+            if (!evaluated && !reasons.isEmpty()) {
+                throw new IllegalArgumentException("not-evaluated veto cannot contain reasons");
+            }
+            if (evaluated && state == TradeRecommendationVetoPolicy.VetoState.BLOCKED && reasons.isEmpty()) {
                 throw new IllegalArgumentException("blocked veto evaluation requires reasons");
             }
-            if (state != VetoEvaluationState.BLOCKED && !reasons.isEmpty()) {
-                throw new IllegalArgumentException("non-blocked veto evaluation cannot contain reasons");
+            if (evaluated && state == TradeRecommendationVetoPolicy.VetoState.CLEAR && !reasons.isEmpty()) {
+                throw new IllegalArgumentException("clear veto evaluation cannot contain reasons");
             }
         }
     }
