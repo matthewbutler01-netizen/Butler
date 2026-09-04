@@ -1,3 +1,5 @@
+import org.gradle.api.artifacts.ExternalModuleDependency
+
 plugins {
     base
 }
@@ -7,9 +9,30 @@ allprojects {
     version = "0.1.0-SNAPSHOT"
 
     configurations.configureEach {
-        resolutionStrategy {
-            failOnDynamicVersions()
-            failOnChangingVersions()
+        withDependencies {
+            filterIsInstance<ExternalModuleDependency>().forEach { dependency ->
+                if (dependency.isChanging) {
+                    throw GradleException(
+                        "Changing dependency modules are not allowed: " +
+                            "${dependency.group}:${dependency.name}:${dependency.version}"
+                    )
+                }
+            }
+        }
+        resolutionStrategy.eachDependency {
+            val requestedVersion = requested.version
+            val isDynamic = requestedVersion != null && (
+                requestedVersion.contains("+") ||
+                    requestedVersion.startsWith("latest.") ||
+                    requestedVersion.startsWith("[") ||
+                    requestedVersion.startsWith("(")
+                )
+            if (isDynamic) {
+                throw GradleException(
+                    "Dynamic dependency versions are not allowed: " +
+                        "${requested.group}:${requested.name}:$requestedVersion"
+                )
+            }
         }
     }
 }
