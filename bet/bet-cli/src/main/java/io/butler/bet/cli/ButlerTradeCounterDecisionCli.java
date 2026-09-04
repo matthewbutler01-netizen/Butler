@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
+import io.butler.bet.intelligence.TradeCounterCandidateSelectionPolicy;
 import io.butler.bet.intelligence.TradeCounterOpportunityPolicy;
 import io.butler.bet.intelligence.TradeCounterStrategicCandidateVettingAnalyzer;
 import io.butler.bet.intelligence.TradeCounterStrategicEligibilityPolicy;
@@ -12,8 +13,9 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 
-/** Perspective-aware counter-opportunity gate built on live v5 plus strategic eligibility. */
+/** Perspective-aware counter decision path built on live v5, strategic eligibility, and governed selection. */
 public final class ButlerTradeCounterDecisionCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -53,7 +55,8 @@ public final class ButlerTradeCounterDecisionCli {
                 options.perspective(),
                 v5.evidenceStatus().complete(),
                 eligibility);
-            print(recommendationContext, options, v5, eligibility, eligibilityEvaluated, decision);
+            var selection = TradeCounterCandidateSelectionPolicy.classify(decision, eligibility);
+            print(recommendationContext, options, v5, eligibility, eligibilityEvaluated, decision, selection);
         } catch (SQLException e) {
             System.err.println("Database error while building counter decision evidence: " + e.getMessage());
             System.exit(1);
@@ -98,7 +101,31 @@ public final class ButlerTradeCounterDecisionCli {
             && "counter-decision".equalsIgnoreCase(args[1]);
     }
 
+    /** Retained BF-374 renderer for compatibility. */
     static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        Options options,
+        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility,
+        boolean eligibilityEvaluated,
+        TradeCounterOpportunityPolicy.Decision decision) {
+        printDecision(context, options, v5, eligibility, eligibilityEvaluated, decision);
+        System.out.println("No candidate is selected and no COUNTER action is emitted.");
+    }
+
+    static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        Options options,
+        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility,
+        boolean eligibilityEvaluated,
+        TradeCounterOpportunityPolicy.Decision decision,
+        TradeCounterCandidateSelectionPolicy.Selection selection) {
+        printDecision(context, options, v5, eligibility, eligibilityEvaluated, decision);
+        printSelection(decision, selection);
+    }
+
+    private static void printDecision(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         Options options,
         ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
@@ -151,13 +178,47 @@ public final class ButlerTradeCounterDecisionCli {
         if (decision.state() == TradeCounterOpportunityPolicy.State.COUNTER_AVAILABLE) {
             System.out.println("Eligible market ranks: " + decision.eligibleMarketRanks());
         }
-        System.out.println("No candidate is selected and no COUNTER action is emitted.");
+    }
+
+    private static void printSelection(
+        TradeCounterOpportunityPolicy.Decision decision,
+        TradeCounterCandidateSelectionPolicy.Selection selection) {
+        if (selection == null) throw new IllegalArgumentException("selection must not be null");
+        if (!decision.leagueId().equals(selection.leagueId())
+            || decision.season() != selection.season()
+            || !decision.source().equals(selection.source())
+            || !java.util.Objects.equals(decision.minimumAsOfDate(), selection.minimumAsOfDate())
+            || !decision.policyId().equals(selection.opportunityPolicyId())) {
+            throw new IllegalStateException("counter opportunity and candidate selection coordinates differ");
+        }
+        System.out.println("Counter candidate selection policy: " + selection.policyId());
+        System.out.println("Counter candidate selection: " + selection.state());
+        System.out.println("Counter candidate selection reason: " + selection.reasonCode());
+        if (selection.state() == TradeCounterCandidateSelectionPolicy.State.SELECTED) {
+            var selected = selection.selectedCandidate();
+            var candidate = selected.candidate();
+            System.out.println("Selected market rank: " + selected.marketRank());
+            System.out.println("Selected adjustment: " + candidate.adjustmentType() + " " + candidate.side());
+            System.out.println("Selected asset: " + candidate.displayName() + " [" + candidate.assetId() + "] " + candidate.assetType());
+            System.out.printf(Locale.ROOT,
+                "Selected market criteria: excess=%.2f asset-value=%.2f required-change=%.2f resulting-gap=%.3f%%%n",
+                candidate.excessValue(), candidate.assetValue(), candidate.requiredValueChange(),
+                candidate.resultingGapPercent());
+            System.out.println("The asset is selected by governed market criteria after strategic eligibility; no COUNTER action is emitted.");
+        } else if (selection.state() == TradeCounterCandidateSelectionPolicy.State.AMBIGUOUS) {
+            System.out.println("Ambiguous top market ranks: " + selection.ambiguousMarketRanks());
+            System.out.println("No asset is selected because the top eligible candidates tie on governed selection criteria.");
+            System.out.println("No COUNTER action is emitted.");
+        } else {
+            System.out.println("No candidate is selected and no COUNTER action is emitted.");
+        }
     }
 
     static void printUsage() {
         System.out.println("  butler trade counter-decision <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  Perspective is the team giving that side's package and receiving the opposite package.");
-        System.out.println("  COUNTER_AVAILABLE means an eligible alternative exists; this command does not choose or emit it.");
+        System.out.println("  A candidate is selected only when uniquely best on governed market criteria; ties remain ambiguous.");
+        System.out.println("  Candidate selection does not emit a COUNTER action.");
     }
 
     private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport analyzeRecommendation(
