@@ -27,6 +27,18 @@ class TradeStrategicVetoDetectorTest {
     }
 
     @Test
+    void lowFutureCapitalTeamReceivingPickDoesNotTriggerFutureCapitalVeto() {
+        var result = TradeStrategicVetoDetector.assess(
+            strategic(LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL),
+            positional(LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
+            side(List.of(), List.of(pick("p1"))),
+            side(List.of(), List.of(pick("p2"))));
+
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, result.state());
+        assertEquals(List.of(), result.reasons());
+    }
+
+    @Test
     void doesNotInventFutureCapitalVetoOutsideLowTier() {
         var result = TradeStrategicVetoDetector.assess(
             strategic(LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL),
@@ -36,6 +48,25 @@ class TradeStrategicVetoDetectorTest {
 
         assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, result.state());
         assertEquals(List.of(), result.reasons());
+    }
+
+    @Test
+    void postureAloneDoesNotCreateStrategicVeto() {
+        var contender = TradeStrategicVetoDetector.assess(
+            strategic(LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL, TeamPosturePolicy.Posture.CONTENDER),
+            positional(LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
+            side(List.of(player("wr1", "WR")), List.of()),
+            side(List.of(player("rb2", "RB")), List.of()));
+        var rebuilder = TradeStrategicVetoDetector.assess(
+            strategic(LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL, TeamPosturePolicy.Posture.REBUILDER),
+            positional(LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
+            side(List.of(player("wr1", "WR")), List.of()),
+            side(List.of(player("rb2", "RB")), List.of()));
+
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, contender.state());
+        assertEquals(List.of(), contender.reasons());
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, rebuilder.state());
+        assertEquals(List.of(), rebuilder.reasons());
     }
 
     @Test
@@ -99,11 +130,26 @@ class TradeStrategicVetoDetectorTest {
 
     private static TradeAssetStrategicContextAnalyzer.TeamStrategicContext strategic(
         LeagueFutureCapitalTierPolicy.Tier capitalTier) {
+        return strategic(capitalTier, TeamPosturePolicy.Posture.MIDDLE_OR_MIXED);
+    }
+
+    private static TradeAssetStrategicContextAnalyzer.TeamStrategicContext strategic(
+        LeagueFutureCapitalTierPolicy.Tier capitalTier,
+        TeamPosturePolicy.Posture teamPosture) {
+        LeagueCompetitiveTierPolicy.Tier competitive = switch (teamPosture) {
+            case CONTENDER -> LeagueCompetitiveTierPolicy.Tier.FRONT_TIER;
+            case REBUILDER -> LeagueCompetitiveTierPolicy.Tier.BACK_TIER;
+            case MIDDLE_OR_MIXED -> LeagueCompetitiveTierPolicy.Tier.MIDDLE_TIER;
+            case INSUFFICIENT_EVIDENCE -> LeagueCompetitiveTierPolicy.Tier.INSUFFICIENT_EVIDENCE;
+        };
+        LeagueRosterStrengthTierPolicy.Tier roster = switch (teamPosture) {
+            case CONTENDER -> LeagueRosterStrengthTierPolicy.Tier.FRONT_ROSTER_TIER;
+            case REBUILDER -> LeagueRosterStrengthTierPolicy.Tier.BACK_ROSTER_TIER;
+            case MIDDLE_OR_MIXED -> LeagueRosterStrengthTierPolicy.Tier.MIDDLE_ROSTER_TIER;
+            case INSUFFICIENT_EVIDENCE -> LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE;
+        };
         var posture = new LeagueTeamPostureAnalyzer.TeamPosture(
-            "t1", "Team One",
-            LeagueCompetitiveTierPolicy.Tier.MIDDLE_TIER,
-            LeagueRosterStrengthTierPolicy.Tier.MIDDLE_ROSTER_TIER,
-            TeamPosturePolicy.Posture.MIDDLE_OR_MIXED);
+            "t1", "Team One", competitive, roster, teamPosture);
         var capital = new LeagueFutureCapitalTierAnalyzer.TeamFutureCapital(
             "t1", "Team One", 100.0, 1, 0, 0, 1, List.of(), capitalTier);
         return new TradeAssetStrategicContextAnalyzer.TeamStrategicContext(TEAM, posture, capital);
