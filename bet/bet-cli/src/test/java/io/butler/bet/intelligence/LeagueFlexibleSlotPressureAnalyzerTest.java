@@ -8,6 +8,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeagueFlexibleSlotPressureAnalyzerTest {
@@ -16,10 +17,10 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
     @Test
     void classifiesCombinedFlexibleCoverageByLeagueRelativeOuterQuartiles() {
         var result = LeagueFlexibleSlotPressureAnalyzer.classify(coverage(true, null, 1, 1,
-            team("a", "Alpha", 100),
-            team("b", "Bravo", 80),
-            team("c", "Charlie", 40),
-            team("d", "Delta", 20)));
+            teamWithSlots("a", "Alpha", 2, 100),
+            teamWithSlots("b", "Bravo", 2, 80),
+            teamWithSlots("c", "Charlie", 2, 40),
+            teamWithSlots("d", "Delta", 2, 20)));
 
         assertTrue(result.available());
         assertNull(result.insufficiencyReason());
@@ -34,10 +35,10 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
     @Test
     void boundaryTiesReceiveTheSameTierInsteadOfArbitraryTeamIdSplitting() {
         var result = LeagueFlexibleSlotPressureAnalyzer.classify(coverage(true, null, 1, 0,
-            team("a", "Alpha", 100),
-            team("b", "Bravo", 80),
-            team("c", "Charlie", 20),
-            team("d", "Delta", 20)));
+            teamWithSlots("a", "Alpha", 1, 100),
+            teamWithSlots("b", "Bravo", 1, 80),
+            teamWithSlots("c", "Charlie", 1, 20),
+            teamWithSlots("d", "Delta", 1, 20)));
 
         assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE, tier(result, "c"));
         assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE, tier(result, "d"));
@@ -46,10 +47,10 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
     @Test
     void completeTieIsBalancedRatherThanSimultaneouslyStrengthAndPressure() {
         var result = LeagueFlexibleSlotPressureAnalyzer.classify(coverage(true, null, 0, 1,
-            team("a", "Alpha", 50),
-            team("b", "Bravo", 50),
-            team("c", "Charlie", 50),
-            team("d", "Delta", 50)));
+            teamWithSlots("a", "Alpha", 1, 50),
+            teamWithSlots("b", "Bravo", 1, 50),
+            teamWithSlots("c", "Charlie", 1, 50),
+            teamWithSlots("d", "Delta", 1, 50)));
 
         result.teams().forEach(team ->
             assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_BALANCED, team.tier()));
@@ -58,9 +59,9 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
     @Test
     void activeFlexibleSlotsRequireAtLeastFourTeams() {
         var result = LeagueFlexibleSlotPressureAnalyzer.classify(coverage(true, null, 1, 0,
-            team("a", "Alpha", 100),
-            team("b", "Bravo", 80),
-            team("c", "Charlie", 60)));
+            teamWithSlots("a", "Alpha", 1, 100),
+            teamWithSlots("b", "Bravo", 1, 80),
+            teamWithSlots("c", "Charlie", 1, 60)));
 
         assertFalse(result.available());
         assertEquals("At least four league teams are required for relative flexible-slot tiers.",
@@ -73,10 +74,10 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
     void unavailableCoverageFailsClosed() {
         var result = LeagueFlexibleSlotPressureAnalyzer.classify(coverage(false,
             "Complete current value coverage is required.", 1, 1,
-            team("a", "Alpha", 0),
-            team("b", "Bravo", 0),
-            team("c", "Charlie", 0),
-            team("d", "Delta", 0)));
+            teamWithSlots("a", "Alpha", 2, 0),
+            teamWithSlots("b", "Bravo", 2, 0),
+            teamWithSlots("c", "Charlie", 2, 0),
+            teamWithSlots("d", "Delta", 2, 0)));
 
         assertFalse(result.available());
         assertEquals("Complete current value coverage is required.", result.insufficiencyReason());
@@ -93,6 +94,17 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
         assertTrue(result.available());
         result.teams().forEach(team ->
             assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT, team.tier()));
+    }
+
+    @Test
+    void rejectsTeamCoverageThatDoesNotMatchLeagueFlexibleExposure() {
+        var malformed = coverage(true, null, 1, 0,
+            teamWithSlots("a", "Alpha", 2, 100));
+
+        var error = assertThrows(IllegalArgumentException.class,
+            () -> LeagueFlexibleSlotPressureAnalyzer.classify(malformed));
+
+        assertEquals("team flexible-slot count does not match league exposure: a", error.getMessage());
     }
 
     private static LeagueFlexibleSlotPressurePolicy.Tier tier(
@@ -122,11 +134,6 @@ class LeagueFlexibleSlotPressureAnalyzerTest {
             available,
             insufficiencyReason,
             List.of(teams));
-    }
-
-    private static LeagueFlexibleSlotCoverageAnalyzer.TeamFlexibleCoverage team(
-        String id, String name, double value) {
-        return teamWithSlots(id, name, 2, value);
     }
 
     private static LeagueFlexibleSlotCoverageAnalyzer.TeamFlexibleCoverage teamWithSlots(
