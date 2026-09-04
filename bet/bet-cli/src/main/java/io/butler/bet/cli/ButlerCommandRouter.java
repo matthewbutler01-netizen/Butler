@@ -22,7 +22,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_FUTURE_CAPITAL -> ButlerLeagueFutureCapitalCli.main(args);
             case TRADE_SUPPORTING_EVIDENCE -> ButlerTradeSupportingEvidenceCli.main(args);
             case TRADE_STRATEGIC_CONTEXT -> ButlerTradeStrategicContextCli.main(args);
-            case TRADE_RECOMMENDATION -> ButlerTradeRecommendationCli.main(args);
+            case TRADE_RECOMMENDATION -> ButlerTradeRecommendationV5Cli.main(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
