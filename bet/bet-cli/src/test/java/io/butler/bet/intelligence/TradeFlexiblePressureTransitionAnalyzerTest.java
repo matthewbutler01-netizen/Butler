@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TradeFlexiblePressureTransitionAnalyzerTest {
@@ -99,6 +100,33 @@ class TradeFlexiblePressureTransitionAnalyzerTest {
     }
 
     @Test
+    void noFlexibleRequirementRemainsAvailableWithoutTransitionMeasurement() {
+        var context = context(40.0, 35.0, 20.0, List.of("RB", "WR"), 0);
+        var result = TradeFlexiblePressureTransitionAnalyzer.assess(
+            context,
+            context.flexible().sideA(),
+            context.trade().strategic().trade().sideA(),
+            context.trade().strategic().trade().sideB());
+
+        assertTrue(context.flexible().flexiblePressureAvailable());
+        assertEquals(
+            LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT,
+            context.flexible().sideA().pressure().tier());
+        assertEquals(
+            TradeFlexiblePressureTransitionAnalyzer.AssessmentState.NO_FLEXIBLE_REQUIREMENT,
+            result.state());
+        assertTrue(result.available());
+        assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT, result.preTradeTier());
+        assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT, result.postTradeTier());
+        assertNull(result.insufficiencyReason());
+        assertNull(result.preTradeCoverageValue());
+        assertNull(result.postTradeCoverageValue());
+        assertNull(result.lossFraction());
+        assertFalse(result.transitionedToPressure());
+        assertFalse(result.materialTransitionToPressure());
+    }
+
+    @Test
     void bothTradeTeamsAreReconstructedBeforeLeagueRelativeReranking() {
         var context = context(40.0, 35.0, 20.0);
         var postDepth = TradeFlexiblePostTradeDepthAnalyzer.apply(
@@ -119,6 +147,20 @@ class TradeFlexiblePressureTransitionAnalyzerTest {
         double sideAFlexValue,
         double sideBBaselineFlexValue,
         double sideBOutgoingValue) {
+        return context(
+            sideAFlexValue,
+            sideBBaselineFlexValue,
+            sideBOutgoingValue,
+            List.of("RB", "WR", "FLEX"),
+            1);
+    }
+
+    private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context(
+        double sideAFlexValue,
+        double sideBBaselineFlexValue,
+        double sideBOutgoingValue,
+        List<String> lineupSlots,
+        int flexSlots) {
         var identityA = new TradeAssetStrategicContextAnalyzer.TeamIdentity("a", "Alpha");
         var identityB = new TradeAssetStrategicContextAnalyzer.TeamIdentity("b", "Bravo");
         var sideA = tradeSide(tradePlayer("a-wr2", "WR", "a", "Alpha", sideAFlexValue));
@@ -149,12 +191,12 @@ class TradeFlexiblePressureTransitionAnalyzerTest {
             strategic,
             LeaguePositionalPressurePolicy.POLICY_ID,
             LeagueLineupRequirementsAnalyzer.POLICY_ID,
-            1,
+            flexSlots,
             0,
             Map.copyOf(availability),
             positional(identityA),
             positional(identityB));
-        var lineup = LeagueLineupRequirementsAnalyzer.interpret(LEAGUE, List.of("RB", "WR", "FLEX"));
+        var lineup = LeagueLineupRequirementsAnalyzer.interpret(LEAGUE, lineupSlots);
         var depth = new LeaguePositionalDepthAnalyzer.DepthReport(
             LEAGUE,
             SOURCE,
