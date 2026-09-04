@@ -93,7 +93,7 @@ public final class ButlerTradeCounterAuthorizationCli {
             if (!"--confirm".equalsIgnoreCase(args[separator + 3])) {
                 throw new IllegalArgumentException("optional authorization value must use --confirm");
             }
-            confirmation = requireText(args[separator + 4], "confirmation");
+            confirmation = requireExactConfirmation(args[separator + 4]);
         }
         return new Options(trade, action, destination, confirmation);
     }
@@ -159,6 +159,7 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("  message requires a stable manager destination ID; submit requires the exact proposal league ID.");
         System.out.println("  Omit --confirm to display the exact AUTHORIZE_ONCE phrase without creating a grant.");
         System.out.println("  Supplying the exact quoted phrase can create a one-shot authorization grant artifact only.");
+        System.out.println("  --confirm is case-sensitive and is not trimmed or normalized.");
         System.out.println("  This command does not persist grants, send messages, or submit trades.");
     }
 
@@ -253,6 +254,13 @@ public final class ButlerTradeCounterAuthorizationCli {
             case "submit" -> TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE;
             default -> throw new IllegalArgumentException("action must be message or submit");
         };
+    }
+
+    private static String requireExactConfirmation(String value) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("confirmation must not be blank");
+        }
+        return value;
     }
 
     private static String requireText(String value, String field) {
