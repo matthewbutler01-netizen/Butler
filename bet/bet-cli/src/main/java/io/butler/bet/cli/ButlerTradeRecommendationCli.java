@@ -5,6 +5,8 @@ import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
 import io.butler.bet.intelligence.TradeMarketEdgePolicy;
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
+import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
+import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 
 import java.nio.file.Path;
@@ -14,7 +16,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Conservative evidence-first trade recommendation from one explicit team's perspective. */
+/** Conservative market-first trade recommendation with explicit strategic vetoes and team perspective. */
 public final class ButlerTradeRecommendationCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -82,12 +84,19 @@ public final class ButlerTradeRecommendationCli {
             TradeAssetPositionalContextAnalyzer.PositionAvailability::available);
         var evidence = new TradeRecommendationPolicy.EvidenceGate(
             report.strategic().postureAvailable(), report.strategic().futureCapitalAvailable(), positionalAvailable);
-        var packageRecommendation = TradeRecommendationPolicy.classify(report.strategic().marketEdge(), evidence);
+        boolean sideA = perspective == TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM;
+        var team = sideA ? report.strategic().sideA() : report.strategic().sideB();
+        var positional = sideA ? report.sideA() : report.sideB();
+        var outgoing = sideA ? report.strategic().trade().sideA() : report.strategic().trade().sideB();
+        var incoming = sideA ? report.strategic().trade().sideB() : report.strategic().trade().sideA();
+        var veto = TradeStrategicVetoDetector.assess(team, positional, outgoing, incoming);
+        var packageRecommendation = TradeRecommendationVetoPolicy.classify(
+            report.strategic().marketEdge(), evidence, veto.state());
         var action = TradeTeamPerspectiveRecommendationPolicy.classify(packageRecommendation, perspective);
         var status = new EvidenceStatus(
             report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.UNAVAILABLE,
             evidence.postureAvailable(), evidence.futureCapitalAvailable(), evidence.positionalPressureAvailable());
-        return new RecommendationResult(packageRecommendation, action, status);
+        return new RecommendationResult(packageRecommendation, action, status, veto);
     }
 
     static String formatEvidenceGates(EvidenceStatus status) {
@@ -108,6 +117,15 @@ public final class ButlerTradeRecommendationCli {
             : "unavailable governed evidence: " + String.join(", ", missing);
     }
 
+    static String formatVetoReason(TradeStrategicVetoDetector.VetoReason reason) {
+        return switch (reason.code()) {
+            case LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN ->
+                "low future capital: sending future pick(s) without receiving a future pick";
+            case POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN ->
+                reason.position() + " pressure: sending " + reason.position() + " without receiving " + reason.position();
+        };
+    }
+
     private static TradeAssetPositionalContextAnalyzer.TradePositionalContextReport analyze(
         TradeAssetPositionalContextAnalyzer analyzer, Options options) throws SQLException {
         if (options.minimumAsOf() != null) {
@@ -125,22 +143,32 @@ public final class ButlerTradeRecommendationCli {
         var trade = report.strategic().trade();
         var perspectiveTeam = options.perspective() == TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM
             ? report.strategic().sideA().identity() : report.strategic().sideB().identity();
-        System.out.println("Trade recommendation (conservative evidence-first)");
+        System.out.println("Trade recommendation (conservative market-first strategic veto)");
         System.out.println("League ID: " + trade.leagueId());
         System.out.println("Season: " + options.season());
         System.out.println("Perspective: " + perspectiveTeam.teamName() + " [" + perspectiveTeam.teamId() + "]");
-        System.out.println("Recommendation policy: " + TradeRecommendationPolicy.POLICY_ID);
+        System.out.println("Recommendation policy: " + TradeRecommendationVetoPolicy.POLICY_ID);
+        System.out.println("Strategic veto policy: " + TradeStrategicVetoDetector.POLICY_ID);
         System.out.println("Perspective policy: " + TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
         System.out.println("Evidence complete: " + result.evidenceStatus().complete());
         System.out.println(formatEvidenceGates(result.evidenceStatus()));
+        System.out.println("Strategic veto: " + result.vetoAssessment().state());
+        for (var reason : result.vetoAssessment().reasons()) {
+            System.out.println("Veto reason: " + formatVetoReason(reason));
+        }
         System.out.println("Package recommendation: " + result.packageRecommendation());
         System.out.println("Action: " + result.action());
         if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.INCONCLUSIVE) {
             System.out.println("Reason: " + formatInconclusiveReason(result.evidenceStatus()) + ".");
         } else if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.HOLD) {
-            System.out.println("Reason: the governed market comparison is inside the fairness band.");
+            if (result.vetoAssessment().state() == TradeRecommendationVetoPolicy.VetoState.BLOCKED
+                && report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.MARKET_FAIR) {
+                System.out.println("Reason: a governed strategic veto blocked the directional market recommendation.");
+            } else {
+                System.out.println("Reason: the governed market comparison is inside the fairness band.");
+            }
         }
-        System.out.println("No hidden weighting or strategic override is applied.");
+        System.out.println("No hidden weighting, side flipping, or strategic score blending is applied.");
     }
 
     static void printUsage() {
@@ -194,7 +222,8 @@ public final class ButlerTradeRecommendationCli {
 
     record RecommendationResult(TradeRecommendationPolicy.Recommendation packageRecommendation,
                                 TradeTeamPerspectiveRecommendationPolicy.Action action,
-                                EvidenceStatus evidenceStatus) {}
+                                EvidenceStatus evidenceStatus,
+                                TradeStrategicVetoDetector.VetoAssessment vetoAssessment) {}
 
     record Options(String leagueId, int season, TradeAssetAnalyzer.TradePackage sideA,
                    TradeAssetAnalyzer.TradePackage sideB,
