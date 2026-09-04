@@ -11,6 +11,7 @@ import java.util.Objects;
  */
 public final class TradeStrategicVetoDetector {
     public static final String POLICY_ID = "trade-strategic-veto-v1-explicit-weakness-protection";
+    private static final List<String> CORE_POSITIONS = List.of("QB", "RB", "WR", "TE");
 
     private TradeStrategicVetoDetector() {}
 
@@ -65,8 +66,9 @@ public final class TradeStrategicVetoDetector {
             reasons.add(new VetoReason(ReasonCode.LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN, null));
         }
 
-        positional.positions().forEach((position, pressure) -> {
-            if (pressure.tier() != LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE) return;
+        for (String position : CORE_POSITIONS) {
+            var pressure = positional.positions().get(position);
+            if (pressure.tier() != LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE) continue;
             boolean sendsPosition = outgoing.players().stream()
                 .anyMatch(player -> position.equalsIgnoreCase(player.position()));
             boolean receivesPosition = incoming.players().stream()
@@ -75,7 +77,7 @@ public final class TradeStrategicVetoDetector {
                 reasons.add(new VetoReason(
                     ReasonCode.POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN, position));
             }
-        });
+        }
 
         return reasons.isEmpty()
             ? new VetoAssessment(TradeRecommendationVetoPolicy.VetoState.CLEAR, List.of())
