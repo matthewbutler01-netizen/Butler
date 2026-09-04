@@ -22,6 +22,10 @@ class TradeRecommendationFlexibleV5ContractTest {
             TradeFlexiblePostTradeDepthAnalyzer.POLICY_ID);
         assertEquals("trade-flexible-coverage-loss-v1-post-trade-legal-lineup",
             TradeFlexibleCoverageMaterialLossAnalyzer.POLICY_ID);
+        assertEquals("flexible-slot-pressure-v1-combined-relative-quartiles",
+            LeagueFlexibleSlotPressurePolicy.POLICY_ID);
+        assertEquals("flexible-slot-coverage-v1-direct-reserved-max-value",
+            LeagueFlexibleSlotCoverageAnalyzer.POLICY_ID);
         assertEquals("trade-protected-value-materiality-v1-25-percent-loss",
             TradeProtectedValueMaterialityPolicy.POLICY_ID);
         assertEquals("trade-team-perspective-v1-explicit-owner",
