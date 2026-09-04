@@ -50,6 +50,10 @@ public final class ButlerApp {
 
         try {
             if (args[0].equalsIgnoreCase("trade")) {
+                if (ButlerTradeRecommendationCli.isCommand(args)) {
+                    ButlerTradeRecommendationCli.main(args);
+                    return;
+                }
                 handleTrade(args);
                 return;
             }
@@ -346,86 +350,28 @@ public final class ButlerApp {
         if (report.minimumAsOfDate() != null) {
             System.out.println("Minimum as-of: " + report.minimumAsOfDate());
         }
-        System.out.println("Value dates: " + valueDates(report.oldestValueDate(), report.latestValueDate()));
         System.out.println("Status: " + report.status());
-        System.out.println("Rankable: " + report.rankable());
-        System.out.printf("Coverage: %d/%d assets (%.1f%%)  missing-players=%d  missing-picks=%d  stale=%d%n",
+        System.out.printf("Coverage: %d/%d assets (%.1f%%)  missing=%d  stale=%d%n",
             report.valuedAssets(), report.totalAssets(), report.coveragePercent(),
-            report.missingPlayers(), report.missingDraftPicks(), report.staleAssets());
-
-        for (var team : report.teams()) {
-            System.out.printf("%s  status=%s  rankable=%s  coverage=%d/%d (%.1f%%)  missing-players=%d  missing-picks=%d  stale=%d  dates=%s  [%s]%n",
-                team.teamName(), team.status(), team.rankable(), team.valuedAssets(), team.totalAssets(),
-                team.coveragePercent(), team.missingPlayers(), team.missingDraftPicks(), team.staleAssets(),
-                valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
-        }
-
-        if (report.missingAssets() == 0) {
-            System.out.println("No current asset values are missing.");
-        } else {
-            if (!report.missingPlayerAssets().isEmpty()) {
-                System.out.println("Missing player values:");
-                for (var player : report.missingPlayerAssets()) {
-                    System.out.printf("  %s  %s  %s%s  slot=%s  [%s]%n",
-                        player.teamName(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
-                        player.slot(), player.playerId());
-                }
-            }
-            if (!report.missingDraftPickAssets().isEmpty()) {
-                System.out.println("Missing draft-pick values:");
-                for (var pick : report.missingDraftPickAssets()) {
-                    String original = pick.originalTeamName().equals(pick.teamName())
-                        ? "" : "  original=" + pick.originalTeamName();
-                    String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
-                    System.out.printf("  %s  %s%s%s  [%s]%n",
-                        pick.teamName(), pick.label(), original, slot, pick.draftPickId());
-                }
-            }
-        }
-
-        if (report.minimumAsOfDate() == null) {
-            return;
-        }
-        if (report.staleAssets() == 0) {
-            System.out.println("No valued assets are older than the minimum as-of date.");
-            return;
-        }
-        if (!report.stalePlayerAssets().isEmpty()) {
-            System.out.println("Stale player values:");
-            for (var player : report.stalePlayerAssets()) {
-                System.out.printf("  %s  %s  %s%s  slot=%s  as-of=%s  [%s]%n",
-                    player.teamName(), player.position(), player.playerName(), formatTeam(player.nflTeam()),
-                    player.slot(), player.asOfDate(), player.playerId());
-            }
-        }
-        if (!report.staleDraftPickAssets().isEmpty()) {
-            System.out.println("Stale draft-pick values:");
-            for (var pick : report.staleDraftPickAssets()) {
-                String original = pick.originalTeamName().equals(pick.teamName())
-                    ? "" : "  original=" + pick.originalTeamName();
-                String slot = pick.pickNumber() == null ? "" : "  slot=" + pick.pickNumber();
-                System.out.printf("  %s  %s%s%s  as-of=%s  [%s]%n",
-                    pick.teamName(), pick.label(), original, slot, pick.asOfDate(), pick.draftPickId());
+            report.missingAssets(), report.staleAssets());
+        System.out.println("Value dates: " + valueDates(report.oldestValueDate(), report.latestValueDate()));
+        if (!report.diagnostics().isEmpty()) {
+            System.out.println("Diagnostics:");
+            for (String diagnostic : report.diagnostics()) {
+                System.out.println("  - " + diagnostic);
             }
         }
     }
 
     private static void printAssetSearch(String leagueId, String query, String sourceOverride) throws SQLException {
         Database database = initializedDatabase();
-        LeagueAssetSearchAnalyzer analyzer = new LeagueAssetSearchAnalyzer(database);
-        var report = sourceOverride == null
-            ? analyzer.search(leagueId, query)
-            : analyzer.search(leagueId, query, sourceOverride);
-
+        var report = new LeagueAssetSearchAnalyzer(database).search(leagueId, query, sourceOverride);
         System.out.println("League asset search");
         System.out.println("League ID: " + report.leagueId());
         System.out.println("Source: " + report.source());
         System.out.println("Query: " + report.query());
-        System.out.println("Matches: " + report.totalMatches());
-        if (report.totalMatches() == 0) {
-            System.out.println("No current league assets matched this query.");
-            return;
-        }
+        System.out.printf("Matches: %d  valued=%d  missing=%d%n",
+            report.totalMatches(), report.valuedMatches(), report.missingValues());
         for (var player : report.players()) {
             if (player.valued()) {
                 System.out.printf("PLAYER  %.2f  %s  %s%s  team=%s  slot=%s  as-of=%s  [%s]%n",
@@ -724,6 +670,7 @@ public final class ButlerApp {
     private static void printTradeUsage() {
         System.out.println("Mixed trade assets:");
         System.out.println("  butler trade compare <league-id> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]");
+        System.out.println("  butler trade recommendation <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  Assets are comma-separated. Bare IDs are players; use player:<id> or pick:<draft-pick-id>.");
     }
 
