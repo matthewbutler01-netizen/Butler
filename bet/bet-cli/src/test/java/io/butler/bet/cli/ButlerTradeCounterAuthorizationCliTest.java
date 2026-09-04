@@ -1,17 +1,22 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.data.Database;
+import io.butler.bet.data.TradeCounterAuthorizationGrantRepository;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterMaterializedPackagePolicy;
 import io.butler.bet.intelligence.TradeCounterProposalEnvelopePolicy;
 import io.butler.bet.intelligence.TradeCounterProposalIdentityPolicy;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.file.Path;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,6 +25,9 @@ class ButlerTradeCounterAuthorizationCliTest {
     private static final String FINGERPRINT =
         "1f7c8beb37acdcc2f2d0f93e75a36bfb3bc5b4828e730330696ee05e8f1182f8";
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 1);
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void parsesMessageAuthorizationAfterSeparator() {
@@ -89,7 +97,7 @@ class ButlerTradeCounterAuthorizationCliTest {
     }
 
     @Test
-    void authorizedOutputStillClaimsNoExternalActionOrPersistence() {
+    void retainedBf385RendererStillClaimsNoExternalActionOrPersistence() {
         var request = request();
         var decision = TradeCounterAuthorizationPolicy.authorize(
             request, request.requiredConfirmation());
@@ -97,7 +105,88 @@ class ButlerTradeCounterAuthorizationCliTest {
 
         assertTrue(output.contains("Authorization state: AUTHORIZED"));
         assertTrue(output.contains("Authorization maximum uses: 1"));
-        assertTrue(output.contains("Grant is not persisted or consumed by this command."));
+        assertTrue(output.contains("Grant is not persisted or consumed by this renderer."));
+        assertTrue(output.contains("This command never sends a message or submits a trade."));
+    }
+
+    @Test
+    void exactAuthorizedDecisionPersistsOneTrustedUnconsumedGrant() throws Exception {
+        Database database = database();
+        var request = request();
+        var decision = TradeCounterAuthorizationPolicy.authorize(
+            request, request.requiredConfirmation());
+
+        var persistence = ButlerTradeCounterAuthorizationCli.persistAuthorization(database, decision);
+        var repository = new TradeCounterAuthorizationGrantRepository(database);
+        var stored = repository.findById(persistence.trustedGrantId()).orElseThrow();
+
+        assertEquals(ButlerTradeCounterAuthorizationCli.PersistenceState.PERSISTED, persistence.state());
+        assertEquals(decision.grant().grantId(), persistence.trustedGrantId());
+        assertEquals(decision.grant(), stored.grant());
+        assertFalse(stored.consumed());
+    }
+
+    @Test
+    void rejectedDecisionPersistsNoGrant() throws Exception {
+        Database database = database();
+        var request = request();
+        var rejected = TradeCounterAuthorizationPolicy.authorize(request, "approved");
+
+        var persistence = ButlerTradeCounterAuthorizationCli.persistAuthorization(database, rejected);
+        var repository = new TradeCounterAuthorizationGrantRepository(database);
+        repository.initialize();
+
+        assertEquals(ButlerTradeCounterAuthorizationCli.PersistenceState.NOT_APPLICABLE, persistence.state());
+        assertNull(persistence.trustedGrantId());
+        assertTrue(repository.findActive(
+            FINGERPRINT,
+            TradeCounterAuthorizationPolicy.Action.SEND_NEGOTIATION_MESSAGE,
+            new TradeCounterAuthorizationPolicy.Destination(
+                TradeCounterAuthorizationPolicy.DestinationType.MANAGER,
+                "manager-22")).isEmpty());
+    }
+
+    @Test
+    void repeatedExactAuthorizationReusesExistingActiveTrustedGrant() throws Exception {
+        Database database = database();
+        var request = request();
+        var firstDecision = TradeCounterAuthorizationPolicy.authorize(
+            request, request.requiredConfirmation());
+        var secondDecision = TradeCounterAuthorizationPolicy.authorize(
+            request, request.requiredConfirmation());
+
+        var first = ButlerTradeCounterAuthorizationCli.persistAuthorization(database, firstDecision);
+        var second = ButlerTradeCounterAuthorizationCli.persistAuthorization(database, secondDecision);
+        var repository = new TradeCounterAuthorizationGrantRepository(database);
+        var active = repository.findActive(
+            FINGERPRINT,
+            TradeCounterAuthorizationPolicy.Action.SEND_NEGOTIATION_MESSAGE,
+            new TradeCounterAuthorizationPolicy.Destination(
+                TradeCounterAuthorizationPolicy.DestinationType.MANAGER,
+                "manager-22")).orElseThrow();
+
+        assertEquals(ButlerTradeCounterAuthorizationCli.PersistenceState.PERSISTED, first.state());
+        assertEquals(ButlerTradeCounterAuthorizationCli.PersistenceState.ACTIVE_GRANT_EXISTS, second.state());
+        assertEquals(first.trustedGrantId(), second.trustedGrantId());
+        assertEquals(first.trustedGrantId(), active.grant().grantId());
+        assertFalse(active.consumed());
+    }
+
+    @Test
+    void persistedOutputStillClaimsNoConsumptionOrExternalAction() throws Exception {
+        Database database = database();
+        var request = request();
+        var decision = TradeCounterAuthorizationPolicy.authorize(
+            request, request.requiredConfirmation());
+        var persistence = ButlerTradeCounterAuthorizationCli.persistAuthorization(database, decision);
+
+        String output = capture(() ->
+            ButlerTradeCounterAuthorizationCli.printDecision(request, decision, persistence));
+
+        assertTrue(output.contains("Authorization persistence: PERSISTED"));
+        assertTrue(output.contains("Trusted authorization grant ID: " + persistence.trustedGrantId()));
+        assertTrue(output.contains("persisted and remains unconsumed"));
+        assertTrue(output.contains("No grant is consumed by this command."));
         assertTrue(output.contains("This command never sends a message or submits a trade."));
     }
 
@@ -107,6 +196,10 @@ class ButlerTradeCounterAuthorizationCliTest {
             ButlerCommandRouter.route(new String[] {"trade", "counter-authorize"}));
         assertEquals(ButlerCommandRouter.Route.TRADE_COUNTER_PROPOSAL,
             ButlerCommandRouter.route(new String[] {"trade", "counter-proposal"}));
+    }
+
+    private Database database() {
+        return new Database(tempDir.resolve("authorization-cli.db"));
     }
 
     private static TradeCounterAuthorizationPolicy.AuthorizationRequest request() {
