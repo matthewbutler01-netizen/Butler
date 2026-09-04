@@ -59,6 +59,24 @@ class TradeStrategicFlexibleTransitionMaterialLossVetoDetectorTest {
     }
 
     @Test
+    void materialCoverageLossWithoutPressureTransitionDoesNotBlock() {
+        var result = TradeStrategicFlexibleTransitionMaterialLossVetoDetector.assess(
+            strategic(LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL),
+            positional(),
+            TradeFlexibleCoverageMaterialLossAnalyzer.Assessment.notProtected(),
+            transition(
+                TradeFlexiblePressureTransitionAnalyzer.AssessmentState.NO_TRANSITION,
+                LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_STRENGTH,
+                LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_BALANCED,
+                100.0, 70.0, 0.30),
+            side(List.of(), List.of()),
+            side(List.of(), List.of()));
+
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, result.state());
+        assertEquals(List.of(), result.reasons());
+    }
+
+    @Test
     void preservesExistingReasonOrderBeforeTransitionReason() {
         var result = TradeStrategicFlexibleTransitionMaterialLossVetoDetector.assess(
             strategic(LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL),
