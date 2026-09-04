@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.TradeCounterAuthorizationGrantRepository;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterCandidateSelectionPolicy;
 import io.butler.bet.intelligence.TradeCounterMaterializedPackagePolicy;
@@ -50,7 +51,8 @@ public final class ButlerTradeCounterAuthorizationCli {
 
             var decision = TradeCounterAuthorizationPolicy.authorize(
                 request, options.confirmation());
-            printDecision(request, decision);
+            var persistence = persistAuthorization(database, decision);
+            printDecision(request, decision, persistence);
         } catch (SQLException e) {
             System.err.println("Database error while building counter authorization evidence: " + e.getMessage());
             System.exit(1);
@@ -120,6 +122,7 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("No authorization grant was created. No message or trade was sent or submitted.");
     }
 
+    /** Retained BF-385 renderer for compatibility. */
     static void printDecision(
         TradeCounterAuthorizationPolicy.AuthorizationRequest request,
         TradeCounterAuthorizationPolicy.AuthorizationDecision decision) {
@@ -138,10 +141,43 @@ public final class ButlerTradeCounterAuthorizationCli {
             System.out.println("Authorization grant ID: " + grant.grantId());
             System.out.println("Authorization granted at: " + grant.grantedAt());
             System.out.println("Authorization maximum uses: " + grant.maxUses());
-            System.out.println("Grant is not persisted or consumed by this command.");
+            System.out.println("Grant is not persisted or consumed by this renderer.");
         } else {
             System.out.println("No authorization grant was created.");
         }
+        System.out.println("This command never sends a message or submits a trade.");
+    }
+
+    static void printDecision(
+        TradeCounterAuthorizationPolicy.AuthorizationRequest request,
+        TradeCounterAuthorizationPolicy.AuthorizationDecision decision,
+        PersistenceResult persistence) {
+        if (request == null || decision == null || persistence == null) {
+            throw new IllegalArgumentException("authorization output inputs must not be null");
+        }
+        requirePersistenceMatchesDecision(decision, persistence);
+
+        System.out.println("Trade counter authorization decision (no external action)");
+        System.out.println("Authorization policy: " + decision.policyId());
+        System.out.println("Proposal fingerprint: " + request.proposalFingerprint());
+        System.out.println("Requested action: " + request.action());
+        System.out.println("Destination: " + request.destination().type() + ":" + request.destination().id());
+        System.out.println("Authorization state: " + decision.state());
+        System.out.println("Authorization reason: " + decision.reason());
+        System.out.println("Authorization persistence: " + persistence.state());
+
+        if (decision.state() == TradeCounterAuthorizationPolicy.DecisionState.AUTHORIZED) {
+            if (persistence.state() == PersistenceState.PERSISTED) {
+                System.out.println("Trusted authorization grant ID: " + persistence.trustedGrantId());
+                System.out.println("The exact-confirmation grant is persisted and remains unconsumed.");
+            } else {
+                System.out.println("Existing trusted active grant ID: " + persistence.trustedGrantId());
+                System.out.println("An equivalent active authorization already exists; no duplicate grant was persisted.");
+            }
+        } else {
+            System.out.println("No authorization grant was persisted.");
+        }
+        System.out.println("No grant is consumed by this command.");
         System.out.println("This command never sends a message or submits a trade.");
     }
 
@@ -158,9 +194,50 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("  butler trade counter-authorize <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD] -- <message|submit> <destination-id> [--confirm \"<exact-confirmation>\"]");
         System.out.println("  message requires a stable manager destination ID; submit requires the exact proposal league ID.");
         System.out.println("  Omit --confirm to display the exact AUTHORIZE_ONCE phrase without creating a grant.");
-        System.out.println("  Supplying the exact quoted phrase can create a one-shot authorization grant artifact only.");
+        System.out.println("  Supplying the exact quoted phrase can persist one trusted, unconsumed authorization grant.");
         System.out.println("  --confirm is case-sensitive and is not trimmed or normalized.");
-        System.out.println("  This command does not persist grants, send messages, or submit trades.");
+        System.out.println("  This command never consumes grants, sends messages, or submits trades.");
+    }
+
+    static PersistenceResult persistAuthorization(
+        Database database,
+        TradeCounterAuthorizationPolicy.AuthorizationDecision decision) throws SQLException {
+        if (database == null || decision == null) {
+            throw new IllegalArgumentException("authorization persistence inputs must not be null");
+        }
+        if (decision.state() != TradeCounterAuthorizationPolicy.DecisionState.AUTHORIZED) {
+            return new PersistenceResult(PersistenceState.NOT_APPLICABLE, null);
+        }
+
+        var grant = decision.grant();
+        var repository = new TradeCounterAuthorizationGrantRepository(database);
+        repository.initialize();
+        try {
+            repository.save(grant);
+            return new PersistenceResult(PersistenceState.PERSISTED, grant.grantId());
+        } catch (SQLException e) {
+            var active = repository.findActive(
+                grant.proposalFingerprint(), grant.action(), grant.destination());
+            if (active.isPresent()) {
+                return new PersistenceResult(
+                    PersistenceState.ACTIVE_GRANT_EXISTS,
+                    active.get().grant().grantId());
+            }
+            throw e;
+        }
+    }
+
+    private static void requirePersistenceMatchesDecision(
+        TradeCounterAuthorizationPolicy.AuthorizationDecision decision,
+        PersistenceResult persistence) {
+        if (decision.state() == TradeCounterAuthorizationPolicy.DecisionState.AUTHORIZED
+            && persistence.state() == PersistenceState.NOT_APPLICABLE) {
+            throw new IllegalStateException("authorized decision requires trusted persistence outcome");
+        }
+        if (decision.state() == TradeCounterAuthorizationPolicy.DecisionState.REJECTED
+            && persistence.state() != PersistenceState.NOT_APPLICABLE) {
+            throw new IllegalStateException("rejected decision cannot have trusted persistence outcome");
+        }
     }
 
     private static TradeCounterProposalIdentityPolicy.Identity buildIdentity(
@@ -266,6 +343,25 @@ public final class ButlerTradeCounterAuthorizationCli {
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value.trim();
+    }
+
+    enum PersistenceState {
+        PERSISTED,
+        ACTIVE_GRANT_EXISTS,
+        NOT_APPLICABLE
+    }
+
+    record PersistenceResult(PersistenceState state, String trustedGrantId) {
+        PersistenceResult {
+            if (state == null) throw new IllegalArgumentException("persistence state must not be null");
+            if (state == PersistenceState.NOT_APPLICABLE) {
+                if (trustedGrantId != null) {
+                    throw new IllegalArgumentException("NOT_APPLICABLE cannot carry trustedGrantId");
+                }
+            } else if (trustedGrantId == null || trustedGrantId.isBlank()) {
+                throw new IllegalArgumentException("trusted persistence result requires grant ID");
+            }
+        }
     }
 
     record Options(
