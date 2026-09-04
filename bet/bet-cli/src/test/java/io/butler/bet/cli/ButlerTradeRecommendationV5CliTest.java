@@ -85,6 +85,31 @@ class ButlerTradeRecommendationV5CliTest {
     }
 
     @Test
+    void v5TransitionVetoBelongsOnlyToHarmedTeamPerspective() {
+        var context = context(40.0, 35.0, 20.0);
+
+        var sideA = ButlerTradeRecommendationV5Cli.recommend(
+            context, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM);
+        var sideB = ButlerTradeRecommendationV5Cli.recommend(
+            context, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_B_TEAM);
+
+        assertEquals(
+            TradeFlexiblePressureTransitionAnalyzer.AssessmentState.MATERIAL_TRANSITION_TO_PRESSURE,
+            sideA.transitionAssessment().state());
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, sideA.vetoAssessment().state());
+        assertEquals(TradeRecommendationPolicy.Recommendation.HOLD, sideA.packageRecommendation());
+        assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.HOLD, sideA.action());
+
+        assertEquals(
+            TradeFlexiblePressureTransitionAnalyzer.AssessmentState.NO_TRANSITION,
+            sideB.transitionAssessment().state());
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, sideB.vetoAssessment().state());
+        assertEquals(TradeRecommendationPolicy.Recommendation.SIDE_A_PACKAGE_PREFERRED,
+            sideB.packageRecommendation());
+        assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.ACCEPT, sideB.action());
+    }
+
+    @Test
     void v5OutputSurfacesTransitionPolicyTierMovementAndReason() {
         var context = context(40.0, 35.0, 20.0);
         var options = new ButlerTradeRecommendationCli.Options(
