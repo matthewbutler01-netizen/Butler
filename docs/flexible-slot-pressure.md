@@ -1,6 +1,6 @@
 # Combined FLEX/SUPERFLEX pressure
 
-Butler classifies one combined flexible-slot pressure tier from neutral FLEX/SUPERFLEX coverage evidence. The tier remains league-relative evidence, but the live v4 trade recommendation now consumes it as a governed evidence gate and, for `FLEXIBLE_PRESSURE` teams, as eligibility for a legal post-trade flexible-coverage material-loss veto.
+Butler classifies one combined flexible-slot pressure tier from neutral FLEX/SUPERFLEX coverage evidence. The tier remains league-relative evidence. The live v5 trade recommendation consumes it as a governed evidence gate, protects teams already in `FLEXIBLE_PRESSURE` from material legal-coverage loss, and also protects non-pressure teams from materially falling into `FLEXIBLE_PRESSURE` after a trade.
 
 ## Governed policies
 
@@ -8,9 +8,11 @@ Butler classifies one combined flexible-slot pressure tier from neutral FLEX/SUP
 - Flexible-slot coverage: `flexible-slot-coverage-v1-direct-reserved-max-value`
 - Flexible-slot pressure: `flexible-slot-pressure-v1-combined-relative-quartiles`
 - Flexible post-trade coverage loss: `trade-flexible-coverage-loss-v1-post-trade-legal-lineup`
+- Flexible post-trade depth: `trade-flexible-post-trade-depth-v1-two-team-exchange`
+- Flexible pressure transition: `trade-flexible-pressure-transition-v1-post-trade-league-relative`
 - Protected-value materiality: `trade-protected-value-materiality-v1-25-percent-loss`
-- Live recommendation: `trade-recommendation-v4-market-first-flexible-material-loss-veto`
-- Live strategic veto: `trade-strategic-veto-v3-material-protected-value-plus-flexible-coverage-loss`
+- Live recommendation: `trade-recommendation-v5-market-first-flexible-transition-material-loss-veto`
+- Live strategic veto: `trade-strategic-veto-v4-material-protected-value-plus-flexible-transition-loss`
 
 The pressure policy consumes the maximum legal flexible coverage value produced after direct QB/RB/WR/TE starters have already been reserved.
 
@@ -42,9 +44,9 @@ If active flexible-slot coverage evidence is unavailable, the pressure report is
 
 If active flexible slots exist but fewer than four league teams are available, Butler returns `INSUFFICIENT_EVIDENCE` because relative quartile classification is not safe.
 
-Under the live v4 recommendation contract, unavailable flexible-pressure evidence makes the recommendation `INCONCLUSIVE`. Butler does not silently fall back to the earlier v3 recommendation path.
+Under the live v5 recommendation contract, unavailable flexible-pressure evidence makes the recommendation `INCONCLUSIVE`. Butler does not silently fall back to an earlier recommendation version.
 
-If the league has no FLEX or SUPERFLEX slots, teams receive `NO_FLEXIBLE_REQUIREMENT`. The minimum-team rule does not apply because there is no flexible lineup requirement to classify. This is an available evidence state and does not create a flexible material-loss veto.
+If the league has no FLEX or SUPERFLEX slots, teams receive `NO_FLEXIBLE_REQUIREMENT`. The minimum-team rule does not apply because there is no flexible lineup requirement to classify. This is an available evidence state and creates neither an existing-pressure nor a transition-to-pressure veto.
 
 Team-level flexible-slot counts must agree with the league's FLEX plus SUPERFLEX exposure. Mismatched evidence is rejected instead of being silently ranked.
 
@@ -64,52 +66,97 @@ Composition requires agreement on:
 
 Unavailable evidence remains unavailable when attached to a trade. The context layer does not convert missing evidence into a direction or assume a fallback tier.
 
-## Legal post-trade coverage loss
+## Shared post-trade roster mutation
 
-Only a team already classified `FLEXIBLE_PRESSURE` is protected by the flexible material-loss rule.
+v5 uses one governed roster-mutation algorithm for flexible trade evidence:
+
+1. begin from current governed positional-depth evidence;
+2. remove outgoing traded players from the team giving them;
+3. add incoming traded players with current governed values;
+4. reject missing, stale, non-finite, negative, or freshness-incompatible values rather than guessing;
+5. rebuild positional depth deterministically.
+
+The earlier v4 existing-pressure analyzer keeps its selected-team-only compatibility surface, but it now reuses this same mutation algorithm. v5 transition analysis uses the full two-team exchange because league-relative reranking depends on both trade teams after the trade.
+
+## Existing-pressure legal coverage loss
+
+A team already classified `FLEXIBLE_PRESSURE` remains protected by the existing flexible material-loss rule.
 
 Butler does not compare outgoing and incoming players position-by-position for this rule. Instead it recomputes the selected team's legal lineup after the trade:
 
-1. start from the current valued roster evidence;
-2. remove the selected team's outgoing traded players;
-3. add incoming traded players with current governed values;
-4. reserve the best legal direct QB/RB/WR/TE starters again;
-5. optimize the remaining players across the league's active FLEX and SUPERFLEX slots using the same eligibility and maximum-value coverage logic as the pre-trade analyzer;
-6. compare the governed pre-trade flexible coverage value with the recomputed post-trade flexible coverage value.
+1. apply the trade to the selected team's governed depth;
+2. reserve the best legal direct QB/RB/WR/TE starters again;
+3. optimize the remaining players across the league's active FLEX and SUPERFLEX slots using the same eligibility and maximum-value coverage logic as the pre-trade analyzer;
+4. compare governed pre-trade flexible coverage value with recomputed post-trade flexible coverage value.
 
 This permits legal cross-position substitution inside flexible slots. An incoming RB can replace flexible value previously supplied by a WR in ordinary FLEX. SUPERFLEX can use QB/RB/WR/TE. No arbitrary position weights are introduced.
 
-Before measuring loss, Butler verifies that the recomputed pre-trade coverage exactly matches the flexible coverage used to assign the governed pressure tier. A mismatch is rejected rather than allowing the veto to operate on different evidence states.
+Before measuring existing-pressure loss, Butler verifies that recomputed pre-trade coverage matches the flexible coverage used to assign the governed pressure tier. A mismatch is rejected rather than allowing the veto to operate on different evidence states.
+
+## Transition-to-pressure evidence
+
+v5 adds a separate transition analysis for a selected team that is not already `FLEXIBLE_PRESSURE`.
+
+For this analysis Butler:
+
+1. applies the proposed exchange to **both** trade teams;
+2. recomputes legal FLEX/SUPERFLEX coverage for the full post-trade league;
+3. reruns the same league-relative flexible-pressure classification;
+4. finds the selected team's post-trade tier;
+5. compares pre-trade and post-trade legal flexible coverage;
+6. applies the same governed 25% materiality rule.
+
+Both teams must be updated before reranking. Updating only the selected team is incorrect because the opposite trade team's changed coverage can move the league-relative pressure boundary.
+
+The transition analyzer states are:
+
+- `NO_FLEXIBLE_REQUIREMENT`
+- `INSUFFICIENT_EVIDENCE`
+- `NO_TRANSITION`
+- `TRANSITION_WITHIN_TOLERANCE`
+- `MATERIAL_TRANSITION_TO_PRESSURE`
+
+A transition exists only when the selected team's pre-trade tier is not `FLEXIBLE_PRESSURE` and its post-trade tier is `FLEXIBLE_PRESSURE`.
 
 ## Materiality and veto behavior
 
-The same governed 25% materiality boundary used by the existing protected-value veto is reused for flexible coverage:
+The governed materiality boundary remains **25%**:
 
-- exactly `25%` coverage loss: `WITHIN_TOLERANCE`;
-- greater than `25%` coverage loss: `MATERIAL_LOSS`.
+- exactly `25%` coverage loss is within tolerance;
+- greater than `25%` coverage loss is material.
 
-A flexible `MATERIAL_LOSS` can create the reason:
+For a team already in `FLEXIBLE_PRESSURE`, material legal coverage loss can create:
 
 ```text
 FLEXIBLE_PRESSURE_MATERIAL_POST_TRADE_COVERAGE_LOSS
 ```
 
-The strategic veto can only downgrade a directional market recommendation to `HOLD`. Flexible pressure cannot create market direction, reverse the preferred side, or generate a `COUNTER` recommendation.
+For a team not already in pressure, a newly material move into `FLEXIBLE_PRESSURE` can create:
 
-Flexible veto eligibility is narrow:
+```text
+FLEXIBLE_MATERIAL_LOSS_TRANSITION_TO_PRESSURE
+```
 
-- `FLEXIBLE_PRESSURE`: eligible for the legal-coverage material-loss check;
-- `FLEXIBLE_BALANCED`: no flexible veto;
-- `FLEXIBLE_STRENGTH`: no flexible veto;
-- `NO_FLEXIBLE_REQUIREMENT`: no flexible veto;
+The transition reason requires **both** a post-trade move into `FLEXIBLE_PRESSURE` and greater than 25% legal flexible coverage loss. A tier transition at exactly 25% remains non-blocking. A material coverage loss that does not move the team into pressure is also non-blocking under this transition rule.
+
+A valid selected-team assessment cannot trigger both flexible reasons. An already-pressured team is governed by the existing-pressure rule; a non-pressure team can only be governed by the transition rule.
+
+The strategic veto can only downgrade a directional market recommendation to `HOLD`. Flexible evidence cannot create market direction, reverse the preferred side, or generate a `COUNTER` recommendation.
+
+## Tier behavior under v5
+
+- `FLEXIBLE_PRESSURE`: eligible for existing-pressure legal-coverage protection.
+- `FLEXIBLE_BALANCED`: not an existing protected area, but may trigger transition protection if the trade moves the team into `FLEXIBLE_PRESSURE` with greater than 25% loss.
+- `FLEXIBLE_STRENGTH`: not an existing protected area, but may trigger transition protection under the same two-condition rule.
+- `NO_FLEXIBLE_REQUIREMENT`: no flexible veto.
 - `INSUFFICIENT_EVIDENCE`: veto is not evaluated and the live recommendation is `INCONCLUSIVE`.
 
-When multiple strategic reasons exist, the live detector reports them deterministically: future-capital reason first, direct `QB`, `RB`, `WR`, `TE` reasons next, and flexible coverage loss last.
+When multiple strategic reasons exist, the live detector reports them deterministically: future-capital reason first; direct `QB`, `RB`, `WR`, `TE` reasons next; existing flexible-pressure coverage loss next; transition-to-pressure loss last.
 
 ## Direct-position separation
 
 Direct positional protection remains unchanged. If the selected team is under direct `POSITION_PRESSURE` at QB/RB/WR/TE, replacement value for that direct-position veto is still same-position player value only.
 
-Legal cross-position substitution is used only for the combined FLEX/SUPERFLEX coverage calculation. An incoming RB does not replenish a directly pressured WR category merely because that RB can legally fill FLEX.
+Legal cross-position substitution is used only for combined FLEX/SUPERFLEX coverage. An incoming RB does not replenish a directly pressured WR category merely because that RB can legally fill FLEX.
 
 This separation prevents the flexible model from weakening the existing direct-position protection contract.
