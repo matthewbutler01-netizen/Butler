@@ -12,9 +12,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Reconstructs both trade teams' positional depth after the exchange and replaces both teams inside
- * the full league depth report. This is neutral evidence plumbing; it does not classify pressure,
- * materiality, recommendations, or vetoes.
+ * Reconstructs trade-team positional depth using one shared roster-mutation algorithm. The full
+ * league path replaces both trade teams for league-relative transition evidence, while the selected
+ * team path preserves the earlier v4 material-loss evidence contract.
  */
 public final class TradeFlexiblePostTradeDepthAnalyzer {
     public static final String POLICY_ID = "trade-flexible-post-trade-depth-v1-two-team-exchange";
@@ -36,51 +36,15 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
         TradeFlexibleSlotContextAnalyzer.TeamFlexibleContext teamContext,
         TradeAssetAnalyzer.TradeSide outgoing,
         TradeAssetAnalyzer.TradeSide incoming) {
-        Objects.requireNonNull(flexible, "flexible must not be null");
-        Objects.requireNonNull(depth, "depth must not be null");
-        Objects.requireNonNull(teamContext, "teamContext must not be null");
-        Objects.requireNonNull(outgoing, "outgoing must not be null");
-        Objects.requireNonNull(incoming, "incoming must not be null");
-        if (!flexible.leagueId().equals(depth.leagueId())) {
-            throw new IllegalStateException("flexible context and depth reference different leagues");
-        }
-        if (!flexible.source().equals(depth.source())) {
-            throw new IllegalStateException("flexible context and depth use different value sources");
-        }
-        if (!Objects.equals(flexible.minimumAsOfDate(), depth.minimumAsOfDate())) {
-            throw new IllegalStateException("flexible context and depth use different freshness boundaries");
-        }
+        validateInputs(flexible, depth, teamContext, outgoing, incoming);
         boolean selectedIsSideA = teamContext.equals(flexible.sideA());
-        boolean selectedIsSideB = teamContext.equals(flexible.sideB());
-        if (!selectedIsSideA && !selectedIsSideB) {
-            throw new IllegalArgumentException("team flexible context must belong to recommendation context");
-        }
-        if (flexible.flexSlots() + flexible.superFlexSlots() == 0) {
-            throw new IllegalArgumentException("post-trade flexible depth requires FLEX or SUPERFLEX exposure");
-        }
-
         var selectedIdentity = teamContext.identity();
         var oppositeContext = selectedIsSideA ? flexible.sideB() : flexible.sideA();
         var oppositeIdentity = oppositeContext.identity();
-        var selectedCurrent = findTeam(depth, selectedIdentity);
-        var oppositeCurrent = findTeam(depth, oppositeIdentity);
 
-        var selectedPostTrade = applyTrade(
-            selectedCurrent,
-            selectedIdentity,
-            flexible.flexSlots(),
-            flexible.superFlexSlots(),
-            flexible.minimumAsOfDate(),
-            outgoing,
-            incoming);
-        var oppositePostTrade = applyTrade(
-            oppositeCurrent,
-            oppositeIdentity,
-            flexible.flexSlots(),
-            flexible.superFlexSlots(),
-            flexible.minimumAsOfDate(),
-            incoming,
-            outgoing);
+        var selectedPostTrade = applySelectedTeam(flexible, depth, teamContext, outgoing, incoming);
+        var oppositePostTrade = applySelectedTeam(
+            flexible, depth, oppositeContext, incoming, outgoing);
 
         List<LeaguePositionalDepthAnalyzer.TeamDepth> teams = new ArrayList<>();
         boolean selectedReplaced = false;
@@ -111,6 +75,54 @@ public final class TradeFlexiblePostTradeDepthAnalyzer {
             selectedPostTrade,
             oppositePostTrade,
             postTradeDepth);
+    }
+
+    public static LeaguePositionalDepthAnalyzer.TeamDepth applySelectedTeam(
+        TradeFlexibleSlotContextAnalyzer.TradeFlexibleContextReport flexible,
+        LeaguePositionalDepthAnalyzer.DepthReport depth,
+        TradeFlexibleSlotContextAnalyzer.TeamFlexibleContext teamContext,
+        TradeAssetAnalyzer.TradeSide outgoing,
+        TradeAssetAnalyzer.TradeSide incoming) {
+        validateInputs(flexible, depth, teamContext, outgoing, incoming);
+        var identity = teamContext.identity();
+        var currentTeam = findTeam(depth, identity);
+        return applyTrade(
+            currentTeam,
+            identity,
+            flexible.flexSlots(),
+            flexible.superFlexSlots(),
+            flexible.minimumAsOfDate(),
+            outgoing,
+            incoming);
+    }
+
+    private static void validateInputs(
+        TradeFlexibleSlotContextAnalyzer.TradeFlexibleContextReport flexible,
+        LeaguePositionalDepthAnalyzer.DepthReport depth,
+        TradeFlexibleSlotContextAnalyzer.TeamFlexibleContext teamContext,
+        TradeAssetAnalyzer.TradeSide outgoing,
+        TradeAssetAnalyzer.TradeSide incoming) {
+        Objects.requireNonNull(flexible, "flexible must not be null");
+        Objects.requireNonNull(depth, "depth must not be null");
+        Objects.requireNonNull(teamContext, "teamContext must not be null");
+        Objects.requireNonNull(outgoing, "outgoing must not be null");
+        Objects.requireNonNull(incoming, "incoming must not be null");
+        if (!flexible.leagueId().equals(depth.leagueId())) {
+            throw new IllegalStateException("flexible context and depth reference different leagues");
+        }
+        if (!flexible.source().equals(depth.source())) {
+            throw new IllegalStateException("flexible context and depth use different value sources");
+        }
+        if (!Objects.equals(flexible.minimumAsOfDate(), depth.minimumAsOfDate())) {
+            throw new IllegalStateException("flexible context and depth use different freshness boundaries");
+        }
+        boolean knownTeam = teamContext.equals(flexible.sideA()) || teamContext.equals(flexible.sideB());
+        if (!knownTeam) {
+            throw new IllegalArgumentException("team flexible context must belong to recommendation context");
+        }
+        if (flexible.flexSlots() + flexible.superFlexSlots() == 0) {
+            throw new IllegalArgumentException("post-trade flexible depth requires FLEX or SUPERFLEX exposure");
+        }
     }
 
     private static LeaguePositionalDepthAnalyzer.TeamDepth findTeam(
