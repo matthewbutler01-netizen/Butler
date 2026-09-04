@@ -12,7 +12,16 @@ This policy reuses, without changing:
 
 ## Inputs and availability
 
-The analyzer accepts two complete, finite, non-negative package-value totals. It does not estimate missing market values or consume partial package totals.
+The numeric target analyzer accepts two complete, finite, non-negative package-value totals. It does not estimate missing market values or consume partial package totals.
+
+The trade-evidence composition policy is `trade-counter-value-context-v1-comparable-market-evidence`. It accepts an existing `TradeAssetAnalyzer.TradeReport` and exposes a counter target only when the report is both complete and fresh under that report's governed freshness boundary.
+
+- missing market values make the counter context unavailable;
+- explicitly stale market values make the counter context unavailable;
+- no partial total or stale total is passed into the counter-target calculation;
+- a complete, fresh trade that is already market-fair remains available evidence but has no adjustment options.
+
+The context preserves the trade's league ID, value source, and minimum-as-of boundary together with the counter-target policy provenance.
 
 If the current trade is already `MARKET_FAIR`, no counter adjustment is needed and the result contains no adjustment options.
 
@@ -36,7 +45,7 @@ Because an exact real-number 5% boundary can be represented by binary floating p
 
 ## Interpretation boundary
 
-This policy is counter evidence only. It does **not**:
+These policies are counter evidence only. They do **not**:
 
 - select a player or draft pick to add or remove;
 - search a roster for matching assets;
