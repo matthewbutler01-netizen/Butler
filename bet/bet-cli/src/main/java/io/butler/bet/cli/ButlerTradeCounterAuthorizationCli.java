@@ -2,6 +2,8 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.TradeCounterAuthorizationGrantRepository;
+import io.butler.bet.data.TradeCounterAuthorizationReplayContextRepository;
+import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterCandidateSelectionPolicy;
 import io.butler.bet.intelligence.TradeCounterMaterializedPackagePolicy;
@@ -51,7 +53,11 @@ public final class ButlerTradeCounterAuthorizationCli {
 
             var decision = TradeCounterAuthorizationPolicy.authorize(
                 request, options.confirmation());
-            var persistence = persistAuthorization(database, decision);
+            var persistence = persistAuthorizationWithReplay(
+                database,
+                decision,
+                options.trade().sideA(),
+                options.trade().sideB());
             printDecision(request, decision, persistence);
         } catch (SQLException e) {
             System.err.println("Database error while building counter authorization evidence: " + e.getMessage());
@@ -148,6 +154,7 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("This command never sends a message or submits a trade.");
     }
 
+    /** Retained BF-387 renderer for compatibility. */
     static void printDecision(
         TradeCounterAuthorizationPolicy.AuthorizationRequest request,
         TradeCounterAuthorizationPolicy.AuthorizationDecision decision,
@@ -181,6 +188,26 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("This command never sends a message or submits a trade.");
     }
 
+    static void printDecision(
+        TradeCounterAuthorizationPolicy.AuthorizationRequest request,
+        TradeCounterAuthorizationPolicy.AuthorizationDecision decision,
+        AuthorizationPersistenceResult persistence) {
+        if (persistence == null) {
+            throw new IllegalArgumentException("authorization persistence result must not be null");
+        }
+        printDecision(request, decision, persistence.grantPersistence());
+        System.out.println("Authorization replay context: "
+            + (persistence.replayAttachment() == null
+                ? "NOT_APPLICABLE"
+                : persistence.replayAttachment()));
+        if (persistence.replayAttachment() != null) {
+            System.out.println("Original Side A/Side B asset identities are bound to the trusted grant for fresh replay.");
+        } else {
+            System.out.println("No replay context was persisted.");
+        }
+        System.out.println("Replay persistence does not consume the grant or authorize an external side effect.");
+    }
+
     static void printUnavailable(TradeCounterProposalIdentityPolicy.Identity identity) {
         if (identity == null) throw new IllegalArgumentException("proposal identity must not be null");
         System.out.println("Trade counter authorization unavailable");
@@ -194,7 +221,7 @@ public final class ButlerTradeCounterAuthorizationCli {
         System.out.println("  butler trade counter-authorize <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD] -- <message|submit> <destination-id> [--confirm \"<exact-confirmation>\"]");
         System.out.println("  message requires a stable manager destination ID; submit requires the exact proposal league ID.");
         System.out.println("  Omit --confirm to display the exact AUTHORIZE_ONCE phrase without creating a grant.");
-        System.out.println("  Supplying the exact quoted phrase can persist one trusted, unconsumed authorization grant.");
+        System.out.println("  Supplying the exact quoted phrase can persist one trusted, unconsumed authorization grant plus its original trade replay context.");
         System.out.println("  --confirm is case-sensitive and is not trimmed or normalized.");
         System.out.println("  This command never consumes grants, sends messages, or submits trades.");
     }
@@ -225,6 +252,25 @@ public final class ButlerTradeCounterAuthorizationCli {
             }
             throw e;
         }
+    }
+
+    static AuthorizationPersistenceResult persistAuthorizationWithReplay(
+        Database database,
+        TradeCounterAuthorizationPolicy.AuthorizationDecision decision,
+        TradeAssetAnalyzer.TradePackage originalSideA,
+        TradeAssetAnalyzer.TradePackage originalSideB) throws SQLException {
+        if (database == null || decision == null) {
+            throw new IllegalArgumentException("authorization persistence inputs must not be null");
+        }
+        var grantPersistence = persistAuthorization(database, decision);
+        if (grantPersistence.state() == PersistenceState.NOT_APPLICABLE) {
+            return new AuthorizationPersistenceResult(grantPersistence, null);
+        }
+
+        var replay = new TradeCounterAuthorizationReplayContextRepository(database);
+        var attachment = replay.attach(
+            grantPersistence.trustedGrantId(), originalSideA, originalSideB);
+        return new AuthorizationPersistenceResult(grantPersistence, attachment);
     }
 
     private static void requirePersistenceMatchesDecision(
@@ -360,6 +406,23 @@ public final class ButlerTradeCounterAuthorizationCli {
                 }
             } else if (trustedGrantId == null || trustedGrantId.isBlank()) {
                 throw new IllegalArgumentException("trusted persistence result requires grant ID");
+            }
+        }
+    }
+
+    record AuthorizationPersistenceResult(
+        PersistenceResult grantPersistence,
+        TradeCounterAuthorizationReplayContextRepository.AttachmentResult replayAttachment) {
+        AuthorizationPersistenceResult {
+            if (grantPersistence == null) {
+                throw new IllegalArgumentException("grantPersistence must not be null");
+            }
+            if (grantPersistence.state() == PersistenceState.NOT_APPLICABLE) {
+                if (replayAttachment != null) {
+                    throw new IllegalArgumentException("non-authorized persistence cannot attach replay context");
+                }
+            } else if (replayAttachment == null) {
+                throw new IllegalArgumentException("authorized persistence requires replay context attachment");
             }
         }
     }
