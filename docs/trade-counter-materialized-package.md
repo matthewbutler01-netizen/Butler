@@ -1,10 +1,14 @@
 # Trade Counter Materialized Package
 
-BF-380 turns a BF-377 bound single-asset counter envelope into the complete revised Side A and Side B package identities.
+BF-380 turns a BF-377 bound single-asset counter envelope into the complete revised Side A and Side B package identities. BF-381 exposes those revised packages through the existing read-only `trade counter-proposal` CLI.
 
 Policy: `trade-counter-materialized-package-v1-bound-single-adjustment`
 
-This policy is read-only. It does not submit, send, accept, reject, or mutate a trade.
+CLI:
+
+`butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]`
+
+This policy and CLI output are read-only. They do not submit, send, accept, reject, or mutate a trade.
 
 ## States
 
@@ -47,9 +51,22 @@ The materialized artifact retains:
 - revised Side A package; and
 - revised Side B package.
 
+## CLI exposure
+
+BF-381 materializes the packages only after the BF-377 envelope has been built and verified. The existing `trade counter-proposal` command prints:
+
+- materialized-package policy provenance;
+- state and reason;
+- complete revised Side A package; and
+- complete revised Side B package.
+
+For `NO_PACKAGE` or `INCONCLUSIVE`, the CLI prints that no revised counter packages are available and does not synthesize a trade.
+
+The package snapshot appears on the same read-only proposal surface as the governed COUNTER and BF-378 negotiation wording.
+
 ## Safety boundary
 
-BF-380 does not:
+BF-380/BF-381 do not:
 
 - recompute recommendation or strategic evidence;
 - choose another candidate;
@@ -60,4 +77,4 @@ BF-380 does not:
 - change BF-369 through BF-379 semantics; or
 - modify Trade Recommendation v5.
 
-A later read-only CLI exposure may display the complete revised packages. Any platform execution remains a separate authorization boundary.
+Any platform execution remains a separate authorization boundary.

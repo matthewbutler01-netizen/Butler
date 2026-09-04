@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeCounterCandidateSelectionPolicy;
+import io.butler.bet.intelligence.TradeCounterMaterializedPackagePolicy;
 import io.butler.bet.intelligence.TradeCounterNegotiationMessagePolicy;
 import io.butler.bet.intelligence.TradeCounterOpportunityPolicy;
 import io.butler.bet.intelligence.TradeCounterProposalEnvelopePolicy;
@@ -59,8 +60,10 @@ public final class ButlerTradeCounterProposalCli {
             var proposal = TradeCounterProposalPolicy.classify(opportunity, selection);
             var envelope = TradeCounterProposalEnvelopePolicy.bind(
                 proposal, options.perspective(), options.sideA(), options.sideB());
+            var materialized = TradeCounterMaterializedPackagePolicy.materialize(envelope);
             var message = TradeCounterNegotiationMessagePolicy.compose(envelope);
-            print(recommendationContext, options, v5, opportunity, selection, proposal, envelope, message);
+            print(recommendationContext, options, v5, opportunity, selection, proposal,
+                envelope, materialized, message);
         } catch (SQLException e) {
             System.err.println("Database error while building counter proposal: " + e.getMessage());
             System.exit(1);
@@ -109,6 +112,7 @@ public final class ButlerTradeCounterProposalCli {
         printEnvelope(options, proposal, envelope);
     }
 
+    /** Retained BF-379 renderer for compatibility. */
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
@@ -120,6 +124,22 @@ public final class ButlerTradeCounterProposalCli {
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
         printProposal(context, options, v5, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
+        printMessage(envelope, message);
+    }
+
+    static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        ButlerTradeCounterDecisionCli.Options options,
+        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        TradeCounterOpportunityPolicy.Decision opportunity,
+        TradeCounterCandidateSelectionPolicy.Selection selection,
+        TradeCounterProposalPolicy.Result proposal,
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
+        TradeCounterNegotiationMessagePolicy.MessageResult message) {
+        printProposal(context, options, v5, opportunity, selection, proposal);
+        printEnvelope(options, proposal, envelope);
+        printMaterialized(envelope, materialized);
         printMessage(envelope, message);
     }
 
@@ -205,6 +225,35 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("Proposal binding verified against original trade packages.");
     }
 
+    private static void printMaterialized(
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized) {
+        if (envelope == null || materialized == null) {
+            throw new IllegalArgumentException("counter materialized package output inputs must not be null");
+        }
+        if (!envelope.policyId().equals(materialized.envelopePolicyId())
+            || !envelope.leagueId().equals(materialized.leagueId())
+            || envelope.season() != materialized.season()
+            || !envelope.source().equals(materialized.source())
+            || !java.util.Objects.equals(envelope.minimumAsOfDate(), materialized.minimumAsOfDate())
+            || envelope.perspective() != materialized.perspective()
+            || !envelope.originalSideA().equals(materialized.originalSideA())
+            || !envelope.originalSideB().equals(materialized.originalSideB())) {
+            throw new IllegalStateException("counter proposal envelope and materialized packages differ");
+        }
+        System.out.println("Counter materialized package policy: " + materialized.policyId());
+        System.out.println("Counter materialized package state: " + materialized.state());
+        System.out.println("Counter materialized package reason: " + materialized.reasonCode());
+        if (materialized.state() == TradeCounterMaterializedPackagePolicy.State.MATERIALIZED) {
+            System.out.println("Revised Side A package: " + formatPackage(materialized.revisedSideA()));
+            System.out.println("Revised Side B package: " + formatPackage(materialized.revisedSideB()));
+            System.out.println("Complete counter packages materialized from the bound single-asset proposal.");
+        } else {
+            System.out.println("No revised counter packages are available.");
+        }
+        System.out.println("Read-only package snapshot only; Butler does not submit or mutate the trade.");
+    }
+
     private static void printMessage(
         TradeCounterProposalEnvelopePolicy.Envelope envelope,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
@@ -247,7 +296,7 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("  butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  A read-only COUNTER proposal is emitted only for a complete v5 REJECT with a uniquely selected strategically eligible candidate.");
         System.out.println("  Proposal binding verifies the explicit perspective and original trade packages.");
-        System.out.println("  When a COUNTER exists, Butler also displays governed neutral negotiation wording.");
+        System.out.println("  When a COUNTER exists, Butler displays the complete revised packages and governed neutral negotiation wording.");
         System.out.println("  Butler does not submit, send, or mutate the trade or message.");
     }
 
