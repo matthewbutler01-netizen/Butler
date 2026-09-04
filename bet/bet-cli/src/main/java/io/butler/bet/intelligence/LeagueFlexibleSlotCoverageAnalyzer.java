@@ -116,13 +116,19 @@ public final class LeagueFlexibleSlotCoverageAnalyzer {
 
         List<LeaguePositionalDepthAnalyzer.PlayerDepthValue> remainingQbs = new ArrayList<>();
         List<LeaguePositionalDepthAnalyzer.PlayerDepthValue> remainingFlex = new ArrayList<>();
+        boolean superFlexActive = exposure.active(TradeFlexibleSlotEligibilityPolicy.SlotType.SUPERFLEX);
+        boolean anyFlexibleActive = superFlexActive
+            || exposure.active(TradeFlexibleSlotEligibilityPolicy.SlotType.FLEX);
         for (String position : CORE_POSITIONS) {
             var positionDepth = team.positions().get(position);
             if (positionDepth == null) continue;
             for (var player : positionDepth.players()) {
                 if (reservedPlayerIds.contains(player.playerId())) continue;
-                if ("QB".equals(position)) remainingQbs.add(player);
-                else remainingFlex.add(player);
+                if ("QB".equals(position)) {
+                    if (superFlexActive) remainingQbs.add(player);
+                } else if (anyFlexibleActive) {
+                    remainingFlex.add(player);
+                }
             }
         }
         remainingQbs.sort(playerOrder());
