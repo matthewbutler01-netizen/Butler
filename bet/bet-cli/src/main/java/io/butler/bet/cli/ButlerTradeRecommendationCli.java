@@ -142,12 +142,24 @@ public final class ButlerTradeRecommendationCli {
                 reason.position() + " pressure: " + reason.position() + " protected value";
         };
         return String.format(Locale.ROOT,
-            "%s %.2f -> %.2f (%.1f%% loss; material when loss > %.1f%%)",
+            "%s %.2f -> %.2f (%s loss; material when loss > %.1f%%)",
             protectedArea,
             reason.outgoingProtectedValue(),
             reason.incomingProtectedValue(),
-            reason.lossFraction() * 100.0,
+            formatLossPercent(reason.lossFraction()),
             TradeProtectedValueMaterialityPolicy.MAX_ALLOWED_LOSS_FRACTION * 100.0);
+    }
+
+    static String formatLossPercent(double lossFraction) {
+        double percent = lossFraction * 100.0;
+        String rounded = String.format(Locale.ROOT, "%.1f%%", percent);
+        String threshold = String.format(Locale.ROOT, "%.1f%%",
+            TradeProtectedValueMaterialityPolicy.MAX_ALLOWED_LOSS_FRACTION * 100.0);
+        if (Double.compare(lossFraction, TradeProtectedValueMaterialityPolicy.MAX_ALLOWED_LOSS_FRACTION) > 0
+            && rounded.equals(threshold)) {
+            return ">" + threshold;
+        }
+        return rounded;
     }
 
     /** Retained for the versioned v1 detector contract; the live recommendation path uses v2. */
