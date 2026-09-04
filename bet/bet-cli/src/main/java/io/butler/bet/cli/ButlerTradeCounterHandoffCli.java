@@ -4,8 +4,10 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.TradeCounterAuthorizationGrantRepository;
 import io.butler.bet.data.TradeCounterAuthorizationReplayContextRepository;
 import io.butler.bet.execution.TradeCounterManualHandoffCoordinator;
+import io.butler.bet.integration.sleeper.SleeperCounterTradeExpectationSnapshotRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
+import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterExecutionReadinessPolicy;
 
 import java.nio.file.Path;
@@ -60,13 +62,14 @@ public final class ButlerTradeCounterHandoffCli {
                 return;
             }
 
+            Instant now = Instant.now();
             var coordinated = new TradeCounterManualHandoffCoordinator(database).coordinate(
                 trusted.grant(),
                 readiness,
                 artifacts.identity(),
                 artifacts.materialized(),
                 artifacts.message(),
-                Instant.now());
+                now);
 
             if (coordinated.state() != TradeCounterManualHandoffCoordinator.State.HANDOFF_PRESENTED
                 && coordinated.state()
@@ -85,7 +88,20 @@ public final class ButlerTradeCounterHandoffCli {
                 .findByClaimId(coordinated.claimId())
                 .orElseThrow(() -> new IllegalStateException(
                     "durably presented handoff is missing its presentation record"));
-            print(readiness, coordinated, handoffResult.handoff(), presentation);
+
+            SleeperCounterTradeExpectationSnapshotRepository.SnapshotResult expectation = null;
+            if (handoffResult.handoff().action()
+                == TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE) {
+                expectation = new SleeperCounterTradeExpectationSnapshotRepository(database).snapshot(
+                    coordinated.claimId(),
+                    artifacts.identity().leagueId(),
+                    artifacts.sideATeamId(),
+                    artifacts.sideBTeamId(),
+                    artifacts.materialized().revisedSideA(),
+                    artifacts.materialized().revisedSideB(),
+                    now);
+            }
+            print(readiness, coordinated, handoffResult.handoff(), presentation, expectation);
         } catch (SQLException e) {
             System.err.println("Database error while preparing manual counter handoff: " + e.getMessage());
             System.exit(1);
@@ -117,10 +133,23 @@ public final class ButlerTradeCounterHandoffCli {
         TradeCounterManualHandoffCoordinator.Result coordinated,
         SleeperManualCounterHandoffService.Handoff handoff,
         SleeperManualCounterHandoffRepository.PresentedHandoff presentation) {
+        print(readiness, coordinated, handoff, presentation, null);
+    }
+
+    static void print(
+        TradeCounterExecutionReadinessPolicy.Result readiness,
+        TradeCounterManualHandoffCoordinator.Result coordinated,
+        SleeperManualCounterHandoffService.Handoff handoff,
+        SleeperManualCounterHandoffRepository.PresentedHandoff presentation,
+        SleeperCounterTradeExpectationSnapshotRepository.SnapshotResult expectation) {
         if (readiness == null || coordinated == null || handoff == null || presentation == null) {
             throw new IllegalArgumentException("manual handoff output inputs must not be null");
         }
         requireOutputMatches(readiness, coordinated, handoff, presentation);
+        if (handoff.action() != TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE
+            && expectation != null) {
+            throw new IllegalArgumentException("message handoff cannot carry trade expectation snapshot");
+        }
 
         System.out.println("Trade counter Sleeper manual handoff");
         System.out.println("Trusted grant ID: " + handoff.grantId());
@@ -138,6 +167,10 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("Payload kind: " + handoff.payloadKind());
         System.out.println("Payload SHA-256: " + handoff.payloadSha256());
         System.out.println("Reconciliation mode: " + handoff.reconciliationMode());
+        if (handoff.reconciliationMode()
+            == SleeperManualCounterHandoffService.ReconciliationMode.SLEEPER_TRANSACTION_READBACK) {
+            printExpectation(expectation);
+        }
         System.out.println("Exact governed handoff payload:");
         System.out.println(handoff.payloadText());
         System.out.println("Handoff warning: " + handoff.warning());
@@ -145,12 +178,33 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("Displaying this handoff does not prove that the action was completed in Sleeper.");
         if (handoff.reconciliationMode()
             == SleeperManualCounterHandoffService.ReconciliationMode.SLEEPER_TRANSACTION_READBACK) {
-            System.out.println("Official Sleeper transaction readback is available for this trade handoff.");
-            System.out.println("The persisted first-presentation timestamp is the safe not-before boundary for later transaction reconciliation.");
+            if (expectation != null
+                && expectation.state()
+                    != SleeperCounterTradeExpectationSnapshotRepository.State.NOT_AVAILABLE) {
+                System.out.println("Official Sleeper transaction readback can use the immutable provider expectation snapshot.");
+                System.out.println("The persisted first-presentation timestamp is the safe not-before boundary for later transaction reconciliation.");
+            } else {
+                System.out.println("Sleeper exposes official transaction readback, but Butler does not yet have a usable immutable provider expectation for this handoff.");
+            }
         } else {
             System.out.println("Sleeper provides no supported official message readback for this handoff.");
         }
         System.out.println("The authorization grant remains unconsumed and the execution attempt remains IN_FLIGHT.");
+    }
+
+    private static void printExpectation(
+        SleeperCounterTradeExpectationSnapshotRepository.SnapshotResult expectation) {
+        if (expectation == null) {
+            System.out.println("Sleeper trade expectation snapshot: NOT_EVALUATED");
+            return;
+        }
+        System.out.println("Sleeper trade expectation snapshot: " + expectation.state());
+        System.out.println("Sleeper trade expectation reason: " + expectation.reason());
+        if (expectation.snapshot() != null) {
+            System.out.println("Sleeper league ID snapshot: " + expectation.snapshot().sleeperLeagueId());
+            System.out.println("Sleeper movement SHA-256: " + expectation.snapshot().movementSha256());
+            System.out.println("Sleeper provider identities and asset movement are frozen independently of future Butler ownership syncs.");
+        }
     }
 
     static void printBlocked(TradeCounterExecutionReadinessPolicy.Result readiness) {
@@ -191,6 +245,7 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("  butler trade counter-handoff <trusted-grant-id>");
         System.out.println("  Loads only trusted persisted authorization/replay state, reruns the governed counter from current evidence, and requires fresh READY status.");
         System.out.println("  When READY, Butler derives the exact governed payload, durably prepares/claims the attempt, and presents a manual Sleeper handoff.");
+        System.out.println("  Trade handoffs snapshot stable Sleeper provider identities and asset movement before the payload is displayed when those mappings are available.");
         System.out.println("  No trade, action, destination, or payload may be supplied or overridden on this command.");
         System.out.println("  Sleeper writes remain manual; presentation does not prove completion and does not consume the authorization grant.");
     }
