@@ -1,7 +1,11 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
+import io.butler.bet.intelligence.TradeCounterSingleAssetCandidateAnalyzer;
 import io.butler.bet.intelligence.TradeCounterValueContextAnalyzer;
+import io.butler.bet.intelligence.TradeCounterValueTargetAnalyzer;
+import io.butler.bet.intelligence.TradeFairnessMeasurementPolicy;
+import io.butler.bet.intelligence.TradeFairnessPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -44,48 +48,142 @@ class ButlerTradeCounterValueCliTest {
     }
 
     @Test
-    void printsGovernedTargetsWithoutRecommendationOrAction() {
+    void printsGovernedTargetsAndRankedCandidatesWithoutRecommendationOrAction() {
         var trade = trade(side(105.0, false), side(95.0, false));
         var context = TradeCounterValueContextAnalyzer.compose(trade);
-        String output = capture(trade, context);
+        var candidates = candidateReport(context);
+        String output = capture(trade, context, candidates);
 
         assertTrue(output.contains("Trade counter-value evidence (asset-neutral market target)"));
         assertTrue(output.contains("Counter-value evidence available: true"));
         assertTrue(output.contains("Current market fairness: OUTSIDE_FAIRNESS_BAND"));
         assertTrue(output.contains("ADD_TO_LOWER_VALUE_PACKAGE SIDE_B"));
         assertTrue(output.contains("REMOVE_FROM_HIGHER_VALUE_PACKAGE SIDE_A"));
-        assertTrue(output.contains("No asset is selected and no COUNTER action is emitted."));
+        assertTrue(output.contains("Single-asset candidate policy: "
+            + TradeCounterSingleAssetCandidateAnalyzer.POLICY_ID));
+        assertTrue(output.contains("Single-asset market-fair candidates: 1"));
+        assertTrue(output.contains("#1 ADD_ASSET_TO_LOWER_PACKAGE SIDE_B PLAYER B Extra [b-extra-5]"));
+        assertTrue(output.contains("fairness=MARKET_FAIR"));
+        assertTrue(output.contains(
+            "Ranking is evidence ordering only; no candidate is selected and no COUNTER action is emitted."));
         assertFalse(output.contains("Action:"));
         assertFalse(output.contains("Package recommendation:"));
     }
 
     @Test
-    void printsAlreadyFairTradeWithoutSyntheticAdjustment() {
+    void printsAlreadyFairTradeWithoutSyntheticAdjustmentOrCandidate() {
         var trade = trade(side(102.0, false), side(100.0, false));
         var context = TradeCounterValueContextAnalyzer.compose(trade);
-        String output = capture(trade, context);
+        var candidates = fairCandidateReport(context);
+        String output = capture(trade, context, candidates);
 
         assertTrue(output.contains("Current market fairness: MARKET_FAIR"));
         assertTrue(output.contains(
             "Required market-value adjustment: none; the trade is already inside the governed fairness band."));
+        assertTrue(output.contains("Single-asset market-fair candidates: 0"));
+        assertTrue(output.contains(
+            "No candidate adjustment is needed because the current trade is already MARKET_FAIR."));
         assertFalse(output.contains("ADD_TO_LOWER_VALUE_PACKAGE"));
         assertFalse(output.contains("REMOVE_FROM_HIGHER_VALUE_PACKAGE"));
     }
 
     @Test
-    void unavailableEvidencePrintsReasonWithoutPartialTarget() {
+    void unavailableEvidencePrintsTargetAndCandidateReasonsWithoutPartialResults() {
         var trade = trade(missingSide(), side(95.0, false));
         var context = TradeCounterValueContextAnalyzer.compose(trade);
-        String output = capture(trade, context);
+        var candidates = unavailableCandidateReport(context);
+        String output = capture(trade, context, candidates);
 
         assertTrue(output.contains("Counter-value evidence available: false"));
         assertTrue(output.contains("Trade counter value target requires complete market-value coverage."));
         assertTrue(output.contains("No partial or stale package total is used to construct a target."));
+        assertTrue(output.contains("Single-asset candidate evidence available: false"));
+        assertTrue(output.contains("Single-asset market-fair candidates: 0"));
+        assertTrue(output.contains("No candidate is selected and no COUNTER action is emitted."));
         assertFalse(output.contains("Current symmetric market-value gap:"));
         assertFalse(output.contains("ADD_TO_LOWER_VALUE_PACKAGE"));
     }
 
+    @Test
+    void retainedTwoArgumentRendererStillPrintsTargetEvidenceOnly() {
+        var trade = trade(side(105.0, false), side(95.0, false));
+        var context = TradeCounterValueContextAnalyzer.compose(trade);
+        String output = captureTargetOnly(trade, context);
+
+        assertTrue(output.contains("Current market fairness: OUTSIDE_FAIRNESS_BAND"));
+        assertFalse(output.contains("Single-asset candidate policy:"));
+    }
+
+    private static TradeCounterSingleAssetCandidateAnalyzer.CandidateReport candidateReport(
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
+        var target = context.target();
+        var addTarget = target.options().stream()
+            .filter(option -> option.type()
+                == TradeCounterValueTargetAnalyzer.AdjustmentType.ADD_TO_LOWER_VALUE_PACKAGE)
+            .findFirst().orElseThrow();
+        double resultingGap = TradeFairnessMeasurementPolicy.symmetricGapPercent(105.0, 100.0);
+        var candidate = new TradeCounterSingleAssetCandidateAnalyzer.Candidate(
+            TradeCounterSingleAssetCandidateAnalyzer.AdjustmentType.ADD_ASSET_TO_LOWER_PACKAGE,
+            TradeCounterValueTargetAnalyzer.Side.SIDE_B,
+            TradeCounterSingleAssetCandidateAnalyzer.AssetType.PLAYER,
+            "b-extra-5",
+            "B Extra",
+            "t2",
+            "Team Two",
+            5.0,
+            MINIMUM_AS_OF,
+            addTarget.requiredValueChange(),
+            5.0 - addTarget.requiredValueChange(),
+            105.0,
+            100.0,
+            resultingGap,
+            TradeFairnessPolicy.Classification.MARKET_FAIR);
+        return new TradeCounterSingleAssetCandidateAnalyzer.CandidateReport(
+            TradeCounterSingleAssetCandidateAnalyzer.POLICY_ID,
+            TradeCounterValueContextAnalyzer.POLICY_ID,
+            io.butler.bet.intelligence.TradeCounterValueTargetAnalyzer.POLICY_ID,
+            "l1", "source", MINIMUM_AS_OF, true, null,
+            TradeFairnessPolicy.Classification.OUTSIDE_FAIRNESS_BAND,
+            List.of(candidate));
+    }
+
+    private static TradeCounterSingleAssetCandidateAnalyzer.CandidateReport fairCandidateReport(
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
+        return new TradeCounterSingleAssetCandidateAnalyzer.CandidateReport(
+            TradeCounterSingleAssetCandidateAnalyzer.POLICY_ID,
+            context.policyId(),
+            context.targetPolicyId(),
+            "l1", "source", MINIMUM_AS_OF, true, null,
+            TradeFairnessPolicy.Classification.MARKET_FAIR,
+            List.of());
+    }
+
+    private static TradeCounterSingleAssetCandidateAnalyzer.CandidateReport unavailableCandidateReport(
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
+        return new TradeCounterSingleAssetCandidateAnalyzer.CandidateReport(
+            TradeCounterSingleAssetCandidateAnalyzer.POLICY_ID,
+            context.policyId(),
+            context.targetPolicyId(),
+            "l1", "source", MINIMUM_AS_OF, false,
+            context.insufficiencyReason(), null, List.of());
+    }
+
     private static String capture(
+        TradeAssetAnalyzer.TradeReport trade,
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context,
+        TradeCounterSingleAssetCandidateAnalyzer.CandidateReport candidates) {
+        PrintStream original = System.out;
+        var bytes = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(bytes));
+            ButlerTradeCounterValueCli.print(trade, context, candidates);
+        } finally {
+            System.setOut(original);
+        }
+        return bytes.toString();
+    }
+
+    private static String captureTargetOnly(
         TradeAssetAnalyzer.TradeReport trade,
         TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
         PrintStream original = System.out;
@@ -112,8 +210,8 @@ class ButlerTradeCounterValueCliTest {
             "Player " + value,
             "WR",
             "NFL",
-            "t1",
-            "Team One",
+            value == 105.0 || value == 102.0 ? "t1" : "t2",
+            value == 105.0 || value == 102.0 ? "Team One" : "Team Two",
             value,
             stale ? MINIMUM_AS_OF.minusDays(1) : MINIMUM_AS_OF,
             stale);

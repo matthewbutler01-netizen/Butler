@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
+import io.butler.bet.intelligence.TradeCounterSingleAssetCandidateAnalyzer;
 import io.butler.bet.intelligence.TradeCounterValueContextAnalyzer;
 import io.butler.bet.intelligence.TradeCounterValueTargetAnalyzer;
 
@@ -10,8 +11,9 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
+import java.util.Objects;
 
-/** Read-only CLI for governed, asset-neutral trade counter-value targets. */
+/** Read-only CLI for governed trade counter-value targets and single-asset market-fair candidates. */
 public final class ButlerTradeCounterValueCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -28,10 +30,12 @@ public final class ButlerTradeCounterValueCli {
         }
 
         try {
-            var analyzer = new TradeAssetAnalyzer(initializedDatabase());
+            Database database = initializedDatabase();
+            var analyzer = new TradeAssetAnalyzer(database);
             var trade = analyze(analyzer, options);
             var context = TradeCounterValueContextAnalyzer.compose(trade);
-            print(trade, context);
+            var candidates = new TradeCounterSingleAssetCandidateAnalyzer(database).analyze(trade);
+            print(trade, context, candidates);
         } catch (SQLException e) {
             System.err.println("Database error while building trade counter-value evidence: " + e.getMessage());
             System.exit(1);
@@ -74,13 +78,28 @@ public final class ButlerTradeCounterValueCli {
             && "counter-value".equalsIgnoreCase(args[1]);
     }
 
+    /** Retained target-only renderer for internal compatibility. */
     static void print(
+        TradeAssetAnalyzer.TradeReport trade,
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
+        printTargetEvidence(trade, context);
+    }
+
+    static void print(
+        TradeAssetAnalyzer.TradeReport trade,
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context,
+        TradeCounterSingleAssetCandidateAnalyzer.CandidateReport candidates) {
+        printTargetEvidence(trade, context);
+        printCandidateEvidence(trade, context, candidates);
+    }
+
+    private static void printTargetEvidence(
         TradeAssetAnalyzer.TradeReport trade,
         TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
         if (trade == null) throw new IllegalArgumentException("trade must not be null");
         if (context == null) throw new IllegalArgumentException("context must not be null");
         if (!trade.leagueId().equals(context.leagueId()) || !trade.source().equals(context.source())
-            || !java.util.Objects.equals(trade.minimumAsOfDate(), context.minimumAsOfDate())) {
+            || !Objects.equals(trade.minimumAsOfDate(), context.minimumAsOfDate())) {
             throw new IllegalStateException("trade and counter-value context coordinates differ");
         }
 
@@ -124,13 +143,55 @@ public final class ButlerTradeCounterValueCli {
                     direction, option.requiredValueChange());
             }
         }
-        System.out.println("This is market-value evidence only. No asset is selected and no COUNTER action is emitted.");
+        System.out.println("Counter target is market-value evidence only; it does not choose an adjustment strategy.");
+    }
+
+    private static void printCandidateEvidence(
+        TradeAssetAnalyzer.TradeReport trade,
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context,
+        TradeCounterSingleAssetCandidateAnalyzer.CandidateReport candidates) {
+        if (candidates == null) throw new IllegalArgumentException("candidates must not be null");
+        if (!trade.leagueId().equals(candidates.leagueId())
+            || !trade.source().equals(candidates.source())
+            || !Objects.equals(trade.minimumAsOfDate(), candidates.minimumAsOfDate())
+            || !context.policyId().equals(candidates.contextPolicyId())
+            || !context.targetPolicyId().equals(candidates.targetPolicyId())) {
+            throw new IllegalStateException("trade, counter context, and candidate coordinates differ");
+        }
+
+        System.out.println("Single-asset candidate policy: " + candidates.policyId());
+        System.out.println("Single-asset candidate evidence available: " + candidates.available());
+        if (!candidates.available()) {
+            System.out.println("Single-asset candidate reason: " + candidates.insufficiencyReason());
+            System.out.println("Single-asset market-fair candidates: 0");
+            System.out.println("No candidate is selected and no COUNTER action is emitted.");
+            return;
+        }
+
+        System.out.println("Single-asset market-fair candidates: " + candidates.candidates().size());
+        if (candidates.currentFairness() == io.butler.bet.intelligence.TradeFairnessPolicy.Classification.MARKET_FAIR) {
+            System.out.println("No candidate adjustment is needed because the current trade is already MARKET_FAIR.");
+        } else if (candidates.candidates().isEmpty()) {
+            System.out.println("No eligible single asset reaches the governed fairness band under the current evidence boundary.");
+        } else {
+            int rank = 1;
+            for (var candidate : candidates.candidates()) {
+                System.out.printf(Locale.ROOT,
+                    "#%d %s %s %s %s [%s] team=%s value=%.2f as-of=%s required=%.2f excess=%.2f resulting-A=%.2f resulting-B=%.2f gap=%.3f%% fairness=%s%n",
+                    rank++, candidate.adjustmentType(), candidate.side(), candidate.assetType(),
+                    candidate.displayName(), candidate.assetId(), candidate.teamName(), candidate.assetValue(),
+                    candidate.asOfDate() == null ? "-" : candidate.asOfDate(), candidate.requiredValueChange(),
+                    candidate.excessValue(), candidate.resultingSideAValue(), candidate.resultingSideBValue(),
+                    candidate.resultingGapPercent(), candidate.resultingFairness());
+            }
+        }
+        System.out.println("Ranking is evidence ordering only; no candidate is selected and no COUNTER action is emitted.");
     }
 
     static void printUsage() {
         System.out.println("  butler trade counter-value <league-id> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  Assets are comma-separated. Bare IDs are players; use player:<id> or pick:<draft-pick-id>.");
-        System.out.println("  This command reports asset-neutral value targets only; it does not select counter assets or emit a recommendation.");
+        System.out.println("  This command reports governed value targets and ranked single-asset market-fair candidates; it does not select a counter or emit a recommendation.");
     }
 
     private static TradeAssetAnalyzer.TradeReport analyze(

@@ -66,14 +66,15 @@ The command prints:
 
 - market-value coverage and stale-asset count;
 - side A and side B package totals;
-- counter-context and target policy identifiers;
+- counter-context, target, and single-asset candidate policy identifiers;
 - current governed fairness and symmetric gap when evidence is available;
 - the add-to-lower and remove-from-higher value targets when the trade is outside the band;
-- an explicit insufficiency reason when package values are incomplete or stale.
+- ranked eligible single-player and single-draft-pick candidates, including asset value, as-of date, required minimum change, excess above that minimum, resulting package totals, resulting gap, and resulting fairness;
+- explicit insufficiency reasons when target or candidate evidence is unavailable.
+
+The candidate section is intentionally read-only. Rank is deterministic evidence ordering, not an automatic selection. A displayed `#1` candidate is not a recommendation to send that counter.
 
 The command is routed independently as `trade counter-value`; it does not route through `trade recommendation`, does not select an asset, and does not emit a team action or package recommendation.
-
-BF-369 candidate discovery is not yet printed by this CLI. Exposing candidates is a separate compatibility surface so the market-only target command remains stable while candidate semantics are reviewed independently.
 
 ## Boundary calculation
 
