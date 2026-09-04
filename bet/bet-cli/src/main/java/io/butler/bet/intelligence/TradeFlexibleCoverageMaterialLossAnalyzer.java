@@ -5,9 +5,9 @@ import java.util.Objects;
 
 /**
  * Recomputes legal FLEX/SUPERFLEX coverage after a trade for a team already under flexible pressure.
- * The same lineup reservation, flexible-slot optimizer, and two-team post-trade reconstruction used
- * by transition evidence is reused here. This analyzer measures evidence only; it does not emit a
- * recommendation or veto.
+ * The same lineup reservation, flexible-slot optimizer, and shared post-trade roster mutation used
+ * by transition evidence is reused here while preserving the selected-team-only v4 contract.
+ * This analyzer measures evidence only; it does not emit a recommendation or veto.
  */
 public final class TradeFlexibleCoverageMaterialLossAnalyzer {
     public static final String POLICY_ID = "trade-flexible-coverage-loss-v1-post-trade-legal-lineup";
@@ -63,9 +63,9 @@ public final class TradeFlexibleCoverageMaterialLossAnalyzer {
 
         var baseline = coverageForTeam(context, lineup, currentTeam);
         validateBaseline(teamContext.pressure(), baseline);
-        var postTradeDepth = TradeFlexiblePostTradeDepthAnalyzer.apply(
+        var postTradeTeam = TradeFlexiblePostTradeDepthAnalyzer.applySelectedTeam(
             context, depth, teamContext, outgoing, incoming);
-        var postTrade = coverageForTeam(context, lineup, postTradeDepth.selectedTeamDepth());
+        var postTrade = coverageForTeam(context, lineup, postTradeTeam);
 
         var flow = new TradeProtectedValueFlowAnalyzer.ValueFlow(
             baseline.flexibleCoverageValue(), postTrade.flexibleCoverageValue());
