@@ -1,11 +1,17 @@
 package io.butler.bet.cli;
 
+import java.util.function.Consumer;
+
 /**
  * Single application entry point for Butler CLI routing. Specialized command handlers remain
  * focused on their own parsing/rendering, but the application no longer relies on a chain of
  * launchers delegating to one another to discover a command.
  */
 public final class ButlerCommandRouter {
+    private static final CommandTarget TRADE_RECOMMENDATION_TARGET = new CommandTarget(
+        ButlerTradeRecommendationV5Cli.class,
+        ButlerTradeRecommendationV5Cli::main);
+
     private ButlerCommandRouter() {}
 
     public static void main(String[] args) {
@@ -22,7 +28,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_FUTURE_CAPITAL -> ButlerLeagueFutureCapitalCli.main(args);
             case TRADE_SUPPORTING_EVIDENCE -> ButlerTradeSupportingEvidenceCli.main(args);
             case TRADE_STRATEGIC_CONTEXT -> ButlerTradeStrategicContextCli.main(args);
-            case TRADE_RECOMMENDATION -> ButlerTradeRecommendationV5Cli.main(args);
+            case TRADE_RECOMMENDATION -> TRADE_RECOMMENDATION_TARGET.run(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
@@ -46,6 +52,10 @@ public final class ButlerCommandRouter {
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
             case COMPOSED -> ButlerLauncher.main(args);
         }
+    }
+
+    static Class<?> tradeRecommendationImplementation() {
+        return TRADE_RECOMMENDATION_TARGET.implementation();
     }
 
     static Route route(String[] args) {
@@ -100,6 +110,12 @@ public final class ButlerCommandRouter {
 
     private static boolean equals(String actual, String expected) {
         return actual != null && actual.equalsIgnoreCase(expected);
+    }
+
+    private record CommandTarget(Class<?> implementation, Consumer<String[]> runner) {
+        void run(String[] args) {
+            runner.accept(args);
+        }
     }
 
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
