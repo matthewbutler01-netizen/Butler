@@ -35,11 +35,31 @@ The repository's baseline security controls include:
 
 - least-privilege GitHub Actions permissions;
 - GitHub Actions checkout without persisted credentials where workflow pushes are not required;
+- GitHub Actions pinned to immutable commit SHAs;
+- Gradle wrapper validation before wrapper execution in CI;
+- a published SHA-256 checksum for the pinned Gradle distribution;
+- Maven Central as the sole dependency repository, enforced centrally in Gradle settings;
+- rejection of dynamic dependency selectors and changing modules;
+- committed Gradle dependency lock state for reproducible transitive resolution;
+- committed SHA-256 dependency verification metadata;
+- explicit strict dependency verification for every CI Gradle invocation;
 - automated Gradle and GitHub Actions dependency update checks through Dependabot;
 - CodeQL static analysis for relevant `main` changes plus a weekly scheduled scan;
 - local ignore rules for runtime databases and common secret-bearing files.
 
 Security tooling is additive. A green security workflow does not replace code review, test coverage, evidence validation, or the existing exact-head CI merge gate.
+
+## Updating dependencies safely
+
+Dependency updates must include every related governed artifact in the same reviewed change:
+
+1. update the explicit dependency coordinate;
+2. regenerate `bet/bet-cli/gradle.lockfile` with `--write-locks`;
+3. regenerate `gradle/verification-metadata.xml` with `--write-verification-metadata sha256`;
+4. review the resolved module families and file changes;
+5. run the complete build with strict dependency verification.
+
+Do not weaken verification mode, bypass lock state, add an alternate artifact repository, or hand-edit generated checksums to make an update pass.
 
 ## Disclosure
 
