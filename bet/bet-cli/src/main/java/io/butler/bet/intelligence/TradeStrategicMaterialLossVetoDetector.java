@@ -13,6 +13,7 @@ import java.util.Objects;
 public final class TradeStrategicMaterialLossVetoDetector {
     public static final String POLICY_ID = "trade-strategic-veto-v2-material-protected-value-loss";
     private static final List<String> CORE_POSITIONS = List.of("QB", "RB", "WR", "TE");
+    private static final double LOSS_FRACTION_TOLERANCE = 1e-12;
 
     private TradeStrategicMaterialLossVetoDetector() {}
 
@@ -44,6 +45,16 @@ public final class TradeStrategicMaterialLossVetoDetector {
             }
             if (!Double.isFinite(lossFraction) || lossFraction < 0.0 || lossFraction > 1.0) {
                 throw new IllegalArgumentException("lossFraction must be finite between 0 and 1");
+            }
+
+            var flow = new TradeProtectedValueFlowAnalyzer.ValueFlow(outgoingProtectedValue, incomingProtectedValue);
+            double expectedLossFraction = flow.lossFraction();
+            if (Math.abs(lossFraction - expectedLossFraction) > LOSS_FRACTION_TOLERANCE) {
+                throw new IllegalArgumentException("lossFraction must match outgoing and incoming protected values");
+            }
+            if (TradeProtectedValueMaterialityPolicy.classify(flow)
+                != TradeProtectedValueMaterialityPolicy.Classification.MATERIAL_LOSS) {
+                throw new IllegalArgumentException("veto reason requires material protected-value loss");
             }
         }
     }
