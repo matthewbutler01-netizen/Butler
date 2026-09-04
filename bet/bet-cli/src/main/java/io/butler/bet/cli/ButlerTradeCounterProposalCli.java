@@ -6,6 +6,7 @@ import io.butler.bet.intelligence.TradeCounterMaterializedPackagePolicy;
 import io.butler.bet.intelligence.TradeCounterNegotiationMessagePolicy;
 import io.butler.bet.intelligence.TradeCounterOpportunityPolicy;
 import io.butler.bet.intelligence.TradeCounterProposalEnvelopePolicy;
+import io.butler.bet.intelligence.TradeCounterProposalIdentityPolicy;
 import io.butler.bet.intelligence.TradeCounterProposalPolicy;
 import io.butler.bet.intelligence.TradeCounterStrategicCandidateVettingAnalyzer;
 import io.butler.bet.intelligence.TradeCounterStrategicEligibilityPolicy;
@@ -61,9 +62,10 @@ public final class ButlerTradeCounterProposalCli {
             var envelope = TradeCounterProposalEnvelopePolicy.bind(
                 proposal, options.perspective(), options.sideA(), options.sideB());
             var materialized = TradeCounterMaterializedPackagePolicy.materialize(envelope);
+            var identity = TradeCounterProposalIdentityPolicy.identify(envelope, materialized);
             var message = TradeCounterNegotiationMessagePolicy.compose(envelope);
             print(recommendationContext, options, v5, opportunity, selection, proposal,
-                envelope, materialized, message);
+                envelope, materialized, identity, message);
         } catch (SQLException e) {
             System.err.println("Database error while building counter proposal: " + e.getMessage());
             System.exit(1);
@@ -127,6 +129,7 @@ public final class ButlerTradeCounterProposalCli {
         printMessage(envelope, message);
     }
 
+    /** Retained BF-381 renderer for compatibility. */
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
@@ -140,6 +143,24 @@ public final class ButlerTradeCounterProposalCli {
         printProposal(context, options, v5, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
         printMaterialized(envelope, materialized);
+        printMessage(envelope, message);
+    }
+
+    static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        ButlerTradeCounterDecisionCli.Options options,
+        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        TradeCounterOpportunityPolicy.Decision opportunity,
+        TradeCounterCandidateSelectionPolicy.Selection selection,
+        TradeCounterProposalPolicy.Result proposal,
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
+        TradeCounterProposalIdentityPolicy.Identity identity,
+        TradeCounterNegotiationMessagePolicy.MessageResult message) {
+        printProposal(context, options, v5, opportunity, selection, proposal);
+        printEnvelope(options, proposal, envelope);
+        printMaterialized(envelope, materialized);
+        printIdentity(envelope, materialized, identity);
         printMessage(envelope, message);
     }
 
@@ -254,6 +275,35 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("Read-only package snapshot only; Butler does not submit or mutate the trade.");
     }
 
+    private static void printIdentity(
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
+        TradeCounterProposalIdentityPolicy.Identity identity) {
+        if (envelope == null || materialized == null || identity == null) {
+            throw new IllegalArgumentException("counter proposal identity output inputs must not be null");
+        }
+        if (!envelope.policyId().equals(identity.envelopePolicyId())
+            || !materialized.policyId().equals(identity.materializedPackagePolicyId())
+            || !envelope.leagueId().equals(identity.leagueId())
+            || envelope.season() != identity.season()
+            || !envelope.source().equals(identity.source())
+            || !java.util.Objects.equals(envelope.minimumAsOfDate(), identity.minimumAsOfDate())
+            || envelope.perspective() != identity.perspective()) {
+            throw new IllegalStateException("counter proposal artifacts and identity differ");
+        }
+        System.out.println("Counter proposal identity policy: " + identity.policyId());
+        System.out.println("Counter proposal identity state: " + identity.state());
+        System.out.println("Counter proposal identity reason: " + identity.reasonCode());
+        System.out.println("Counter proposal identity algorithm: " + identity.algorithm()
+            + " canonical-version=" + identity.canonicalVersion());
+        if (identity.state() == TradeCounterProposalIdentityPolicy.State.IDENTIFIED) {
+            System.out.println("Counter proposal fingerprint: " + identity.fingerprint());
+        } else {
+            System.out.println("No counter proposal fingerprint is available.");
+        }
+        System.out.println("Fingerprint is audit identity only; it is not authorization to send or execute the trade.");
+    }
+
     private static void printMessage(
         TradeCounterProposalEnvelopePolicy.Envelope envelope,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
@@ -296,8 +346,8 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("  butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  A read-only COUNTER proposal is emitted only for a complete v5 REJECT with a uniquely selected strategically eligible candidate.");
         System.out.println("  Proposal binding verifies the explicit perspective and original trade packages.");
-        System.out.println("  When a COUNTER exists, Butler displays the complete revised packages and governed neutral negotiation wording.");
-        System.out.println("  Butler does not submit, send, or mutate the trade or message.");
+        System.out.println("  When a COUNTER exists, Butler displays the complete revised packages, audit fingerprint, and governed neutral negotiation wording.");
+        System.out.println("  The fingerprint is not authorization. Butler does not submit, send, or mutate the trade or message.");
     }
 
     private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport analyzeRecommendation(
