@@ -286,7 +286,7 @@ public final class ButlerTradeCounterAuthorizationCli {
         }
     }
 
-    private static TradeCounterProposalIdentityPolicy.Identity buildIdentity(
+    static TradeCounterProposalIdentityPolicy.Identity buildIdentity(
         Database database,
         ButlerTradeCounterDecisionCli.Options options) throws SQLException {
         var recommendationContext = analyzeRecommendation(
