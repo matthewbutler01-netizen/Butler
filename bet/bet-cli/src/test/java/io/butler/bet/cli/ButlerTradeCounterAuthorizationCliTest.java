@@ -57,6 +57,18 @@ class ButlerTradeCounterAuthorizationCliTest {
     }
 
     @Test
+    void doesNotTrimOrNormalizeConfirmationText() {
+        String confirmation = " AUTHORIZE_ONCE action=SEND_NEGOTIATION_MESSAGE proposal=" + FINGERPRINT
+            + " destination=MANAGER:manager-22 ";
+        var options = ButlerTradeCounterAuthorizationCli.parse(new String[] {
+            "trade", "counter-authorize", "league-1", "2026", "p1", "p2", "side-a",
+            "--", "message", "manager-22", "--confirm", confirmation
+        });
+
+        assertEquals(confirmation, options.confirmation());
+    }
+
+    @Test
     void requiresSeparatorAndKnownAction() {
         assertThrows(IllegalArgumentException.class, () -> ButlerTradeCounterAuthorizationCli.parse(
             new String[] {"trade", "counter-authorize", "league-1", "2026", "p1", "p2", "side-a"}));
