@@ -138,17 +138,12 @@ class TradeStrategicMaterialLossVetoDetectorTest {
     }
 
     @Test
-    void missingCorePositionFailsClosed() {
-        var incomplete = new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(TEAM, Map.of(
-            "QB", pressure("QB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
-            "RB", pressure("RB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
-            "WR", pressure("WR", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED)));
-
-        assertThrows(IllegalArgumentException.class, () -> TradeStrategicMaterialLossVetoDetector.assess(
-            strategic(LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL, TeamPosturePolicy.Posture.MIDDLE_OR_MIXED),
-            incomplete,
-            side(List.of(player("wr-out", "WR", 100.0)), List.of()),
-            side(List.of(), List.of())));
+    void incompleteCorePositionContextFailsClosedBeforeDetector() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(TEAM, Map.of(
+                "QB", pressure("QB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
+                "RB", pressure("RB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
+                "WR", pressure("WR", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED))));
     }
 
     private static TradeAssetStrategicContextAnalyzer.TeamStrategicContext strategic(
