@@ -1,12 +1,16 @@
 # Trade Counter Proposal Identity
 
-BF-382 adds a deterministic audit fingerprint for a bound, materialized read-only `COUNTER` proposal.
+BF-382 adds a deterministic audit fingerprint for a bound, materialized read-only `COUNTER` proposal. BF-383 exposes that fingerprint through the existing read-only `trade counter-proposal` CLI.
 
 Policy: `trade-counter-proposal-identity-v1-canonical-bound-packages-sha256`
 
 Algorithm: `SHA-256`
 
 Canonical encoding version: `1`
+
+CLI:
+
+`butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]`
 
 The fingerprint identifies the exact governed proposal evidence that was reviewed. It is **not** an authorization token and does not grant permission to send a message, submit a trade, or mutate league state.
 
@@ -85,9 +89,24 @@ Before hashing, BF-382 requires the BF-377 envelope and BF-380 materialized arti
 
 It also requires compatible action/materialization states. Mismatched artifacts fail closed instead of producing an identity.
 
+## CLI exposure
+
+BF-383 appends the identity result after the BF-380 revised packages on the existing `trade counter-proposal` surface.
+
+The CLI prints:
+
+- identity policy provenance;
+- identity state and reason;
+- `SHA-256` plus canonical encoding version; and
+- the 64-character lowercase fingerprint only for `IDENTIFIED`.
+
+For `NO_IDENTITY` or `INCONCLUSIVE`, the CLI explicitly states that no fingerprint is available.
+
+Every identity output states that the fingerprint is audit identity only and is not authorization to send or execute the trade.
+
 ## Safety boundary
 
-BF-382 does not:
+BF-382/BF-383 do not:
 
 - authorize a user action;
 - send negotiation wording;
