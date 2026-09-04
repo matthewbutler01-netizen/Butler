@@ -34,6 +34,9 @@ public final class TradeStrategicMaterialLossVetoDetector {
                     throw new IllegalArgumentException("position-pressure material-loss veto requires position");
                 }
                 position = position.trim().toUpperCase(Locale.ROOT);
+                if (!CORE_POSITIONS.contains(position)) {
+                    throw new IllegalArgumentException("position-pressure material-loss veto requires core position");
+                }
             } else if (position != null) {
                 throw new IllegalArgumentException("future-capital material-loss veto must not carry position");
             }
