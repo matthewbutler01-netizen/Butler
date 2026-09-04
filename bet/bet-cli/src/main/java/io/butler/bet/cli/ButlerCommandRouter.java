@@ -37,6 +37,7 @@ public final class ButlerCommandRouter {
             case TRADE_COUNTER_HANDOFF -> ButlerTradeCounterHandoffCli.main(args);
             case TRADE_COUNTER_RECONCILE -> ButlerTradeCounterReconcileCli.main(args);
             case TRADE_COUNTER_FINALIZE -> ButlerTradeCounterFinalizeCli.main(args);
+            case TRADE_COUNTER_MESSAGE_ACK -> ButlerTradeCounterMessageAcknowledgeCli.main(args);
             case TRADE_RECOMMENDATION -> TRADE_RECOMMENDATION_TARGET.run(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
@@ -90,6 +91,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "trade") && equals(args[1], "counter-handoff")) return Route.TRADE_COUNTER_HANDOFF;
             if (equals(args[0], "trade") && equals(args[1], "counter-reconcile")) return Route.TRADE_COUNTER_RECONCILE;
             if (equals(args[0], "trade") && equals(args[1], "counter-finalize")) return Route.TRADE_COUNTER_FINALIZE;
+            if (equals(args[0], "trade") && equals(args[1], "counter-message-ack")) return Route.TRADE_COUNTER_MESSAGE_ACK;
             if (equals(args[0], "trade") && equals(args[1], "recommendation")) return Route.TRADE_RECOMMENDATION;
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) return Route.PLAYER_EVIDENCE_PROFILE;
             if (equals(args[0], "league") && equals(args[1], "longitudinal-evidence")) return Route.LONGITUDINAL_EVIDENCE;
@@ -141,13 +143,12 @@ public final class ButlerCommandRouter {
                  LEAGUE_POSITIONAL_PRESSURE, LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
                  TRADE_COUNTER_DECISION, TRADE_COUNTER_PROPOSAL, TRADE_COUNTER_AUTHORIZATION, TRADE_COUNTER_READINESS,
-                 TRADE_COUNTER_HANDOFF, TRADE_COUNTER_RECONCILE, TRADE_COUNTER_FINALIZE, TRADE_RECOMMENDATION,
-                 PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
-                 AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
-                 AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK, AGING_MODEL_PUBLISHED_CELL,
-                 AGING_MODEL_POSITION_AGE_EVIDENCE, AGING_MODEL_POSITION_AGE_COVERAGE, AGING_MODEL_TEMPORAL_HOLDOUT,
-                 AGING_MODEL_SMOOTHING_SENSITIVITY, AGING_MODEL_TRANSITION_STABILITY,
-                 AGING_MODEL_NORMALIZED_STABILITY, AGING_MODEL_SUPPORT_THRESHOLDS,
-                 AGING_MODEL_AGE_BAND_STABILITY, AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER,
-                 PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
+                 TRADE_COUNTER_HANDOFF, TRADE_COUNTER_RECONCILE, TRADE_COUNTER_FINALIZE, TRADE_COUNTER_MESSAGE_ACK,
+                 TRADE_RECOMMENDATION, PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE,
+                 AGING_MODEL_SAMPLE_AUDIT, AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER,
+                 AGING_MODEL_PUBLISHED_SMOOTHER, AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK,
+                 AGING_MODEL_PUBLISHED_CELL, AGING_MODEL_POSITION_AGE_EVIDENCE, AGING_MODEL_POSITION_AGE_COVERAGE,
+                 AGING_MODEL_TEMPORAL_HOLDOUT, AGING_MODEL_SMOOTHING_SENSITIVITY, AGING_MODEL_TRANSITION_STABILITY,
+                 AGING_MODEL_NORMALIZED_STABILITY, AGING_MODEL_SUPPORT_THRESHOLDS, AGING_MODEL_AGE_BAND_STABILITY,
+                 AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER, PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
 }
