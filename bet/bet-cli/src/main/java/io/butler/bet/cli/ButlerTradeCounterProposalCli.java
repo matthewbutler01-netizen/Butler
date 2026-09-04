@@ -2,6 +2,7 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeCounterCandidateSelectionPolicy;
+import io.butler.bet.intelligence.TradeCounterNegotiationMessagePolicy;
 import io.butler.bet.intelligence.TradeCounterOpportunityPolicy;
 import io.butler.bet.intelligence.TradeCounterProposalEnvelopePolicy;
 import io.butler.bet.intelligence.TradeCounterProposalPolicy;
@@ -58,7 +59,8 @@ public final class ButlerTradeCounterProposalCli {
             var proposal = TradeCounterProposalPolicy.classify(opportunity, selection);
             var envelope = TradeCounterProposalEnvelopePolicy.bind(
                 proposal, options.perspective(), options.sideA(), options.sideB());
-            print(recommendationContext, options, v5, opportunity, selection, proposal, envelope);
+            var message = TradeCounterNegotiationMessagePolicy.compose(envelope);
+            print(recommendationContext, options, v5, opportunity, selection, proposal, envelope, message);
         } catch (SQLException e) {
             System.err.println("Database error while building counter proposal: " + e.getMessage());
             System.exit(1);
@@ -94,6 +96,7 @@ public final class ButlerTradeCounterProposalCli {
         printProposal(context, options, v5, opportunity, selection, proposal);
     }
 
+    /** Retained BF-377 renderer for compatibility. */
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
@@ -104,6 +107,20 @@ public final class ButlerTradeCounterProposalCli {
         TradeCounterProposalEnvelopePolicy.Envelope envelope) {
         printProposal(context, options, v5, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
+    }
+
+    static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        ButlerTradeCounterDecisionCli.Options options,
+        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        TradeCounterOpportunityPolicy.Decision opportunity,
+        TradeCounterCandidateSelectionPolicy.Selection selection,
+        TradeCounterProposalPolicy.Result proposal,
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterNegotiationMessagePolicy.MessageResult message) {
+        printProposal(context, options, v5, opportunity, selection, proposal);
+        printEnvelope(options, proposal, envelope);
+        printMessage(envelope, message);
     }
 
     private static void printProposal(
@@ -188,6 +205,32 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("Proposal binding verified against original trade packages.");
     }
 
+    private static void printMessage(
+        TradeCounterProposalEnvelopePolicy.Envelope envelope,
+        TradeCounterNegotiationMessagePolicy.MessageResult message) {
+        if (envelope == null || message == null) {
+            throw new IllegalArgumentException("counter negotiation message output inputs must not be null");
+        }
+        if (!envelope.policyId().equals(message.envelopePolicyId())
+            || !envelope.leagueId().equals(message.leagueId())
+            || envelope.season() != message.season()
+            || !envelope.source().equals(message.source())
+            || !java.util.Objects.equals(envelope.minimumAsOfDate(), message.minimumAsOfDate())
+            || envelope.perspective() != message.perspective()) {
+            throw new IllegalStateException("counter proposal envelope and negotiation message differ");
+        }
+        System.out.println("Counter negotiation message policy: " + message.policyId());
+        System.out.println("Counter negotiation message state: " + message.state());
+        System.out.println("Counter negotiation message reason: " + message.reasonCode());
+        if (message.state() == TradeCounterNegotiationMessagePolicy.State.MESSAGE_AVAILABLE) {
+            System.out.println("Counter negotiation actor: " + message.actor());
+            System.out.println("Negotiation message: " + message.text());
+        } else {
+            System.out.println("No negotiation message is available.");
+        }
+        System.out.println("Read-only wording only; Butler does not send this message.");
+    }
+
     private static String formatPackage(io.butler.bet.intelligence.TradeAssetAnalyzer.TradePackage tradePackage) {
         return "players=" + tradePackage.playerIds() + " picks=" + tradePackage.draftPickIds();
     }
@@ -204,7 +247,8 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("  butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  A read-only COUNTER proposal is emitted only for a complete v5 REJECT with a uniquely selected strategically eligible candidate.");
         System.out.println("  Proposal binding verifies the explicit perspective and original trade packages.");
-        System.out.println("  Butler does not submit, send, or mutate the trade.");
+        System.out.println("  When a COUNTER exists, Butler also displays governed neutral negotiation wording.");
+        System.out.println("  Butler does not submit, send, or mutate the trade or message.");
     }
 
     private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport analyzeRecommendation(
