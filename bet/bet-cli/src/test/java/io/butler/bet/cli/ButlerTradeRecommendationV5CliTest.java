@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.LeagueCompetitiveTierPolicy;
+import io.butler.bet.intelligence.LeagueFlexibleSlotPressurePolicy;
 import io.butler.bet.intelligence.LeagueFutureCapitalTierAnalyzer;
 import io.butler.bet.intelligence.LeagueFutureCapitalTierPolicy;
 import io.butler.bet.intelligence.LeagueLineupRequirementsAnalyzer;
@@ -83,6 +84,40 @@ class ButlerTradeRecommendationV5CliTest {
         assertEquals(TradeRecommendationPolicy.Recommendation.SIDE_A_PACKAGE_PREFERRED,
             result.packageRecommendation());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.REJECT, result.action());
+    }
+
+    @Test
+    void noFlexibleRequirementRemainsAvailableAndDirectionalInV5() {
+        var context = context(
+            40.0,
+            35.0,
+            20.0,
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE,
+            true,
+            List.of("RB", "WR"),
+            0);
+
+        var result = ButlerTradeRecommendationV5Cli.recommend(
+            context, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM);
+        String output = captureOutput(context);
+
+        assertTrue(result.evidenceStatus().complete());
+        assertEquals(
+            LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT,
+            context.flexible().sideA().pressure().tier());
+        assertEquals(
+            TradeFlexiblePressureTransitionAnalyzer.AssessmentState.NO_FLEXIBLE_REQUIREMENT,
+            result.transitionAssessment().state());
+        assertTrue(result.vetoAssessment().evaluated());
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, result.vetoAssessment().state());
+        assertTrue(result.vetoAssessment().reasons().isEmpty());
+        assertEquals(TradeRecommendationPolicy.Recommendation.SIDE_A_PACKAGE_PREFERRED,
+            result.packageRecommendation());
+        assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.REJECT, result.action());
+        assertTrue(output.contains("Evidence complete: true"));
+        assertTrue(output.contains("Flexible pressure: NO_FLEXIBLE_REQUIREMENT"));
+        assertTrue(output.contains("Flexible transition state: NO_FLEXIBLE_REQUIREMENT"));
+        assertFalse(output.contains("Reason: unavailable governed evidence"));
     }
 
     @Test
@@ -233,6 +268,24 @@ class ButlerTradeRecommendationV5CliTest {
         double sideBOutgoingValue,
         TradeMarketEdgePolicy.Direction marketEdge,
         boolean completeLeague) {
+        return context(
+            sideAFlexValue,
+            sideBBaselineFlexValue,
+            sideBOutgoingValue,
+            marketEdge,
+            completeLeague,
+            List.of("RB", "WR", "FLEX"),
+            1);
+    }
+
+    private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context(
+        double sideAFlexValue,
+        double sideBBaselineFlexValue,
+        double sideBOutgoingValue,
+        TradeMarketEdgePolicy.Direction marketEdge,
+        boolean completeLeague,
+        List<String> lineupSlots,
+        int flexSlots) {
         var identityA = new TradeAssetStrategicContextAnalyzer.TeamIdentity("a", "Alpha");
         var identityB = new TradeAssetStrategicContextAnalyzer.TeamIdentity("b", "Bravo");
         var sideA = tradeSide(tradePlayer("a-wr2", "WR", "a", "Alpha", sideAFlexValue));
@@ -265,12 +318,12 @@ class ButlerTradeRecommendationV5CliTest {
             strategic,
             LeaguePositionalPressurePolicy.POLICY_ID,
             LeagueLineupRequirementsAnalyzer.POLICY_ID,
-            1,
+            flexSlots,
             0,
             Map.copyOf(availability),
             positional(identityA),
             positional(identityB));
-        var lineup = LeagueLineupRequirementsAnalyzer.interpret(LEAGUE, List.of("RB", "WR", "FLEX"));
+        var lineup = LeagueLineupRequirementsAnalyzer.interpret(LEAGUE, lineupSlots);
         List<LeaguePositionalDepthAnalyzer.TeamDepth> teams = new ArrayList<>(List.of(
             teamA(sideAFlexValue),
             teamB(sideBBaselineFlexValue, sideBOutgoingValue),
