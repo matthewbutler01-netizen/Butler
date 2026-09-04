@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.integration.sleeper.SleeperCounterTradeReconciliationOutcomePolicy;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeSnapshotReconciliationService;
 import io.butler.bet.integration.sleeper.SleeperReadOnlyClient;
 
@@ -73,6 +74,8 @@ public final class ButlerTradeCounterReconcileCli {
 
     static void print(SleeperCounterTradeSnapshotReconciliationService.Report report) {
         if (report == null) throw new IllegalArgumentException("reconciliation report must not be null");
+        var outcome = SleeperCounterTradeReconciliationOutcomePolicy.classify(report);
+
         System.out.println("Trade counter Sleeper reconciliation");
         System.out.println("Reconciliation service: " + report.serviceId());
         System.out.println("Trusted grant ID: " + report.grantId());
@@ -97,7 +100,20 @@ public final class ButlerTradeCounterReconcileCli {
             System.out.println("No Sleeper transaction evidence was evaluated.");
         }
 
-        System.out.println("Read-only reconciliation only; no trade is sent or changed.");
+        System.out.println("Outcome eligibility policy: " + outcome.policyId());
+        System.out.println("Outcome eligibility state: " + outcome.state());
+        System.out.println("Outcome eligibility reason code: " + outcome.reasonCode());
+        System.out.println("Terminal outcome eligibility: " + outcome.terminalOutcomeEligibility());
+        System.out.println("Outcome eligibility transaction IDs: " + outcome.transactionIds());
+        System.out.println("Outcome eligibility reason: " + outcome.reason());
+        if (outcome.terminalOutcomeEligibility()
+            == SleeperCounterTradeReconciliationOutcomePolicy.TerminalOutcomeEligibility.CONFIRMED_SUCCESS) {
+            System.out.println("Exact completed readback is eligible for a separate governed success-finalization step.");
+        } else {
+            System.out.println("No terminal execution finalization is eligible from this reconciliation evidence.");
+        }
+
+        System.out.println("Read-only reconciliation and eligibility evaluation only; no trade is sent or changed.");
         System.out.println("This command does not mark execution SUCCEEDED, FAILED, or UNKNOWN.");
         System.out.println("This command does not consume the authorization grant.");
     }
@@ -106,7 +122,7 @@ public final class ButlerTradeCounterReconcileCli {
         System.out.println("  butler trade counter-reconcile <trusted-grant-id> <sleeper-week>");
         System.out.println("  Sleeper week is explicit (1-30); Butler does not infer it.");
         System.out.println("  Butler loads only trusted persisted handoff/snapshot evidence and uses the official Sleeper transactions GET endpoint.");
-        System.out.println("  Results are read-only evidence and do not mutate execution state or consume authorization.");
+        System.out.println("  BF-409 outcome eligibility is displayed, but this command remains read-only and does not finalize execution state.");
     }
 
     record Options(String grantId, int week) {

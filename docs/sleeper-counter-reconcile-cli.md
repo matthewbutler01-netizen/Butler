@@ -4,6 +4,8 @@ BF-408 exposes the BF-407 read-only reconciliation service through one trusted-g
 
 `butler trade counter-reconcile <trusted-grant-id> <sleeper-week>`
 
+BF-411 additionally displays the BF-409 reconciliation-outcome eligibility decision while preserving the same read-only command boundary.
+
 ## Input boundary
 
 The command accepts only:
@@ -19,6 +21,8 @@ The command loads the durable execution/handoff chain and BF-406 provider snapsh
 
 The BF-402 first presentation timestamp remains the not-before boundary, preventing an older identical trade from satisfying the current handoff.
 
+After BF-398 reconciliation, BF-409 classifies the evidence without mutating any local or remote state.
+
 ## Output
 
 When evidence is available the command prints:
@@ -31,21 +35,37 @@ When evidence is available the command prints:
 - observed transaction count,
 - BF-398 reconciliation policy/state/reason,
 - matching transaction IDs,
-- evidence-incomplete status.
+- evidence-incomplete status,
+- BF-409 outcome-eligibility policy/state/reason code,
+- terminal-outcome eligibility,
+- BF-409 transaction IDs and reason.
 
-When trusted state is unavailable, the command states that no Sleeper transaction evidence was evaluated.
+When trusted state is unavailable, the command states that no Sleeper transaction evidence was evaluated and prints BF-409 `INCONCLUSIVE` / `TRUSTED_RECONCILIATION_UNAVAILABLE` with no terminal eligibility.
+
+## BF-409 eligibility semantics
+
+The command exposes, but does not apply, these governed mappings:
+
+- exactly one `MATCH_COMPLETE` -> `CONFIRMED_SUCCESS_EVIDENCE` / `CONFIRMED_SUCCESS`,
+- `MATCH_PENDING` -> `PENDING` / no terminal eligibility,
+- `NO_MATCH` -> `NO_TERMINAL_OUTCOME` / no terminal eligibility,
+- `AMBIGUOUS` -> `INCONCLUSIVE` / no terminal eligibility,
+- `INCONCLUSIVE` -> `INCONCLUSIVE` / no terminal eligibility,
+- unavailable trusted reconciliation -> `INCONCLUSIVE` / no terminal eligibility.
+
+`NO_MATCH` is explicitly not failure evidence.
 
 ## Safety boundary
 
-This command is read-only.
+This command remains read-only.
 
-Even `MATCH_COMPLETE` is evidence only. BF-408 does not:
+Even when BF-409 reports `CONFIRMED_SUCCESS_EVIDENCE`, BF-411 does not:
 
-- declare execution success,
 - mark the execution `SUCCEEDED`, `FAILED`, or `UNKNOWN`,
+- invoke the BF-410 finalizer,
 - mutate a Sleeper trade,
 - consume the one-shot authorization grant,
 - retry an action,
 - infer a different Sleeper week.
 
-A later policy may decide how exact reconciliation evidence maps into BF-395/BF-396 execution-outcome directives. That mapping is intentionally outside BF-408.
+BF-410 is a separate local-only coordinator that can later atomically finalize an exact confirmed-success readback. BF-411 only shows whether the current reconciliation evidence is eligible for that separate governed step.
