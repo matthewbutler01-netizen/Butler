@@ -1,10 +1,14 @@
 # Trade Counter Negotiation Message
 
-BF-378 governs neutral, read-only negotiation wording derived from the BF-377 bound counter-proposal envelope.
+BF-378 governs neutral, read-only negotiation wording derived from the BF-377 bound counter-proposal envelope. BF-379 exposes that governed wording through the existing read-only `trade counter-proposal` CLI surface.
 
 Policy: `trade-counter-negotiation-message-v1-bound-neutral-first-person`
 
-This policy generates text only. It does not send a message, contact another manager, submit a trade, or mutate league state.
+CLI:
+
+`butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]`
+
+This policy and CLI output generate text only. They do not send a message, contact another manager, submit a trade, or mutate league state.
 
 ## Input boundary
 
@@ -57,9 +61,24 @@ The wording is deterministic and intentionally plain:
 
 The policy does not add persuasion, urgency, bluffing, claims about the other manager's needs, or unsupported value language.
 
+## CLI exposure
+
+BF-379 appends the governed message result to `trade counter-proposal` after the proposal and BF-377 envelope have been produced and verified.
+
+The CLI prints:
+
+- message policy provenance;
+- message state and reason;
+- actor when a message is available; and
+- the exact governed negotiation text.
+
+For `NO_MESSAGE` or `INCONCLUSIVE`, the CLI prints that no negotiation message is available and does not synthesize fallback wording.
+
+The command explicitly states that the wording is read-only and is not sent by Butler.
+
 ## Safety boundary
 
-BF-378 does not:
+BF-378/BF-379 do not:
 
 - send the generated wording;
 - choose a recipient or communication channel;
@@ -70,4 +89,4 @@ BF-378 does not:
 - change BF-369 through BF-377 semantics; or
 - modify Trade Recommendation v5.
 
-A CLI or UI surface that displays this governed wording is a separate delivery step. Any capability that actually sends the wording requires explicit authorization semantics and remains outside this contract.
+Any capability that actually sends the wording requires explicit authorization semantics and remains outside this contract.
