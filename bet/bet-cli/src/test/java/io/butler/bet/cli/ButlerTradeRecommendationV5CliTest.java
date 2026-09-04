@@ -121,7 +121,7 @@ class ButlerTradeRecommendationV5CliTest {
 
         String output = captureOutput(context);
 
-        assertTrue(output.contains("Strategic veto: CLEAR"));
+        assertTrue(output.contains("Strategic veto: NOT_EVALUATED"));
         assertTrue(output.contains("Package recommendation: HOLD"));
         assertTrue(output.contains("Action: HOLD"));
         assertTrue(output.contains("Reason: the governed market comparison is inside the fairness band."));
