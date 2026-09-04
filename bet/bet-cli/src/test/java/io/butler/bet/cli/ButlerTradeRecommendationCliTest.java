@@ -1,5 +1,6 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.intelligence.TradeRecommendationPolicy;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,16 @@ class ButlerTradeRecommendationCliTest {
     void completeEvidenceStatusRequiresEveryGate() {
         assertTrue(new ButlerTradeRecommendationCli.EvidenceStatus(true, true, true, true).complete());
         assertEquals(false, new ButlerTradeRecommendationCli.EvidenceStatus(false, true, true, true).complete());
+    }
+
+    @Test
+    void locksRecommendationPolicyAndActionVocabulary() {
+        assertEquals("trade-recommendation-v1-conservative-evidence-first", TradeRecommendationPolicy.POLICY_ID);
+        assertEquals("trade-team-perspective-v1-explicit-owner", TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
+        assertEquals(List.of("ACCEPT", "REJECT", "HOLD", "INCONCLUSIVE"),
+            java.util.Arrays.stream(TradeTeamPerspectiveRecommendationPolicy.Action.values())
+                .map(Enum::name)
+                .toList());
     }
 
     @Test
