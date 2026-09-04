@@ -2,7 +2,11 @@
 
 BF-376 adds Butler's first governed `COUNTER` proposal surface while keeping Trade Recommendation v5 and the earlier counter-evidence surfaces frozen.
 
-Policy: `trade-counter-proposal-v1-selected-candidate-read-only-counter`
+Proposal policy: `trade-counter-proposal-v1-selected-candidate-read-only-counter`
+
+BF-377 adds an auditable original-trade envelope:
+
+Envelope policy: `trade-counter-proposal-envelope-v1-original-trade-perspective-bound`
 
 CLI:
 
@@ -71,15 +75,43 @@ The proposal operation is rendered explicitly:
 
 The policy does not infer a different asset, swap the target side, convert add to remove, or create a multi-asset package.
 
+## BF-377 original-trade envelope
+
+BF-377 binds every proposal result to:
+
+- explicit team perspective;
+- perspective policy provenance;
+- original Side A player IDs and draft-pick IDs;
+- original Side B player IDs and draft-pick IDs;
+- league, season, source, and minimum-as-of coordinates; and
+- the BF-376 proposal result and action.
+
+The envelope is not cosmetic metadata. It verifies proposal integrity against the original packages before the live CLI renders the binding as verified.
+
+For `ADD_ASSET_TO_LOWER_PACKAGE`:
+
+- the proposed asset must be absent from both original trade packages.
+
+For `REMOVE_ASSET_FROM_HIGHER_PACKAGE`:
+
+- the proposed asset must exist on the governed original side; and
+- removing it may not leave that side empty.
+
+The envelope also rejects duplicate asset IDs within an original package and rejects player/pick overlap across the two original sides.
+
+These checks make it harder for a proposal artifact to be copied, cached, or consumed against a different trade than the one that produced it.
+
 ## Ambiguity
 
 If BF-375 returns `AMBIGUOUS`, BF-376 returns `NO_ACTION` with reason `AMBIGUOUS_SELECTION`.
 
 Deterministic tail ordering such as player/pick type or asset ID still cannot manufacture a `COUNTER` decision.
 
+BF-377 still binds the explicit perspective and original packages for non-COUNTER outcomes, but no proposal payload is attached.
+
 ## Safety boundary
 
-BF-376 does not:
+BF-376/BF-377 do not:
 
 - submit a trade to Sleeper or any other platform;
 - send a message to another manager;
