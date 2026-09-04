@@ -44,6 +44,7 @@ The repository's baseline security controls include:
 - committed SHA-256 dependency verification metadata;
 - explicit strict dependency verification for every CI Gradle invocation;
 - automated Gradle and GitHub Actions dependency update checks through Dependabot;
+- GitHub Dependency Graph analysis plus pull-request dependency review that rejects known moderate-or-higher vulnerabilities;
 - CodeQL static analysis for relevant `main` changes plus a weekly scheduled scan;
 - local ignore rules for runtime databases and common secret-bearing files.
 
