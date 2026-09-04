@@ -100,7 +100,7 @@ class ButlerTradeCounterStatusCliTest {
         String output = capture(() -> ButlerTradeCounterStatusCli.printUnavailable("grant-1"));
         assertTrue(output.contains("status unavailable"));
         assertTrue(output.contains("no Sleeper request"));
-        assertTrue(output.contains("no local lifecycle mutation"));
+        assertTrue(output.contains("no Sleeper request or local lifecycle mutation occurred"));
     }
 
     private static SleeperManualCounterHandoffRepository.PresentedHandoff handoff() {
