@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerTradeRecommendationV5CliTest {
@@ -110,6 +111,46 @@ class ButlerTradeRecommendationV5CliTest {
     }
 
     @Test
+    void v5OutputExplainsMarketFairHoldWithoutStrategicVeto() {
+        var context = context(
+            40.0,
+            35.0,
+            30.0,
+            TradeMarketEdgePolicy.Direction.MARKET_FAIR,
+            true);
+
+        String output = captureOutput(context);
+
+        assertTrue(output.contains("Strategic veto: CLEAR"));
+        assertTrue(output.contains("Package recommendation: HOLD"));
+        assertTrue(output.contains("Action: HOLD"));
+        assertTrue(output.contains("Reason: the governed market comparison is inside the fairness band."));
+        assertFalse(output.contains("Veto reason:"));
+        assertFalse(output.contains("a governed strategic material-loss veto blocked"));
+    }
+
+    @Test
+    void v5OutputExplainsMissingFlexiblePressureAsInconclusive() {
+        var context = context(
+            40.0,
+            35.0,
+            20.0,
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE,
+            false);
+
+        String output = captureOutput(context);
+
+        assertTrue(output.contains("Evidence complete: false"));
+        assertTrue(output.contains("Flexible pressure: INSUFFICIENT_EVIDENCE"));
+        assertTrue(output.contains("Flexible pressure reason:"));
+        assertTrue(output.contains("Strategic veto: NOT_EVALUATED"));
+        assertTrue(output.contains("Package recommendation: INCONCLUSIVE"));
+        assertTrue(output.contains("Action: INCONCLUSIVE"));
+        assertTrue(output.contains("Reason: unavailable governed evidence: flexible pressure."));
+        assertFalse(output.contains("Veto reason:"));
+    }
+
+    @Test
     void v5OutputSurfacesTransitionPolicyTierMovementAndReason() {
         var context = context(40.0, 35.0, 20.0);
         var options = new ButlerTradeRecommendationCli.Options(
@@ -146,6 +187,20 @@ class ButlerTradeRecommendationV5CliTest {
         double sideAFlexValue,
         double sideBBaselineFlexValue,
         double sideBOutgoingValue) {
+        return context(
+            sideAFlexValue,
+            sideBBaselineFlexValue,
+            sideBOutgoingValue,
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE,
+            true);
+    }
+
+    private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context(
+        double sideAFlexValue,
+        double sideBBaselineFlexValue,
+        double sideBOutgoingValue,
+        TradeMarketEdgePolicy.Direction marketEdge,
+        boolean completeLeague) {
         var identityA = new TradeAssetStrategicContextAnalyzer.TeamIdentity("a", "Alpha");
         var identityB = new TradeAssetStrategicContextAnalyzer.TeamIdentity("b", "Bravo");
         var sideA = tradeSide(tradePlayer("a-wr2", "WR", "a", "Alpha", sideAFlexValue));
@@ -155,10 +210,12 @@ class ButlerTradeRecommendationV5CliTest {
             trade,
             "fairness-measurement",
             TradeFairnessPolicy.POLICY_ID,
-            40.0,
-            TradeFairnessPolicy.Classification.OUTSIDE_FAIRNESS_BAND,
+            marketEdge == TradeMarketEdgePolicy.Direction.MARKET_FAIR ? 0.0 : 40.0,
+            marketEdge == TradeMarketEdgePolicy.Direction.MARKET_FAIR
+                ? TradeFairnessPolicy.Classification.MARKET_FAIR
+                : TradeFairnessPolicy.Classification.OUTSIDE_FAIRNESS_BAND,
             TradeMarketEdgePolicy.POLICY_ID,
-            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE,
+            marketEdge,
             "posture-policy",
             true,
             "future-capital-policy",
@@ -182,16 +239,40 @@ class ButlerTradeRecommendationV5CliTest {
             positional(identityA),
             positional(identityB));
         var lineup = LeagueLineupRequirementsAnalyzer.interpret(LEAGUE, List.of("RB", "WR", "FLEX"));
+        List<LeaguePositionalDepthAnalyzer.TeamDepth> teams = new ArrayList<>(List.of(
+            teamA(sideAFlexValue),
+            teamB(sideBBaselineFlexValue, sideBOutgoingValue),
+            team("c", "Charlie", 60.0)));
+        if (completeLeague) {
+            teams.add(team("d", "Delta", 80.0));
+        }
         var depth = new LeaguePositionalDepthAnalyzer.DepthReport(
             LEAGUE,
             SOURCE,
             AS_OF,
-            List.of(
-                teamA(sideAFlexValue),
-                teamB(sideBBaselineFlexValue, sideBOutgoingValue),
-                team("c", "Charlie", 60.0),
-                team("d", "Delta", 80.0)));
+            List.copyOf(teams));
         return TradeFlexibleRecommendationContextAnalyzer.compose(positionalTrade, lineup, depth);
+    }
+
+    private static String captureOutput(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context) {
+        var options = new ButlerTradeRecommendationCli.Options(
+            LEAGUE,
+            2026,
+            TradeAssetAnalyzer.TradePackage.players(List.of("a-wr2")),
+            TradeAssetAnalyzer.TradePackage.players(List.of("b-rb2")),
+            TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM,
+            SOURCE,
+            AS_OF);
+        PrintStream original = System.out;
+        var bytes = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(bytes));
+            ButlerTradeRecommendationV5Cli.print(context, options);
+        } finally {
+            System.setOut(original);
+        }
+        return bytes.toString();
     }
 
     private static LeaguePositionalDepthAnalyzer.TeamDepth teamA(double flexValue) {
