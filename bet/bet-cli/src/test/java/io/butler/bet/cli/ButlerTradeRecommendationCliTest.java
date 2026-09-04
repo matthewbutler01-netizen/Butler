@@ -65,6 +65,20 @@ class ButlerTradeRecommendationCliTest {
     }
 
     @Test
+    void locksStrategicVetoVocabulary() {
+        assertEquals(List.of("CLEAR", "BLOCKED"),
+            java.util.Arrays.stream(TradeRecommendationVetoPolicy.VetoState.values())
+                .map(Enum::name)
+                .toList());
+        assertEquals(List.of(
+                "LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN",
+                "POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN"),
+            java.util.Arrays.stream(TradeStrategicVetoDetector.ReasonCode.values())
+                .map(Enum::name)
+                .toList());
+    }
+
+    @Test
     void completeEvidenceStatusRequiresEveryGate() {
         assertTrue(new ButlerTradeRecommendationCli.EvidenceStatus(true, true, true, true).complete());
         assertEquals(false, new ButlerTradeRecommendationCli.EvidenceStatus(false, true, true, true).complete());
