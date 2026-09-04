@@ -31,12 +31,14 @@ class ButlerTradeRecommendationTerminalStateOutputTest {
         String output = capture(TradeMarketEdgePolicy.Direction.MARKET_FAIR);
 
         assertEquals(lines(
-            "Trade recommendation (conservative market-first strategic veto)",
+            "Trade recommendation (conservative market-first material-loss veto)",
             "League ID: l1",
             "Season: 2026",
             "Perspective: Team A [a]",
-            "Recommendation policy: trade-recommendation-v2-market-first-strategic-veto",
-            "Strategic veto policy: trade-strategic-veto-v1-explicit-weakness-protection",
+            "Recommendation policy: trade-recommendation-v3-market-first-material-loss-veto",
+            "Strategic veto policy: trade-strategic-veto-v2-material-protected-value-loss",
+            "Protected value flow policy: trade-protected-value-flow-v1-current-valued-assets",
+            "Protected value materiality policy: trade-protected-value-materiality-v1-25-percent-loss",
             "Perspective policy: trade-team-perspective-v1-explicit-owner",
             "Evidence complete: true",
             "Evidence gates: market-direction=true posture=true future-capital=true positional-pressure=true",
@@ -52,16 +54,18 @@ class ButlerTradeRecommendationTerminalStateOutputTest {
         String output = capture(TradeMarketEdgePolicy.Direction.UNAVAILABLE);
 
         assertEquals(lines(
-            "Trade recommendation (conservative market-first strategic veto)",
+            "Trade recommendation (conservative market-first material-loss veto)",
             "League ID: l1",
             "Season: 2026",
             "Perspective: Team A [a]",
-            "Recommendation policy: trade-recommendation-v2-market-first-strategic-veto",
-            "Strategic veto policy: trade-strategic-veto-v1-explicit-weakness-protection",
+            "Recommendation policy: trade-recommendation-v3-market-first-material-loss-veto",
+            "Strategic veto policy: trade-strategic-veto-v2-material-protected-value-loss",
+            "Protected value flow policy: trade-protected-value-flow-v1-current-valued-assets",
+            "Protected value materiality policy: trade-protected-value-materiality-v1-25-percent-loss",
             "Perspective policy: trade-team-perspective-v1-explicit-owner",
             "Evidence complete: false",
             "Evidence gates: market-direction=false posture=true future-capital=true positional-pressure=true",
-            "Strategic veto: CLEAR",
+            "Strategic veto: NOT_EVALUATED",
             "Package recommendation: INCONCLUSIVE",
             "Action: INCONCLUSIVE",
             "Reason: unavailable governed evidence: market direction.",
