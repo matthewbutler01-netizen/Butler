@@ -32,6 +32,25 @@ If the trade is `OUTSIDE_FAIRNESS_BAND`, Butler returns two deterministic, asset
 
 The analyzer does not prefer one adjustment strategy over the other.
 
+## Read-only CLI surface
+
+The governed evidence can be inspected without changing the live recommendation contract:
+
+`butler trade counter-value <league-id> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]`
+
+Asset-package syntax matches the existing mixed trade comparison surface: comma-separated bare IDs are players, while explicit `player:<id>` and `pick:<draft-pick-id>` tokens may be mixed in either package.
+
+The command prints:
+
+- market-value coverage and stale-asset count;
+- side A and side B package totals;
+- counter-context and target policy identifiers;
+- current governed fairness and symmetric gap when evidence is available;
+- the add-to-lower and remove-from-higher value targets when the trade is outside the band;
+- an explicit insufficiency reason when package values are incomplete or stale.
+
+The command is routed independently as `trade counter-value`; it does not route through `trade recommendation`, does not select an asset, and does not emit a team action or package recommendation.
+
 ## Boundary calculation
 
 For higher package value `H`, lower package value `L`, and the governed fair-gap percentage `p`, the real-number boundary targets are:
@@ -45,7 +64,7 @@ Because an exact real-number 5% boundary can be represented by binary floating p
 
 ## Interpretation boundary
 
-These policies are counter evidence only. They do **not**:
+These policies and the CLI are counter evidence only. They do **not**:
 
 - select a player or draft pick to add or remove;
 - search a roster for matching assets;
