@@ -16,6 +16,7 @@ public final class ButlerCommandRouter {
 
     public static void main(String[] args) {
         switch (route(args)) {
+            case HELP -> ButlerHelpLauncher.main(args);
             case AGE_CONTEXT -> ButlerAgeLauncher.main(args);
             case AGE_PRODUCTION_CONTEXT -> ButlerAgeProductionContextCli.main(args);
             case LEAGUE_AGING_MODEL_EVIDENCE -> ButlerLeagueAgingModelEvidenceCli.main(args);
@@ -72,7 +73,11 @@ public final class ButlerCommandRouter {
     }
 
     static Route route(String[] args) {
-        if (args != null && args.length >= 2) {
+        if (args == null || args.length == 0
+            || (args.length == 1 && equals(args[0], "help"))) {
+            return Route.HELP;
+        }
+        if (args.length >= 2) {
             if (equals(args[0], "league") && equals(args[1], "age-context")) return Route.AGE_CONTEXT;
             if (equals(args[0], "league") && equals(args[1], "age-production-context")) return Route.AGE_PRODUCTION_CONTEXT;
             if (equals(args[0], "league") && equals(args[1], "aging-model-evidence")) return Route.LEAGUE_AGING_MODEL_EVIDENCE;
@@ -144,7 +149,7 @@ public final class ButlerCommandRouter {
         }
     }
 
-    enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
+    enum Route { HELP, AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_ROSTER_STRENGTH,
                  LEAGUE_POSITIONAL_PRESSURE, LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
