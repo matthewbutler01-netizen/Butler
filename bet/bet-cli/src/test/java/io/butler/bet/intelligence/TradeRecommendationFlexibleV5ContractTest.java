@@ -97,6 +97,32 @@ class TradeRecommendationFlexibleV5ContractTest {
     }
 
     @Test
+    void locksFailClosedMissingEvidenceSemantics() {
+        var incompleteGates = List.of(
+            new TradeRecommendationFlexibleTransitionMaterialLossPolicy.EvidenceGate(
+                false, true, true, true),
+            new TradeRecommendationFlexibleTransitionMaterialLossPolicy.EvidenceGate(
+                true, false, true, true),
+            new TradeRecommendationFlexibleTransitionMaterialLossPolicy.EvidenceGate(
+                true, true, false, true),
+            new TradeRecommendationFlexibleTransitionMaterialLossPolicy.EvidenceGate(
+                true, true, true, false));
+
+        for (var evidence : incompleteGates) {
+            assertEquals(TradeRecommendationPolicy.Recommendation.INCONCLUSIVE,
+                TradeRecommendationFlexibleTransitionMaterialLossPolicy.classify(
+                    TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE,
+                    evidence,
+                    TradeRecommendationVetoPolicy.VetoState.CLEAR));
+            assertEquals(TradeRecommendationPolicy.Recommendation.INCONCLUSIVE,
+                TradeRecommendationFlexibleTransitionMaterialLossPolicy.classify(
+                    TradeMarketEdgePolicy.Direction.SIDE_B_MARKET_EDGE,
+                    evidence,
+                    TradeRecommendationVetoPolicy.VetoState.BLOCKED));
+        }
+    }
+
+    @Test
     void locksMarketFirstDowngradeOnlySemantics() {
         var evidence = new TradeRecommendationFlexibleTransitionMaterialLossPolicy.EvidenceGate(
             true, true, true, true);
