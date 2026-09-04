@@ -114,7 +114,7 @@ public final class TradeCounterAuthorizationGrantRepository {
         TradeCounterAuthorizationPolicy.Destination expectedDestination,
         Instant consumedAt) throws SQLException {
         grantId = requireText(grantId, "grantId");
-        expectedProposalFingerprint = requireText(expectedProposalFingerprint, "expectedProposalFingerprint");
+        expectedProposalFingerprint = requireFingerprint(expectedProposalFingerprint);
         Objects.requireNonNull(expectedAction, "expectedAction must not be null");
         Objects.requireNonNull(expectedDestination, "expectedDestination must not be null");
         Objects.requireNonNull(consumedAt, "consumedAt must not be null");
@@ -185,6 +185,13 @@ public final class TradeCounterAuthorizationGrantRepository {
         public boolean consumed() {
             return consumedAt != null;
         }
+    }
+
+    private static String requireFingerprint(String value) {
+        if (value == null || !value.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("expectedProposalFingerprint must be lowercase SHA-256");
+        }
+        return value;
     }
 
     private static String requireText(String value, String field) {
