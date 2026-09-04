@@ -1,10 +1,8 @@
 # Trade Counter Authorization Replay Context
 
-BF-388 adds the immutable proposal coordinates required to rerun a persisted counter authorization from current evidence before any future execution.
+BF-388 adds immutable proposal coordinates required to rerun a persisted counter authorization from current evidence. BF-389 wires those coordinates into the live exact-confirmation authorization path.
 
-A BF-387 trusted grant already stores the proposal fingerprint, league/season/source/minimum-as-of coordinates, perspective, action, and destination. That is sufficient to identify what was authorized, but it is not sufficient to reconstruct the original trade packages that produced the fingerprint.
-
-BF-388 therefore persists the original Side A and Side B asset identities alongside the trusted grant.
+A BF-387 trusted grant stores the proposal fingerprint, league/season/source/minimum-as-of coordinates, perspective, action, and destination. BF-388/BF-389 add the original Side A and Side B asset identities needed to reconstruct the governed trade packages that produced that fingerprint.
 
 ## Stored evidence
 
@@ -17,9 +15,28 @@ BF-388 therefore persists the original Side A and Side B asset identities alongs
 
 Display names, market values, recommendation output, and derived strategic evidence are deliberately not persisted as replay authority. Those values must be recomputed from current evidence.
 
+## Live authorization wiring
+
+When `trade counter-authorize` receives an exact valid `AUTHORIZE_ONCE ...` confirmation, BF-389 performs two persistence steps before returning the live authorization result:
+
+1. persist or resolve the trusted BF-387 active grant; and
+2. attach the exact original Side A / Side B packages from the governed authorization request to that trusted grant ID.
+
+The CLI reports both the grant persistence state and replay-context attachment state.
+
+Rejected confirmation remains `NOT_APPLICABLE` and attaches no replay context.
+
+Repeated exact authorization for the same still-active proposal resolves to the existing trusted grant. Its exact replay context returns `ALREADY_ATTACHED` instead of creating a duplicate or mutable binding.
+
+### BF-387 compatibility repair
+
+A trusted active grant created under BF-387 may predate replay-context wiring. If the user performs the exact authorization again while that grant remains active, BF-389 resolves the existing trusted grant and attaches the current exact replay context to it.
+
+This repair is safe because the active grant is already bound to the same governed proposal fingerprint/action/destination. Different replay packages cannot overwrite an existing context.
+
 ## Grant binding
 
-Replay context is keyed by the trusted authorization `grant_id` and has a foreign-key relationship to `trade_counter_authorization_grants`.
+Replay context is keyed by trusted authorization `grant_id` and has a foreign-key relationship to `trade_counter_authorization_grants`.
 
 Context may be attached only when:
 
@@ -53,14 +70,16 @@ The normalized SQLite table `trade_counter_authorization_replay_assets` records:
 
 Primary/unique constraints preserve one ordered identity per grant/side/type and reject duplicate asset rows.
 
-The repository writes the complete replay context inside one transaction. A partial package is never intentionally committed.
+The repository writes a complete replay context inside one transaction. A partial package is never intentionally committed.
+
+Grant persistence and replay attachment are separate application-level operations. If replay attachment fails after a new grant was persisted, Butler performs no external action and the active grant remains unusable for future readiness until exact replay context is successfully attached. Repeating the exact authorization can repair that state. Safety therefore fails closed rather than treating a grant without replay context as executable.
 
 ## Future fresh-evidence replay
 
 A later execution-readiness gate can load:
 
-1. the trusted persisted BF-387 grant by grant ID; and
-2. the BF-388 original Side A / Side B packages.
+1. the trusted persisted grant by grant ID; and
+2. the immutable original Side A / Side B packages.
 
 It can then rerun the existing governed counter-proposal pipeline using the stored league, season, source, minimum-as-of, perspective, and original packages. The resulting fresh BF-382 proposal identity must pass `TradeCounterAuthorizationPolicy.revalidate(...)` with `MATCH` before consumption can even be considered.
 
@@ -68,7 +87,7 @@ The stored replay context does not substitute for current market, strategic, pos
 
 ## Safety boundary
 
-BF-388 does not:
+BF-388/BF-389 do not:
 
 - consume an authorization grant;
 - mark an action executable;
