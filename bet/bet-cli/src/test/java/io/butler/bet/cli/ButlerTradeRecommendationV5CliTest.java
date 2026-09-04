@@ -111,6 +111,22 @@ class ButlerTradeRecommendationV5CliTest {
     }
 
     @Test
+    void v5OutputMapsDirectionalPackageToOppositeTeamAccept() {
+        var context = context(40.0, 35.0, 30.0);
+
+        String output = captureOutput(
+            context,
+            TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_B_TEAM);
+
+        assertTrue(output.contains("Perspective: Bravo [b]"));
+        assertTrue(output.contains("Strategic veto: CLEAR"));
+        assertTrue(output.contains("Package recommendation: SIDE_A_PACKAGE_PREFERRED"));
+        assertTrue(output.contains("Action: ACCEPT"));
+        assertFalse(output.contains("Action: REJECT"));
+        assertFalse(output.contains("Reason:"));
+    }
+
+    @Test
     void v5OutputExplainsMarketFairHoldWithoutStrategicVeto() {
         var context = context(
             40.0,
@@ -272,12 +288,20 @@ class ButlerTradeRecommendationV5CliTest {
 
     private static String captureOutput(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context) {
+        return captureOutput(
+            context,
+            TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM);
+    }
+
+    private static String captureOutput(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        TradeTeamPerspectiveRecommendationPolicy.Perspective perspective) {
         var options = new ButlerTradeRecommendationCli.Options(
             LEAGUE,
             2026,
             TradeAssetAnalyzer.TradePackage.players(List.of("a-wr2")),
             TradeAssetAnalyzer.TradePackage.players(List.of("b-rb2")),
-            TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM,
+            perspective,
             SOURCE,
             AS_OF);
         PrintStream original = System.out;
