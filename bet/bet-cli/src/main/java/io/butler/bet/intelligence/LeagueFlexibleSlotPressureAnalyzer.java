@@ -24,6 +24,13 @@ public final class LeagueFlexibleSlotPressureAnalyzer {
         }
 
         int totalFlexibleSlots = coverage.flexSlots() + coverage.superFlexSlots();
+        for (var team : coverage.teams()) {
+            if (team.flexibleSlots() != totalFlexibleSlots) {
+                throw new IllegalArgumentException(
+                    "team flexible-slot count does not match league exposure: " + team.teamId());
+            }
+        }
+
         if (totalFlexibleSlots == 0) {
             return new FlexiblePressureReport(
                 coverage.leagueId(),
