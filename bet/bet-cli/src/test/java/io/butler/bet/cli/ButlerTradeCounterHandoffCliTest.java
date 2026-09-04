@@ -62,7 +62,7 @@ class ButlerTradeCounterHandoffCliTest {
     }
 
     @Test
-    void tradeHandoffPrintsTransactionReadbackAndFirstPresentationBoundary() {
+    void tradeHandoffWithoutSnapshotReportsReadbackButNotReconciliationReadiness() {
         var destination = new TradeCounterAuthorizationPolicy.Destination(
             TradeCounterAuthorizationPolicy.DestinationType.LEAGUE, "l1");
         String payload = "{\"schema\":\"butler-counter-trade-request-v1\",\"proposalFingerprint\":\""
@@ -75,9 +75,10 @@ class ButlerTradeCounterHandoffCliTest {
             SleeperManualCounterHandoffService.ReconciliationMode.SLEEPER_TRANSACTION_READBACK);
 
         assertTrue(output.contains(payload));
-        assertTrue(output.contains("Official Sleeper transaction readback is available"));
-        assertTrue(output.contains("safe not-before boundary"));
+        assertTrue(output.contains("Sleeper exposes official transaction readback"));
+        assertTrue(output.contains("does not yet have a usable immutable provider expectation"));
         assertTrue(output.contains(PRESENTED_AT.toString()));
+        assertFalse(output.contains("immutable provider expectation snapshot."));
         assertFalse(output.contains("submitted successfully"));
     }
 
