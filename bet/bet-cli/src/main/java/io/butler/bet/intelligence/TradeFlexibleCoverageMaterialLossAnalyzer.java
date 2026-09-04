@@ -1,19 +1,12 @@
 package io.butler.bet.intelligence;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Recomputes legal FLEX/SUPERFLEX coverage after a trade for a team already under flexible pressure.
- * The same lineup reservation and flexible-slot optimizer used for league evidence is reused here.
+ * The same lineup reservation, flexible-slot optimizer, and shared post-trade roster mutation used
+ * by transition evidence is reused here while preserving the selected-team-only v4 contract.
  * This analyzer measures evidence only; it does not emit a recommendation or veto.
  */
 public final class TradeFlexibleCoverageMaterialLossAnalyzer {
@@ -70,7 +63,8 @@ public final class TradeFlexibleCoverageMaterialLossAnalyzer {
 
         var baseline = coverageForTeam(context, lineup, currentTeam);
         validateBaseline(teamContext.pressure(), baseline);
-        var postTradeTeam = applyTrade(currentTeam, identity, context, outgoing, incoming);
+        var postTradeTeam = TradeFlexiblePostTradeDepthAnalyzer.applySelectedTeam(
+            context, depth, teamContext, outgoing, incoming);
         var postTrade = coverageForTeam(context, lineup, postTradeTeam);
 
         var flow = new TradeProtectedValueFlowAnalyzer.ValueFlow(
@@ -130,88 +124,6 @@ public final class TradeFlexibleCoverageMaterialLossAnalyzer {
             || Math.abs(pressure.flexibleCoverageValue() - baseline.flexibleCoverageValue()) > VALUE_TOLERANCE) {
             throw new IllegalStateException("recomputed baseline flexible coverage differs from governed pressure evidence");
         }
-    }
-
-    private static LeaguePositionalDepthAnalyzer.TeamDepth applyTrade(
-        LeaguePositionalDepthAnalyzer.TeamDepth currentTeam,
-        TradeAssetStrategicContextAnalyzer.TeamIdentity identity,
-        TradeFlexibleSlotContextAnalyzer.TradeFlexibleContextReport context,
-        TradeAssetAnalyzer.TradeSide outgoing,
-        TradeAssetAnalyzer.TradeSide incoming) {
-        Set<String> relevantPositions = relevantPositions(context.flexSlots(), context.superFlexSlots());
-        Map<String, LeaguePositionalDepthAnalyzer.PlayerDepthValue> playersById = new HashMap<>();
-        for (var position : currentTeam.positions().values()) {
-            for (var player : position.players()) {
-                if (playersById.put(player.playerId(), player) != null) {
-                    throw new IllegalStateException("duplicate player in positional depth: " + player.playerId());
-                }
-            }
-        }
-
-        for (var player : outgoing.players()) {
-            if (!identity.teamId().equals(player.teamId()) || !identity.teamName().equals(player.teamName())) {
-                throw new IllegalArgumentException("outgoing player does not belong to protected trade team: " + player.playerId());
-            }
-            var removed = playersById.remove(player.playerId());
-            if (removed == null && relevantPositions.contains(normalizePosition(player.position()))) {
-                throw new IllegalStateException("outgoing flexible-eligible player missing from current depth: " + player.playerId());
-            }
-        }
-
-        for (var player : incoming.players()) {
-            String position = normalizePosition(player.position());
-            if (!relevantPositions.contains(position)) continue;
-            if (playersById.containsKey(player.playerId())) {
-                throw new IllegalArgumentException("incoming player is already rostered by protected team: " + player.playerId());
-            }
-            if (player.value() == null || !Double.isFinite(player.value()) || player.value() < 0.0 || player.stale()) {
-                throw new IllegalArgumentException("incoming flexible-eligible player requires current finite value: " + player.playerId());
-            }
-            if (context.minimumAsOfDate() != null
-                && (player.asOfDate() == null || player.asOfDate().isBefore(context.minimumAsOfDate()))) {
-                throw new IllegalArgumentException("incoming flexible-eligible player is outside freshness boundary: " + player.playerId());
-            }
-            playersById.put(player.playerId(), new LeaguePositionalDepthAnalyzer.PlayerDepthValue(
-                player.playerId(), player.playerName(), position, "TRADE_IN", player.value(), player.asOfDate()));
-        }
-
-        Map<String, List<LeaguePositionalDepthAnalyzer.PlayerDepthValue>> grouped = new LinkedHashMap<>();
-        playersById.values().forEach(player -> grouped
-            .computeIfAbsent(normalizePosition(player.position()), ignored -> new ArrayList<>())
-            .add(player));
-
-        Comparator<LeaguePositionalDepthAnalyzer.PlayerDepthValue> order = Comparator
-            .comparingDouble(LeaguePositionalDepthAnalyzer.PlayerDepthValue::value).reversed()
-            .thenComparing(LeaguePositionalDepthAnalyzer.PlayerDepthValue::playerName, String.CASE_INSENSITIVE_ORDER)
-            .thenComparing(LeaguePositionalDepthAnalyzer.PlayerDepthValue::playerId);
-        Map<String, LeaguePositionalDepthAnalyzer.PositionDepth> positions = new LinkedHashMap<>();
-        grouped.forEach((position, players) -> {
-            players.sort(order);
-            positions.put(position, new LeaguePositionalDepthAnalyzer.PositionDepth(
-                position, players.size(), players.size(), 0, 0, List.copyOf(players)));
-        });
-        return new LeaguePositionalDepthAnalyzer.TeamDepth(identity.teamId(), identity.teamName(), Map.copyOf(positions));
-    }
-
-    private static Set<String> relevantPositions(int flexSlots, int superFlexSlots) {
-        var exposure = TradeFlexibleSlotEligibilityPolicy.exposure(flexSlots, superFlexSlots);
-        Set<String> positions = new HashSet<>();
-        if (exposure.active(TradeFlexibleSlotEligibilityPolicy.SlotType.FLEX)) {
-            positions.addAll(TradeFlexibleSlotEligibilityPolicy.eligiblePositions(
-                TradeFlexibleSlotEligibilityPolicy.SlotType.FLEX));
-        }
-        if (exposure.active(TradeFlexibleSlotEligibilityPolicy.SlotType.SUPERFLEX)) {
-            positions.addAll(TradeFlexibleSlotEligibilityPolicy.eligiblePositions(
-                TradeFlexibleSlotEligibilityPolicy.SlotType.SUPERFLEX));
-        }
-        return Set.copyOf(positions);
-    }
-
-    private static String normalizePosition(String position) {
-        if (position == null || position.isBlank()) {
-            throw new IllegalArgumentException("position must not be blank");
-        }
-        return position.trim().toUpperCase(Locale.ROOT);
     }
 
     public record Assessment(
