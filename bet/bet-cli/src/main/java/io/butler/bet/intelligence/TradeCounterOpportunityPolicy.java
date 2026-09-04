@@ -22,8 +22,8 @@ public final class TradeCounterOpportunityPolicy {
 
     public enum ReasonCode {
         V5_EVIDENCE_INCOMPLETE,
-        STRATEGIC_ELIGIBILITY_UNAVAILABLE,
         V5_ACTION_NOT_REJECT,
+        STRATEGIC_ELIGIBILITY_UNAVAILABLE,
         NO_STRATEGICALLY_ELIGIBLE_CANDIDATE,
         MARKET_REJECT_WITH_ELIGIBLE_CANDIDATE
     }
@@ -48,11 +48,11 @@ public final class TradeCounterOpportunityPolicy {
         if (!v5EvidenceComplete || packageRecommendation == TradeRecommendationPolicy.Recommendation.INCONCLUSIVE) {
             return decision(State.INCONCLUSIVE, ReasonCode.V5_EVIDENCE_INCOMPLETE, eligibility, List.of());
         }
-        if (!eligibility.available()) {
-            return decision(State.INCONCLUSIVE, ReasonCode.STRATEGIC_ELIGIBILITY_UNAVAILABLE, eligibility, List.of());
-        }
         if (action != TradeTeamPerspectiveRecommendationPolicy.Action.REJECT) {
             return decision(State.NO_COUNTER, ReasonCode.V5_ACTION_NOT_REJECT, eligibility, List.of());
+        }
+        if (!eligibility.available()) {
+            return decision(State.INCONCLUSIVE, ReasonCode.STRATEGIC_ELIGIBILITY_UNAVAILABLE, eligibility, List.of());
         }
         if (eligibility.eligibleCandidates().isEmpty()) {
             return decision(State.NO_COUNTER, ReasonCode.NO_STRATEGICALLY_ELIGIBLE_CANDIDATE, eligibility, List.of());
