@@ -4,6 +4,17 @@ butler.db
 *.db-shm
 *.db-wal
 
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
 # Gradle
 .gradle/
 **/build/
