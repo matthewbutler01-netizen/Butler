@@ -13,8 +13,12 @@ import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
 import io.butler.bet.intelligence.TradeAssetStrategicContextAnalyzer;
 import io.butler.bet.intelligence.TradeFairnessPolicy;
 import io.butler.bet.intelligence.TradeMarketEdgePolicy;
+import io.butler.bet.intelligence.TradeProtectedValueFlowAnalyzer;
+import io.butler.bet.intelligence.TradeProtectedValueMaterialityPolicy;
+import io.butler.bet.intelligence.TradeRecommendationMaterialLossPolicy;
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
 import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
+import io.butler.bet.intelligence.TradeStrategicMaterialLossVetoDetector;
 import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 import org.junit.jupiter.api.Test;
@@ -70,7 +74,7 @@ class ButlerTradeRecommendationCliTest {
     }
 
     @Test
-    void formatsStrategicVetoReasons() {
+    void formatsLegacyStrategicVetoReasonsForAuditContract() {
         assertEquals(
             "low future capital: sending future pick(s) without receiving a future pick",
             ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicVetoDetector.VetoReason(
@@ -79,6 +83,20 @@ class ButlerTradeRecommendationCliTest {
             "QB pressure: sending QB without receiving QB",
             ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicVetoDetector.VetoReason(
                 TradeStrategicVetoDetector.ReasonCode.POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN, "qb")));
+    }
+
+    @Test
+    void formatsMaterialLossVetoReasonsWithValueEvidence() {
+        assertEquals(
+            "low future capital: future-pick protected value 100.00 -> 74.00 (26.0% loss; material when loss > 25.0%)",
+            ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicMaterialLossVetoDetector.VetoReason(
+                TradeStrategicMaterialLossVetoDetector.ReasonCode.LOW_FUTURE_CAPITAL_MATERIAL_PICK_VALUE_LOSS,
+                null, 100.0, 74.0, 0.26)));
+        assertEquals(
+            "QB pressure: QB protected value 100.00 -> 50.00 (50.0% loss; material when loss > 25.0%)",
+            ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicMaterialLossVetoDetector.VetoReason(
+                TradeStrategicMaterialLossVetoDetector.ReasonCode.POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS,
+                "qb", 100.0, 50.0, 0.50)));
     }
 
     @Test
@@ -91,6 +109,12 @@ class ButlerTradeRecommendationCliTest {
                 "LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN",
                 "POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN"),
             java.util.Arrays.stream(TradeStrategicVetoDetector.ReasonCode.values())
+                .map(Enum::name)
+                .toList());
+        assertEquals(List.of(
+                "LOW_FUTURE_CAPITAL_MATERIAL_PICK_VALUE_LOSS",
+                "POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS"),
+            java.util.Arrays.stream(TradeStrategicMaterialLossVetoDetector.ReasonCode.values())
                 .map(Enum::name)
                 .toList());
     }
@@ -112,10 +136,12 @@ class ButlerTradeRecommendationCliTest {
             report, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_B_TEAM);
 
         assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, sideA.vetoAssessment().state());
+        assertTrue(sideA.vetoAssessment().evaluated());
         assertEquals(TradeRecommendationPolicy.Recommendation.HOLD, sideA.packageRecommendation());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.HOLD, sideA.action());
 
         assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, sideB.vetoAssessment().state());
+        assertTrue(sideB.vetoAssessment().evaluated());
         assertEquals(TradeRecommendationPolicy.Recommendation.SIDE_A_PACKAGE_PREFERRED, sideB.packageRecommendation());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.ACCEPT, sideB.action());
     }
@@ -143,6 +169,38 @@ class ButlerTradeRecommendationCliTest {
         assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, sideB.vetoAssessment().state());
         assertEquals(TradeRecommendationPolicy.Recommendation.HOLD, sideB.packageRecommendation());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.HOLD, sideB.action());
+    }
+
+    @Test
+    void liveRecommendationUsesTwentyFivePercentMaterialLossBoundary() {
+        var exactlyTwentyFive = report(
+            LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL,
+            LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            side(List.of(), List.of(pick("pick-a", "a", "Team A", 100.0))),
+            side(List.of(), List.of(pick("pick-b", "b", "Team B", 75.0))),
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE);
+        var greaterThanTwentyFive = report(
+            LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL,
+            LeagueFutureCapitalTierPolicy.Tier.MIDDLE_FUTURE_CAPITAL,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            side(List.of(), List.of(pick("pick-a", "a", "Team A", 100.0))),
+            side(List.of(), List.of(pick("pick-b", "b", "Team B", 74.0))),
+            TradeMarketEdgePolicy.Direction.SIDE_A_MARKET_EDGE);
+
+        var clear = ButlerTradeRecommendationCli.recommend(
+            exactlyTwentyFive, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM);
+        var blocked = ButlerTradeRecommendationCli.recommend(
+            greaterThanTwentyFive, TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM);
+
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, clear.vetoAssessment().state());
+        assertEquals(TradeRecommendationPolicy.Recommendation.SIDE_A_PACKAGE_PREFERRED, clear.packageRecommendation());
+        assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.REJECT, clear.action());
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, blocked.vetoAssessment().state());
+        assertEquals(TradeRecommendationPolicy.Recommendation.HOLD, blocked.packageRecommendation());
+        assertEquals(TradeTeamPerspectiveRecommendationPolicy.Action.HOLD, blocked.action());
     }
 
     @Test
@@ -174,20 +232,22 @@ class ButlerTradeRecommendationCliTest {
         }
 
         String expected = String.join(System.lineSeparator(), List.of(
-            "Trade recommendation (conservative market-first strategic veto)",
+            "Trade recommendation (conservative market-first material-loss veto)",
             "League ID: l1",
             "Season: 2026",
             "Perspective: Team A [a]",
-            "Recommendation policy: trade-recommendation-v2-market-first-strategic-veto",
-            "Strategic veto policy: trade-strategic-veto-v1-explicit-weakness-protection",
+            "Recommendation policy: trade-recommendation-v3-market-first-material-loss-veto",
+            "Strategic veto policy: trade-strategic-veto-v2-material-protected-value-loss",
+            "Protected value flow policy: trade-protected-value-flow-v1-current-valued-assets",
+            "Protected value materiality policy: trade-protected-value-materiality-v1-25-percent-loss",
             "Perspective policy: trade-team-perspective-v1-explicit-owner",
             "Evidence complete: true",
             "Evidence gates: market-direction=true posture=true future-capital=true positional-pressure=true",
             "Strategic veto: BLOCKED",
-            "Veto reason: low future capital: sending future pick(s) without receiving a future pick",
+            "Veto reason: low future capital: future-pick protected value 100.00 -> 0.00 (100.0% loss; material when loss > 25.0%)",
             "Package recommendation: HOLD",
             "Action: HOLD",
-            "Reason: a governed strategic veto blocked the directional market recommendation.",
+            "Reason: a governed strategic material-loss veto blocked the directional market recommendation.",
             "No hidden weighting, side flipping, or strategic score blending is applied.")) + System.lineSeparator();
         assertEquals(expected, bytes.toString(StandardCharsets.UTF_8));
     }
@@ -202,7 +262,11 @@ class ButlerTradeRecommendationCliTest {
     void locksRecommendationPolicyAndActionVocabulary() {
         assertEquals("trade-recommendation-v1-conservative-evidence-first", TradeRecommendationPolicy.POLICY_ID);
         assertEquals("trade-recommendation-v2-market-first-strategic-veto", TradeRecommendationVetoPolicy.POLICY_ID);
+        assertEquals("trade-recommendation-v3-market-first-material-loss-veto", TradeRecommendationMaterialLossPolicy.POLICY_ID);
         assertEquals("trade-strategic-veto-v1-explicit-weakness-protection", TradeStrategicVetoDetector.POLICY_ID);
+        assertEquals("trade-strategic-veto-v2-material-protected-value-loss", TradeStrategicMaterialLossVetoDetector.POLICY_ID);
+        assertEquals("trade-protected-value-flow-v1-current-valued-assets", TradeProtectedValueFlowAnalyzer.POLICY_ID);
+        assertEquals("trade-protected-value-materiality-v1-25-percent-loss", TradeProtectedValueMaterialityPolicy.POLICY_ID);
         assertEquals("trade-team-perspective-v1-explicit-owner", TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
         assertEquals(List.of("ACCEPT", "REJECT", "HOLD", "INCONCLUSIVE"),
             java.util.Arrays.stream(TradeTeamPerspectiveRecommendationPolicy.Action.values())
@@ -316,8 +380,12 @@ class ButlerTradeRecommendationCliTest {
     }
 
     private static TradeAssetAnalyzer.TradeDraftPick pick(String id, String teamId, String teamName) {
+        return pick(id, teamId, teamName, 100.0);
+    }
+
+    private static TradeAssetAnalyzer.TradeDraftPick pick(String id, String teamId, String teamName, double value) {
         return new TradeAssetAnalyzer.TradeDraftPick(
             id, 2027, 1, "2027 1st", teamId, teamName, teamId, teamName,
-            null, 100.0, LocalDate.of(2026, 9, 1), false);
+            null, value, LocalDate.of(2026, 9, 1), false);
     }
 }
