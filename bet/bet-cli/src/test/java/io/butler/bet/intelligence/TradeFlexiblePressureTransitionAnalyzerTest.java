@@ -64,6 +64,26 @@ class TradeFlexiblePressureTransitionAnalyzerTest {
     }
 
     @Test
+    void materialCoverageLossWithoutPressureTransitionIsNoTransition() {
+        var context = context(100.0, 35.0, 70.0);
+        var result = TradeFlexiblePressureTransitionAnalyzer.assess(
+            context,
+            context.flexible().sideA(),
+            context.trade().strategic().trade().sideA(),
+            context.trade().strategic().trade().sideB());
+
+        assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_STRENGTH, result.preTradeTier());
+        assertEquals(LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_BALANCED, result.postTradeTier());
+        assertEquals(100.0, result.preTradeCoverageValue());
+        assertEquals(70.0, result.postTradeCoverageValue());
+        assertEquals(0.30, result.lossFraction());
+        assertEquals(TradeFlexiblePressureTransitionAnalyzer.AssessmentState.NO_TRANSITION, result.state());
+        assertTrue(result.available());
+        assertFalse(result.transitionedToPressure());
+        assertFalse(result.materialTransitionToPressure());
+    }
+
+    @Test
     void exactlyTwentyFivePercentLossCanTransitionToPressureWithoutBeingMaterial() {
         var context = context(40.0, 35.0, 30.0);
         var result = TradeFlexiblePressureTransitionAnalyzer.assess(
