@@ -31,8 +31,21 @@ public final class TradeCounterSingleAssetCandidateAnalyzer {
     public CandidateReport analyze(TradeAssetAnalyzer.TradeReport trade) throws SQLException {
         Objects.requireNonNull(trade, "trade must not be null");
         var context = TradeCounterValueContextAnalyzer.compose(trade);
+        if (!requiresInventory(context)) {
+            return context.available()
+                ? available(trade, context.target().currentFairness(), List.of())
+                : unavailable(trade, context.insufficiencyReason());
+        }
         var leagueInventory = inventory.analyze(trade.leagueId(), trade.source());
         return assess(trade, context, leagueInventory);
+    }
+
+    static boolean requiresInventory(
+        TradeCounterValueContextAnalyzer.CounterValueContextReport context) {
+        Objects.requireNonNull(context, "context must not be null");
+        return context.available()
+            && context.target().currentFairness()
+                == TradeFairnessPolicy.Classification.OUTSIDE_FAIRNESS_BAND;
     }
 
     static CandidateReport assess(
