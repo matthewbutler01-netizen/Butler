@@ -3,12 +3,16 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
+import io.butler.bet.intelligence.TradeFlexibleCoverageMaterialLossAnalyzer;
+import io.butler.bet.intelligence.TradeFlexibleRecommendationContextAnalyzer;
 import io.butler.bet.intelligence.TradeMarketEdgePolicy;
 import io.butler.bet.intelligence.TradeProtectedValueFlowAnalyzer;
 import io.butler.bet.intelligence.TradeProtectedValueMaterialityPolicy;
+import io.butler.bet.intelligence.TradeRecommendationFlexibleMaterialLossPolicy;
 import io.butler.bet.intelligence.TradeRecommendationMaterialLossPolicy;
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
 import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
+import io.butler.bet.intelligence.TradeStrategicFlexibleMaterialLossVetoDetector;
 import io.butler.bet.intelligence.TradeStrategicMaterialLossVetoDetector;
 import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
@@ -39,7 +43,7 @@ public final class ButlerTradeRecommendationCli {
         }
 
         try {
-            var analyzer = new TradeAssetPositionalContextAnalyzer(initializedDatabase());
+            var analyzer = new TradeFlexibleRecommendationContextAnalyzer(initializedDatabase());
             var report = analyze(analyzer, options);
             print(report, options);
         } catch (SQLException e) {
@@ -84,6 +88,7 @@ public final class ButlerTradeRecommendationCli {
             && "recommendation".equalsIgnoreCase(args[1]);
     }
 
+    /** Retained v3 compatibility surface. The executable path uses the v4 overload below. */
     static RecommendationResult recommend(TradeAssetPositionalContextAnalyzer.TradePositionalContextReport report,
                                           TradeTeamPerspectiveRecommendationPolicy.Perspective perspective) {
         boolean positionalAvailable = report.positionAvailability().values().stream().allMatch(
@@ -112,8 +117,56 @@ public final class ButlerTradeRecommendationCli {
         return new RecommendationResult(packageRecommendation, action, status, veto);
     }
 
+    static FlexibleRecommendationResult recommend(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        TradeTeamPerspectiveRecommendationPolicy.Perspective perspective) {
+        Objects.requireNonNull(context, "context must not be null");
+        Objects.requireNonNull(perspective, "perspective must not be null");
+        var report = context.trade();
+        boolean positionalAvailable = report.positionAvailability().values().stream().allMatch(
+            TradeAssetPositionalContextAnalyzer.PositionAvailability::available);
+        var evidence = new TradeRecommendationFlexibleMaterialLossPolicy.EvidenceGate(
+            report.strategic().postureAvailable(),
+            report.strategic().futureCapitalAvailable(),
+            positionalAvailable,
+            context.flexible().flexiblePressureAvailable());
+        var status = new FlexibleEvidenceStatus(
+            report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.UNAVAILABLE,
+            evidence.postureAvailable(),
+            evidence.futureCapitalAvailable(),
+            evidence.positionalPressureAvailable(),
+            evidence.flexiblePressureAvailable());
+
+        FlexibleVetoEvaluation veto;
+        TradeFlexibleCoverageMaterialLossAnalyzer.Assessment flexibleLoss = null;
+        if (status.complete()) {
+            boolean sideA = perspective == TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM;
+            var team = sideA ? report.strategic().sideA() : report.strategic().sideB();
+            var positional = sideA ? report.sideA() : report.sideB();
+            var flexibleTeam = sideA ? context.flexible().sideA() : context.flexible().sideB();
+            var outgoing = sideA ? report.strategic().trade().sideA() : report.strategic().trade().sideB();
+            var incoming = sideA ? report.strategic().trade().sideB() : report.strategic().trade().sideA();
+            flexibleLoss = TradeFlexibleCoverageMaterialLossAnalyzer.assess(
+                context.flexible(), flexibleTeam, context.lineup(), context.depth(), outgoing, incoming);
+            veto = evaluated(TradeStrategicFlexibleMaterialLossVetoDetector.assess(
+                team, positional, flexibleLoss, outgoing, incoming));
+        } else {
+            veto = new FlexibleVetoEvaluation(false, TradeRecommendationVetoPolicy.VetoState.CLEAR, List.of());
+        }
+
+        var packageRecommendation = TradeRecommendationFlexibleMaterialLossPolicy.classify(
+            report.strategic().marketEdge(), evidence, veto.state());
+        var action = TradeTeamPerspectiveRecommendationPolicy.classify(packageRecommendation, perspective);
+        return new FlexibleRecommendationResult(packageRecommendation, action, status, veto, flexibleLoss);
+    }
+
     private static VetoEvaluation evaluated(TradeStrategicMaterialLossVetoDetector.VetoAssessment assessment) {
         return new VetoEvaluation(true, assessment.state(), assessment.reasons());
+    }
+
+    private static FlexibleVetoEvaluation evaluated(
+        TradeStrategicFlexibleMaterialLossVetoDetector.VetoAssessment assessment) {
+        return new FlexibleVetoEvaluation(true, assessment.state(), assessment.reasons());
     }
 
     static String formatEvidenceGates(EvidenceStatus status) {
@@ -121,6 +174,14 @@ public final class ButlerTradeRecommendationCli {
             + " posture=" + status.postureAvailable()
             + " future-capital=" + status.futureCapitalAvailable()
             + " positional-pressure=" + status.positionalPressureAvailable();
+    }
+
+    static String formatEvidenceGates(FlexibleEvidenceStatus status) {
+        return "Evidence gates: market-direction=" + status.marketDirectionAvailable()
+            + " posture=" + status.postureAvailable()
+            + " future-capital=" + status.futureCapitalAvailable()
+            + " positional-pressure=" + status.positionalPressureAvailable()
+            + " flexible-pressure=" + status.flexiblePressureAvailable();
     }
 
     static String formatInconclusiveReason(EvidenceStatus status) {
@@ -134,6 +195,18 @@ public final class ButlerTradeRecommendationCli {
             : "unavailable governed evidence: " + String.join(", ", missing);
     }
 
+    static String formatInconclusiveReason(FlexibleEvidenceStatus status) {
+        List<String> missing = new ArrayList<>();
+        if (!status.marketDirectionAvailable()) missing.add("market direction");
+        if (!status.postureAvailable()) missing.add("team posture");
+        if (!status.futureCapitalAvailable()) missing.add("future capital");
+        if (!status.positionalPressureAvailable()) missing.add("positional pressure");
+        if (!status.flexiblePressureAvailable()) missing.add("flexible pressure");
+        return missing.isEmpty()
+            ? "required governed evidence is incomplete"
+            : "unavailable governed evidence: " + String.join(", ", missing);
+    }
+
     static String formatVetoReason(TradeStrategicMaterialLossVetoDetector.VetoReason reason) {
         String protectedArea = switch (reason.code()) {
             case LOW_FUTURE_CAPITAL_MATERIAL_PICK_VALUE_LOSS ->
@@ -141,12 +214,37 @@ public final class ButlerTradeRecommendationCli {
             case POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS ->
                 reason.position() + " pressure: " + reason.position() + " protected value";
         };
-        return String.format(Locale.ROOT,
-            "%s %.2f -> %.2f (%s loss; material when loss > %.1f%%)",
+        return formatMaterialLossReason(
             protectedArea,
             reason.outgoingProtectedValue(),
             reason.incomingProtectedValue(),
-            formatLossPercent(reason.lossFraction()),
+            reason.lossFraction());
+    }
+
+    static String formatVetoReason(TradeStrategicFlexibleMaterialLossVetoDetector.VetoReason reason) {
+        String protectedArea = switch (reason.code()) {
+            case LOW_FUTURE_CAPITAL_MATERIAL_PICK_VALUE_LOSS ->
+                "low future capital: future-pick protected value";
+            case POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS ->
+                reason.position() + " pressure: " + reason.position() + " protected value";
+            case FLEXIBLE_PRESSURE_MATERIAL_POST_TRADE_COVERAGE_LOSS ->
+                "FLEX/SUPERFLEX pressure: legal coverage value";
+        };
+        return formatMaterialLossReason(
+            protectedArea,
+            reason.outgoingProtectedValue(),
+            reason.incomingProtectedValue(),
+            reason.lossFraction());
+    }
+
+    private static String formatMaterialLossReason(
+        String protectedArea, double before, double after, double lossFraction) {
+        return String.format(Locale.ROOT,
+            "%s %.2f -> %.2f (%s loss; material when loss > %.1f%%)",
+            protectedArea,
+            before,
+            after,
+            formatLossPercent(lossFraction),
             TradeProtectedValueMaterialityPolicy.MAX_ALLOWED_LOSS_FRACTION * 100.0);
     }
 
@@ -162,7 +260,7 @@ public final class ButlerTradeRecommendationCli {
         return rounded;
     }
 
-    /** Retained for the versioned v1 detector contract; the live recommendation path uses v2. */
+    /** Retained for the versioned v1 detector contract; the live recommendation path uses v3. */
     static String formatVetoReason(TradeStrategicVetoDetector.VetoReason reason) {
         return switch (reason.code()) {
             case LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN ->
@@ -184,6 +282,19 @@ public final class ButlerTradeRecommendationCli {
             : analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.source());
     }
 
+    private static TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport analyze(
+        TradeFlexibleRecommendationContextAnalyzer analyzer, Options options) throws SQLException {
+        if (options.minimumAsOf() != null) {
+            return options.source() == null
+                ? analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.minimumAsOf())
+                : analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.source(), options.minimumAsOf());
+        }
+        return options.source() == null
+            ? analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB())
+            : analyzer.analyze(options.leagueId(), options.season(), options.sideA(), options.sideB(), options.source());
+    }
+
+    /** Retained v3 compatibility output. The executable path uses the v4 overload below. */
     static void print(TradeAssetPositionalContextAnalyzer.TradePositionalContextReport report, Options options) {
         var result = recommend(report, options.perspective());
         var trade = report.strategic().trade();
@@ -200,6 +311,64 @@ public final class ButlerTradeRecommendationCli {
         System.out.println("Perspective policy: " + TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
         System.out.println("Evidence complete: " + result.evidenceStatus().complete());
         System.out.println(formatEvidenceGates(result.evidenceStatus()));
+        System.out.println("Strategic veto: " + (result.vetoAssessment().evaluated()
+            ? result.vetoAssessment().state()
+            : "NOT_EVALUATED"));
+        for (var reason : result.vetoAssessment().reasons()) {
+            System.out.println("Veto reason: " + formatVetoReason(reason));
+        }
+        System.out.println("Package recommendation: " + result.packageRecommendation());
+        System.out.println("Action: " + result.action());
+        if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.INCONCLUSIVE) {
+            System.out.println("Reason: " + formatInconclusiveReason(result.evidenceStatus()) + ".");
+        } else if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.HOLD) {
+            if (result.vetoAssessment().evaluated()
+                && result.vetoAssessment().state() == TradeRecommendationVetoPolicy.VetoState.BLOCKED
+                && report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.MARKET_FAIR) {
+                System.out.println("Reason: a governed strategic material-loss veto blocked the directional market recommendation.");
+            } else {
+                System.out.println("Reason: the governed market comparison is inside the fairness band.");
+            }
+        }
+        System.out.println("No hidden weighting, side flipping, or strategic score blending is applied.");
+    }
+
+    static void print(
+        TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
+        Options options) {
+        var result = recommend(context, options.perspective());
+        var report = context.trade();
+        var trade = report.strategic().trade();
+        boolean sideA = options.perspective() == TradeTeamPerspectiveRecommendationPolicy.Perspective.SIDE_A_TEAM;
+        var perspectiveTeam = sideA ? report.strategic().sideA().identity() : report.strategic().sideB().identity();
+        var flexibleTeam = sideA ? context.flexible().sideA() : context.flexible().sideB();
+
+        System.out.println("Trade recommendation (conservative market-first flexible material-loss veto)");
+        System.out.println("League ID: " + trade.leagueId());
+        System.out.println("Season: " + options.season());
+        System.out.println("Perspective: " + perspectiveTeam.teamName() + " [" + perspectiveTeam.teamId() + "]");
+        System.out.println("Recommendation policy: " + TradeRecommendationFlexibleMaterialLossPolicy.POLICY_ID);
+        System.out.println("Strategic veto policy: " + TradeStrategicFlexibleMaterialLossVetoDetector.POLICY_ID);
+        System.out.println("Flexible pressure policy: " + context.flexible().flexiblePressurePolicyId());
+        System.out.println("Flexible coverage policy: " + context.flexible().flexibleCoveragePolicyId());
+        System.out.println("Flexible coverage loss policy: " + TradeFlexibleCoverageMaterialLossAnalyzer.POLICY_ID);
+        System.out.println("Protected value flow policy: " + TradeProtectedValueFlowAnalyzer.POLICY_ID);
+        System.out.println("Protected value materiality policy: " + TradeProtectedValueMaterialityPolicy.POLICY_ID);
+        System.out.println("Perspective policy: " + TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
+        System.out.println("Evidence complete: " + result.evidenceStatus().complete());
+        System.out.println(formatEvidenceGates(result.evidenceStatus()));
+        System.out.println("Flexible pressure: " + flexibleTeam.pressure().tier());
+        if (!context.flexible().flexiblePressureAvailable()) {
+            System.out.println("Flexible pressure reason: " + context.flexible().flexiblePressureInsufficiencyReason());
+        }
+        if (result.flexibleLossAssessment() != null
+            && result.flexibleLossAssessment().protectedPressureArea()) {
+            System.out.println(String.format(Locale.ROOT,
+                "Flexible protected coverage: %.2f -> %.2f (%s loss)",
+                result.flexibleLossAssessment().preTradeCoverageValue(),
+                result.flexibleLossAssessment().postTradeCoverageValue(),
+                formatLossPercent(result.flexibleLossAssessment().lossFraction())));
+        }
         System.out.println("Strategic veto: " + (result.vetoAssessment().evaluated()
             ? result.vetoAssessment().state()
             : "NOT_EVALUATED"));
@@ -285,6 +454,27 @@ public final class ButlerTradeRecommendationCli {
         }
     }
 
+    record FlexibleVetoEvaluation(boolean evaluated,
+                                  TradeRecommendationVetoPolicy.VetoState state,
+                                  List<TradeStrategicFlexibleMaterialLossVetoDetector.VetoReason> reasons) {
+        FlexibleVetoEvaluation {
+            Objects.requireNonNull(state, "state must not be null");
+            reasons = List.copyOf(Objects.requireNonNull(reasons, "reasons must not be null"));
+            if (!evaluated && state != TradeRecommendationVetoPolicy.VetoState.CLEAR) {
+                throw new IllegalArgumentException("not-evaluated veto state must be CLEAR for policy input");
+            }
+            if (!evaluated && !reasons.isEmpty()) {
+                throw new IllegalArgumentException("not-evaluated veto cannot contain reasons");
+            }
+            if (evaluated && state == TradeRecommendationVetoPolicy.VetoState.BLOCKED && reasons.isEmpty()) {
+                throw new IllegalArgumentException("blocked veto evaluation requires reasons");
+            }
+            if (evaluated && state == TradeRecommendationVetoPolicy.VetoState.CLEAR && !reasons.isEmpty()) {
+                throw new IllegalArgumentException("clear veto evaluation cannot contain reasons");
+            }
+        }
+    }
+
     record EvidenceStatus(boolean marketDirectionAvailable, boolean postureAvailable,
                           boolean futureCapitalAvailable, boolean positionalPressureAvailable) {
         boolean complete() {
@@ -292,10 +482,26 @@ public final class ButlerTradeRecommendationCli {
         }
     }
 
+    record FlexibleEvidenceStatus(boolean marketDirectionAvailable, boolean postureAvailable,
+                                  boolean futureCapitalAvailable, boolean positionalPressureAvailable,
+                                  boolean flexiblePressureAvailable) {
+        boolean complete() {
+            return marketDirectionAvailable && postureAvailable && futureCapitalAvailable
+                && positionalPressureAvailable && flexiblePressureAvailable;
+        }
+    }
+
     record RecommendationResult(TradeRecommendationPolicy.Recommendation packageRecommendation,
                                 TradeTeamPerspectiveRecommendationPolicy.Action action,
                                 EvidenceStatus evidenceStatus,
                                 VetoEvaluation vetoAssessment) {}
+
+    record FlexibleRecommendationResult(
+        TradeRecommendationPolicy.Recommendation packageRecommendation,
+        TradeTeamPerspectiveRecommendationPolicy.Action action,
+        FlexibleEvidenceStatus evidenceStatus,
+        FlexibleVetoEvaluation vetoAssessment,
+        TradeFlexibleCoverageMaterialLossAnalyzer.Assessment flexibleLossAssessment) {}
 
     record Options(String leagueId, int season, TradeAssetAnalyzer.TradePackage sideA,
                    TradeAssetAnalyzer.TradePackage sideB,
