@@ -56,9 +56,16 @@ The current governed veto rules are intentionally narrow:
 1. **Low future capital protection** — if the selected team is already classified `LOW_FUTURE_CAPITAL`, sends one or more future picks, and receives no future pick, the trade is vetoed.
 2. **Positional pressure protection** — if the selected team is classified `POSITION_PRESSURE` at a position, sends a player at that position, and receives no player at the same position, the trade is vetoed for that position.
 
-Middle/balanced tiers do not trigger these vetoes. The detector does not infer age-window strategy, contender/rebuilder timing, or subjective roster preference.
+The current detector deliberately uses presence/absence boundaries, not value-magnitude comparisons:
 
-The CLI prints each triggered veto reason. Multiple reasons can be reported for the same trade.
+- any incoming future pick clears the low-future-capital veto, regardless of round, season, or market value;
+- any incoming player at the same position clears that positional-pressure veto, regardless of player value or depth quality.
+
+Those are explicit v1 veto-detector boundaries, not claims that the returned asset fully repairs the weakness. Making either rule value-sensitive would be a new veto-policy decision.
+
+Middle/balanced tiers do not trigger these vetoes. Team posture alone does not trigger a veto. The detector does not infer age-window strategy, contender/rebuilder timing, or subjective roster preference.
+
+The CLI prints each triggered veto reason. Multiple reasons can be reported for the same trade. Their order is deterministic: future-capital protection first, then positional reasons in `QB`, `RB`, `WR`, `TE` order.
 
 ## Package recommendation
 
@@ -102,10 +109,12 @@ The current policy does not:
 - blend posture, future capital, positional pressure, and market edge with numeric weights;
 - let strategic evidence create or reverse market direction;
 - apply a posture-only veto;
+- compare the value magnitude of an incoming pick against an outgoing pick for veto purposes;
+- compare the value or depth quality of same-position player returns for veto purposes;
 - infer age-window, contender, or rebuilder trade strategy;
 - generate a `COUNTER` recommendation;
 - relax evidence completeness because a trade looks attractive;
 - select a winner when governed evidence is incomplete;
 - infer a team perspective when the caller did not provide one.
 
-Any future change that introduces weighting, side flipping, new veto semantics, posture/age strategy, counter-offer behavior, confidence-based relaxation, or new action semantics is a recommendation-policy change and should be versioned and reviewed as such.
+Any future change that introduces weighting, side flipping, value-sensitive veto rules, new veto semantics, posture/age strategy, counter-offer behavior, confidence-based relaxation, or new action semantics is a recommendation-policy change and should be versioned and reviewed as such.
