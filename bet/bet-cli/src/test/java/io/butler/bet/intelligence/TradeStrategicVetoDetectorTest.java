@@ -74,6 +74,29 @@ class TradeStrategicVetoDetectorTest {
         assertEquals(TradeRecommendationVetoPolicy.VetoState.CLEAR, result.state());
     }
 
+    @Test
+    void ordersMultipleVetoReasonsDeterministically() {
+        var result = TradeStrategicVetoDetector.assess(
+            strategic(LeagueFutureCapitalTierPolicy.Tier.LOW_FUTURE_CAPITAL),
+            positional(Map.of(
+                "QB", LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE,
+                "RB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+                "WR", LeaguePositionalPressurePolicy.Tier.POSITION_PRESSURE,
+                "TE", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED)),
+            side(List.of(player("qb1", "QB"), player("wr1", "WR")), List.of(pick("p1"))),
+            side(List.of(player("rb2", "RB")), List.of()));
+
+        assertEquals(TradeRecommendationVetoPolicy.VetoState.BLOCKED, result.state());
+        assertEquals(List.of(
+            new TradeStrategicVetoDetector.VetoReason(
+                TradeStrategicVetoDetector.ReasonCode.LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN, null),
+            new TradeStrategicVetoDetector.VetoReason(
+                TradeStrategicVetoDetector.ReasonCode.POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN, "QB"),
+            new TradeStrategicVetoDetector.VetoReason(
+                TradeStrategicVetoDetector.ReasonCode.POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN, "WR")),
+            result.reasons());
+    }
+
     private static TradeAssetStrategicContextAnalyzer.TeamStrategicContext strategic(
         LeagueFutureCapitalTierPolicy.Tier capitalTier) {
         var posture = new LeagueTeamPostureAnalyzer.TeamPosture(
@@ -88,11 +111,20 @@ class TradeStrategicVetoDetectorTest {
 
     private static TradeAssetPositionalContextAnalyzer.TeamPositionalContext positional(
         LeaguePositionalPressurePolicy.Tier wrTier) {
+        return positional(Map.of(
+            "QB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            "RB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED,
+            "WR", wrTier,
+            "TE", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED));
+    }
+
+    private static TradeAssetPositionalContextAnalyzer.TeamPositionalContext positional(
+        Map<String, LeaguePositionalPressurePolicy.Tier> tiers) {
         return new TradeAssetPositionalContextAnalyzer.TeamPositionalContext(TEAM, Map.of(
-            "QB", pressure("QB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
-            "RB", pressure("RB", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED),
-            "WR", pressure("WR", wrTier),
-            "TE", pressure("TE", LeaguePositionalPressurePolicy.Tier.POSITION_BALANCED)));
+            "QB", pressure("QB", tiers.get("QB")),
+            "RB", pressure("RB", tiers.get("RB")),
+            "WR", pressure("WR", tiers.get("WR")),
+            "TE", pressure("TE", tiers.get("TE"))));
     }
 
     private static LeaguePositionalPressureAnalyzer.TeamPositionPressure pressure(
