@@ -1,6 +1,8 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
+import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
+import io.butler.bet.intelligence.TradeStrategicVetoDetector;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +53,18 @@ class ButlerTradeRecommendationCliTest {
     }
 
     @Test
+    void formatsStrategicVetoReasons() {
+        assertEquals(
+            "low future capital: sending future pick(s) without receiving a future pick",
+            ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicVetoDetector.VetoReason(
+                TradeStrategicVetoDetector.ReasonCode.LOW_FUTURE_CAPITAL_OUTGOING_PICKS_WITHOUT_PICK_RETURN, null)));
+        assertEquals(
+            "QB pressure: sending QB without receiving QB",
+            ButlerTradeRecommendationCli.formatVetoReason(new TradeStrategicVetoDetector.VetoReason(
+                TradeStrategicVetoDetector.ReasonCode.POSITION_PRESSURE_OUTGOING_WITHOUT_SAME_POSITION_RETURN, "qb")));
+    }
+
+    @Test
     void completeEvidenceStatusRequiresEveryGate() {
         assertTrue(new ButlerTradeRecommendationCli.EvidenceStatus(true, true, true, true).complete());
         assertEquals(false, new ButlerTradeRecommendationCli.EvidenceStatus(false, true, true, true).complete());
@@ -59,6 +73,8 @@ class ButlerTradeRecommendationCliTest {
     @Test
     void locksRecommendationPolicyAndActionVocabulary() {
         assertEquals("trade-recommendation-v1-conservative-evidence-first", TradeRecommendationPolicy.POLICY_ID);
+        assertEquals("trade-recommendation-v2-market-first-strategic-veto", TradeRecommendationVetoPolicy.POLICY_ID);
+        assertEquals("trade-strategic-veto-v1-explicit-weakness-protection", TradeStrategicVetoDetector.POLICY_ID);
         assertEquals("trade-team-perspective-v1-explicit-owner", TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
         assertEquals(List.of("ACCEPT", "REJECT", "HOLD", "INCONCLUSIVE"),
             java.util.Arrays.stream(TradeTeamPerspectiveRecommendationPolicy.Action.values())
