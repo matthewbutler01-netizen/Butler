@@ -32,6 +32,28 @@ If the trade is `OUTSIDE_FAIRNESS_BAND`, Butler returns two deterministic, asset
 
 The analyzer does not prefer one adjustment strategy over the other.
 
+## Single-asset candidate discovery
+
+The first governed asset-discovery policy is `trade-counter-single-asset-candidate-v1-market-fair-minimum-excess`.
+
+It remains market-only and non-prescriptive. It discovers real single-player or single-draft-pick adjustments that satisfy the existing counter-value target, but it returns a ranked candidate set rather than selecting a winner.
+
+Candidate discovery requires:
+
+- available counter-value context from complete, fresh trade evidence;
+- each trade package to resolve to exactly one current fantasy-team owner;
+- the two package owners to be distinct;
+- the current league inventory to use the same league and value source as the trade evidence;
+- an inventory asset to meet the trade's explicit minimum-as-of boundary when one is present.
+
+For the add-to-lower path, Butler searches only the lower-valued package owner's current inventory. Assets already present anywhere in the proposed trade are excluded. For the remove-from-higher path, Butler considers only assets already present in the higher-valued package; unrelated assets on that owner's roster are not removal candidates.
+
+Every modified package is run back through `trade-fairness-measure-v1-midpoint-percent` and `trade-fairness-v1-midpoint-gap-5pct`. A candidate is retained only when the resulting trade is actually `MARKET_FAIR`.
+
+Candidates are sorted deterministically by the smallest asset-value excess above the governed minimum required change, then by asset value, adjustment type, asset type, and stable asset ID. This ranking is evidence ordering only; it is not an instruction to choose the first candidate.
+
+If the current trade is already market-fair, candidate discovery is available and returns an empty candidate set. If governed market evidence is incomplete or stale, or package ownership is ambiguous, candidate discovery fails closed without candidates.
+
 ## Read-only CLI surface
 
 The governed evidence can be inspected without changing the live recommendation contract:
@@ -51,6 +73,8 @@ The command prints:
 
 The command is routed independently as `trade counter-value`; it does not route through `trade recommendation`, does not select an asset, and does not emit a team action or package recommendation.
 
+BF-369 candidate discovery is not yet printed by this CLI. Exposing candidates is a separate compatibility surface so the market-only target command remains stable while candidate semantics are reviewed independently.
+
 ## Boundary calculation
 
 For higher package value `H`, lower package value `L`, and the governed fair-gap percentage `p`, the real-number boundary targets are:
@@ -66,13 +90,12 @@ Because an exact real-number 5% boundary can be represented by binary floating p
 
 These policies and the CLI are counter evidence only. They do **not**:
 
-- select a player or draft pick to add or remove;
-- search a roster for matching assets;
-- choose between the two adjustment strategies;
+- automatically select a player or draft pick to add or remove;
+- choose between add-to-lower and remove-from-higher strategies;
 - infer a team perspective;
 - emit `COUNTER`, `ACCEPT`, `REJECT`, `HOLD`, or `INCONCLUSIVE`;
 - modify Trade Recommendation v5;
 - use posture, age, future capital, positional pressure, flexible pressure, or strategic veto evidence;
 - alter persisted market values or the existing 5% fairness threshold.
 
-Future asset selection, team-perspective counter construction, and any new `COUNTER` action require separately versioned policies and compatibility contracts.
+Future team-perspective counter construction, strategic candidate filtering, multi-asset package construction, and any new `COUNTER` action require separately versioned policies and compatibility contracts.
