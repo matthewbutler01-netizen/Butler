@@ -126,39 +126,40 @@ public final class TradeFlexiblePressureTransitionAnalyzer {
                     || preTradeCoverageValue != null || postTradeCoverageValue != null || lossFraction != null) {
                     throw new IllegalArgumentException("invalid insufficient transition assessment");
                 }
-                return;
-            }
-            if (insufficiencyReason != null) {
-                throw new IllegalArgumentException("available transition assessment cannot carry insufficiency reason");
-            }
-            Objects.requireNonNull(preTradeTier, "preTradeTier must not be null");
-            if (state == AssessmentState.NO_FLEXIBLE_REQUIREMENT) {
+            } else if (state == AssessmentState.NO_FLEXIBLE_REQUIREMENT) {
+                if (insufficiencyReason != null) {
+                    throw new IllegalArgumentException("available transition assessment cannot carry insufficiency reason");
+                }
                 if (preTradeTier != LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT
                     || postTradeTier != LeagueFlexibleSlotPressurePolicy.Tier.NO_FLEXIBLE_REQUIREMENT
                     || preTradeCoverageValue != null || postTradeCoverageValue != null || lossFraction != null) {
                     throw new IllegalArgumentException("invalid no-flexible-requirement transition assessment");
                 }
-                return;
-            }
-            Objects.requireNonNull(postTradeTier, "postTradeTier must not be null");
-            validateMeasured(preTradeCoverageValue, postTradeCoverageValue, lossFraction);
-            boolean transitioned = preTradeTier != LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE
-                && postTradeTier == LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE;
-            if (state == AssessmentState.NO_TRANSITION && transitioned) {
-                throw new IllegalArgumentException("NO_TRANSITION cannot carry transition-to-pressure tiers");
-            }
-            if (state != AssessmentState.NO_TRANSITION && !transitioned) {
-                throw new IllegalArgumentException("transition state requires move into FLEXIBLE_PRESSURE");
-            }
-            var flow = new TradeProtectedValueFlowAnalyzer.ValueFlow(preTradeCoverageValue, postTradeCoverageValue);
-            var classification = TradeProtectedValueMaterialityPolicy.classify(flow);
-            if (state == AssessmentState.MATERIAL_TRANSITION_TO_PRESSURE
-                && classification != TradeProtectedValueMaterialityPolicy.Classification.MATERIAL_LOSS) {
-                throw new IllegalArgumentException("material transition requires material coverage loss");
-            }
-            if (state == AssessmentState.TRANSITION_WITHIN_TOLERANCE
-                && classification == TradeProtectedValueMaterialityPolicy.Classification.MATERIAL_LOSS) {
-                throw new IllegalArgumentException("within-tolerance transition cannot carry material coverage loss");
+            } else {
+                if (insufficiencyReason != null) {
+                    throw new IllegalArgumentException("available transition assessment cannot carry insufficiency reason");
+                }
+                Objects.requireNonNull(preTradeTier, "preTradeTier must not be null");
+                Objects.requireNonNull(postTradeTier, "postTradeTier must not be null");
+                validateMeasured(preTradeCoverageValue, postTradeCoverageValue, lossFraction);
+                boolean transitioned = preTradeTier != LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE
+                    && postTradeTier == LeagueFlexibleSlotPressurePolicy.Tier.FLEXIBLE_PRESSURE;
+                if (state == AssessmentState.NO_TRANSITION && transitioned) {
+                    throw new IllegalArgumentException("NO_TRANSITION cannot carry transition-to-pressure tiers");
+                }
+                if (state != AssessmentState.NO_TRANSITION && !transitioned) {
+                    throw new IllegalArgumentException("transition state requires move into FLEXIBLE_PRESSURE");
+                }
+                var flow = new TradeProtectedValueFlowAnalyzer.ValueFlow(preTradeCoverageValue, postTradeCoverageValue);
+                var classification = TradeProtectedValueMaterialityPolicy.classify(flow);
+                if (state == AssessmentState.MATERIAL_TRANSITION_TO_PRESSURE
+                    && classification != TradeProtectedValueMaterialityPolicy.Classification.MATERIAL_LOSS) {
+                    throw new IllegalArgumentException("material transition requires material coverage loss");
+                }
+                if (state == AssessmentState.TRANSITION_WITHIN_TOLERANCE
+                    && classification == TradeProtectedValueMaterialityPolicy.Classification.MATERIAL_LOSS) {
+                    throw new IllegalArgumentException("within-tolerance transition cannot carry material coverage loss");
+                }
             }
         }
 
