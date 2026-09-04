@@ -133,7 +133,7 @@ class TradeStrategicMaterialLossVetoDetectorTest {
                 TradeStrategicMaterialLossVetoDetector.ReasonCode.POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS,
                 TradeStrategicMaterialLossVetoDetector.ReasonCode.POSITION_PRESSURE_MATERIAL_SAME_POSITION_VALUE_LOSS),
             result.reasons().stream().map(TradeStrategicMaterialLossVetoDetector.VetoReason::code).toList());
-        assertEquals(List.of(null, "QB", "WR"),
+        assertEquals(java.util.Arrays.asList(null, "QB", "WR"),
             result.reasons().stream().map(TradeStrategicMaterialLossVetoDetector.VetoReason::position).toList());
     }
 
