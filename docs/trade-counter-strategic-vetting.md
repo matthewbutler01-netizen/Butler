@@ -10,7 +10,9 @@ The season-aware strategic surface is:
 
 `butler trade counter-strategic <league-id> <season> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]`
 
-Policy: `trade-counter-strategic-candidate-v1-bilateral-v5-veto`
+Strategic vetting policy: `trade-counter-strategic-candidate-v1-bilateral-v5-veto`
+
+Strategic eligibility policy: `trade-counter-strategic-eligibility-v1-clear-only-preserve-market-rank`
 
 Market candidate policy: `trade-counter-single-asset-candidate-v1-market-fair-minimum-excess`
 
@@ -31,6 +33,17 @@ Both trade teams are evaluated. A candidate is `BLOCKED` when either side receiv
 
 This bilateral status is a safety annotation, not a recommendation. Market candidate rank is preserved exactly and is not re-sorted by strategic state.
 
+## Strategic eligibility
+
+After bilateral vetting, Butler derives a strategically eligible subset without creating a new score or ranking:
+
+- `CLEAR` candidates remain strategically eligible;
+- `BLOCKED` candidates are excluded from the eligible subset;
+- eligible candidates retain their original market rank, including gaps caused by excluded candidates;
+- the first eligible candidate is not automatically selected or preferred by policy.
+
+The CLI prints both the original vetted candidate evidence and the derived eligible subset so the filtering step remains auditable.
+
 ## Evidence availability
 
 Strategic candidate vetting fails closed before labeling candidates unless the reconstructed candidate trade has complete required evidence for:
@@ -41,7 +54,7 @@ Strategic candidate vetting fails closed before labeling candidates unless the r
 4. direct positional pressure;
 5. combined flexible pressure.
 
-No missing strategic dimension is interpreted as `CLEAR`.
+No missing strategic dimension is interpreted as `CLEAR`. If strategic vetting is unavailable, strategic eligibility is also unavailable and exposes no candidates.
 
 The season is explicit because team posture and related strategic context are season-aware. Butler does not infer or default the season from the current date.
 
@@ -58,7 +71,7 @@ Every strategic candidate originates from the existing market candidate policy, 
 
 ## Interpretation boundary
 
-This policy and CLI do **not**:
+These policies and the CLI do **not**:
 
 - choose the first or any other candidate;
 - change market candidate ranking;
@@ -69,4 +82,4 @@ This policy and CLI do **not**:
 - blend market value and strategic evidence into a score;
 - weaken or reinterpret any existing strategic veto policy.
 
-A future policy may use these `CLEAR/BLOCKED` annotations to construct a team-perspective counter recommendation, but that requires a separately versioned decision contract.
+A future policy may use the strategically eligible subset to construct a team-perspective counter recommendation, but that requires a separately versioned decision contract.
