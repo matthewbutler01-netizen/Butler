@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeCounterStrategicCandidateVettingAnalyzer;
+import io.butler.bet.intelligence.TradeCounterStrategicEligibilityPolicy;
 import io.butler.bet.intelligence.TradeRecommendationVetoPolicy;
 
 import java.nio.file.Path;
@@ -29,7 +30,8 @@ public final class ButlerTradeCounterStrategicCli {
 
         try {
             var analyzer = new TradeCounterStrategicCandidateVettingAnalyzer(initializedDatabase());
-            print(analyze(analyzer, options));
+            var report = analyze(analyzer, options);
+            print(report, TradeCounterStrategicEligibilityPolicy.classify(report));
         } catch (SQLException e) {
             System.err.println("Database error while building strategic counter candidate evidence: " + e.getMessage());
             System.exit(1);
@@ -73,7 +75,20 @@ public final class ButlerTradeCounterStrategicCli {
             && "counter-strategic".equalsIgnoreCase(args[1]);
     }
 
+    /** Retained BF-372 renderer for compatibility. */
     static void print(TradeCounterStrategicCandidateVettingAnalyzer.StrategicCandidateReport report) {
+        printStrategicVetting(report);
+    }
+
+    static void print(
+        TradeCounterStrategicCandidateVettingAnalyzer.StrategicCandidateReport report,
+        TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility) {
+        printStrategicVetting(report);
+        printEligibility(report, eligibility);
+    }
+
+    private static void printStrategicVetting(
+        TradeCounterStrategicCandidateVettingAnalyzer.StrategicCandidateReport report) {
         if (report == null) throw new IllegalArgumentException("report must not be null");
         System.out.println("Trade counter strategic vetting (season-aware bilateral v5 veto)");
         System.out.println("League ID: " + report.leagueId());
@@ -107,6 +122,35 @@ public final class ButlerTradeCounterStrategicCli {
         System.out.println("No candidate is selected and no COUNTER action or recommendation is emitted.");
     }
 
+    private static void printEligibility(
+        TradeCounterStrategicCandidateVettingAnalyzer.StrategicCandidateReport report,
+        TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility) {
+        if (eligibility == null) throw new IllegalArgumentException("eligibility must not be null");
+        if (!report.leagueId().equals(eligibility.leagueId())
+            || report.season() != eligibility.season()
+            || !report.source().equals(eligibility.source())
+            || !java.util.Objects.equals(report.minimumAsOfDate(), eligibility.minimumAsOfDate())
+            || !report.policyId().equals(eligibility.strategicVettingPolicyId())) {
+            throw new IllegalStateException("strategic vetting and eligibility coordinates differ");
+        }
+        System.out.println("Strategic eligibility policy: " + eligibility.policyId());
+        System.out.println("Strategic eligibility available: " + eligibility.available());
+        if (!eligibility.available()) {
+            System.out.println("Strategic eligibility reason: " + eligibility.insufficiencyReason());
+            return;
+        }
+        System.out.println("Strategically eligible candidates: " + eligibility.eligibleCandidates().size());
+        for (var eligible : eligibility.eligibleCandidates()) {
+            var candidate = eligible.candidate();
+            System.out.printf(Locale.ROOT,
+                "ELIGIBLE #%d %s %s [%s] value=%.2f%n",
+                eligible.marketRank(), candidate.adjustmentType(), candidate.displayName(),
+                candidate.assetId(), candidate.assetValue());
+        }
+        System.out.println("Strategically blocked candidates excluded: " + eligibility.blockedCandidates().size());
+        System.out.println("Eligibility preserves market rank and does not select or re-rank a candidate.");
+    }
+
     private static void printSide(TradeCounterStrategicCandidateVettingAnalyzer.SideVetting side) {
         System.out.println("  " + side.side() + " " + side.teamName() + " [" + side.teamId() + "] veto=" + side.vetoState());
         if (side.vetoState() == TradeRecommendationVetoPolicy.VetoState.BLOCKED) {
@@ -119,7 +163,7 @@ public final class ButlerTradeCounterStrategicCli {
     static void printUsage() {
         System.out.println("  butler trade counter-strategic <league-id> <season> <side-a-assets> <side-b-assets> [source] [--minimum-as-of YYYY-MM-DD]");
         System.out.println("  Assets are comma-separated. Bare IDs are players; use player:<id> or pick:<draft-pick-id>.");
-        System.out.println("  This command season-vets ranked market-fair candidates bilaterally; it does not select or emit COUNTER.");
+        System.out.println("  This command season-vets and filters ranked market-fair candidates; it does not select or emit COUNTER.");
     }
 
     private static TradeCounterStrategicCandidateVettingAnalyzer.StrategicCandidateReport analyze(
