@@ -38,6 +38,24 @@ class ButlerTradeRecommendationCliTest {
     }
 
     @Test
+    void explainsEvidenceGateState() {
+        var status = new ButlerTradeRecommendationCli.EvidenceStatus(true, false, true, false);
+
+        assertEquals(
+            "Evidence gates: market-direction=true posture=false future-capital=true positional-pressure=false",
+            ButlerTradeRecommendationCli.formatEvidenceGates(status));
+        assertEquals(
+            "unavailable governed evidence: team posture, positional pressure",
+            ButlerTradeRecommendationCli.formatInconclusiveReason(status));
+    }
+
+    @Test
+    void completeEvidenceStatusRequiresEveryGate() {
+        assertTrue(new ButlerTradeRecommendationCli.EvidenceStatus(true, true, true, true).complete());
+        assertEquals(false, new ButlerTradeRecommendationCli.EvidenceStatus(false, true, true, true).complete());
+    }
+
+    @Test
     void rejectsMissingOrInvalidPerspective() {
         assertThrows(IllegalArgumentException.class, () -> ButlerTradeRecommendationCli.parse(new String[]{
             "trade", "recommendation", "l1", "2026", "p1", "p2"}));

@@ -3,6 +3,7 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.TradeAssetAnalyzer;
 import io.butler.bet.intelligence.TradeAssetPositionalContextAnalyzer;
+import io.butler.bet.intelligence.TradeMarketEdgePolicy;
 import io.butler.bet.intelligence.TradeRecommendationPolicy;
 import io.butler.bet.intelligence.TradeTeamPerspectiveRecommendationPolicy;
 
@@ -10,6 +11,8 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Conservative evidence-first trade recommendation from one explicit team's perspective. */
 public final class ButlerTradeRecommendationCli {
@@ -81,7 +84,28 @@ public final class ButlerTradeRecommendationCli {
             report.strategic().postureAvailable(), report.strategic().futureCapitalAvailable(), positionalAvailable);
         var packageRecommendation = TradeRecommendationPolicy.classify(report.strategic().marketEdge(), evidence);
         var action = TradeTeamPerspectiveRecommendationPolicy.classify(packageRecommendation, perspective);
-        return new RecommendationResult(packageRecommendation, action, evidence.complete());
+        var status = new EvidenceStatus(
+            report.strategic().marketEdge() != TradeMarketEdgePolicy.Direction.UNAVAILABLE,
+            evidence.postureAvailable(), evidence.futureCapitalAvailable(), evidence.positionalPressureAvailable());
+        return new RecommendationResult(packageRecommendation, action, status);
+    }
+
+    static String formatEvidenceGates(EvidenceStatus status) {
+        return "Evidence gates: market-direction=" + status.marketDirectionAvailable()
+            + " posture=" + status.postureAvailable()
+            + " future-capital=" + status.futureCapitalAvailable()
+            + " positional-pressure=" + status.positionalPressureAvailable();
+    }
+
+    static String formatInconclusiveReason(EvidenceStatus status) {
+        List<String> missing = new ArrayList<>();
+        if (!status.marketDirectionAvailable()) missing.add("market direction");
+        if (!status.postureAvailable()) missing.add("team posture");
+        if (!status.futureCapitalAvailable()) missing.add("future capital");
+        if (!status.positionalPressureAvailable()) missing.add("positional pressure");
+        return missing.isEmpty()
+            ? "required governed evidence is incomplete"
+            : "unavailable governed evidence: " + String.join(", ", missing);
     }
 
     private static TradeAssetPositionalContextAnalyzer.TradePositionalContextReport analyze(
@@ -107,11 +131,12 @@ public final class ButlerTradeRecommendationCli {
         System.out.println("Perspective: " + perspectiveTeam.teamName() + " [" + perspectiveTeam.teamId() + "]");
         System.out.println("Recommendation policy: " + TradeRecommendationPolicy.POLICY_ID);
         System.out.println("Perspective policy: " + TradeTeamPerspectiveRecommendationPolicy.POLICY_ID);
-        System.out.println("Evidence complete: " + result.evidenceComplete());
+        System.out.println("Evidence complete: " + result.evidenceStatus().complete());
+        System.out.println(formatEvidenceGates(result.evidenceStatus()));
         System.out.println("Package recommendation: " + result.packageRecommendation());
         System.out.println("Action: " + result.action());
         if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.INCONCLUSIVE) {
-            System.out.println("Reason: required governed evidence is incomplete or market direction is unavailable.");
+            System.out.println("Reason: " + formatInconclusiveReason(result.evidenceStatus()) + ".");
         } else if (result.action() == TradeTeamPerspectiveRecommendationPolicy.Action.HOLD) {
             System.out.println("Reason: the governed market comparison is inside the fairness band.");
         }
@@ -160,9 +185,16 @@ public final class ButlerTradeRecommendationCli {
         return database;
     }
 
+    record EvidenceStatus(boolean marketDirectionAvailable, boolean postureAvailable,
+                          boolean futureCapitalAvailable, boolean positionalPressureAvailable) {
+        boolean complete() {
+            return marketDirectionAvailable && postureAvailable && futureCapitalAvailable && positionalPressureAvailable;
+        }
+    }
+
     record RecommendationResult(TradeRecommendationPolicy.Recommendation packageRecommendation,
                                 TradeTeamPerspectiveRecommendationPolicy.Action action,
-                                boolean evidenceComplete) {}
+                                EvidenceStatus evidenceStatus) {}
 
     record Options(String leagueId, int season, TradeAssetAnalyzer.TradePackage sideA,
                    TradeAssetAnalyzer.TradePackage sideB,
