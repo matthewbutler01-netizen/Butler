@@ -27,6 +27,8 @@ public final class ButlerHelpLauncher {
         System.out.println("    Aggregates raw points-gap totals only over comparable complete observed roster weeks.");
         System.out.println("  butler league team-season-lineup-capture-evidence <league-id> <team-id> <season>");
         System.out.println("    Normalizes comparable started/potential totals while keeping coverage as a separate denominator.");
+        System.out.println("  butler league team-pair-lineup-capture-contrast-evidence <league-id> <team-a-id> <team-b-id> <season>");
+        System.out.println("    Recalculates both teams over their exact shared comparable weeks and reports a descriptive signed contrast.");
         System.out.println("  butler league season-potential-lineup-evidence <league-id> <season>");
         System.out.println("    Exposes team potential-lineup evidence in repository team-name order without ranking.");
         System.out.println("  butler league season-lineup-points-gap-evidence <league-id> <season>");
@@ -34,10 +36,13 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler league season-lineup-capture-evidence <league-id> <season>");
         System.out.println("    Exposes team capture rates in repository team-name order with no league average or ranking.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
+        System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  Lineup capture is descriptive normalization only: no manager efficiency, manager grade, rank, tier,");
         System.out.println("  recommendation, intent, fault, or skill attribution is computed.");
+        System.out.println("  Pairwise contrast must not be expanded into a league ranking without a new governed methodology.");
         System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
         System.out.println("  See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary.");
+        System.out.println("  See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules.");
     }
 
     static void printManualCounterUsage() {
