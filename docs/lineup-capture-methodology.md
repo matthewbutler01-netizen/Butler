@@ -62,6 +62,8 @@ The numerator and denominator are the authoritative evidence. The normalized rat
 
 If retrospective potential points are exactly zero, the rate is **unavailable**. Butler must not report `100%`, `0%`, or another fabricated value for a `0 / 0` comparison.
 
+If recalculated started points or retrospective potential points are negative, the normalized rate is also unavailable. The governed raw points-gap evidence remains inspectable, but v1 does not assign a share-of-potential interpretation to negative point totals.
+
 Because the source comparison is complete, same-provenance, and governed by the maximizing potential-lineup solver, the valid v1 rate domain is:
 
 ```text
@@ -89,10 +91,13 @@ Using the ratio of governed totals preserves the actual point opportunity repres
 
 A season rate is available only when:
 
-- there is at least one `COMPARABLE_COMPLETE` observed roster week; and
+- there is at least one `COMPARABLE_COMPLETE` observed roster week;
+- every contributing comparable week has nonnegative recalculated started points and nonnegative retrospective potential points; and
 - comparable total retrospective potential points are greater than zero.
 
-If either condition is not met, the normalized rate is unavailable. Butler retains the underlying week states and raw evidence instead of inventing a percentage.
+A comparable complete week with exactly zero potential points may remain in the observed/comparable week counts and raw totals when its started points are also nonnegative and do not exceed potential. It does not receive an independent weekly capture rate, and it does not prevent a season rate when other comparable weeks make the season potential total positive.
+
+If a contributing comparable week has negative started or potential points, or if the season potential total is not positive, the season normalized rate is unavailable. Butler retains the underlying week states and raw evidence instead of inventing a percentage.
 
 ## Coverage remains separate from the rate
 
@@ -184,8 +189,8 @@ A lineup-capture implementation must fail closed rather than publish a normalize
 - a team-week source comparison is incomplete;
 - a team-season has no comparable complete observed week;
 - the applicable potential-point denominator is zero;
-- started points are negative;
-- potential points are negative;
+- a team-week numerator or denominator is negative;
+- any comparable week contributing to a season rate has negative started or potential points;
 - started points exceed potential points;
 - the normalized rate would fall outside `[0, 1]`;
 - source identity or provenance differs from the governed points-gap report; or
