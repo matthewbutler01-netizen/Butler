@@ -30,6 +30,7 @@ public final class ButlerHelpLauncher {
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Points-gap evidence is descriptive only: no efficiency percentage, manager score, rank, tier,");
         System.out.println("  recommendation, intent, fault, or skill attribution is computed.");
+        System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
     }
 
     static void printManualCounterUsage() {
