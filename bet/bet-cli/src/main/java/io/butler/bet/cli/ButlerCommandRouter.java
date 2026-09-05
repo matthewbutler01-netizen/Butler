@@ -69,6 +69,7 @@ public final class ButlerCommandRouter {
             case AGING_MODEL_AGE_BAND_STABILITY -> ButlerAgingModelAgeBandStabilityCli.main(args);
             case AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER -> ButlerAgingModelAgeBandThresholdFrontierCli.main(args);
             case PRODUCTION_HISTORY -> ButlerProductionHistoryCli.main(args);
+            case WEEKLY_PRODUCTION -> ButlerWeeklyProductionCli.main(args);
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
             case COMPOSED -> {
                 if (isGlobalHelp(args)) ButlerHelpLauncher.main(args);
@@ -146,6 +147,8 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "aging-model") && equals(args[1], "age-band-threshold-frontier")) return Route.AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER;
             if (equals(args[0], "nflverse")
                 && (equals(args[1], "production-history-preview") || equals(args[1], "production-history-refresh"))) return Route.PRODUCTION_HISTORY;
+            if (equals(args[0], "nflverse")
+                && (equals(args[1], "weekly-production-preview") || equals(args[1], "weekly-production-refresh"))) return Route.WEEKLY_PRODUCTION;
             if (equals(args[0], "league")
                 && (equals(args[1], "evidence-overview") || equals(args[1], "production-context"))) return Route.EVIDENCE;
             if (equals(args[0], "league")
@@ -183,5 +186,5 @@ public final class ButlerCommandRouter {
                  AGING_MODEL_TEMPORAL_HOLDOUT, AGING_MODEL_SMOOTHING_SENSITIVITY,
                  AGING_MODEL_TRANSITION_STABILITY, AGING_MODEL_NORMALIZED_STABILITY,
                  AGING_MODEL_SUPPORT_THRESHOLDS, AGING_MODEL_AGE_BAND_STABILITY,
-                 AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER, PRODUCTION_HISTORY, EVIDENCE, COMPOSED }
+                 AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER, PRODUCTION_HISTORY, WEEKLY_PRODUCTION, EVIDENCE, COMPOSED }
 }
