@@ -44,9 +44,7 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
         List<WeekEvidence> weeks = new ArrayList<>();
         for (var sourceWeek : sourceSeason.weeks()) {
             switch (sourceWeek.state()) {
-                case BLOCKED -> weeks.add(WeekEvidence.blocked(
-                    sourceWeek,
-                    sourceWeek.blockers()));
+                case BLOCKED -> weeks.add(WeekEvidence.blocked(sourceWeek, sourceWeek.blockers()));
                 case INCOMPLETE_LINEUP -> weeks.add(WeekEvidence.potentialIncomplete(sourceWeek));
                 case QUALIFYING_COMPLETE -> analyzePotentialCompleteWeek(
                     sourceSeason, sourceWeek, startedAnalyzer, gapAnalyzer, weeks);
@@ -93,6 +91,12 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
                 List.of("Sleeper team-week roster evidence moved during started-lineup calculation")));
             return;
         }
+        if (!startedMatchesSourcePotential(sourceWeek.potentialLineup(), started)) {
+            weeks.add(WeekEvidence.blocked(
+                sourceWeek,
+                List.of("Governed configuration or production evidence moved during started-lineup calculation")));
+            return;
+        }
         if (!started.complete()) {
             weeks.add(WeekEvidence.startedIncomplete(sourceWeek, started));
             return;
@@ -116,7 +120,39 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
                 List.of("Sleeper team-week roster evidence moved during points-gap calculation")));
             return;
         }
+        if (!gapMatchesSourceEvidence(sourceWeek.potentialLineup(), started, gap)) {
+            weeks.add(WeekEvidence.blocked(
+                sourceWeek,
+                List.of("Governed configuration, production, or scored lineup evidence moved during points-gap calculation")));
+            return;
+        }
         weeks.add(WeekEvidence.comparable(sourceWeek, started, gap));
+    }
+
+    private static boolean startedMatchesSourcePotential(
+        LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport potential,
+        LeagueTeamWeekStartedLineupEvidenceAnalyzer.StartedLineupReport started) {
+        return potential.leagueConfigurationAsOf().equals(started.leagueConfigurationAsOf())
+            && potential.rosterEvidenceAsOf().equals(started.rosterEvidenceAsOf())
+            && potential.productionCoverageAsOf().equals(started.productionCoverageAsOf())
+            && potential.productionSourceUri().equals(started.productionSourceUri())
+            && potential.scoringPolicyId().equals(started.scoringPolicyId())
+            && potential.eligibilityPolicyId().equals(started.eligibilityPolicyId());
+    }
+
+    private static boolean gapMatchesSourceEvidence(
+        LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport potential,
+        LeagueTeamWeekStartedLineupEvidenceAnalyzer.StartedLineupReport started,
+        LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.LineupPointsGapReport gap) {
+        return potential.leagueConfigurationAsOf().equals(gap.leagueConfigurationAsOf())
+            && potential.rosterEvidenceAsOf().equals(gap.rosterEvidenceAsOf())
+            && potential.productionCoverageAsOf().equals(gap.productionCoverageAsOf())
+            && potential.productionSourceUri().equals(gap.productionSourceUri())
+            && potential.scoringPolicyId().equals(gap.scoringPolicyId())
+            && potential.solverPolicyId().equals(gap.solverPolicyId())
+            && potential.eligibilityPolicyId().equals(gap.eligibilityPolicyId())
+            && potential.lineup().totalPoints().compareTo(gap.potentialPoints()) == 0
+            && started.totalStartedPoints().compareTo(gap.startedPoints()) == 0;
     }
 
     private static SeasonAggregate aggregate(List<WeekEvidence> weeks) {
@@ -213,6 +249,9 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
                         throw new IllegalArgumentException("started-incomplete week cannot include gap evidence or blockers");
                     }
                     requireStartedIdentity(week, enumeratedRosterEvidenceAsOf, startedLineup);
+                    if (!startedMatchesSourcePotential(sourcePotentialWeek.potentialLineup(), startedLineup)) {
+                        throw new IllegalArgumentException("started-incomplete evidence must match source governed provenance");
+                    }
                 }
                 case COMPARABLE_COMPLETE -> {
                     requireSourcePotentialComplete(sourcePotentialWeek);
@@ -223,6 +262,10 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
                     if (pointsGap.week() != week
                         || !pointsGap.rosterEvidenceAsOf().equals(enumeratedRosterEvidenceAsOf)) {
                         throw new IllegalArgumentException("gap identity must match observed week evidence");
+                    }
+                    if (!startedMatchesSourcePotential(sourcePotentialWeek.potentialLineup(), startedLineup)
+                        || !gapMatchesSourceEvidence(sourcePotentialWeek.potentialLineup(), startedLineup, pointsGap)) {
+                        throw new IllegalArgumentException("comparable evidence must preserve one governed provenance boundary");
                     }
                 }
             }
