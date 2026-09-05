@@ -468,8 +468,13 @@ public final class SleeperCounterTradeOutcomeCoordinator {
         public ApplyResult {
             Objects.requireNonNull(state, "state must not be null");
             reason = requireText(reason, "reason");
-            if ((state == ApplyState.APPLIED || state == ApplyState.ALREADY_APPLIED) != (outcome != null)) {
-                throw new IllegalArgumentException("only applied states may carry a stored outcome");
+            boolean requiresOutcome = state == ApplyState.APPLIED || state == ApplyState.ALREADY_APPLIED;
+            boolean permitsOutcome = requiresOutcome || state == ApplyState.MISMATCH;
+            if (requiresOutcome && outcome == null) {
+                throw new IllegalArgumentException("applied states require a stored outcome");
+            }
+            if (!permitsOutcome && outcome != null) {
+                throw new IllegalArgumentException("only applied or mismatch states may carry a stored outcome");
             }
         }
     }
