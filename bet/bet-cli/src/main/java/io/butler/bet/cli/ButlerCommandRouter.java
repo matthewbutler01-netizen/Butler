@@ -28,6 +28,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_SCORED_PRODUCTION_EVIDENCE -> ButlerLeagueScoredProductionEvidenceCli.main(args);
             case LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE -> ButlerLeagueTeamScoredProductionEvidenceCli.main(args);
             case LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP -> ButlerLeagueTeamWeekPotentialLineupCli.main(args);
+            case LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE -> ButlerLeagueTeamSeasonPotentialLineupEvidenceCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
             case LEAGUE_POSITIONAL_PRESSURE -> ButlerLeaguePositionalPressureCli.main(args);
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
@@ -102,6 +103,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "scored-production-evidence")) return Route.LEAGUE_SCORED_PRODUCTION_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-scored-production-evidence")) return Route.LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-week-potential-lineup")) return Route.LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP;
+            if (equals(args[0], "league") && equals(args[1], "team-season-potential-lineup-evidence")) return Route.LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
             if (equals(args[0], "league") && equals(args[1], "positional-pressure")) return Route.LEAGUE_POSITIONAL_PRESSURE;
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
@@ -175,6 +177,7 @@ public final class ButlerCommandRouter {
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_SCORING_SETTINGS,
                  LEAGUE_SCORING_COVERAGE, LEAGUE_PLAYER_SCORE, LEAGUE_SCORED_PRODUCTION_EVIDENCE,
                  LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE, LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP,
+                 LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE,
                  LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
