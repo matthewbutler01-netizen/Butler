@@ -18,6 +18,11 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("official GET-only Sleeper transaction evidence"));
         assertTrue(output.contains("butler trade counter-finalize <trusted-grant-id> <sleeper-week>"));
         assertTrue(output.contains("only exact completed readback may finalize local success and consume authorization"));
+        assertTrue(output.contains("exact completed readback may supersede an earlier unfinalized no-action acknowledgment"));
+        assertTrue(output.contains("preserving that acknowledgment as immutable history"));
+        assertTrue(output.contains("Once no-action was finalized FAILED + CONSUME"));
+        assertTrue(output.contains("never rewrites local history"));
+        assertTrue(output.contains("post-closure external-action discrepancy for investigation"));
         assertTrue(output.contains("butler trade counter-message-status <trusted-grant-id>"));
         assertTrue(output.contains("Butler does not send the message"));
         assertTrue(output.contains("butler trade counter-message-ack <trusted-grant-id> [--confirm SENT_EXACT_MESSAGE]"));
