@@ -1,6 +1,7 @@
 package io.butler.bet.data;
 
 import io.butler.bet.integration.sleeper.SleeperCounterTradeOutcomeCoordinator;
+import io.butler.bet.integration.sleeper.SleeperManualCounterNoActionOutcomeCoordinator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -56,6 +57,46 @@ class TradeCounterManualTerminalGuardInstallerTest {
     }
 
     @Test
+    void noActionThenGenericReinitializePreservesNoActionGuards() throws Exception {
+        Database database = database("no-action-then-generic");
+        new SleeperManualCounterNoActionOutcomeCoordinator(database).initialize();
+
+        assertNoActionCombined(
+            triggerSql(database, "trg_trade_counter_execution_terminal_outcome_required"),
+            triggerSql(database, "trg_trade_counter_execution_claimed_grant_consumption_guard"));
+
+        new TradeCounterExecutionOutcomeCoordinator(database).initialize();
+
+        assertNoActionCombined(
+            triggerSql(database, "trg_trade_counter_execution_terminal_outcome_required"),
+            triggerSql(database, "trg_trade_counter_execution_claimed_grant_consumption_guard"));
+    }
+
+    @Test
+    void noActionThenSleeperTradePreservesBothManualOutcomeTypes() throws Exception {
+        Database database = database("no-action-then-trade");
+        new SleeperManualCounterNoActionOutcomeCoordinator(database).initialize();
+        new SleeperCounterTradeOutcomeCoordinator(database).initialize();
+
+        String terminal = triggerSql(database, "trg_trade_counter_execution_terminal_outcome_required");
+        String consumption = triggerSql(database, "trg_trade_counter_execution_claimed_grant_consumption_guard");
+        assertCombined(terminal, consumption);
+        assertNoActionCombined(terminal, consumption);
+    }
+
+    @Test
+    void sleeperTradeThenNoActionPreservesBothManualOutcomeTypes() throws Exception {
+        Database database = database("trade-then-no-action");
+        new SleeperCounterTradeOutcomeCoordinator(database).initialize();
+        new SleeperManualCounterNoActionOutcomeCoordinator(database).initialize();
+
+        String terminal = triggerSql(database, "trg_trade_counter_execution_terminal_outcome_required");
+        String consumption = triggerSql(database, "trg_trade_counter_execution_claimed_grant_consumption_guard");
+        assertCombined(terminal, consumption);
+        assertNoActionCombined(terminal, consumption);
+    }
+
+    @Test
     void sharedInstallerIsIdempotentOnceRequiredTablesExist() throws Exception {
         Database database = database("idempotent");
         new SleeperCounterTradeOutcomeCoordinator(database).initialize();
@@ -74,16 +115,36 @@ class TradeCounterManualTerminalGuardInstallerTest {
     }
 
     @Test
+    void sharedNoActionInstallerIsIdempotentOnceRequiredTableExists() throws Exception {
+        Database database = database("no-action-idempotent");
+        new SleeperManualCounterNoActionOutcomeCoordinator(database).initialize();
+        String before = triggerSql(database,
+            "trg_trade_counter_execution_terminal_outcome_required");
+
+        TradeCounterManualTerminalGuardInstaller.installSleeperNoActionSupport(database);
+        TradeCounterManualTerminalGuardInstaller.installSleeperNoActionSupport(database);
+
+        String after = triggerSql(database,
+            "trg_trade_counter_execution_terminal_outcome_required");
+        assertTrue(before.equals(after));
+        assertNoActionCombined(
+            after,
+            triggerSql(database, "trg_trade_counter_execution_claimed_grant_consumption_guard"));
+    }
+
+    @Test
     void sharedInstallerFailsClosedBeforeManualOutcomeTableExists() throws Exception {
         Database database = database("missing-manual-table");
         new TradeCounterExecutionOutcomeCoordinator(database).initialize();
 
         assertThrows(IllegalStateException.class,
             () -> TradeCounterManualTerminalGuardInstaller.installSleeperTradeSupport(database));
+        assertThrows(IllegalStateException.class,
+            () -> TradeCounterManualTerminalGuardInstaller.installSleeperNoActionSupport(database));
     }
 
     private Database database(String suffix) throws Exception {
-        Database database = new Database(tempDir.resolve("bf415-" + suffix + ".db"));
+        Database database = new Database(tempDir.resolve("bf427-" + suffix + ".db"));
         database.initialize();
         return database;
     }
@@ -94,6 +155,14 @@ class TradeCounterManualTerminalGuardInstallerTest {
         assertTrue(consumptionSql.contains("trade_counter_execution_outcomes"));
         assertTrue(consumptionSql.contains("trade_counter_execution_unknown_resolutions"));
         assertTrue(consumptionSql.contains("sleeper_counter_trade_terminal_outcomes"));
+    }
+
+    private static void assertNoActionCombined(String terminalSql, String consumptionSql) {
+        assertTrue(terminalSql.contains("trade_counter_execution_outcomes"));
+        assertTrue(terminalSql.contains("sleeper_manual_counter_no_action_terminal_outcomes"));
+        assertTrue(consumptionSql.contains("trade_counter_execution_outcomes"));
+        assertTrue(consumptionSql.contains("trade_counter_execution_unknown_resolutions"));
+        assertTrue(consumptionSql.contains("sleeper_manual_counter_no_action_terminal_outcomes"));
     }
 
     private static String triggerSql(Database database, String trigger) throws Exception {
