@@ -64,7 +64,7 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
 
         assertEquals(new BigDecimal("16.0"), report.startedPoints());
         assertEquals(new BigDecimal("16.0"), report.potentialPoints());
-        assertEquals(BigDecimal.ZERO, report.pointsGap());
+        assertEquals(0, report.pointsGap().compareTo(BigDecimal.ZERO));
     }
 
     @Test
