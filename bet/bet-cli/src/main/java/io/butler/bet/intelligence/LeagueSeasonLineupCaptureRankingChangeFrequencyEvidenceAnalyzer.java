@@ -123,29 +123,6 @@ public final class LeagueSeasonLineupCaptureRankingChangeFrequencyEvidenceAnalyz
                     .compareTo(BigDecimal.ONE.setScale(FREQUENCY_SCALE)) != 0) {
                 throw new IllegalArgumentException("frequency values must match governed complete-scenario counts");
             }
-
-            var magnitude = LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzer
-                .TeamSensitivityClassification.fromSource(new LeagueSeasonLineupCaptureRankingStabilityEvidenceAnalyzer
-                    .TeamStabilitySummary(
-                        teamId,
-                        teamName,
-                        baselineRank,
-                        baselineLineupCaptureRate,
-                        perturbationScenarioCount,
-                        List.of(baselineRank),
-                        baselineRank,
-                        baselineRank,
-                        0,
-                        maximumAbsoluteRankMovement,
-                        baselineRankUnchangedScenarios,
-                        baselineRankChangedScenarios,
-                        baselineLineupCaptureRate,
-                        baselineLineupCaptureRate,
-                        BigDecimal.ZERO.setScale(LeagueTeamWeekLineupCaptureEvidenceAnalyzer.RATE_SCALE),
-                        baselineRankUnchangedScenarios == perturbationScenarioCount));
-            if (magnitudeSensitivityClass != magnitude.sensitivityClass()) {
-                throw new IllegalArgumentException("magnitudeSensitivityClass must match governed BF-508 movement rule");
-            }
         }
 
         static TeamRankChangeFrequencyEvidence fromSource(
