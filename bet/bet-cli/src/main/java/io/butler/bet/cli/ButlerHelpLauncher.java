@@ -47,6 +47,9 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler league season-lineup-capture-ranking-sensitivity-classification-evidence <league-id> <season>");
         System.out.println("    Classifies observed maximum absolute rank movement only: 0=LOW, 1=MODERATE, 2+=HIGH sensitivity.");
         System.out.println("    Requires complete available ranking-stability evidence; no partial classification is published.");
+        System.out.println("  butler league season-lineup-capture-ranking-change-frequency-evidence <league-id> <season>");
+        System.out.println("    Reports changed required one-week-out scenarios divided by the complete perturbation count.");
+        System.out.println("    Uses six-decimal governed frequency; BF-508 movement magnitude remains separate with no frequency tier or combined score.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
@@ -55,10 +58,11 @@ public final class ButlerHelpLauncher {
         System.out.println("  The four-week ranking floor is a governance threshold, not statistical confidence or skill evidence.");
         System.out.println("  Ranking stability is deterministic leave-one-common-week-out sensitivity; the baseline rank remains authoritative.");
         System.out.println("  Stability requires five common weeks so every perturbation retains the four-week ranking floor.");
-        System.out.println("  Sensitivity classes describe observed ordinal movement only; they are not manager stability, consistency,");
-        System.out.println("  reliability, quality, confidence, probability, significance, prediction, or a replacement rank.");
-        System.out.println("  Class labels do not use movement frequency, rate movement, coverage, or manager identity and do not create");
-        System.out.println("  a sensitivity leaderboard, league-wide sensitivity score, recommendation, skill/fault attribution, or cross-league comparison.");
+        System.out.println("  BF-508 sensitivity classes still use maximum absolute rank movement only; rank-change frequency does not alter the class.");
+        System.out.println("  BF-512 frequency is deterministic changed-over-total perturbation context, not probability, confidence, significance, or prediction.");
+        System.out.println("  Magnitude and frequency remain separate; Butler computes no qualitative frequency tier, combined magnitude-frequency score,");
+        System.out.println("  frequency-adjusted rank, sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label,");
+        System.out.println("  recommendation, skill/fault attribution, coverage-adjusted composite, or cross-league manager comparison.");
         System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
         System.out.println("  See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary.");
         System.out.println("  See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules.");
@@ -66,6 +70,7 @@ public final class ButlerHelpLauncher {
         System.out.println("  See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes.");
+        System.out.println("  See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules.");
     }
 
     static void printManualCounterUsage() {
