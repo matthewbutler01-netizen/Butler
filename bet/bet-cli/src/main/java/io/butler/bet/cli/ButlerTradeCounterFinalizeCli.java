@@ -113,12 +113,21 @@ public final class ButlerTradeCounterFinalizeCli {
 
         if (application.outcome() != null) {
             var outcome = application.outcome();
-            System.out.println("Finalized attempt ID: " + outcome.attemptId());
-            System.out.println("Completed Sleeper transaction ID: " + outcome.sleeperTransactionId());
+            boolean mismatch = application.state()
+                == SleeperCounterTradeOutcomeCoordinator.ApplyState.MISMATCH;
+            System.out.println((mismatch ? "Existing" : "Finalized")
+                + " attempt ID: " + outcome.attemptId());
+            System.out.println((mismatch ? "Existing completed" : "Completed")
+                + " Sleeper transaction ID: " + outcome.sleeperTransactionId());
             System.out.println("Terminal execution state: " + outcome.terminalState());
             System.out.println("Authorization disposition: " + outcome.grantDisposition());
             System.out.println("Finalization applied at: " + outcome.appliedAt());
-            System.out.println("Local Butler execution is SUCCEEDED and the one-shot authorization is consumed.");
+            if (mismatch) {
+                System.out.println("Conflicting current completed-readback evidence was NOT applied.");
+                System.out.println("The existing durable SUCCEEDED outcome and consumed one-shot authorization remain unchanged.");
+            } else {
+                System.out.println("Local Butler execution is SUCCEEDED and the one-shot authorization is consumed.");
+            }
         } else if (application.state()
             == SleeperCounterTradeOutcomeCoordinator.ApplyState.POST_CLOSURE_DISCREPANCY) {
             System.out.println("No success terminal outcome was applied because this lifecycle was already closed from exact no-action evidence.");
@@ -138,6 +147,7 @@ public final class ButlerTradeCounterFinalizeCli {
         System.out.println("  Butler rereads official Sleeper transaction evidence and requires BF-409 CONFIRMED_SUCCESS_EVIDENCE.");
         System.out.println("  Exact completed readback may supersede an unfinalized trade no-action acknowledgment before local closure.");
         System.out.println("  A no-action lifecycle already finalized FAILED + CONSUME is never rewritten; later exact completed readback is recorded as a post-closure discrepancy.");
+        System.out.println("  A different completed readback after an existing success outcome is reported as MISMATCH and never replaces the durable first outcome.");
         System.out.println("  Only eligible active-state finalization may atomically mark the local attempt SUCCEEDED and consume the one-shot authorization.");
         System.out.println("  Sleeper access remains GET-only; this command performs no Sleeper write action.");
     }
