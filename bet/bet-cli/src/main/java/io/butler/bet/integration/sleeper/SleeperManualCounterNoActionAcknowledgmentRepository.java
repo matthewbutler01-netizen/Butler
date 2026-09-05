@@ -136,6 +136,14 @@ public final class SleeperManualCounterNoActionAcknowledgmentRepository {
                 END
                 """);
             statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_manual_no_action_delete_immutable
+                BEFORE DELETE ON sleeper_manual_counter_no_action_acknowledgments
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'manual no-action acknowledgment is immutable');
+                END
+                """);
+            statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_sleeper_manual_message_ack_conflicts_no_action
                 BEFORE INSERT ON sleeper_manual_message_acknowledgments
                 FOR EACH ROW
