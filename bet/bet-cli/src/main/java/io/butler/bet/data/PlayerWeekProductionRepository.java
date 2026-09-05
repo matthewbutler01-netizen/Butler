@@ -77,6 +77,31 @@ public final class PlayerWeekProductionRepository {
         }
     }
 
+    /** Returns the production snapshot from the exact import date used by a coverage decision. */
+    public Optional<PlayerWeekProduction> findAtAsOf(
+        String playerId, int season, int week, String source, LocalDate asOfDate) throws SQLException {
+        requireText(playerId, "playerId");
+        requireText(source, "source");
+        Objects.requireNonNull(asOfDate, "asOfDate must not be null");
+        if (season <= 0) throw new IllegalArgumentException("season must be positive");
+        if (week <= 0) throw new IllegalArgumentException("week must be positive");
+        try (Connection connection = database.openConnection()) {
+            ensureTable(connection);
+            String sql = "SELECT * FROM player_week_production " +
+                "WHERE player_id=? AND season=? AND week=? AND source=? AND as_of_date=? LIMIT 1";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, playerId.trim());
+                statement.setInt(2, season);
+                statement.setInt(3, week);
+                statement.setString(4, source.trim());
+                statement.setString(5, asOfDate.toString());
+                try (ResultSet rs = statement.executeQuery()) {
+                    return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+                }
+            }
+        }
+    }
+
     public List<PlayerWeekProduction> findByPlayerSeason(String playerId, int season, String source)
         throws SQLException {
         requireText(playerId, "playerId");
