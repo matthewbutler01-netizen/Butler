@@ -127,3 +127,5 @@ The governed lineup evidence stack does not by itself establish:
 - a recommendation about how a manager should have acted.
 
 Any future metric that turns these descriptive points gaps into a manager score, percentage, ranking, or decision recommendation requires a separate governed methodology. That methodology must explicitly define its denominator, coverage requirements, treatment of blocked/incomplete weeks, historical-availability assumptions, cross-team comparability rules, and interpretation boundary before implementation.
+
+The approved descriptive normalization methodology is documented in [`lineup-capture-methodology.md`](lineup-capture-methodology.md). It permits the term **lineup capture rate** under explicit complete-evidence and denominator rules while continuing to prohibit manager-efficiency attribution and cross-team ranking.
