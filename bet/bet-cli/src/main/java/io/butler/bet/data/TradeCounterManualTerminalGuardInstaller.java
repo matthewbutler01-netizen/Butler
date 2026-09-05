@@ -11,7 +11,7 @@ import java.util.Objects;
  */
 public final class TradeCounterManualTerminalGuardInstaller {
     public static final String INSTALLER_ID =
-        "trade-counter-manual-terminal-guard-installer-v3-available-manual-outcomes";
+        "trade-counter-manual-terminal-guard-installer-v4-terminal-provenance-immutable";
 
     private TradeCounterManualTerminalGuardInstaller() {}
 
@@ -56,6 +56,9 @@ public final class TradeCounterManualTerminalGuardInstaller {
                 throw new IllegalStateException(
                     "Sleeper no-action terminal guard support requires the manual no-action outcome table");
             }
+
+            installTerminalOutcomeDeleteGuards(
+                statement, sleeperTrade, sleeperMessage, sleeperNoAction);
 
             String terminalManual = manualTerminalClauses(
                 sleeperTrade, sleeperMessage, sleeperNoAction);
@@ -117,6 +120,43 @@ public final class TradeCounterManualTerminalGuardInstaller {
                   )
                 BEGIN
                     SELECT RAISE(ABORT, 'claimed authorization grant requires governed terminal outcome or UNKNOWN resolution before consumption');
+                END
+                """);
+        }
+    }
+
+    private static void installTerminalOutcomeDeleteGuards(
+        java.sql.Statement statement,
+        boolean sleeperTrade,
+        boolean sleeperMessage,
+        boolean sleeperNoAction) throws SQLException {
+        if (sleeperTrade) {
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_counter_trade_terminal_outcome_delete_immutable
+                BEFORE DELETE ON sleeper_counter_trade_terminal_outcomes
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'manual trade terminal outcome is immutable');
+                END
+                """);
+        }
+        if (sleeperMessage) {
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_manual_message_terminal_outcome_delete_immutable
+                BEFORE DELETE ON sleeper_manual_message_terminal_outcomes
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'manual message terminal outcome is immutable');
+                END
+                """);
+        }
+        if (sleeperNoAction) {
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_manual_no_action_terminal_outcome_delete_immutable
+                BEFORE DELETE ON sleeper_manual_counter_no_action_terminal_outcomes
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'manual no-action terminal outcome is immutable');
                 END
                 """);
         }
