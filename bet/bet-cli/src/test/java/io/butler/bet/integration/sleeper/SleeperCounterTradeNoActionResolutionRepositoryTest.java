@@ -162,7 +162,7 @@ class SleeperCounterTradeNoActionResolutionRepositoryTest {
     }
 
     @Test
-    void durableResolutionIsImmutable() throws Exception {
+    void durableResolutionRejectsUpdateAndDelete() throws Exception {
         Fixture fixture = fixture("immutable");
         recordNoAction(fixture);
         new SleeperCounterTradeOutcomeCoordinator(fixture.database())
@@ -172,7 +172,17 @@ class SleeperCounterTradeNoActionResolutionRepositoryTest {
             assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate(
                 "UPDATE sleeper_counter_trade_no_action_resolutions SET sleeper_transaction_id='other'"
                     + " WHERE claim_id='" + fixture.claimId() + "'"));
+            assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate(
+                "DELETE FROM sleeper_counter_trade_no_action_resolutions"
+                    + " WHERE claim_id='" + fixture.claimId() + "'"));
         }
+
+        var stored = new SleeperCounterTradeNoActionResolutionRepository(fixture.database())
+            .findByClaimId(fixture.claimId()).orElseThrow();
+        assertEquals("tx-complete", stored.sleeperTransactionId());
+        assertEquals(
+            SleeperCounterTradeNoActionResolutionRepository.ResolutionType.SUPERSEDED_BY_CONFIRMED_TRADE,
+            stored.resolutionType());
     }
 
     @Test
