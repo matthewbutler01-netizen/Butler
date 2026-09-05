@@ -33,6 +33,7 @@ League-season evidence:
 butler league season-potential-lineup-evidence <league-id> <season>
 butler league season-lineup-points-gap-evidence <league-id> <season>
 butler league season-lineup-capture-evidence <league-id> <season>
+butler league season-lineup-capture-common-universe-evidence <league-id> <season>
 ```
 
 ## Evidence chain
@@ -144,6 +145,33 @@ The pairwise contrast is still retrospective evidence, not a winner or manager-q
 
 The normative pairwise rules are in [`lineup-capture-comparability-methodology.md`](lineup-capture-comparability-methodology.md).
 
+## League common-universe lineup-capture table
+
+The governed league common-universe command removes the mismatched-week-set problem from a neutral league-wide presentation without creating a leaderboard.
+
+Butler derives every row directly from each repository team's governed team-season points-gap report and forms one all-team week universe:
+
+```text
+league common comparable weeks =
+    Team 1 COMPARABLE_COMPLETE weeks
+    INTERSECT
+    Team 2 COMPARABLE_COMPLETE weeks
+    INTERSECT
+    ...
+    INTERSECT
+    every repository team's COMPARABLE_COMPLETE weeks
+```
+
+A team is never dropped merely to widen that intersection. A week that is comparable for all but one repository team contributes to none of the normalized common-universe rows.
+
+For each team, Butler recalculates raw started points, retrospective potential points, points gap, and optional lineup-capture rate over the exact same common week list. The row also preserves that team's broader observed count, individually comparable count, and individually comparable weeks excluded from the league common universe.
+
+If fewer than two repository teams exist, or if the all-team intersection contains no comparable complete week, normalized league comparison is unavailable. Butler does not fall back to independently scoped season rates.
+
+Rows remain in repository team-name order. The artifact contains no rank, tier, percentile, winner, league average/median, league benchmark difference, pairwise matrix, Elo-like score, or manager grade. Equal calendar coverage also does not reconstruct historical player startability or establish manager skill.
+
+The normative all-team rules are in [`league-lineup-capture-common-universe-methodology.md`](league-lineup-capture-common-universe-methodology.md).
+
 ## Team-season week universe
 
 Team-season evidence uses only persisted Sleeper roster weeks as its observed week universe. Butler does not fabricate unobserved weeks to make a season look complete.
@@ -163,9 +191,11 @@ Coverage remains separate from lineup capture. Butler does not penalize, multipl
 
 ## League-season presentation
 
-League-season lineup evidence is a neutral wrapper around each team's governed team-season evidence.
+League-season lineup evidence remains descriptive and neutral.
 
-Teams are presented in repository team-name order, not score or capture-rate order. Each team's observed/comparable denominator remains separate.
+The original league-season wrappers present each team's independently scoped evidence in repository team-name order with separate coverage denominators. The common-universe surface adds a second neutral presentation in which every normalized row uses the exact same all-repository-team common comparable week set.
+
+Neither surface sorts by capture rate or converts displayed values into an ordinal league artifact.
 
 Butler does not compute a league-wide:
 
@@ -173,12 +203,14 @@ Butler does not compute a league-wide:
 - potential-points total;
 - points-gap total;
 - average points gap;
-- average lineup capture rate;
+- average or median lineup capture rate;
 - combined league lineup capture rate;
+- benchmark difference;
+- pairwise matrix;
 - comparison score;
-- rank or tier.
+- rank, percentile, or tier.
 
-Pairwise contrast does not change this league-season boundary. Butler does not generate every pairwise contrast and convert those differences into a ranking table.
+Pairwise contrast and the common-universe table do not change this ranking boundary. Butler does not generate every pairwise contrast, sort common-universe rates, or otherwise convert descriptive evidence into a hidden leaderboard.
 
 ## Identity-covered zero versus missing evidence
 
@@ -196,7 +228,8 @@ The governed lineup evidence stack does not by itself establish:
 - historical startability beyond the evidence Butler actually persisted;
 - a fair league-wide manager ranking;
 - transitive manager quality from pairwise contrasts;
-- statistical confidence or stability of a pairwise difference;
+- statistical confidence or stability of pairwise or league-wide descriptive differences;
+- that common-universe rate differences are large or stable enough to support an ordinal interpretation;
 - a recommendation about how a manager should have acted.
 
-The approved lineup-capture and pairwise-comparability methodologies define narrow descriptive evidence while preserving these attribution limits. Any future metric that turns pairwise contrast into a manager score, ranking, tier, recommendation, coverage-adjusted composite, statistical confidence claim, causal interpretation, or skill/fault claim requires a new governed methodology decision before implementation.
+The approved lineup-capture, pairwise-comparability, and league common-universe methodologies define narrow descriptive evidence while preserving these attribution limits. Any future metric that turns these values into a manager score, ranking, tier, percentile, league benchmark comparison, recommendation, coverage-adjusted composite, statistical confidence claim, causal interpretation, or skill/fault claim requires a new governed methodology decision before implementation.
