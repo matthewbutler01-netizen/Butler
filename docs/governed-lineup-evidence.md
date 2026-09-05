@@ -10,6 +10,7 @@ Team-week evidence:
 butler league team-week-potential-lineup <league-id> <team-id> <season> <week>
 butler league team-week-started-lineup-evidence <league-id> <team-id> <season> <week>
 butler league team-week-lineup-points-gap-evidence <league-id> <team-id> <season> <week>
+butler league team-week-lineup-capture-evidence <league-id> <team-id> <season> <week>
 ```
 
 Team-season evidence:
@@ -17,6 +18,7 @@ Team-season evidence:
 ```text
 butler league team-season-potential-lineup-evidence <league-id> <team-id> <season>
 butler league team-season-lineup-points-gap-evidence <league-id> <team-id> <season>
+butler league team-season-lineup-capture-evidence <league-id> <team-id> <season>
 ```
 
 League-season evidence:
@@ -24,11 +26,12 @@ League-season evidence:
 ```text
 butler league season-potential-lineup-evidence <league-id> <season>
 butler league season-lineup-points-gap-evidence <league-id> <season>
+butler league season-lineup-capture-evidence <league-id> <season>
 ```
 
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -74,6 +77,31 @@ The gap is descriptive evidence. It is not a manager-efficiency percentage, mana
 
 Incomplete lineups do not receive a partial, normalized, or extrapolated gap.
 
+## Lineup capture normalization
+
+Lineup capture is the only v1 normalization approved for this evidence stack. It is derived from the governed points-gap evidence rather than independently rescoring players or rebuilding lineups.
+
+For one complete team-week comparison:
+
+```text
+lineup capture rate = recalculated started points / retrospective potential points
+```
+
+For a team season:
+
+```text
+season lineup capture rate =
+    comparable total recalculated started points
+    /
+    comparable total retrospective potential points
+```
+
+The season rate is the ratio of governed comparable totals, **not** the arithmetic mean of weekly percentages.
+
+The normalized rate is unavailable when the applicable potential denominator is zero or when the v1 nonnegative-point requirements are not satisfied. Butler keeps the underlying raw points-gap evidence visible rather than fabricating a percentage.
+
+Lineup capture remains descriptive retrospective evidence. It is not manager efficiency, coaching efficiency, decision quality, start/sit skill, or proof of fault or intent. The full normative method is in [`lineup-capture-methodology.md`](lineup-capture-methodology.md).
+
 ## Team-season week universe
 
 Team-season evidence uses only persisted Sleeper roster weeks as its observed week universe. Butler does not fabricate unobserved weeks to make a season look complete.
@@ -85,25 +113,26 @@ Every observed roster week remains visible in one of four states:
 - `STARTED_INCOMPLETE` — the persisted observed starting lineup contains one or more empty slots;
 - `BLOCKED` — required evidence is unavailable, inconsistent, moved across provenance boundaries, or otherwise unsafe to compare.
 
-Only `COMPARABLE_COMPLETE` weeks contribute to team-season started-point, potential-point, and points-gap totals.
+Only `COMPARABLE_COMPLETE` weeks contribute to team-season started-point, potential-point, points-gap, and lineup-capture source totals.
 
 The denominator is always explicit. For example, `4 comparable complete observed weeks out of 7 observed weeks` means exactly that. Butler does not silently convert that into a seven-week estimate.
 
-No average gap or normalized efficiency percentage is produced by this evidence layer.
+Coverage remains separate from lineup capture. Butler does not penalize, multiply, or blend missing coverage into the normalized rate.
 
 ## League-season presentation
 
 League-season lineup evidence is a neutral wrapper around each team's governed team-season evidence.
 
-Teams are presented in repository team-name order, not score order. Each team's observed/comparable denominator remains separate.
+Teams are presented in repository team-name order, not score or capture-rate order. Each team's observed/comparable denominator remains separate.
 
 Butler does not compute a league-wide:
 
 - started-points total;
 - potential-points total;
 - points-gap total;
-- average gap;
-- normalized percentage;
+- average points gap;
+- average lineup capture rate;
+- combined league lineup capture rate;
 - comparison score;
 - rank or tier.
 
@@ -123,9 +152,7 @@ The governed lineup evidence stack does not by itself establish:
 - manager quality or skill;
 - intent or fault;
 - historical startability beyond the evidence Butler actually persisted;
-- a fair cross-team ranking when coverage denominators differ;
+- a fair cross-team ranking even when coverage denominators happen to match;
 - a recommendation about how a manager should have acted.
 
-Any future metric that turns these descriptive points gaps into a manager score, percentage, ranking, or decision recommendation requires a separate governed methodology. That methodology must explicitly define its denominator, coverage requirements, treatment of blocked/incomplete weeks, historical-availability assumptions, cross-team comparability rules, and interpretation boundary before implementation.
-
-The approved descriptive normalization methodology is documented in [`lineup-capture-methodology.md`](lineup-capture-methodology.md). It permits the term **lineup capture rate** under explicit complete-evidence and denominator rules while continuing to prohibit manager-efficiency attribution and cross-team ranking.
+The approved lineup-capture methodology defines a narrow descriptive normalization while preserving these attribution limits. Any future metric that turns lineup capture into a manager score, ranking, tier, recommendation, coverage-adjusted composite, or skill/fault claim requires a new governed methodology decision before implementation.

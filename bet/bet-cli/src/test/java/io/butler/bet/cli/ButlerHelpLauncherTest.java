@@ -21,19 +21,28 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains(
             "butler league team-week-lineup-points-gap-evidence <league-id> <team-id> <season> <week>"));
         assertTrue(output.contains(
+            "butler league team-week-lineup-capture-evidence <league-id> <team-id> <season> <week>"));
+        assertTrue(output.contains("Descriptive started-over-potential capture rate"));
+        assertTrue(output.contains(
             "butler league team-season-potential-lineup-evidence <league-id> <team-id> <season>"));
         assertTrue(output.contains(
             "butler league team-season-lineup-points-gap-evidence <league-id> <team-id> <season>"));
         assertTrue(output.contains(
+            "butler league team-season-lineup-capture-evidence <league-id> <team-id> <season>"));
+        assertTrue(output.contains("coverage as a separate denominator"));
+        assertTrue(output.contains(
             "butler league season-potential-lineup-evidence <league-id> <season>"));
         assertTrue(output.contains(
             "butler league season-lineup-points-gap-evidence <league-id> <season>"));
-        assertTrue(output.contains("each team's coverage denominator kept separate"));
+        assertTrue(output.contains(
+            "butler league season-lineup-capture-evidence <league-id> <season>"));
+        assertTrue(output.contains("no league average or ranking"));
         assertTrue(output.contains("not reconstructed historical startability"));
-        assertTrue(output.contains("Points-gap evidence is descriptive only"));
-        assertTrue(output.contains("no efficiency percentage, manager score, rank, tier"));
+        assertTrue(output.contains("Lineup capture is descriptive normalization only"));
+        assertTrue(output.contains("no manager efficiency, manager grade, rank, tier"));
         assertTrue(output.contains("recommendation, intent, fault, or skill attribution is computed"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
+        assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
     }
 
     @Test
