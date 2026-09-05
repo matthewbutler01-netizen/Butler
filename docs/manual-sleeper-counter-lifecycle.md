@@ -61,6 +61,20 @@ Eligible no-action finalization atomically marks the matching local attempt `FAI
 
 A usable provider expectation snapshot is required for trade reconciliation/success verification, but it is not required to close a handoff through exact human no-action evidence.
 
+### Trade no-action supersession and post-closure discrepancy
+
+Human no-action evidence is immutable historical evidence, but an **unfinalized** no-action acknowledgment is not allowed to overrule later exact provider truth. If the user records `NO_EXTERNAL_ACTION_TAKEN`, then manually submits the trade before no-action finalization, and Butler later obtains exact completed Sleeper readback matching the frozen handoff, `counter-finalize` may atomically:
+
+1. persist a durable `SUPERSEDED_BY_CONFIRMED_TRADE` resolution bound to the original no-action acknowledgment and exact completed transaction;
+2. preserve the original no-action acknowledgment unchanged for audit history; and
+3. finalize the active local execution as `SUCCEEDED` and consume the one-shot authorization.
+
+The supersession record and successful terminalization are committed together. A trade success outcome cannot coexist with an unresolved no-action acknowledgment.
+
+Once no-action has already been finalized as `FAILED + CONSUME`, the lifecycle is permanently closed. Later exact completed Sleeper readback **does not rewrite** the historical terminal state or reopen the authorization. Instead Butler records a durable `POST_CLOSURE_EXTERNAL_ACTION` discrepancy containing the exact transaction evidence and reports that the external action requires investigation.
+
+This distinction prevents two bad outcomes: stale human evidence cannot defeat exact completed provider evidence while the lifecycle is still active, and later external activity cannot silently rewrite an already-closed governed history.
+
 ## Manual message path
 
 Because Sleeper does not provide the same official readback for a manually sent negotiation message, Butler does not infer delivery. Inspect local state with:
@@ -96,12 +110,17 @@ The no-action acknowledgment is mutually exclusive with durable `SENT_EXACT_MESS
 
 ## Status interpretation
 
-The trade and message local status commands may now report explicit no-action states:
+The trade and message local status commands may report explicit no-action states:
 
 - `NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION`: exact durable human no-action evidence exists, but the local attempt is not yet terminalized.
 - `NO_ACTION_FINALIZED`: exact durable no-action evidence was separately finalized; the local attempt is `FAILED`, the one-shot grant is closed, and any retry requires fresh authorization.
 
-Successful and no-action completion are separate provenance paths. If contradictory success and no-action evidence somehow coexist, the status inspector fails closed rather than choosing one interpretation.
+Trade status may additionally report governed resolution states:
+
+- `FINALIZED_AFTER_NO_ACTION_SUPERSESSION`: exact completed Sleeper readback superseded an earlier **unfinalized** trade no-action acknowledgment, which remains immutable historical evidence; the local execution finalized `SUCCEEDED`.
+- `POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY`: exact completed Sleeper readback appeared only after the no-action lifecycle had already finalized `FAILED + CONSUME`; the closed local history remains unchanged and the external action requires investigation.
+
+Success and no-action evidence without the matching governed resolution remain contradictory. The status inspector fails closed rather than choosing one interpretation.
 
 ## Safety invariants
 
@@ -116,5 +135,7 @@ Successful and no-action completion are separate provenance paths. If contradict
 - No-action closure requires exact `NO_EXTERNAL_ACTION_TAKEN` human evidence bound to the trusted handoff; it is never inferred.
 - Recording no-action evidence alone does not terminalize the attempt or consume authorization.
 - No-action finalization is a separate atomic local operation that marks `FAILED` and closes the one-shot grant.
+- An unfinalized trade no-action acknowledgment may be superseded only by exact completed Sleeper readback bound to the same trusted handoff; supersession and success terminalization are atomic.
+- A no-action lifecycle already finalized `FAILED + CONSUME` is never rewritten by later external evidence; exact later completion is recorded only as a post-closure discrepancy requiring investigation.
 - Successful finalization and no-action finalization both close the one-shot authorization, so any later retry requires a fresh explicit authorization.
 - Butler performs no Sleeper write/private API call in any of these commands.
