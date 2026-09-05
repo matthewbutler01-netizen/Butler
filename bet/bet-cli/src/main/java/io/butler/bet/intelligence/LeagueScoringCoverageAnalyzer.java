@@ -6,9 +6,7 @@ import io.butler.bet.data.LeagueScoringSettingsRepository;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -18,8 +16,6 @@ import java.util.Objects;
 public final class LeagueScoringCoverageAnalyzer {
     public static final String POLICY_ID =
         "league-scoring-coverage-v1-exact-production-fields-fail-closed";
-
-    private static final Map<String, String> SUPPORTED_FIELDS = supportedFields();
 
     private final Database database;
 
@@ -53,15 +49,15 @@ public final class LeagueScoringCoverageAnalyzer {
         for (var entry : settings.entrySet()) {
             String statKey = entry.getKey();
             double points = entry.getValue();
-            String supportedField = SUPPORTED_FIELDS.get(statKey);
+            SupportedScoringStat supported = SupportedScoringStat.find(statKey);
             RuleState state;
             String productionField = null;
             if (Double.compare(points, 0.0d) == 0) {
                 state = RuleState.ZERO_IGNORED;
                 ignoredZero++;
-            } else if (supportedField != null) {
+            } else if (supported != null) {
                 state = RuleState.SUPPORTED;
-                productionField = supportedField;
+                productionField = supported.productionField();
                 supportedNonzero++;
             } else {
                 state = RuleState.UNSUPPORTED_NONZERO;
@@ -86,20 +82,6 @@ public final class LeagueScoringCoverageAnalyzer {
             ignoredZero,
             unsupportedNonzero,
             reason);
-    }
-
-    private static Map<String, String> supportedFields() {
-        Map<String, String> fields = new LinkedHashMap<>();
-        fields.put("pass_yd", "passingYards");
-        fields.put("pass_td", "passingTouchdowns");
-        fields.put("pass_int", "interceptions");
-        fields.put("rush_yd", "rushingYards");
-        fields.put("rush_td", "rushingTouchdowns");
-        fields.put("rec", "receptions");
-        fields.put("rec_yd", "receivingYards");
-        fields.put("rec_td", "receivingTouchdowns");
-        fields.put("fum_lost", "fumblesLost");
-        return Map.copyOf(fields);
     }
 
     private static String requireText(String value, String field) {
