@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +30,8 @@ public final class SleeperJsonParser {
             stringList(root, "roster_positions"),
             positiveInt(root, "season"),
             settings.path("type").asInt(0),
-            settings.path("draft_rounds").asInt(0));
+            settings.path("draft_rounds").asInt(0),
+            numericMap(root, "scoring_settings"));
     }
 
     public List<SleeperUser> parseUsers(String json) throws JsonProcessingException {
@@ -144,6 +146,41 @@ public final class SleeperJsonParser {
         return parsed < 0 ? null : parsed;
     }
 
+    private static Map<String, Double> numericMap(JsonNode node, String field) {
+        JsonNode values = node.get(field);
+        if (values == null || values.isNull()) return Map.of();
+        if (!values.isObject()) {
+            throw new IllegalArgumentException("Sleeper field must be an object: " + field);
+        }
+        Map<String, Double> result = new LinkedHashMap<>();
+        values.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            if (key == null || key.isBlank()) {
+                throw new IllegalArgumentException("Sleeper scoring stat key must not be blank");
+            }
+            JsonNode value = entry.getValue();
+            double parsed;
+            if (value != null && value.isNumber()) {
+                parsed = value.asDouble();
+            } else {
+                String text = value == null ? null : value.asText(null);
+                if (text == null || text.isBlank()) {
+                    throw new IllegalArgumentException("Sleeper scoring value must be numeric for " + key);
+                }
+                try {
+                    parsed = Double.parseDouble(text.trim());
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Sleeper scoring value must be numeric for " + key);
+                }
+            }
+            if (!Double.isFinite(parsed)) {
+                throw new IllegalArgumentException("Sleeper scoring value must be finite for " + key);
+            }
+            result.put(key.trim(), parsed);
+        });
+        return Map.copyOf(result);
+    }
+
     private static List<String> stringList(JsonNode node, String field) {
         JsonNode values = node.path(field);
         if (!values.isArray()) return List.of();
@@ -167,17 +204,39 @@ public final class SleeperJsonParser {
     }
 
     public record SleeperLeague(String id, String name, List<String> rosterPositions,
-                                int season, int leagueType, int draftRounds) {
-        public SleeperLeague(String id, String name) { this(id, name, List.of(), 0, 0, 0); }
+                                int season, int leagueType, int draftRounds,
+                                Map<String, Double> scoringSettings) {
+        public SleeperLeague(String id, String name) {
+            this(id, name, List.of(), 0, 0, 0, Map.of());
+        }
         public SleeperLeague(String id, String name, List<String> rosterPositions) {
-            this(id, name, rosterPositions, 0, 0, 0);
+            this(id, name, rosterPositions, 0, 0, 0, Map.of());
+        }
+        public SleeperLeague(String id, String name, List<String> rosterPositions,
+                             int season, int leagueType, int draftRounds) {
+            this(id, name, rosterPositions, season, leagueType, draftRounds, Map.of());
         }
         public SleeperLeague {
             rosterPositions = rosterPositions == null ? List.of() : List.copyOf(rosterPositions);
+            scoringSettings = scoringSettings == null ? Map.of() : normalizeScoringSettings(scoringSettings);
             if (leagueType < 0 || leagueType > 2) {
                 throw new IllegalArgumentException("leagueType must be 0 (redraft), 1 (keeper), or 2 (dynasty)");
             }
             if (draftRounds < 0) throw new IllegalArgumentException("draftRounds must not be negative");
+        }
+
+        private static Map<String, Double> normalizeScoringSettings(Map<String, Double> settings) {
+            Map<String, Double> normalized = new LinkedHashMap<>();
+            settings.forEach((key, value) -> {
+                if (key == null || key.isBlank()) {
+                    throw new IllegalArgumentException("scoring stat key must not be blank");
+                }
+                if (value == null || !Double.isFinite(value)) {
+                    throw new IllegalArgumentException("scoring value must be finite for " + key);
+                }
+                normalized.put(key.trim(), value);
+            });
+            return Map.copyOf(normalized);
         }
     }
     public record SleeperUser(String id, String displayName, String teamName) {}
