@@ -28,6 +28,13 @@ class ButlerLeaguePlayerScoreCliTest {
     }
 
     @Test
+    void routesExactCommandShape() {
+        assertEquals(ButlerCommandRouter.Route.LEAGUE_PLAYER_SCORE,
+            ButlerCommandRouter.route(
+                new String[]{"league", "player-score", "l1", "p1", "2026", "nflverse"}));
+    }
+
+    @Test
     void rejectsMalformedArguments() {
         assertThrows(IllegalArgumentException.class, () -> ButlerLeaguePlayerScoreCli.parse(
             new String[]{"league", "player-score", "l1", "p1", "bad", "nflverse"}));
