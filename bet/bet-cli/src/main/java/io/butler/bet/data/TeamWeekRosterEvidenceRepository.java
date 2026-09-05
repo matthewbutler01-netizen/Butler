@@ -73,20 +73,57 @@ public final class TeamWeekRosterEvidenceRepository {
                 statement.setString(4, source.trim());
                 try (ResultSet rs = statement.executeQuery()) {
                     if (!rs.next()) return Optional.empty();
-                    String id = rs.getString("id");
-                    return Optional.of(new TeamWeekRosterEvidence(
-                        id,
-                        rs.getString("league_id"),
-                        rs.getString("team_id"),
-                        rs.getInt("season"),
-                        rs.getInt("week"),
-                        findOrdered(connection, "team_week_roster_evidence_players", id),
-                        findOrdered(connection, "team_week_roster_evidence_starters", id),
-                        rs.getString("source"),
-                        LocalDate.parse(rs.getString("as_of_date"))));
+                    return Optional.of(map(connection, rs));
                 }
             }
         }
+    }
+
+    /** Returns exactly one latest persisted roster snapshot for each observed team week, in week order. */
+    public List<TeamWeekRosterEvidence> findLatestByTeamSeason(
+        String leagueId, String teamId, int season, String source) throws SQLException {
+        requireText(leagueId, "leagueId");
+        requireText(teamId, "teamId");
+        requireText(source, "source");
+        if (season < 1999 || season > 2100) throw new IllegalArgumentException("season must be between 1999 and 2100");
+
+        List<TeamWeekRosterEvidence> result = new ArrayList<>();
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            String sql = "SELECT id, league_id, team_id, season, week, source, as_of_date " +
+                "FROM team_week_roster_evidence WHERE league_id=? AND team_id=? AND season=? AND source=? " +
+                "ORDER BY week ASC, as_of_date DESC, id DESC";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, leagueId.trim());
+                statement.setString(2, teamId.trim());
+                statement.setInt(3, season);
+                statement.setString(4, source.trim());
+                try (ResultSet rs = statement.executeQuery()) {
+                    int previousWeek = -1;
+                    while (rs.next()) {
+                        int week = rs.getInt("week");
+                        if (week == previousWeek) continue;
+                        result.add(map(connection, rs));
+                        previousWeek = week;
+                    }
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static TeamWeekRosterEvidence map(Connection connection, ResultSet rs) throws SQLException {
+        String id = rs.getString("id");
+        return new TeamWeekRosterEvidence(
+            id,
+            rs.getString("league_id"),
+            rs.getString("team_id"),
+            rs.getInt("season"),
+            rs.getInt("week"),
+            findOrdered(connection, "team_week_roster_evidence_players", id),
+            findOrdered(connection, "team_week_roster_evidence_starters", id),
+            rs.getString("source"),
+            LocalDate.parse(rs.getString("as_of_date")));
     }
 
     private static Optional<String> findSnapshotId(Connection connection, TeamWeekRosterEvidence evidence)
