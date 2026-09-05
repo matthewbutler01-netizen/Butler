@@ -122,6 +122,16 @@ Trade status may additionally report governed resolution states:
 
 Success and no-action evidence without the matching governed resolution remain contradictory. The status inspector fails closed rather than choosing one interpretation.
 
+## Durable retention boundary
+
+Governed execution history is retained once it is written. These records are not disposable runtime scratch state and ordinary Butler operation does not delete them.
+
+Immutable evidence journals are append-only after insertion: execution claims, manual handoff presentations, frozen trade expectation snapshots, manual sent-message acknowledgments, manual no-action acknowledgments, no-action supersession/post-closure resolutions, generic execution outcomes/UNKNOWN resolutions, and manual terminal outcomes reject both `UPDATE` and `DELETE` where their contract is immutable.
+
+Authorization grants and execution attempts are intentionally different. They are **retained but stateful**: the rows cannot be deleted, while only their governed lifecycle fields remain mutable. A one-shot authorization may acquire `consumed_at`, and an execution attempt may move through its legal state/timestamp/outcome transitions. Retention must not be implemented by freezing those legitimate updates.
+
+Any future pruning, archival, migration, or destructive maintenance of governed lifecycle history is a separate schema/operations decision. It must not be introduced as an ordinary cleanup path or by silently weakening the database guards.
+
 ## Safety invariants
 
 - Sleeper message sending and trade submission remain manual actions outside Butler.
@@ -138,4 +148,5 @@ Success and no-action evidence without the matching governed resolution remain c
 - An unfinalized trade no-action acknowledgment may be superseded only by exact completed Sleeper readback bound to the same trusted handoff; supersession and success terminalization are atomic.
 - A no-action lifecycle already finalized `FAILED + CONSUME` is never rewritten by later external evidence; exact later completion is recorded only as a post-closure discrepancy requiring investigation.
 - Successful finalization and no-action finalization both close the one-shot authorization, so any later retry requires a fresh explicit authorization.
+- Governed lifecycle history is retained: immutable evidence cannot be updated or deleted, and stateful attempts/grants cannot be deleted while their explicitly allowed lifecycle updates remain available.
 - Butler performs no Sleeper write/private API call in any of these commands.
