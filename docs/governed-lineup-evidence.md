@@ -40,9 +40,15 @@ butler league season-lineup-capture-ranking-sensitivity-classification-evidence 
 butler league season-lineup-capture-ranking-change-frequency-evidence <league-id> <season>
 ```
 
+Historical calibration-corpus audit:
+
+```text
+butler league lineup-capture-ranking-sensitivity-calibration-corpus-audit <start-season> <end-season>
+```
+
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, deterministic sensitivity analysis, qualitative movement classification, change-frequency measurement, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, deterministic sensitivity analysis, qualitative movement classification, change-frequency measurement, historical temporal audit, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -245,6 +251,50 @@ The BF-500 baseline lineup-capture rank remains authoritative.
 
 The normative frequency rules are in [`league-lineup-capture-ranking-change-frequency-methodology.md`](league-lineup-capture-ranking-change-frequency-methodology.md).
 
+## Historical rank-sensitivity calibration corpus audit
+
+BF-517 through BF-520 add a separate **read-only historical corpus-audit layer**. This layer does not calibrate a model. It asks whether earlier governed sensitivity diagnostics can be inspected beside strictly later out-of-window movement of the same lineup-capture ordinal metric.
+
+The audit command is:
+
+```text
+butler league lineup-capture-ranking-sensitivity-calibration-corpus-audit <start-season> <end-season>
+```
+
+For each persisted league-season in the requested range, Butler starts from the governed all-team common comparable-week universe and audits every boundary between common weeks.
+
+An available cutoff requires:
+
+- at least **5 baseline common weeks**, preserving the BF-504 stability floor;
+- at least **4 strictly later future-only holdout common weeks**, preserving the BF-500 ranking floor;
+- the same complete repository team universe;
+- compatible governed scoring/solver/eligibility/starting-slot semantics across the evaluated period; and
+- available baseline ranking, baseline leave-one-out sensitivity, and future-only holdout ranking.
+
+Baseline and holdout windows are temporally disjoint. Future weeks do not feed baseline features, and baseline weeks do not remain in the holdout rank.
+
+The available historical row preserves baseline rank/rate, baseline maximum rank movement, changed/unchanged scenario counts, BF-508 class, BF-512 frequency, future-only holdout rank/rate, signed and absolute temporal rank displacement, and whether the exact numeric rank was retained.
+
+A future-only holdout rank is **not true, corrected, real, or ground-truth rank**. A later ordinal change does not prove the earlier governed rank was wrong.
+
+The audit deliberately preserves excluded cutoffs and corpus breadth. It reports team-count, baseline-week, holdout-week, perturbation-denominator, sensitivity-class, and cutoff-state distributions rather than declaring one headline sample size sufficient.
+
+Team-cutoff rows from the same league-season are correlated. Their count is not automatically the number of independent samples. BF-517/BF-520 define no arbitrary rule such as `N=30` or `N=100` as sufficient for calibration.
+
+A critical test fixture demonstrates that a team can have:
+
+```text
+BF-508 class = LOW_SENSITIVITY
+BF-512 rank-change frequency = 0/5 = 0.000000
+future-only holdout absolute rank displacement = 1
+```
+
+That distinction is intentional. Deterministic one-week-out stability does not become confidence merely because historical holdout evidence is now auditable.
+
+The corpus audit fits **no** qualitative frequency threshold, magnitude-frequency matrix, probability model, confidence score, expected rank, adjusted rank, manager consistency/reliability grade, sensitivity leaderboard, or recommendation.
+
+The normative historical-audit rules are in [`league-lineup-capture-ranking-sensitivity-calibration-methodology.md`](league-lineup-capture-ranking-sensitivity-calibration-methodology.md).
+
 ## Team-season week universe
 
 Team-season evidence uses only persisted Sleeper roster weeks as its observed week universe. Butler does not fabricate unobserved weeks to make a season look complete.
@@ -262,18 +312,19 @@ Coverage remains separate from lineup capture. Butler does not penalize, multipl
 
 ## League-season presentation
 
-League-season lineup evidence now has six distinct presentation layers:
+The governed lineup evidence family now has seven distinct analytical/presentation layers:
 
 1. independently scoped team evidence in repository team-name order;
 2. the neutral all-team common-universe table in repository team-name order;
 3. the separate governed lineup-capture ranking surface, available only under BF-500 prerequisites;
 4. deterministic leave-one-common-week-out ranking-stability evidence, available only under BF-504 prerequisites;
-5. observed maximum-movement rank-sensitivity classification derived from the complete BF-504 artifact under BF-508 rules; and
-6. observed changed-over-total rank-change frequency derived from the complete BF-504 artifact under BF-512 rules.
+5. observed maximum-movement rank-sensitivity classification derived from the complete BF-504 artifact under BF-508 rules;
+6. observed changed-over-total rank-change frequency derived from the complete BF-504 artifact under BF-512 rules; and
+7. read-only historical temporal corpus audit under BF-517/BF-518 rules, comparing earlier governed diagnostics with strictly later future-only holdout ordinal movement without calibrating thresholds.
 
-The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability, magnitude classification, and change frequency do not replace or revise the BF-500 baseline rank.
+The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability, magnitude classification, change frequency, and historical audit do not replace or revise the BF-500 baseline rank.
 
-Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability/sensitivity score, probabilistic rank confidence, frequency-adjusted rank, or combined magnitude-frequency score.
+Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability/sensitivity score, probabilistic rank confidence, frequency-adjusted rank, combined magnitude-frequency score, calibrated frequency tier, or historical confidence score.
 
 ## Identity-covered zero versus missing evidence
 
@@ -292,13 +343,17 @@ The governed lineup evidence stack does not establish:
 - a causal manager ranking;
 - that rank 1 identifies the best manager;
 - that adjacent lineup-capture ranks represent a meaningful skill difference;
-- statistical confidence, significance, probability, or predictive stability of the ordinal positions;
+- statistical confidence, significance, probability, or predictive stability of ordinal positions;
 - that observed rank-change frequency estimates future rank-change probability;
+- that a future-only holdout rank is the true or corrected rank;
+- that future ordinal movement proves a baseline rank was wrong;
+- that team-cutoff rows are independent samples;
+- that any current corpus size is sufficient for threshold calibration;
 - a manager grade, manager tier, manager percentile, or manager-stability label;
 - a league benchmark-relative manager score or league stability/sensitivity score;
 - a stability-adjusted, frequency-adjusted, or confidence-adjusted replacement rank; or
 - a recommendation about how a manager should have acted.
 
-The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank. BF-508 may classify **observed maximum ordinal movement** as low, moderate, or high sensitivity. BF-512 separately reports **how often** the rank changed across the complete deterministic perturbation set. Neither dimension is statistical confidence or person-level evaluation, and v1 does not combine them.
+The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank. BF-508 may classify **observed maximum ordinal movement** as low, moderate, or high sensitivity. BF-512 separately reports **how often** the rank changed across the complete deterministic perturbation set. BF-517/BF-518 then permit a read-only historical audit against strictly later out-of-window ordinal movement. None of these layers converts the metric into statistical confidence or person-level evaluation.
 
-Any future step that adds qualitative frequency tiers, combined magnitude-frequency scores or matrices, manager consistency/reliability labels, confidence intervals or probability claims, predictive modeling, frequency/stability-adjusted ranks, sensitivity leaderboards, league-wide sensitivity scores, recommendations, causal interpretation, skill/fault attribution, coverage-adjusted composites, or cross-league manager comparison requires a new governed methodology decision before implementation.
+Any future step that declares the historical corpus adequate for calibration, fits qualitative frequency thresholds, creates combined magnitude-frequency scores or matrices, estimates confidence or probability, predicts future rank, adjusts BF-500 ranks, assigns manager consistency/reliability labels, creates sensitivity leaderboards, issues recommendations, makes causal/skill/fault claims, applies coverage-adjusted composites, or compares managers across leagues requires a new governed methodology decision before implementation.
