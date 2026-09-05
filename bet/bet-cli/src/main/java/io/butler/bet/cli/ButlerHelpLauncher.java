@@ -1,12 +1,35 @@
 package io.butler.bet.cli;
 
-/** Preserves the existing global help surface and appends governed manual Sleeper lifecycle guidance. */
+/** Preserves the existing global help surface and appends governed evidence and manual lifecycle guidance. */
 public final class ButlerHelpLauncher {
     private ButlerHelpLauncher() {}
 
     public static void main(String[] args) {
         ButlerLauncher.main(args == null ? new String[0] : args);
+        printGovernedLineupEvidenceUsage();
         printManualCounterUsage();
+    }
+
+    static void printGovernedLineupEvidenceUsage() {
+        System.out.println();
+        System.out.println("Governed lineup evidence:");
+        System.out.println("  butler league team-week-potential-lineup <league-id> <team-id> <season> <week>");
+        System.out.println("    Recalculates retrospective legal potential lineup points from governed production evidence.");
+        System.out.println("  butler league team-week-started-lineup-evidence <league-id> <team-id> <season> <week>");
+        System.out.println("    Scores the exact persisted Sleeper starter order; explicit starter 0 remains an empty slot.");
+        System.out.println("  butler league team-week-lineup-points-gap-evidence <league-id> <team-id> <season> <week>");
+        System.out.println("    Complete-lineup-only descriptive potential-minus-started points gap for one observed week.");
+        System.out.println("  butler league team-season-potential-lineup-evidence <league-id> <team-id> <season>");
+        System.out.println("    Preserves blocked and incomplete observed roster weeks with an explicit qualifying denominator.");
+        System.out.println("  butler league team-season-lineup-points-gap-evidence <league-id> <team-id> <season>");
+        System.out.println("    Aggregates raw points-gap totals only over comparable complete observed roster weeks.");
+        System.out.println("  butler league season-potential-lineup-evidence <league-id> <season>");
+        System.out.println("    Exposes team potential-lineup evidence in repository team-name order without ranking.");
+        System.out.println("  butler league season-lineup-points-gap-evidence <league-id> <season>");
+        System.out.println("    Exposes team points-gap evidence with each team's coverage denominator kept separate.");
+        System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
+        System.out.println("  Points-gap evidence is descriptive only: no efficiency percentage, manager score, rank, tier,");
+        System.out.println("  recommendation, intent, fault, or skill attribution is computed.");
     }
 
     static void printManualCounterUsage() {
