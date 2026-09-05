@@ -48,6 +48,11 @@ class ButlerHelpLauncherTest {
             "butler league season-lineup-capture-ranking-evidence <league-id> <season>"));
         assertTrue(output.contains("at least four common weeks exist"));
         assertTrue(output.contains("otherwise no partial ranking is published"));
+        assertTrue(output.contains(
+            "butler league season-lineup-capture-ranking-stability-evidence <league-id> <season>"));
+        assertTrue(output.contains("Omits each baseline common comparable week exactly once"));
+        assertTrue(output.contains("at least five common weeks"));
+        assertTrue(output.contains("no partial stability summary is published"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
@@ -55,13 +60,19 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("governed six-decimal rates with competition ties"));
         assertTrue(output.contains("gap and coverage never break ties"));
         assertTrue(output.contains("four-week ranking floor is a governance threshold, not statistical confidence or skill evidence"));
-        assertTrue(output.contains("No manager grade, tier, percentile, recommendation, intent, fault, skill attribution, league benchmark"));
-        assertTrue(output.contains("confidence claim, coverage-adjusted composite, or cross-league ranking is computed"));
+        assertTrue(output.contains("Ranking stability is deterministic leave-one-common-week-out sensitivity"));
+        assertTrue(output.contains("baseline rank remains authoritative"));
+        assertTrue(output.contains("Stability requires five common weeks"));
+        assertTrue(output.contains("every perturbation retains the four-week ranking floor"));
+        assertTrue(output.contains("No stable/unstable tier, confidence interval, probability, manager consistency/reliability label"));
+        assertTrue(output.contains("manager grade, percentile, recommendation, intent, fault, skill attribution, league-wide stability score"));
+        assertTrue(output.contains("coverage-adjusted composite, stability-adjusted replacement rank, or cross-league stability comparison is computed"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
         assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
         assertTrue(output.contains("See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-common-universe-methodology.md for neutral league-table rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules."));
     }
 
     @Test
