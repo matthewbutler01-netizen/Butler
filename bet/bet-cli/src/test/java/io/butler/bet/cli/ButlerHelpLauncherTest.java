@@ -33,6 +33,7 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("Points-gap evidence is descriptive only"));
         assertTrue(output.contains("no efficiency percentage, manager score, rank, tier"));
         assertTrue(output.contains("recommendation, intent, fault, or skill attribution is computed"));
+        assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
     }
 
     @Test
