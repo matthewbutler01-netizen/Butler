@@ -1,6 +1,7 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.domain.PlayerSeasonProduction;
+import io.butler.bet.domain.PlayerWeekProduction;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -27,6 +28,24 @@ class CoveredProductionScoringPolicyTest {
             component.statKey().equals("rec")
                 && component.rawValue() == 8
                 && component.contribution().compareTo(new BigDecimal("8.0")) == 0));
+    }
+
+    @Test
+    void weekAndSeasonProductionUseTheSameExactArithmeticAndMapping() {
+        var season = production(250, 2, 1, 30, 1, 5, 50, 1, 1);
+        var week = new PlayerWeekProduction(
+            "week-prod-1", "player-1", 2026, 7,
+            250, 2, 1, 30, 1, 5, 50, 1, 1,
+            "nflverse", LocalDate.of(2026, 10, 20));
+
+        var seasonScore = policy.score(season, standardPpr());
+        var weekScore = policy.score(week, standardPpr());
+
+        assertEquals(0, seasonScore.totalPoints().compareTo(weekScore.totalPoints()));
+        assertEquals(0, weekScore.totalPoints().compareTo(new BigDecimal("39")));
+        assertEquals(7, weekScore.week());
+        assertEquals("week-prod-1", weekScore.productionId());
+        assertEquals(seasonScore.components(), weekScore.components());
     }
 
     @Test
