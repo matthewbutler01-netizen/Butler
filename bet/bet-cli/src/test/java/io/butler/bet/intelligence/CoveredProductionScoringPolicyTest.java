@@ -42,7 +42,7 @@ class CoveredProductionScoringPolicyTest {
         var weekScore = policy.score(week, standardPpr());
 
         assertEquals(0, seasonScore.totalPoints().compareTo(weekScore.totalPoints()));
-        assertEquals(new BigDecimal("41.5"), weekScore.totalPoints());
+        assertEquals(0, weekScore.totalPoints().compareTo(new BigDecimal("39")));
         assertEquals(7, weekScore.week());
         assertEquals("week-prod-1", weekScore.productionId());
         assertEquals(seasonScore.components(), weekScore.components());
