@@ -4,7 +4,7 @@ Butler may normalize governed lineup evidence into a **lineup capture rate** onl
 
 ## Methodology status
 
-This document is normative for the first lineup-capture implementation.
+This document is normative for the v1 lineup-capture implementation.
 
 The v1 methodology permits:
 
@@ -169,9 +169,9 @@ V1 explicitly prohibits league-season:
 
 Even when two teams have the same observed/comparable week counts, the historical-startability limitation remains. Equal coverage counts do not prove equal real-world decision opportunity.
 
-## Proposed policy identifiers
+## Policy identifiers
 
-Implementations following this methodology should use stable policy identifiers that make the non-attribution boundary visible:
+The implemented v1 policy identifiers make the non-attribution boundary visible:
 
 ```text
 team-week-lineup-capture-evidence-v1-complete-gap-source-started-over-potential-no-attribution
@@ -179,7 +179,7 @@ team-season-lineup-capture-evidence-v1-comparable-complete-total-ratio-no-attrib
 league-season-lineup-capture-evidence-v1-team-name-order-no-ranking-no-cross-team-aggregate
 ```
 
-The metric scope should describe retrospective lineup capture and must not contain `manager efficiency`, `manager performance`, `skill`, or equivalent attribution language.
+The metric scopes describe retrospective lineup capture and do not use `manager efficiency`, `manager performance`, `skill`, or equivalent attribution language.
 
 ## Required fail-closed behavior
 
@@ -220,15 +220,22 @@ V1 cannot defend statements such as:
 
 Those claims require evidence and causal/interpretive assumptions that the governed lineup stack does not establish.
 
-## Implementation sequence authorized by this methodology
+## Implemented v1 command surfaces
 
-After this specification is accepted, the defensible implementation path is:
+The BF-485 through BF-490 implementation sequence authorized by this methodology is complete:
 
-1. team-week lineup capture evidence derived only from the governed team-week points-gap report;
-2. CLI exposure of that team-week evidence;
-3. team-season lineup capture evidence derived only from the governed team-season points-gap report;
-4. CLI exposure with explicit week-state coverage;
-5. neutral league-season wrapper with separate team denominators; and
-6. neutral league-season CLI in repository team-name order.
+```text
+butler league team-week-lineup-capture-evidence <league-id> <team-id> <season> <week>
+butler league team-season-lineup-capture-evidence <league-id> <team-id> <season>
+butler league season-lineup-capture-evidence <league-id> <season>
+```
 
-The sequence must stop again before any manager-efficiency label, cross-team ranking, tier, recommendation, composite coverage adjustment, or skill/fault attribution is introduced.
+The implementation preserves the intended layering:
+
+1. team-week capture derives only from governed complete team-week points-gap evidence;
+2. team-season capture derives only from governed comparable-complete season points-gap totals;
+3. team-season CLI retains every observed week state and explicit coverage denominator;
+4. league-season capture nests team-season reports in repository team-name order; and
+5. league-season CLI keeps team rates and denominators separate and performs no cross-team arithmetic.
+
+**Stop boundary:** the v1 implementation is complete. Any manager-efficiency label, manager score or grade, cross-team ranking, tier, recommendation, coverage-adjusted composite, causal interpretation, or skill/fault attribution requires a new governed methodology decision before implementation.
