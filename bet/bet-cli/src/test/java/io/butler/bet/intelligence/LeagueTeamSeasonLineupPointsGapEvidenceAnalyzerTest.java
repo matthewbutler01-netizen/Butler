@@ -26,8 +26,10 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
@@ -121,6 +123,65 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
         assertTrue(report.aggregate().comparableTotalStartedPoints().isEmpty());
         assertTrue(report.aggregate().comparableTotalPotentialPoints().isEmpty());
         assertTrue(report.aggregate().comparableTotalPointsGap().isEmpty());
+    }
+
+    @Test
+    void seasonReportRejectsAggregateStateCountsThatDoNotMatchNestedWeeks() throws Exception {
+        var report = comparableOneWeekReport();
+        var wrongAggregate = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonAggregate(
+            1, 1, 0, 0, 0,
+            Optional.empty(), Optional.empty(), Optional.empty());
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> copyWithAggregate(report, wrongAggregate));
+
+        assertEquals("aggregate week-state counts must match nested week evidence", error.getMessage());
+    }
+
+    @Test
+    void seasonReportRejectsBalancedButWrongComparableTotals() throws Exception {
+        var report = comparableOneWeekReport();
+        var wrongAggregate = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonAggregate(
+            1, 0, 0, 0, 1,
+            Optional.of(new BigDecimal("9.0")),
+            Optional.of(new BigDecimal("16.0")),
+            Optional.of(new BigDecimal("7.0")));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> copyWithAggregate(report, wrongAggregate));
+
+        assertEquals("aggregate comparable totals must match nested week evidence", error.getMessage());
+    }
+
+    private LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport comparableOneWeekReport()
+        throws Exception {
+        Fixture fixture = initializedFixture();
+        fixture.saveConfiguration();
+        fixture.saveEligibility();
+        fixture.saveRoster(1, List.of("s1", "s2", "s3"), List.of("s1", "s2"));
+        fixture.saveCoverage(1, List.of("p1", "p2", "p3"));
+        fixture.saveProduction("p1", 1, 1, 0);
+        fixture.saveProduction("p2", 1, 0, 1);
+        fixture.saveProduction("p3", 1, 0, 2);
+        return fixture.analyzer().analyze("l1", "t1", 2026);
+    }
+
+    private static LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport copyWithAggregate(
+        LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport report,
+        LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonAggregate aggregate) {
+        return new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport(
+            report.policyId(),
+            report.metricScope(),
+            report.weekUniverse(),
+            report.aggregatePolicy(),
+            report.sourcePotentialSeasonPolicyId(),
+            report.startedLineupPolicyId(),
+            report.pointsGapPolicyId(),
+            report.leagueId(),
+            report.teamId(),
+            report.season(),
+            report.weeks(),
+            aggregate);
     }
 
     private Fixture initializedFixture() throws Exception {

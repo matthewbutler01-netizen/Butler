@@ -188,6 +188,30 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
             Optional.of(totalStarted), Optional.of(totalPotential), Optional.of(totalGap));
     }
 
+    private static void requireAggregateMatchesWeeks(List<WeekEvidence> weeks, SeasonAggregate aggregate) {
+        SeasonAggregate expected = aggregate(weeks);
+        if (aggregate.observedWeeks() != expected.observedWeeks()
+            || aggregate.blockedWeeks() != expected.blockedWeeks()
+            || aggregate.potentialIncompleteWeeks() != expected.potentialIncompleteWeeks()
+            || aggregate.startedIncompleteWeeks() != expected.startedIncompleteWeeks()
+            || aggregate.comparableCompleteWeeks() != expected.comparableCompleteWeeks()) {
+            throw new IllegalArgumentException("aggregate week-state counts must match nested week evidence");
+        }
+        if (!optionalDecimalEquals(
+                aggregate.comparableTotalStartedPoints(), expected.comparableTotalStartedPoints())
+            || !optionalDecimalEquals(
+                aggregate.comparableTotalPotentialPoints(), expected.comparableTotalPotentialPoints())
+            || !optionalDecimalEquals(
+                aggregate.comparableTotalPointsGap(), expected.comparableTotalPointsGap())) {
+            throw new IllegalArgumentException("aggregate comparable totals must match nested week evidence");
+        }
+    }
+
+    private static boolean optionalDecimalEquals(Optional<BigDecimal> left, Optional<BigDecimal> right) {
+        if (left.isEmpty() || right.isEmpty()) return left.isEmpty() && right.isEmpty();
+        return left.orElseThrow().compareTo(right.orElseThrow()) == 0;
+    }
+
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value;
@@ -406,9 +430,6 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
             }
             weeks = List.copyOf(Objects.requireNonNull(weeks, "weeks must not be null"));
             Objects.requireNonNull(aggregate, "aggregate must not be null");
-            if (aggregate.observedWeeks() != weeks.size()) {
-                throw new IllegalArgumentException("aggregate observedWeeks must match weeks");
-            }
             int previousWeek = 0;
             for (WeekEvidence week : weeks) {
                 if (week.week() <= previousWeek) {
@@ -433,6 +454,7 @@ public final class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer {
                 }
                 previousWeek = week.week();
             }
+            requireAggregateMatchesWeeks(weeks, aggregate);
         }
     }
 }
