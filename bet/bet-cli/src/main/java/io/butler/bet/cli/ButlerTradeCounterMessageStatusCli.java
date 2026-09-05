@@ -3,8 +3,10 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.TradeCounterExecutionAttemptRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
+import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
 import io.butler.bet.integration.sleeper.SleeperManualMessageAcknowledgmentRepository;
 import io.butler.bet.integration.sleeper.SleeperManualMessageOutcomeCoordinator;
+import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -29,17 +31,18 @@ public final class ButlerTradeCounterMessageStatusCli {
         try {
             Database database = new Database(DATABASE_PATH);
             database.initialize();
-            var resolved = ButlerTradeCounterMessageAcknowledgeCli.resolve(database, grantId);
-            if (resolved == null) {
+            var handoff = new SleeperManualCounterHandoffRepository(database)
+                .findByGrantId(grantId).orElse(null);
+            if (!isManualMessageHandoff(handoff)) {
                 printUnavailable(grantId);
                 return;
             }
 
             var acknowledgment = new SleeperManualMessageAcknowledgmentRepository(database)
-                .findByClaimId(resolved.claimId()).orElse(null);
+                .findByClaimId(handoff.claimId()).orElse(null);
             var outcome = new SleeperManualMessageOutcomeCoordinator(database)
-                .findByClaimId(resolved.claimId()).orElse(null);
-            print(inspect(resolved, acknowledgment, outcome));
+                .findByClaimId(handoff.claimId()).orElse(null);
+            print(inspect(handoff, acknowledgment, outcome));
         } catch (SQLException e) {
             System.err.println("Database error while inspecting manual message lifecycle: " + e.getMessage());
             System.exit(1);
@@ -64,21 +67,22 @@ public final class ButlerTradeCounterMessageStatusCli {
     }
 
     static LifecycleStatus inspect(
-        ButlerTradeCounterMessageAcknowledgeCli.Resolved resolved,
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperManualMessageAcknowledgmentRepository.StoredAcknowledgment acknowledgment,
         SleeperManualMessageOutcomeCoordinator.StoredOutcome outcome) {
-        Objects.requireNonNull(resolved, "resolved must not be null");
-        var handoff = resolved.handoff();
+        if (!isManualMessageHandoff(handoff)) {
+            throw new IllegalStateException("trusted handoff is not a manual Sleeper negotiation-message handoff");
+        }
 
         if (acknowledgment != null) {
-            requireAcknowledgmentMatches(resolved, acknowledgment);
+            requireAcknowledgmentMatches(handoff, acknowledgment);
         }
         if (outcome != null) {
             if (acknowledgment == null) {
                 throw new IllegalStateException(
                     "terminal manual-message outcome exists without durable acknowledgment evidence");
             }
-            requireOutcomeMatches(resolved, acknowledgment, outcome);
+            requireOutcomeMatches(handoff, acknowledgment, outcome);
         }
 
         State state = outcome != null
@@ -141,7 +145,7 @@ public final class ButlerTradeCounterMessageStatusCli {
         grantId = requireText(grantId, "grantId");
         System.out.println("Trade counter manual message lifecycle status unavailable");
         System.out.println("Trusted grant ID: " + grantId);
-        System.out.println("Reason: no matching durable execution claim and manual handoff were found.");
+        System.out.println("Reason: no matching durable manual message handoff was found.");
         System.out.println("Inspection only; no local lifecycle state changed and no Sleeper action occurred.");
     }
 
@@ -152,12 +156,20 @@ public final class ButlerTradeCounterMessageStatusCli {
         System.out.println("  This inspection does not acknowledge or finalize anything and performs no Sleeper write/private API call.");
     }
 
+    private static boolean isManualMessageHandoff(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff) {
+        return handoff != null
+            && handoff.action() == TradeCounterAuthorizationPolicy.Action.SEND_NEGOTIATION_MESSAGE
+            && handoff.destination().type() == TradeCounterAuthorizationPolicy.DestinationType.MANAGER
+            && handoff.reconciliationMode()
+                == SleeperManualCounterHandoffService.ReconciliationMode.NO_OFFICIAL_READBACK;
+    }
+
     private static void requireAcknowledgmentMatches(
-        ButlerTradeCounterMessageAcknowledgeCli.Resolved resolved,
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperManualMessageAcknowledgmentRepository.StoredAcknowledgment acknowledgment) {
-        var handoff = resolved.handoff();
-        if (!resolved.claimId().equals(acknowledgment.claimId())
-            || !resolved.attemptId().equals(acknowledgment.attemptId())
+        if (!handoff.claimId().equals(acknowledgment.claimId())
+            || !handoff.attemptId().equals(acknowledgment.attemptId())
             || !handoff.grantId().equals(acknowledgment.grantId())
             || !handoff.handoffId().equals(acknowledgment.handoffId())
             || !handoff.payloadSha256().equals(acknowledgment.payloadSha256())
@@ -168,13 +180,12 @@ public final class ButlerTradeCounterMessageStatusCli {
     }
 
     private static void requireOutcomeMatches(
-        ButlerTradeCounterMessageAcknowledgeCli.Resolved resolved,
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperManualMessageAcknowledgmentRepository.StoredAcknowledgment acknowledgment,
         SleeperManualMessageOutcomeCoordinator.StoredOutcome outcome) {
-        var handoff = resolved.handoff();
         if (!acknowledgment.acknowledgmentId().equals(outcome.acknowledgmentId())
-            || !resolved.claimId().equals(outcome.claimId())
-            || !resolved.attemptId().equals(outcome.attemptId())
+            || !handoff.claimId().equals(outcome.claimId())
+            || !handoff.attemptId().equals(outcome.attemptId())
             || !handoff.grantId().equals(outcome.grantId())
             || !handoff.handoffId().equals(outcome.handoffId())
             || !handoff.payloadSha256().equals(outcome.payloadSha256())

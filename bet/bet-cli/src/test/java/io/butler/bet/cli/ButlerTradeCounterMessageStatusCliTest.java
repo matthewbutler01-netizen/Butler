@@ -38,7 +38,7 @@ class ButlerTradeCounterMessageStatusCliTest {
 
     @Test
     void pendingStatusReportsNoAcknowledgmentOrFinalizationAndNoMutation() {
-        var status = ButlerTradeCounterMessageStatusCli.inspect(resolved(), null, null);
+        var status = ButlerTradeCounterMessageStatusCli.inspect(handoff(), null, null);
 
         assertEquals(ButlerTradeCounterMessageStatusCli.State.PENDING_ACKNOWLEDGMENT, status.state());
         String output = capture(() -> ButlerTradeCounterMessageStatusCli.print(status));
@@ -51,7 +51,7 @@ class ButlerTradeCounterMessageStatusCliTest {
 
     @Test
     void acknowledgedStatusKeepsHumanSendEvidenceSeparateFromButlerExecution() {
-        var status = ButlerTradeCounterMessageStatusCli.inspect(resolved(), acknowledgment(), null);
+        var status = ButlerTradeCounterMessageStatusCli.inspect(handoff(), acknowledgment(), null);
 
         assertEquals(ButlerTradeCounterMessageStatusCli.State.ACKNOWLEDGED_PENDING_FINALIZATION, status.state());
         String output = capture(() -> ButlerTradeCounterMessageStatusCli.print(status));
@@ -63,7 +63,7 @@ class ButlerTradeCounterMessageStatusCliTest {
 
     @Test
     void finalizedStatusReportsExistingTerminalEvidenceWithoutClaimingThisInspectionAppliedIt() {
-        var status = ButlerTradeCounterMessageStatusCli.inspect(resolved(), acknowledgment(), outcome());
+        var status = ButlerTradeCounterMessageStatusCli.inspect(handoff(), acknowledgment(), outcome());
 
         assertEquals(ButlerTradeCounterMessageStatusCli.State.FINALIZED, status.state());
         String output = capture(() -> ButlerTradeCounterMessageStatusCli.print(status));
@@ -77,27 +77,29 @@ class ButlerTradeCounterMessageStatusCliTest {
     @Test
     void outcomeWithoutAcknowledgmentFailsClosed() {
         assertThrows(IllegalStateException.class, () ->
-            ButlerTradeCounterMessageStatusCli.inspect(resolved(), null, outcome()));
+            ButlerTradeCounterMessageStatusCli.inspect(handoff(), null, outcome()));
     }
 
     @Test
     void mismatchedAcknowledgmentFailsClosed() {
         var wrong = acknowledgment("grant-other");
         assertThrows(IllegalStateException.class, () ->
-            ButlerTradeCounterMessageStatusCli.inspect(resolved(), wrong, null));
+            ButlerTradeCounterMessageStatusCli.inspect(handoff(), wrong, null));
+    }
+
+    @Test
+    void tradeHandoffCannotBeInspectedAsMessageLifecycle() {
+        assertThrows(IllegalStateException.class, () ->
+            ButlerTradeCounterMessageStatusCli.inspect(tradeHandoff(), null, null));
     }
 
     @Test
     void unavailableOutputStatesInspectionOnlyAndNoSleeperAction() {
         String output = capture(() -> ButlerTradeCounterMessageStatusCli.printUnavailable("grant-1"));
         assertTrue(output.contains("lifecycle status unavailable"));
+        assertTrue(output.contains("manual message handoff"));
         assertTrue(output.contains("no local lifecycle state changed"));
         assertTrue(output.contains("no Sleeper action occurred"));
-    }
-
-    private static ButlerTradeCounterMessageAcknowledgeCli.Resolved resolved() {
-        return new ButlerTradeCounterMessageAcknowledgeCli.Resolved(
-            "attempt-1", "claim-1", handoff());
     }
 
     private static SleeperManualCounterHandoffRepository.PresentedHandoff handoff() {
@@ -117,6 +119,26 @@ class ButlerTradeCounterMessageStatusCliTest {
             "NEGOTIATION_MESSAGE_TEXT",
             "b".repeat(64),
             SleeperManualCounterHandoffService.ReconciliationMode.NO_OFFICIAL_READBACK,
+            PRESENTED_AT);
+    }
+
+    private static SleeperManualCounterHandoffRepository.PresentedHandoff tradeHandoff() {
+        return new SleeperManualCounterHandoffRepository.PresentedHandoff(
+            "handoff-trade",
+            SleeperManualCounterHandoffRepository.JOURNAL_POLICY_ID,
+            SleeperManualCounterHandoffService.SERVICE_ID,
+            SleeperPlatformCapabilityPolicy.POLICY_ID,
+            TradeCounterExecutionRequestRepository.REQUEST_POLICY_ID,
+            "claim-trade",
+            "attempt-trade",
+            "grant-trade",
+            "c".repeat(64),
+            TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE,
+            new TradeCounterAuthorizationPolicy.Destination(
+                TradeCounterAuthorizationPolicy.DestinationType.LEAGUE, "league-1"),
+            "COUNTER_TRADE_REQUEST_JSON",
+            "d".repeat(64),
+            SleeperManualCounterHandoffService.ReconciliationMode.SLEEPER_TRANSACTION_READBACK,
             PRESENTED_AT);
     }
 
