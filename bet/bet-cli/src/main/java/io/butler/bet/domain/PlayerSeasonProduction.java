@@ -20,7 +20,7 @@ public record PlayerSeasonProduction(
     int receivingTouchdowns,
     int fumblesLost,
     String source,
-    LocalDate asOfDate) {
+    LocalDate asOfDate) implements RawScoringProduction {
 
     public PlayerSeasonProduction {
         id = requireText(id, "id");
