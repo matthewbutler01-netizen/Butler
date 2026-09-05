@@ -21,6 +21,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"league", "team-week-potential-lineup", "l1", "t1", "2026", "3"}));
         assertEquals(ButlerCommandRouter.Route.LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE,
             ButlerCommandRouter.route(new String[]{"league", "team-season-potential-lineup-evidence", "l1", "t1", "2026"}));
+        assertEquals(ButlerCommandRouter.Route.LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE,
+            ButlerCommandRouter.route(new String[]{"league", "season-potential-lineup-evidence", "l1", "2026"}));
         assertEquals(ButlerCommandRouter.Route.TRADE_SUPPORTING_EVIDENCE,
             ButlerCommandRouter.route(new String[]{"trade", "supporting-evidence", "l1", "2026", "p1", "p2"}));
         assertEquals(ButlerCommandRouter.Route.TRADE_STRATEGIC_CONTEXT,
