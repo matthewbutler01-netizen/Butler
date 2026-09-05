@@ -48,6 +48,7 @@ class SleeperManualCounterHandoffRepositoryTest {
             stored.reconciliationMode());
         assertEquals(PRESENTED_AT, stored.presentedAt());
         assertEquals(stored, repository.findByClaimId(fixture.claimId()).orElseThrow());
+        assertEquals(stored, repository.findByGrantId(fixture.grantId()).orElseThrow());
         assertEquals(TradeCounterExecutionAttemptRepository.State.IN_FLIGHT,
             fixture.attempts().findByAttemptId(fixture.attemptId()).orElseThrow().state());
         assertFalse(fixture.grants().findById(fixture.grantId()).orElseThrow().consumed());
@@ -68,6 +69,7 @@ class SleeperManualCounterHandoffRepositoryTest {
         assertEquals(PRESENTED_AT, second.handoff().presentedAt());
         assertEquals(SleeperManualCounterHandoffService.ReconciliationMode.NO_OFFICIAL_READBACK,
             second.handoff().reconciliationMode());
+        assertEquals(second.handoff(), repository.findByGrantId(fixture.grantId()).orElseThrow());
     }
 
     @Test
@@ -80,6 +82,7 @@ class SleeperManualCounterHandoffRepositoryTest {
         assertEquals(SleeperManualCounterHandoffRepository.RecordState.NOT_AVAILABLE, result.state());
         assertTrue(result.handoff() == null);
         assertTrue(repository.findByClaimId("missing-claim").isEmpty());
+        assertTrue(repository.findByGrantId("missing-grant").isEmpty());
     }
 
     @Test
@@ -95,6 +98,7 @@ class SleeperManualCounterHandoffRepositoryTest {
         assertThrows(IllegalStateException.class, () ->
             repository.recordPresented(fixture.claimId(), PRESENTED_AT));
         assertTrue(repository.findByClaimId(fixture.claimId()).isEmpty());
+        assertTrue(repository.findByGrantId(fixture.grantId()).isEmpty());
     }
 
     @Test
