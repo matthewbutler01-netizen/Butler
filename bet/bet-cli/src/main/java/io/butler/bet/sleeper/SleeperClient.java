@@ -35,6 +35,11 @@ public final class SleeperClient {
         return get("league/" + encodePath(leagueId) + "/rosters");
     }
 
+    public String getLeagueMatchups(String leagueId, int week) throws IOException, InterruptedException {
+        if (week <= 0) throw new IllegalArgumentException("week must be positive");
+        return get("league/" + encodePath(leagueId) + "/matchups/" + week);
+    }
+
     public String getLeagueUsers(String leagueId) throws IOException, InterruptedException {
         return get("league/" + encodePath(leagueId) + "/users");
     }
