@@ -33,6 +33,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_TEAM_WEEK_LINEUP_CAPTURE_EVIDENCE -> ButlerLeagueTeamWeekLineupCaptureEvidenceCli.main(args);
             case LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE -> ButlerLeagueTeamSeasonPotentialLineupEvidenceCli.main(args);
             case LEAGUE_TEAM_SEASON_LINEUP_POINTS_GAP_EVIDENCE -> ButlerLeagueTeamSeasonLineupPointsGapEvidenceCli.main(args);
+            case LEAGUE_TEAM_SEASON_LINEUP_CAPTURE_EVIDENCE -> ButlerLeagueTeamSeasonLineupCaptureEvidenceCli.main(args);
             case LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE -> ButlerLeagueSeasonPotentialLineupEvidenceCli.main(args);
             case LEAGUE_SEASON_LINEUP_POINTS_GAP_EVIDENCE -> ButlerLeagueSeasonLineupPointsGapEvidenceCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
@@ -114,6 +115,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "team-week-lineup-capture-evidence")) return Route.LEAGUE_TEAM_WEEK_LINEUP_CAPTURE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-season-potential-lineup-evidence")) return Route.LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-season-lineup-points-gap-evidence")) return Route.LEAGUE_TEAM_SEASON_LINEUP_POINTS_GAP_EVIDENCE;
+            if (equals(args[0], "league") && equals(args[1], "team-season-lineup-capture-evidence")) return Route.LEAGUE_TEAM_SEASON_LINEUP_CAPTURE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-potential-lineup-evidence")) return Route.LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-points-gap-evidence")) return Route.LEAGUE_SEASON_LINEUP_POINTS_GAP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
@@ -192,6 +194,7 @@ public final class ButlerCommandRouter {
                  LEAGUE_TEAM_WEEK_STARTED_LINEUP_EVIDENCE, LEAGUE_TEAM_WEEK_LINEUP_POINTS_GAP_EVIDENCE,
                  LEAGUE_TEAM_WEEK_LINEUP_CAPTURE_EVIDENCE,
                  LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_TEAM_SEASON_LINEUP_POINTS_GAP_EVIDENCE,
+                 LEAGUE_TEAM_SEASON_LINEUP_CAPTURE_EVIDENCE,
                  LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_SEASON_LINEUP_POINTS_GAP_EVIDENCE,
                  LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
