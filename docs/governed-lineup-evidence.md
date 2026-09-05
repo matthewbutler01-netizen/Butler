@@ -36,11 +36,12 @@ butler league season-lineup-capture-evidence <league-id> <season>
 butler league season-lineup-capture-common-universe-evidence <league-id> <season>
 butler league season-lineup-capture-ranking-evidence <league-id> <season>
 butler league season-lineup-capture-ranking-stability-evidence <league-id> <season>
+butler league season-lineup-capture-ranking-sensitivity-classification-evidence <league-id> <season>
 ```
 
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, sensitivity analysis, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, sensitivity analysis, qualitative sensitivity classification, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -177,13 +178,39 @@ Every perturbation keeps the exact baseline team universe. Butler does not drop 
 
 When all perturbations are available, Butler may expose deterministic team-level summaries including baseline rank/rate, distinct observed perturbation ranks, best and worst perturbation ranks, rank-range width, maximum absolute movement from baseline, unchanged/changed scenario counts, perturbation rate range, and maximum absolute rate movement.
 
-These are sensitivity observations, **not confidence intervals or probability statements**. V1 does not label a team or rank as stable, unstable, fragile, reliable, high-confidence, or low-confidence. It does not create a stability-adjusted replacement rank, average perturbation rank, league stability score, manager-consistency score, or stability leaderboard.
+These are sensitivity observations, **not confidence intervals or probability statements**. BF-504 does not itself create qualitative classes and does not create a stability-adjusted replacement rank, average perturbation rank, league stability score, manager-consistency score, or stability leaderboard.
 
 The baseline BF-500 lineup-capture rank remains authoritative for the full common-week set. Stability evidence answers only how that governed metric ordering responds to the specified one-week omissions.
 
 Leave-one-week-out sensitivity does not repair historical-startability limitations and does not establish manager consistency, reliability, skill, quality, fault, intent, or causal decision quality.
 
 The normative stability rules are in [`league-lineup-capture-ranking-stability-methodology.md`](league-lineup-capture-ranking-stability-methodology.md).
+
+## League lineup-capture rank sensitivity classification
+
+The separate BF-508 classification surface may attach one deterministic qualitative label to each team only when the complete BF-504 ranking-stability artifact is `AVAILABLE`.
+
+The classification input is **only** BF-504's maximum absolute rank movement from the BF-500 baseline rank across every required leave-one-common-week-out scenario:
+
+```text
+maximum absolute rank movement = 0  -> LOW_SENSITIVITY
+maximum absolute rank movement = 1  -> MODERATE_SENSITIVITY
+maximum absolute rank movement >= 2 -> HIGH_SENSITIVITY
+```
+
+These are **observed rank-sensitivity classes**. They summarize how much the governed ordinal artifact moved in the completed perturbation set. They are not confidence levels, probability estimates, predictions, manager-consistency labels, manager-reliability grades, or manager-quality tiers.
+
+The classifier does not use movement frequency, rate movement, raw points, coverage, team count normalization, baseline rank position, pairwise contrast, or manager identity. Those fields may remain visible as evidence context but cannot upgrade or downgrade the class.
+
+Competition-ranking ties remain exactly as governed by BF-500/BF-504. BF-508 does not compress ranks, switch to dense ranking, or reinterpret a movement caused by a tie appearing or disappearing.
+
+If source stability is unavailable, Butler withholds the **entire** qualitative classification. It does not classify only the teams or perturbations that happen to be available.
+
+The BF-500 baseline rank remains authoritative. Sensitivity class cannot create a rank penalty, rank bonus, confidence-weighted rank, consensus rank, or other stability-adjusted replacement rank.
+
+Sensitivity class is not an independent ranking key. Butler does not sort teams into a sensitivity leaderboard, calculate a league sensitivity score or percentile, or claim that a low-sensitivity team is better managed than a high-sensitivity team.
+
+The normative classification rules are in [`league-lineup-capture-ranking-sensitivity-classification-methodology.md`](league-lineup-capture-ranking-sensitivity-classification-methodology.md).
 
 ## Team-season week universe
 
@@ -202,16 +229,17 @@ Coverage remains separate from lineup capture. Butler does not penalize, multipl
 
 ## League-season presentation
 
-League-season lineup evidence now has four distinct presentation layers:
+League-season lineup evidence now has five distinct presentation layers:
 
 1. independently scoped team evidence in repository team-name order;
 2. the neutral all-team common-universe table in repository team-name order;
-3. the separate governed lineup-capture ranking surface, available only under BF-500 prerequisites; and
-4. deterministic leave-one-common-week-out ranking-stability evidence, available only under BF-504 prerequisites.
+3. the separate governed lineup-capture ranking surface, available only under BF-500 prerequisites;
+4. deterministic leave-one-common-week-out ranking-stability evidence, available only under BF-504 prerequisites; and
+5. observed rank-sensitivity classification derived only from the complete BF-504 artifact under BF-508 rules.
 
-The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability evidence does not replace or revise that baseline rank.
+The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability evidence and sensitivity classes do not replace or revise that baseline rank.
 
-Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, tier, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability score, or probabilistic rank confidence.
+Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability/sensitivity score, probabilistic rank confidence, or sensitivity-adjusted rank.
 
 ## Identity-covered zero versus missing evidence
 
@@ -231,11 +259,11 @@ The governed lineup evidence stack does not establish:
 - that rank 1 identifies the best manager;
 - that adjacent lineup-capture ranks represent a meaningful skill difference;
 - statistical confidence, significance, probability, or predictive stability of the ordinal positions;
-- a manager grade, tier, percentile, or stability label;
-- a league benchmark-relative manager score or league stability score;
-- a stability-adjusted replacement rank;
+- a manager grade, manager tier, manager percentile, or manager-stability label;
+- a league benchmark-relative manager score or league stability/sensitivity score;
+- a stability-adjusted or confidence-adjusted replacement rank;
 - a recommendation about how a manager should have acted.
 
-The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank without promoting it into statistical or manager-quality evidence.
+The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank. BF-508 may classify the **observed ordinal movement** as low, moderate, or high sensitivity without promoting that label into statistical confidence or person-level evaluation.
 
-Any future step that adds qualitative stability tiers, manager consistency/reliability labels, confidence intervals or probability claims, bootstrap/permutation/Bayesian inference, stability-adjusted ranks, league-wide stability scores, recommendations, causal interpretation, skill/fault attribution, coverage-adjusted composites, or cross-league stability comparison requires a new governed methodology decision before implementation.
+Any future step that adds manager consistency/reliability labels, confidence intervals or probability claims, frequency-weighted sensitivity scores, rate-sensitivity classes, stability-adjusted ranks, sensitivity leaderboards, league-wide sensitivity scores, recommendations, causal interpretation, skill/fault attribution, coverage-adjusted composites, or cross-league sensitivity comparison requires a new governed methodology decision before implementation.
