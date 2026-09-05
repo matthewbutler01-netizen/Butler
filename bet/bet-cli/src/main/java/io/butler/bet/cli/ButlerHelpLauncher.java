@@ -59,6 +59,11 @@ public final class ButlerHelpLauncher {
         System.out.println("    Gates require multiple league IDs, seasons, available league-seasons, team-count strata, perturbation denominators,");
         System.out.println("    and both retained and moved future-only rank outcomes; all six must pass for structural readiness.");
         System.out.println("    Structural readiness authorizes only later threshold-study methodology design; it is not sample-size adequacy or calibration.");
+        System.out.println("  butler league lineup-capture-ranking-sensitivity-candidate-threshold-study <start-season> <end-season>");
+        System.out.println("    Runs deterministic leave-one-league-season-out descriptive evaluation of observed single-axis candidate breakpoints.");
+        System.out.println("    Frequency candidates preserve exact development-observed rational values; movement candidates use observed integer cutoffs.");
+        System.out.println("    Candidate folds preserve EVALUABLE, UNEVALUABLE_NO_HELD_OUT_SPLIT, and NOT_GENERATED_IN_DEVELOPMENT_FOLD states.");
+        System.out.println("    The study never selects, optimizes, recommends, fits, refines, or publishes a production threshold.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
@@ -72,9 +77,11 @@ public final class ButlerHelpLauncher {
         System.out.println("  The historical calibration audit uses future weeks only as an out-of-window persistence comparison; a later rank is not true,");
         System.out.println("  corrected, or ground-truth rank, and a future rank change does not prove the earlier governed rank was wrong.");
         System.out.println("  Calibration team-cutoff rows are correlated within league-seasons and are not automatically an independent sample size.");
-        System.out.println("  BF-521 readiness gates test minimum structural variation only; passing them does not establish statistical adequacy,");
-        System.out.println("  generalization, a trusted threshold, or permission to generate or fit threshold candidates.");
-        System.out.println("  No arbitrary corpus-size sufficiency threshold, qualitative frequency threshold, probability model, or confidence score is authorized.");
+        System.out.println("  BF-521 readiness gates test minimum structural variation only; passing them does not establish statistical adequacy or generalization.");
+        System.out.println("  BF-525 candidate generation uses development-cluster baseline features only; held-out cluster values never expand that fold's candidate set.");
+        System.out.println("  BF-525 keeps raw frequency and maximum movement as separate candidate families and defines no magnitude-frequency composite.");
+        System.out.println("  Candidate output order is by family/value, never apparent performance, and no winner/optimal/recommended threshold is authorized.");
+        System.out.println("  No arbitrary corpus-size sufficiency threshold, probability model, confidence score, adjusted rank, or manager grade is authorized.");
         System.out.println("  Magnitude and frequency remain separate; Butler computes no combined magnitude-frequency score, frequency-adjusted rank,");
         System.out.println("  sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label, recommendation,");
         System.out.println("  skill/fault attribution, coverage-adjusted composite, or cross-league manager comparison.");
@@ -88,6 +95,7 @@ public final class ButlerHelpLauncher {
         System.out.println("  See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md for structural-readiness rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-candidate-threshold-study-methodology.md for candidate-study rules.");
     }
 
     static void printManualCounterUsage() {
