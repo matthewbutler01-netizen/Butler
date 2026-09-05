@@ -155,6 +155,14 @@ public final class SleeperCounterTradeNoActionResolutionRepository {
                 END
                 """);
             statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_trade_no_action_resolution_delete_immutable
+                BEFORE DELETE ON sleeper_counter_trade_no_action_resolutions
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'trade no-action resolution is immutable');
+                END
+                """);
+            statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_sleeper_no_action_terminal_rejects_superseded_trade
                 BEFORE INSERT ON sleeper_manual_counter_no_action_terminal_outcomes
                 FOR EACH ROW
