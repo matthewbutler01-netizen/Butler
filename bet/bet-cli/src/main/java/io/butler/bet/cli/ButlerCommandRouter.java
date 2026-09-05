@@ -24,6 +24,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_PERFORMANCE_EVIDENCE -> ButlerLeaguePerformanceEvidenceCli.main(args);
             case LEAGUE_SCORING_SETTINGS -> ButlerLeagueScoringSettingsCli.main(args);
             case LEAGUE_SCORING_COVERAGE -> ButlerLeagueScoringCoverageCli.main(args);
+            case LEAGUE_PLAYER_SCORE -> ButlerLeaguePlayerScoreCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
             case LEAGUE_POSITIONAL_PRESSURE -> ButlerLeaguePositionalPressureCli.main(args);
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
@@ -93,6 +94,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "performance-evidence")) return Route.LEAGUE_PERFORMANCE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "scoring-settings")) return Route.LEAGUE_SCORING_SETTINGS;
             if (equals(args[0], "league") && equals(args[1], "scoring-coverage")) return Route.LEAGUE_SCORING_COVERAGE;
+            if (equals(args[0], "league") && equals(args[1], "player-score")) return Route.LEAGUE_PLAYER_SCORE;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
             if (equals(args[0], "league") && equals(args[1], "positional-pressure")) return Route.LEAGUE_POSITIONAL_PRESSURE;
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
@@ -162,7 +164,7 @@ public final class ButlerCommandRouter {
 
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_SCORING_SETTINGS,
-                 LEAGUE_SCORING_COVERAGE, LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
+                 LEAGUE_SCORING_COVERAGE, LEAGUE_PLAYER_SCORE, LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
                  TRADE_COUNTER_DECISION, TRADE_COUNTER_PROPOSAL, TRADE_COUNTER_AUTHORIZATION, TRADE_COUNTER_READINESS,
