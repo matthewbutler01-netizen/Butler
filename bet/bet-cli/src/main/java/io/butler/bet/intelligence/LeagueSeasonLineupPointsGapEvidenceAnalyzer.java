@@ -104,20 +104,14 @@ public final class LeagueSeasonLineupPointsGapEvidenceAnalyzer {
             }
             teams = List.copyOf(Objects.requireNonNull(teams, "teams must not be null"));
             String previousTeamName = null;
-            String previousTeamId = null;
             for (TeamEvidence team : teams) {
                 if (!leagueId.equals(team.seasonEvidence().leagueId()) || season != team.seasonEvidence().season()) {
                     throw new IllegalArgumentException("nested team evidence must match league and season");
                 }
-                if (previousTeamName != null) {
-                    int nameComparison = previousTeamName.compareTo(team.teamName());
-                    if (nameComparison > 0 || (nameComparison == 0 && previousTeamId.compareTo(team.teamId()) >= 0)) {
-                        throw new IllegalArgumentException(
-                            "teams must preserve repository team-name order with team-id tie-breaker");
-                    }
+                if (previousTeamName != null && previousTeamName.compareTo(team.teamName()) > 0) {
+                    throw new IllegalArgumentException("teams must preserve repository team-name order");
                 }
                 previousTeamName = team.teamName();
-                previousTeamId = team.teamId();
             }
         }
     }
