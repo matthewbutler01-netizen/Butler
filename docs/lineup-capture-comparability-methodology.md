@@ -4,7 +4,7 @@ Butler may compare lineup-capture evidence across two teams only as a **pairwise
 
 ## Methodology status
 
-This document is normative for the first cross-team lineup-capture contrast implementation.
+This document is normative for the implemented v1 cross-team lineup-capture contrast.
 
 The governing decision is deliberately narrower than a ranking system:
 
@@ -116,14 +116,12 @@ pairwise lineup-capture contrast =
     Team A shared-week capture rate - Team B shared-week capture rate
 ```
 
-The normalized rates remain materialized at the existing v1 precision:
+The normalized rates and contrast are materialized at the existing v1 precision:
 
 ```text
 scale: 6 decimal places
 rounding: HALF_UP
 ```
-
-The contrast should also be materialized at scale 6 using `HALF_UP`.
 
 CLI presentation may show the rates and contrast as percentages/percentage points with two decimal places, while retaining the raw started/potential totals and shared-week count.
 
@@ -139,14 +137,16 @@ This arithmetic does **not** establish that Team A had a better manager or made 
 
 ## Required coverage context
 
-Every pairwise contrast report must expose, at minimum:
+Every pairwise contrast report exposes:
 
-- league ID and season;
+- league ID and season through the nested governed sources;
 - Team A identity and Team B identity;
 - each team's observed roster week count;
 - each team's individually comparable-complete week count;
 - ordered shared comparable week numbers;
 - shared comparable week count;
+- Team A-only comparable week numbers;
+- Team B-only comparable week numbers;
 - Team A shared total recalculated started points;
 - Team A shared total retrospective potential points;
 - Team A shared total points gap;
@@ -157,13 +157,13 @@ Every pairwise contrast report must expose, at minimum:
 - Team B optional shared-week capture rate; and
 - optional signed pairwise lineup-capture contrast.
 
-The report should also expose enough excluded-week context to establish why individually comparable weeks were not shared when that distinction exists.
+The CLI keeps the shared-week rule explicit so individually comparable but non-shared weeks cannot disappear silently.
 
 ## No arbitrary minimum shared-week threshold in v1
 
 V1 does not invent a statistical significance threshold or minimum shared-week sample size.
 
-A one-week shared contrast may be mathematically valid, but its evidence denominator must say exactly one shared comparable week. The system must not imply that such a result is a stable season-long difference.
+A one-week shared contrast may be mathematically valid, but its evidence denominator says exactly one shared comparable week. The system must not imply that such a result is a stable season-long difference.
 
 A future confidence, stability, or sample-sufficiency claim would require a separate statistical methodology.
 
@@ -186,9 +186,9 @@ If either team's shared-week rate is unavailable, the signed pairwise contrast i
 
 Being in the same league and season reduces, but does not eliminate, comparability limitations.
 
-The pairwise analyzer must fail closed if the two shared-week source reports do not preserve compatible governed league configuration/scoring/eligibility policy boundaries for a week being compared.
+The implemented pairwise analyzer fails closed when two shared-week source reports do not preserve the same governed league configuration date, roster-evidence date, production coverage date/source, scoring policy, solver policy, eligibility policy, and starting-slot count.
 
-The implementation must not repair mismatched provenance, substitute another week, impute missing evidence, or widen the week universe.
+The implementation does not repair mismatched provenance, substitute another week, impute missing evidence, or widen the week universe.
 
 ## Historical-startability limitation remains
 
@@ -239,23 +239,32 @@ A league ranking would require a separate methodology that explicitly resolves:
 - whether the result is descriptive or causal; and
 - what interpretation a rank is actually allowed to carry.
 
-## Proposed policy identifier
+## Policy identifier
 
-A conforming first implementation should use a policy identifier that keeps the shared-week and non-attribution boundaries visible:
+The implemented analyzer uses:
 
 ```text
 team-pair-season-lineup-capture-contrast-evidence-v1-shared-comparable-weeks-no-attribution
 ```
 
-A metric scope should make clear that the result is a retrospective pairwise contrast over shared governed weeks and is not manager performance.
+Its metric scope states that the result is a retrospective pairwise contrast over shared comparable complete observed weeks and is not manager attribution.
 
-## Implementation sequence authorized by this methodology
+## Implemented v1 command surface
 
-After this specification is accepted, the defensible implementation path is:
+The BF-493 and BF-494 implementation authorized by this methodology is complete:
 
-1. pairwise team-season lineup-capture contrast analyzer derived only from the two governed team-season points-gap reports;
-2. constructor-time invariants that recompute shared-week totals/rates/contrast from nested source evidence;
-3. pairwise CLI exposing both teams' raw shared totals, rates, contrast, and shared-week denominator; and
-4. help/documentation exposure.
+```text
+butler league team-pair-lineup-capture-contrast-evidence <league-id> <team-a-id> <team-b-id> <season>
+```
 
-**Stop boundary:** the implementation must stop again before league ranking, tiers, manager grades, recommendations, causal interpretation, skill/fault attribution, statistical confidence claims, or cross-league comparison.
+The implementation preserves the intended layering:
+
+1. both team sources are governed team-season lineup points-gap reports;
+2. shared weeks are the exact intersection of both `COMPARABLE_COMPLETE` week sets;
+3. both rates are recalculated from nested weekly evidence over that one shared set;
+4. team-only comparable weeks remain visible and excluded from the contrast;
+5. raw shared totals remain visible alongside any normalized rate;
+6. the signed contrast is emitted only when both shared rates are available; and
+7. the CLI explicitly rejects manager/ranking interpretation.
+
+**Stop boundary:** the pairwise v1 implementation is complete. Any league ranking, tier, manager grade, recommendation, causal interpretation, skill/fault attribution, statistical confidence claim, common-league scoring system, or cross-league comparison requires a new governed methodology decision before implementation.
