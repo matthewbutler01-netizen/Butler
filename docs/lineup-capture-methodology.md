@@ -239,3 +239,9 @@ The implementation preserves the intended layering:
 5. league-season CLI keeps team rates and denominators separate and performs no cross-team arithmetic.
 
 **Stop boundary:** the v1 implementation is complete. Any manager-efficiency label, manager score or grade, cross-team ranking, tier, recommendation, coverage-adjusted composite, causal interpretation, or skill/fault attribution requires a new governed methodology decision before implementation.
+
+## Governed pairwise comparability extension
+
+A separate methodology now defines the only cross-team comparison that may be considered next: a pairwise descriptive lineup-capture contrast recalculated over the exact same shared comparable weeks. Independently scoped season rates remain non-comparable by default, and league rankings remain prohibited.
+
+See `docs/lineup-capture-comparability-methodology.md` before implementing any cross-team lineup-capture arithmetic.
