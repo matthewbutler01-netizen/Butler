@@ -7,6 +7,7 @@ import io.butler.bet.execution.TradeCounterManualHandoffCoordinator;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeExpectationSnapshotRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
+import io.butler.bet.integration.sleeper.SleeperManualMessageAcknowledgmentPolicy;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterExecutionReadinessPolicy;
 
@@ -178,9 +179,7 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("Displaying this handoff does not prove that the action was completed in Sleeper.");
         if (handoff.reconciliationMode()
             == SleeperManualCounterHandoffService.ReconciliationMode.SLEEPER_TRANSACTION_READBACK) {
-            if (expectation != null
-                && expectation.state()
-                    != SleeperCounterTradeExpectationSnapshotRepository.State.NOT_AVAILABLE) {
+            if (hasUsableExpectation(expectation)) {
                 System.out.println("Official Sleeper transaction readback can use the immutable provider expectation snapshot.");
                 System.out.println("The persisted first-presentation timestamp is the safe not-before boundary for later transaction reconciliation.");
             } else {
@@ -189,6 +188,7 @@ public final class ButlerTradeCounterHandoffCli {
         } else {
             System.out.println("Sleeper provides no supported official message readback for this handoff.");
         }
+        printNextSafeSteps(handoff, expectation);
         System.out.println("The authorization grant remains unconsumed and the execution attempt remains IN_FLIGHT.");
     }
 
@@ -205,6 +205,38 @@ public final class ButlerTradeCounterHandoffCli {
             System.out.println("Sleeper movement SHA-256: " + expectation.snapshot().movementSha256());
             System.out.println("Sleeper provider identities and asset movement are frozen independently of future Butler ownership syncs.");
         }
+    }
+
+    private static void printNextSafeSteps(
+        SleeperManualCounterHandoffService.Handoff handoff,
+        SleeperCounterTradeExpectationSnapshotRepository.SnapshotResult expectation) {
+        String grantId = handoff.grantId();
+        if (handoff.action() == TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE) {
+            System.out.println("Next safe local inspection: butler trade counter-status " + grantId);
+            if (hasUsableExpectation(expectation)) {
+                System.out.println("After completing the trade manually in Sleeper, current external evidence is a separate official GET-only step with an explicit Sleeper week:");
+                System.out.println("  butler trade counter-reconcile " + grantId + " <sleeper-week>");
+                System.out.println("Local success finalization remains separate and may proceed only after exact completed readback:");
+                System.out.println("  butler trade counter-finalize " + grantId + " <sleeper-week>");
+            } else {
+                System.out.println("Do not reconcile or finalize this trade until a usable immutable provider expectation snapshot is available.");
+            }
+            return;
+        }
+
+        System.out.println("Next safe local inspection: butler trade counter-message-status " + grantId);
+        System.out.println("After manually sending the exact reviewed message outside Butler, record explicit human evidence:");
+        System.out.println("  butler trade counter-message-ack " + grantId + " --confirm "
+            + SleeperManualMessageAcknowledgmentPolicy.REQUIRED_CONFIRMATION);
+        System.out.println("Local completion remains a separate acknowledgment-gated action:");
+        System.out.println("  butler trade counter-message-finalize " + grantId);
+        System.out.println("Butler does not send the negotiation message.");
+    }
+
+    private static boolean hasUsableExpectation(
+        SleeperCounterTradeExpectationSnapshotRepository.SnapshotResult expectation) {
+        return expectation != null
+            && expectation.state() != SleeperCounterTradeExpectationSnapshotRepository.State.NOT_AVAILABLE;
     }
 
     static void printBlocked(TradeCounterExecutionReadinessPolicy.Result readiness) {
@@ -246,6 +278,7 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("  Loads only trusted persisted authorization/replay state, reruns the governed counter from current evidence, and requires fresh READY status.");
         System.out.println("  When READY, Butler derives the exact governed payload, durably prepares/claims the attempt, and presents a manual Sleeper handoff.");
         System.out.println("  Trade handoffs snapshot stable Sleeper provider identities and asset movement before the payload is displayed when those mappings are available.");
+        System.out.println("  Successful handoff output includes the action-specific next safe inspection/evidence commands without performing them.");
         System.out.println("  No trade, action, destination, or payload may be supplied or overridden on this command.");
         System.out.println("  Sleeper writes remain manual; presentation does not prove completion and does not consume the authorization grant.");
     }
