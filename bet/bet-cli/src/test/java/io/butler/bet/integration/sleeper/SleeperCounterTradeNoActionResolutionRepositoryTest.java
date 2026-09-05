@@ -194,6 +194,148 @@ class SleeperCounterTradeNoActionResolutionRepositoryTest {
                 .findByAttemptId(fixture.attemptId()).orElseThrow().state());
     }
 
+    @Test
+    void databaseRejectsDirectTradeSuccessWhileNoActionAcknowledgmentIsUnresolved() throws Exception {
+        Fixture fixture = fixture("unresolved-success-bypass");
+        recordNoAction(fixture);
+        new SleeperCounterTradeOutcomeCoordinator(fixture.database()).initialize();
+
+        try (var connection = fixture.database().openConnection();
+             var statement = connection.prepareStatement("""
+                 INSERT INTO sleeper_counter_trade_terminal_outcomes(
+                     outcome_id, coordinator_policy_id, evidence_policy_id,
+                     reconciliation_service_id, reconciliation_policy_id,
+                     claim_id, handoff_id, attempt_id, grant_id, movement_sha256,
+                     sleeper_week, sleeper_transaction_id, terminal_state,
+                     grant_disposition, evidence_reason, applied_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 """)) {
+            statement.setString(1, "bypass-success");
+            statement.setString(2, SleeperCounterTradeOutcomeCoordinator.COORDINATOR_POLICY_ID);
+            statement.setString(3, SleeperCounterTradeReconciliationOutcomePolicy.POLICY_ID);
+            statement.setString(4, SleeperCounterTradeSnapshotReconciliationService.SERVICE_ID);
+            statement.setString(5, SleeperTradeReconciliationPolicy.POLICY_ID);
+            statement.setString(6, fixture.claimId());
+            statement.setString(7, fixture.handoffId());
+            statement.setString(8, fixture.attemptId());
+            statement.setString(9, fixture.grantId());
+            statement.setString(10, fixture.snapshot().movementSha256());
+            statement.setInt(11, 7);
+            statement.setString(12, "tx-complete");
+            statement.setString(13, "SUCCEEDED");
+            statement.setString(14, "CONSUME");
+            statement.setString(15, "Attempted direct success bypass without supersession resolution.");
+            statement.setString(16, APPLIED_AT.toString());
+
+            assertThrows(java.sql.SQLException.class, statement::executeUpdate);
+        }
+
+        assertEquals(TradeCounterExecutionAttemptRepository.State.IN_FLIGHT,
+            new TradeCounterExecutionAttemptRepository(fixture.database())
+                .findByAttemptId(fixture.attemptId()).orElseThrow().state());
+        assertFalse(new TradeCounterAuthorizationGrantRepository(fixture.database())
+            .findById(fixture.grantId()).orElseThrow().consumed());
+        assertTrue(new SleeperCounterTradeOutcomeCoordinator(fixture.database())
+            .findByClaimId(fixture.claimId()).isEmpty());
+        assertTrue(new SleeperCounterTradeNoActionResolutionRepository(fixture.database())
+            .findByClaimId(fixture.claimId()).isEmpty());
+    }
+
+    @Test
+    void databaseRejectsNoActionTerminalizationAfterSupersessionResolution() throws Exception {
+        Fixture fixture = fixture("superseded-no-action-bypass");
+        recordNoAction(fixture);
+        new SleeperCounterTradeOutcomeCoordinator(fixture.database()).initialize();
+        var acknowledgment = new SleeperManualCounterNoActionAcknowledgmentRepository(fixture.database())
+            .findByClaimId(fixture.claimId()).orElseThrow();
+
+        insertSupersessionResolutionOnly(fixture, acknowledgment);
+
+        try (var connection = fixture.database().openConnection();
+             var statement = connection.prepareStatement("""
+                 INSERT INTO sleeper_manual_counter_no_action_terminal_outcomes(
+                     outcome_id, coordinator_policy_id, acknowledgment_journal_policy_id,
+                     acknowledgment_policy_id, acknowledgment_id, claim_id, attempt_id, grant_id,
+                     handoff_id, payload_sha256, action, destination_type, destination_id,
+                     confirmation, acknowledged_at, terminal_state, grant_disposition,
+                     evidence_reason, applied_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 """)) {
+            statement.setString(1, "bypass-no-action");
+            statement.setString(2, SleeperManualCounterNoActionOutcomeCoordinator.COORDINATOR_POLICY_ID);
+            statement.setString(3, SleeperManualCounterNoActionAcknowledgmentRepository.JOURNAL_POLICY_ID);
+            statement.setString(4, SleeperManualCounterNoActionAcknowledgmentPolicy.POLICY_ID);
+            statement.setString(5, acknowledgment.acknowledgmentId());
+            statement.setString(6, fixture.claimId());
+            statement.setString(7, fixture.attemptId());
+            statement.setString(8, fixture.grantId());
+            statement.setString(9, fixture.handoffId());
+            statement.setString(10, acknowledgment.payloadSha256());
+            statement.setString(11, TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE.name());
+            statement.setString(12, TradeCounterAuthorizationPolicy.DestinationType.LEAGUE.name());
+            statement.setString(13, acknowledgment.destination().id());
+            statement.setString(14, acknowledgment.confirmation());
+            statement.setString(15, acknowledgment.acknowledgedAt().toString());
+            statement.setString(16, TradeCounterExecutionAttemptRepository.State.FAILED.name());
+            statement.setString(17, "CONSUME");
+            statement.setString(18, "Attempted direct FAILED bypass after supersession resolution.");
+            statement.setString(19, APPLIED_AT.plusSeconds(1).toString());
+
+            assertThrows(java.sql.SQLException.class, statement::executeUpdate);
+        }
+
+        assertEquals(TradeCounterExecutionAttemptRepository.State.IN_FLIGHT,
+            new TradeCounterExecutionAttemptRepository(fixture.database())
+                .findByAttemptId(fixture.attemptId()).orElseThrow().state());
+        assertFalse(new TradeCounterAuthorizationGrantRepository(fixture.database())
+            .findById(fixture.grantId()).orElseThrow().consumed());
+        assertTrue(new SleeperManualCounterNoActionOutcomeCoordinator(fixture.database())
+            .findByClaimId(fixture.claimId()).isEmpty());
+        var resolution = new SleeperCounterTradeNoActionResolutionRepository(fixture.database())
+            .findByClaimId(fixture.claimId()).orElseThrow();
+        assertEquals(
+            SleeperCounterTradeNoActionResolutionRepository.ResolutionType.SUPERSEDED_BY_CONFIRMED_TRADE,
+            resolution.resolutionType());
+    }
+
+    private void insertSupersessionResolutionOnly(
+        Fixture fixture,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment acknowledgment)
+        throws Exception {
+        try (var connection = fixture.database().openConnection();
+             var statement = connection.prepareStatement("""
+                 INSERT INTO sleeper_counter_trade_no_action_resolutions(
+                     resolution_id, policy_id, acknowledgment_id, no_action_terminal_outcome_id,
+                     claim_id, attempt_id, grant_id, handoff_id, payload_sha256, movement_sha256,
+                     evidence_policy_id, reconciliation_service_id, reconciliation_policy_id,
+                     sleeper_week, sleeper_transaction_id, resolution_type, reason, resolved_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 """)) {
+            statement.setString(1, "resolution-only");
+            statement.setString(2, SleeperCounterTradeNoActionResolutionRepository.POLICY_ID);
+            statement.setString(3, acknowledgment.acknowledgmentId());
+            statement.setNull(4, java.sql.Types.VARCHAR);
+            statement.setString(5, fixture.claimId());
+            statement.setString(6, fixture.attemptId());
+            statement.setString(7, fixture.grantId());
+            statement.setString(8, fixture.handoffId());
+            statement.setString(9, acknowledgment.payloadSha256());
+            statement.setString(10, fixture.snapshot().movementSha256());
+            statement.setString(11, SleeperCounterTradeReconciliationOutcomePolicy.POLICY_ID);
+            statement.setString(12, SleeperCounterTradeSnapshotReconciliationService.SERVICE_ID);
+            statement.setString(13, SleeperTradeReconciliationPolicy.POLICY_ID);
+            statement.setInt(14, 7);
+            statement.setString(15, "tx-complete");
+            statement.setString(16,
+                SleeperCounterTradeNoActionResolutionRepository.ResolutionType
+                    .SUPERSEDED_BY_CONFIRMED_TRADE.name());
+            statement.setString(17,
+                "Exact completed trade evidence superseded the unfinalized no-action acknowledgment.");
+            statement.setString(18, APPLIED_AT.toString());
+            assertEquals(1, statement.executeUpdate());
+        }
+    }
+
     private void recordNoAction(Fixture fixture) throws Exception {
         var handoff = new SleeperManualCounterHandoffRepository(fixture.database())
             .findByClaimId(fixture.claimId()).orElseThrow();
