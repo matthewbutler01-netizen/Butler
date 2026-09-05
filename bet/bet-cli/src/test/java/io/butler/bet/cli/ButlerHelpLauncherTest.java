@@ -31,6 +31,9 @@ class ButlerHelpLauncherTest {
             "butler league team-season-lineup-capture-evidence <league-id> <team-id> <season>"));
         assertTrue(output.contains("coverage as a separate denominator"));
         assertTrue(output.contains(
+            "butler league team-pair-lineup-capture-contrast-evidence <league-id> <team-a-id> <team-b-id> <season>"));
+        assertTrue(output.contains("exact shared comparable weeks"));
+        assertTrue(output.contains(
             "butler league season-potential-lineup-evidence <league-id> <season>"));
         assertTrue(output.contains(
             "butler league season-lineup-points-gap-evidence <league-id> <season>"));
@@ -38,11 +41,14 @@ class ButlerHelpLauncherTest {
             "butler league season-lineup-capture-evidence <league-id> <season>"));
         assertTrue(output.contains("no league average or ranking"));
         assertTrue(output.contains("not reconstructed historical startability"));
+        assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("Lineup capture is descriptive normalization only"));
         assertTrue(output.contains("no manager efficiency, manager grade, rank, tier"));
         assertTrue(output.contains("recommendation, intent, fault, or skill attribution is computed"));
+        assertTrue(output.contains("must not be expanded into a league ranking without a new governed methodology"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
         assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
+        assertTrue(output.contains("See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules."));
     }
 
     @Test
