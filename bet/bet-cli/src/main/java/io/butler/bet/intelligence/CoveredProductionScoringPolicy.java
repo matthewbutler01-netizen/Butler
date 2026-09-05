@@ -1,6 +1,8 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.domain.PlayerSeasonProduction;
+import io.butler.bet.domain.PlayerWeekProduction;
+import io.butler.bet.domain.RawScoringProduction;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -10,14 +12,39 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Deterministically scores one raw player-season production record using only scoring rules that
- * Butler can represent exactly. Unsupported nonzero rules fail closed instead of being omitted.
+ * Deterministically scores one raw production record using only scoring rules that Butler can
+ * represent exactly. Unsupported nonzero rules fail closed instead of being omitted.
  */
 public final class CoveredProductionScoringPolicy {
     public static final String POLICY_ID =
         "covered-production-scoring-v1-exact-supported-rules-only";
 
     public ScoreResult score(PlayerSeasonProduction production, Map<String, Double> scoringSettings) {
+        Objects.requireNonNull(production, "production must not be null");
+        Calculation calculation = calculate(production, scoringSettings);
+        return new ScoreResult(
+            POLICY_ID,
+            production.id(),
+            production.playerId(),
+            production.season(),
+            calculation.totalPoints(),
+            calculation.components());
+    }
+
+    public WeekScoreResult score(PlayerWeekProduction production, Map<String, Double> scoringSettings) {
+        Objects.requireNonNull(production, "production must not be null");
+        Calculation calculation = calculate(production, scoringSettings);
+        return new WeekScoreResult(
+            POLICY_ID,
+            production.id(),
+            production.playerId(),
+            production.season(),
+            production.week(),
+            calculation.totalPoints(),
+            calculation.components());
+    }
+
+    private static Calculation calculate(RawScoringProduction production, Map<String, Double> scoringSettings) {
         Objects.requireNonNull(production, "production must not be null");
         Objects.requireNonNull(scoringSettings, "scoringSettings must not be null");
         if (scoringSettings.isEmpty()) {
@@ -52,20 +79,15 @@ public final class CoveredProductionScoringPolicy {
                 pointsPerUnit,
                 contribution));
         }
-
-        return new ScoreResult(
-            POLICY_ID,
-            production.id(),
-            production.playerId(),
-            production.season(),
-            total,
-            List.copyOf(components));
+        return new Calculation(total, List.copyOf(components));
     }
 
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value.trim();
     }
+
+    private record Calculation(BigDecimal totalPoints, List<ScoreComponent> components) {}
 
     public record ScoreComponent(
         String statKey,
@@ -93,6 +115,25 @@ public final class CoveredProductionScoringPolicy {
             requireText(productionId, "productionId");
             requireText(playerId, "playerId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
+            Objects.requireNonNull(totalPoints, "totalPoints must not be null");
+            components = List.copyOf(Objects.requireNonNull(components, "components must not be null"));
+        }
+    }
+
+    public record WeekScoreResult(
+        String policyId,
+        String productionId,
+        String playerId,
+        int season,
+        int week,
+        BigDecimal totalPoints,
+        List<ScoreComponent> components) {
+        public WeekScoreResult {
+            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
+            requireText(productionId, "productionId");
+            requireText(playerId, "playerId");
+            if (season <= 0) throw new IllegalArgumentException("season must be positive");
+            if (week <= 0) throw new IllegalArgumentException("week must be positive");
             Objects.requireNonNull(totalPoints, "totalPoints must not be null");
             components = List.copyOf(Objects.requireNonNull(components, "components must not be null"));
         }
