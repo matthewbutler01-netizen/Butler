@@ -100,10 +100,10 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("team-cutoff rows are correlated within league-seasons"));
         assertTrue(output.contains("not automatically an independent sample size"));
         assertTrue(output.contains("BF-521 readiness gates test minimum structural variation only"));
-        assertTrue(output.contains("does not establish statistical adequacy"));
-        assertTrue(output.contains("permission to generate or fit threshold candidates"));
-        assertTrue(output.contains("No arbitrary corpus-size sufficiency threshold"));
-        assertTrue(output.contains("qualitative frequency threshold, probability model, or confidence score is authorized"));
+        assertTrue(output.contains("does not establish statistical adequacy or generalization"));
+        assertTrue(output.contains("BF-525 candidate generation uses development-cluster baseline features only"));
+        assertTrue(output.contains("held-out cluster values never expand that fold's candidate set"));
+        assertTrue(output.contains("No arbitrary corpus-size sufficiency threshold, probability model, confidence score, adjusted rank, or manager grade is authorized"));
         assertTrue(output.contains("Magnitude and frequency remain separate"));
         assertTrue(output.contains("combined magnitude-frequency score, frequency-adjusted rank"));
         assertTrue(output.contains("manager consistency/reliability label"));
