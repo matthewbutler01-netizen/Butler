@@ -63,12 +63,20 @@ public final class ButlerCommandRouter {
             case AGING_MODEL_AGE_BAND_THRESHOLD_FRONTIER -> ButlerAgingModelAgeBandThresholdFrontierCli.main(args);
             case PRODUCTION_HISTORY -> ButlerProductionHistoryCli.main(args);
             case EVIDENCE -> ButlerEvidenceLauncher.main(args);
-            case COMPOSED -> ButlerLauncher.main(args);
+            case COMPOSED -> {
+                if (isGlobalHelp(args)) ButlerHelpLauncher.main(args);
+                else ButlerLauncher.main(args);
+            }
         }
     }
 
     static Class<?> tradeRecommendationImplementation() {
         return TRADE_RECOMMENDATION_TARGET.implementation();
+    }
+
+    static boolean isGlobalHelp(String[] args) {
+        return args == null || args.length == 0
+            || (args.length == 1 && equals(args[0], "help"));
     }
 
     static Route route(String[] args) {
