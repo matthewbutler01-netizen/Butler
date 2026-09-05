@@ -43,6 +43,7 @@ class LeagueTeamWeekPotentialLineupAnalyzerTest {
 
         assertEquals(LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE, report.metricScope());
         assertEquals(COVERAGE_DATE, report.productionCoverageAsOf());
+        assertEquals(URI.create("https://example.test/week.csv"), report.productionSourceUri());
         assertEquals(2, report.playerScores().size());
         assertEquals(new BigDecimal("4.0"), report.playerScores().get(0).fantasyPoints());
         assertEquals(LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.OBSERVED,
@@ -67,6 +68,7 @@ class LeagueTeamWeekPotentialLineupAnalyzerTest {
 
         assertEquals(new BigDecimal("4.0"), report.playerScores().get(0).fantasyPoints());
         assertEquals(COVERAGE_DATE, report.playerScores().get(0).productionCoverageAsOf());
+        assertEquals(URI.create("https://example.test/week.csv"), report.productionSourceUri());
         assertEquals(new BigDecimal("4.0"), report.lineup().totalPoints());
     }
 
