@@ -58,6 +58,12 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("0=LOW, 1=MODERATE, 2+=HIGH sensitivity"));
         assertTrue(output.contains("Requires complete available ranking-stability evidence"));
         assertTrue(output.contains("no partial classification is published"));
+        assertTrue(output.contains(
+            "butler league season-lineup-capture-ranking-change-frequency-evidence <league-id> <season>"));
+        assertTrue(output.contains("changed required one-week-out scenarios divided by the complete perturbation count"));
+        assertTrue(output.contains("six-decimal governed frequency"));
+        assertTrue(output.contains("BF-508 movement magnitude remains separate"));
+        assertTrue(output.contains("no frequency tier or combined score"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
@@ -69,11 +75,15 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("baseline rank remains authoritative"));
         assertTrue(output.contains("Stability requires five common weeks"));
         assertTrue(output.contains("every perturbation retains the four-week ranking floor"));
-        assertTrue(output.contains("Sensitivity classes describe observed ordinal movement only"));
-        assertTrue(output.contains("not manager stability, consistency"));
-        assertTrue(output.contains("reliability, quality, confidence, probability, significance, prediction, or a replacement rank"));
-        assertTrue(output.contains("Class labels do not use movement frequency, rate movement, coverage, or manager identity"));
-        assertTrue(output.contains("sensitivity leaderboard, league-wide sensitivity score, recommendation, skill/fault attribution, or cross-league comparison"));
+        assertTrue(output.contains("BF-508 sensitivity classes still use maximum absolute rank movement only"));
+        assertTrue(output.contains("rank-change frequency does not alter the class"));
+        assertTrue(output.contains("BF-512 frequency is deterministic changed-over-total perturbation context"));
+        assertTrue(output.contains("not probability, confidence, significance, or prediction"));
+        assertTrue(output.contains("Magnitude and frequency remain separate"));
+        assertTrue(output.contains("no qualitative frequency tier, combined magnitude-frequency score"));
+        assertTrue(output.contains("frequency-adjusted rank, sensitivity leaderboard, league-wide sensitivity score"));
+        assertTrue(output.contains("manager consistency/reliability label"));
+        assertTrue(output.contains("coverage-adjusted composite, or cross-league manager comparison"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
         assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
         assertTrue(output.contains("See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules."));
@@ -81,6 +91,7 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules."));
     }
 
     @Test
