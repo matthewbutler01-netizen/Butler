@@ -41,19 +41,26 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler league season-lineup-capture-ranking-evidence <league-id> <season>");
         System.out.println("    Ranks only the governed all-team common-universe lineup-capture rate when at least four common weeks exist.");
         System.out.println("    Every repository team must have an available common rate; otherwise no partial ranking is published.");
+        System.out.println("  butler league season-lineup-capture-ranking-stability-evidence <league-id> <season>");
+        System.out.println("    Omits each baseline common comparable week exactly once and recalculates deterministic rank/rate sensitivity.");
+        System.out.println("    Requires an available baseline rank and at least five common weeks; no partial stability summary is published.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
         System.out.println("  The separate ranking surface permits lineup-capture rank only, not manager rank or manager efficiency.");
         System.out.println("  Ranking uses governed six-decimal rates with competition ties; gap and coverage never break ties.");
         System.out.println("  The four-week ranking floor is a governance threshold, not statistical confidence or skill evidence.");
-        System.out.println("  No manager grade, tier, percentile, recommendation, intent, fault, skill attribution, league benchmark,");
-        System.out.println("  confidence claim, coverage-adjusted composite, or cross-league ranking is computed.");
+        System.out.println("  Ranking stability is deterministic leave-one-common-week-out sensitivity; the baseline rank remains authoritative.");
+        System.out.println("  Stability requires five common weeks so every perturbation retains the four-week ranking floor.");
+        System.out.println("  No stable/unstable tier, confidence interval, probability, manager consistency/reliability label,");
+        System.out.println("  manager grade, percentile, recommendation, intent, fault, skill attribution, league-wide stability score,");
+        System.out.println("  coverage-adjusted composite, stability-adjusted replacement rank, or cross-league stability comparison is computed.");
         System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
         System.out.println("  See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary.");
         System.out.println("  See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules.");
         System.out.println("  See docs/league-lineup-capture-common-universe-methodology.md for neutral league-table rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules.");
     }
 
     static void printManualCounterUsage() {
