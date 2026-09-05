@@ -10,7 +10,6 @@ import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.Objects;
 
 /** Local-only lifecycle inspection for one governed manual Sleeper counter trade. */
@@ -32,7 +31,8 @@ public final class ButlerTradeCounterStatusCli {
         try {
             Database database = new Database(DATABASE_PATH);
             database.initialize();
-            var handoff = findHandoffByGrantId(database, grantId);
+            var handoff = new SleeperManualCounterHandoffRepository(database)
+                .findByGrantId(grantId).orElse(null);
             if (handoff == null
                 || handoff.action() != TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE
                 || handoff.reconciliationMode()
@@ -157,41 +157,6 @@ public final class ButlerTradeCounterStatusCli {
         System.out.println("  Reads only local persisted trade handoff, provider snapshot, and terminal-outcome evidence.");
         System.out.println("  Reports SNAPSHOT_MISSING, LOCAL_UNFINALIZED, or FINALIZED without inferring current Sleeper state.");
         System.out.println("  This command performs no Sleeper request and does not reconcile or finalize anything.");
-    }
-
-    private static SleeperManualCounterHandoffRepository.PresentedHandoff findHandoffByGrantId(
-        Database database,
-        String grantId) throws SQLException {
-        grantId = requireText(grantId, "grantId");
-        new SleeperManualCounterHandoffRepository(database).initialize();
-        try (var connection = database.openConnection();
-             var statement = connection.prepareStatement(
-                 "SELECT * FROM sleeper_manual_counter_handoffs WHERE grant_id = ?")) {
-            statement.setString(1, grantId);
-            try (var rs = statement.executeQuery()) {
-                if (!rs.next()) return null;
-                return new SleeperManualCounterHandoffRepository.PresentedHandoff(
-                    rs.getString("handoff_id"),
-                    rs.getString("journal_policy_id"),
-                    rs.getString("handoff_service_id"),
-                    rs.getString("capability_policy_id"),
-                    rs.getString("execution_request_policy_id"),
-                    rs.getString("claim_id"),
-                    rs.getString("attempt_id"),
-                    rs.getString("grant_id"),
-                    rs.getString("proposal_fingerprint"),
-                    TradeCounterAuthorizationPolicy.Action.valueOf(rs.getString("action")),
-                    new TradeCounterAuthorizationPolicy.Destination(
-                        TradeCounterAuthorizationPolicy.DestinationType.valueOf(
-                            rs.getString("destination_type")),
-                        rs.getString("destination_id")),
-                    rs.getString("payload_kind"),
-                    rs.getString("payload_sha256"),
-                    SleeperManualCounterHandoffService.ReconciliationMode.valueOf(
-                        rs.getString("reconciliation_mode")),
-                    Instant.parse(rs.getString("presented_at")));
-            }
-        }
     }
 
     private static void requireSnapshotMatches(

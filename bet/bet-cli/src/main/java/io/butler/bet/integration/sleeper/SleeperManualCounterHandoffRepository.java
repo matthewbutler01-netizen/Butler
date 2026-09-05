@@ -188,12 +188,32 @@ public final class SleeperManualCounterHandoffRepository {
         }
     }
 
+    public Optional<PresentedHandoff> findByGrantId(String grantId) throws SQLException {
+        grantId = requireText(grantId, "grantId");
+        initialize();
+        try (var connection = database.openConnection()) {
+            return findByGrantId(connection, grantId);
+        }
+    }
+
     private static Optional<PresentedHandoff> findByClaimId(Connection connection, String claimId)
         throws SQLException {
         try (var statement = connection.prepareStatement("""
             SELECT * FROM sleeper_manual_counter_handoffs WHERE claim_id = ?
             """)) {
             statement.setString(1, claimId);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? Optional.of(read(rs)) : Optional.empty();
+            }
+        }
+    }
+
+    private static Optional<PresentedHandoff> findByGrantId(Connection connection, String grantId)
+        throws SQLException {
+        try (var statement = connection.prepareStatement("""
+            SELECT * FROM sleeper_manual_counter_handoffs WHERE grant_id = ?
+            """)) {
+            statement.setString(1, grantId);
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? Optional.of(read(rs)) : Optional.empty();
             }
