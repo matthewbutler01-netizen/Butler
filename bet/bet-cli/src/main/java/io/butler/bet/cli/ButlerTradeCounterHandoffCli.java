@@ -7,6 +7,7 @@ import io.butler.bet.execution.TradeCounterManualHandoffCoordinator;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeExpectationSnapshotRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
+import io.butler.bet.integration.sleeper.SleeperManualCounterNoActionAcknowledgmentPolicy;
 import io.butler.bet.integration.sleeper.SleeperManualMessageAcknowledgmentPolicy;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 import io.butler.bet.intelligence.TradeCounterExecutionReadinessPolicy;
@@ -221,6 +222,7 @@ public final class ButlerTradeCounterHandoffCli {
             } else {
                 System.out.println("Do not reconcile or finalize this trade until a usable immutable provider expectation snapshot is available.");
             }
+            printNoActionRecoverySteps(grantId);
             return;
         }
 
@@ -228,9 +230,20 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("After manually sending the exact reviewed message outside Butler, record explicit human evidence:");
         System.out.println("  butler trade counter-message-ack " + grantId + " --confirm "
             + SleeperManualMessageAcknowledgmentPolicy.REQUIRED_CONFIRMATION);
-        System.out.println("Local completion remains a separate acknowledgment-gated action:");
+        System.out.println("Local successful completion remains a separate acknowledgment-gated action:");
         System.out.println("  butler trade counter-message-finalize " + grantId);
+        printNoActionRecoverySteps(grantId);
+        System.out.println("Sent-message acknowledgment and no-action acknowledgment are mutually exclusive for this handoff.");
         System.out.println("Butler does not send the negotiation message.");
+    }
+
+    private static void printNoActionRecoverySteps(String grantId) {
+        System.out.println("If this exact presented handoff is not acted on externally, use explicit no-action evidence instead of inferring from absence:");
+        System.out.println("  butler trade counter-no-action-ack " + grantId + " --confirm "
+            + SleeperManualCounterNoActionAcknowledgmentPolicy.REQUIRED_CONFIRMATION);
+        System.out.println("No-action acknowledgment records evidence only; local FAILED + authorization close remains a separate step:");
+        System.out.println("  butler trade counter-no-action-finalize " + grantId);
+        System.out.println("Any retry after no-action finalization requires fresh explicit authorization.");
     }
 
     private static boolean hasUsableExpectation(
@@ -278,7 +291,7 @@ public final class ButlerTradeCounterHandoffCli {
         System.out.println("  Loads only trusted persisted authorization/replay state, reruns the governed counter from current evidence, and requires fresh READY status.");
         System.out.println("  When READY, Butler derives the exact governed payload, durably prepares/claims the attempt, and presents a manual Sleeper handoff.");
         System.out.println("  Trade handoffs snapshot stable Sleeper provider identities and asset movement before the payload is displayed when those mappings are available.");
-        System.out.println("  Successful handoff output includes the action-specific next safe inspection/evidence commands without performing them.");
+        System.out.println("  Successful handoff output includes both action-specific success evidence commands and the explicit no-action recovery path without performing them.");
         System.out.println("  No trade, action, destination, or payload may be supplied or overridden on this command.");
         System.out.println("  Sleeper writes remain manual; presentation does not prove completion and does not consume the authorization grant.");
     }
