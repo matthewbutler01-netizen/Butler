@@ -95,6 +95,14 @@ public final class TradeCounterExecutionClaimRepository {
                 END
                 """);
             statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_claim_delete_immutable
+                BEFORE DELETE ON trade_counter_execution_claims
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'execution claim is immutable');
+                END
+                """);
+            statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_attempt_claim_required
                 BEFORE UPDATE OF state ON trade_counter_execution_attempts
                 FOR EACH ROW
