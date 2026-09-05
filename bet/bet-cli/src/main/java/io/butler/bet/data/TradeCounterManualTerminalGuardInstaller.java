@@ -11,22 +11,27 @@ import java.util.Objects;
  */
 public final class TradeCounterManualTerminalGuardInstaller {
     public static final String INSTALLER_ID =
-        "trade-counter-manual-terminal-guard-installer-v2-available-manual-outcomes";
+        "trade-counter-manual-terminal-guard-installer-v3-available-manual-outcomes";
 
     private TradeCounterManualTerminalGuardInstaller() {}
 
     public static void installSleeperTradeSupport(Database database) throws SQLException {
-        install(database, true, false);
+        install(database, true, false, false);
     }
 
     public static void installSleeperMessageSupport(Database database) throws SQLException {
-        install(database, false, true);
+        install(database, false, true, false);
+    }
+
+    public static void installSleeperNoActionSupport(Database database) throws SQLException {
+        install(database, false, false, true);
     }
 
     private static void install(
         Database database,
         boolean requireSleeperTrade,
-        boolean requireSleeperMessage) throws SQLException {
+        boolean requireSleeperMessage,
+        boolean requireSleeperNoAction) throws SQLException {
         Objects.requireNonNull(database, "database must not be null");
         try (var connection = database.openConnection();
              var statement = connection.createStatement()) {
@@ -38,6 +43,7 @@ public final class TradeCounterManualTerminalGuardInstaller {
 
             boolean sleeperTrade = tableExists(connection, "sleeper_counter_trade_terminal_outcomes");
             boolean sleeperMessage = tableExists(connection, "sleeper_manual_message_terminal_outcomes");
+            boolean sleeperNoAction = tableExists(connection, "sleeper_manual_counter_no_action_terminal_outcomes");
             if (requireSleeperTrade && !sleeperTrade) {
                 throw new IllegalStateException(
                     "Sleeper trade terminal guard support requires the Sleeper trade outcome table");
@@ -46,9 +52,15 @@ public final class TradeCounterManualTerminalGuardInstaller {
                 throw new IllegalStateException(
                     "Sleeper message terminal guard support requires the manual-message outcome table");
             }
+            if (requireSleeperNoAction && !sleeperNoAction) {
+                throw new IllegalStateException(
+                    "Sleeper no-action terminal guard support requires the manual no-action outcome table");
+            }
 
-            String terminalManual = manualTerminalClauses(sleeperTrade, sleeperMessage);
-            String consumptionManual = manualConsumptionClauses(sleeperTrade, sleeperMessage);
+            String terminalManual = manualTerminalClauses(
+                sleeperTrade, sleeperMessage, sleeperNoAction);
+            String consumptionManual = manualConsumptionClauses(
+                sleeperTrade, sleeperMessage, sleeperNoAction);
 
             statement.executeUpdate(
                 "DROP TRIGGER IF EXISTS trg_trade_counter_execution_terminal_outcome_required");
@@ -110,7 +122,10 @@ public final class TradeCounterManualTerminalGuardInstaller {
         }
     }
 
-    private static String manualTerminalClauses(boolean sleeperTrade, boolean sleeperMessage) {
+    private static String manualTerminalClauses(
+        boolean sleeperTrade,
+        boolean sleeperMessage,
+        boolean sleeperNoAction) {
         StringBuilder sql = new StringBuilder();
         if (sleeperTrade) {
             sql.append("""
@@ -141,10 +156,28 @@ public final class TradeCounterManualTerminalGuardInstaller {
                       )
                 """);
         }
+        if (sleeperNoAction) {
+            sql.append("""
+                      OR (
+                          NEW.state = 'FAILED'
+                          AND EXISTS (
+                              SELECT 1
+                              FROM sleeper_manual_counter_no_action_terminal_outcomes n
+                              WHERE n.attempt_id = OLD.attempt_id
+                                AND n.grant_id = OLD.grant_id
+                                AND n.payload_sha256 = OLD.payload_sha256
+                                AND n.terminal_state = 'FAILED'
+                          )
+                      )
+                """);
+        }
         return sql.toString();
     }
 
-    private static String manualConsumptionClauses(boolean sleeperTrade, boolean sleeperMessage) {
+    private static String manualConsumptionClauses(
+        boolean sleeperTrade,
+        boolean sleeperMessage,
+        boolean sleeperNoAction) {
         StringBuilder sql = new StringBuilder();
         if (sleeperTrade) {
             sql.append("""
@@ -165,6 +198,17 @@ public final class TradeCounterManualTerminalGuardInstaller {
                           WHERE m.grant_id = OLD.grant_id
                             AND m.terminal_state = 'SUCCEEDED'
                             AND m.grant_disposition = 'CONSUME'
+                      )
+                """);
+        }
+        if (sleeperNoAction) {
+            sql.append("""
+                      OR EXISTS (
+                          SELECT 1
+                          FROM sleeper_manual_counter_no_action_terminal_outcomes n
+                          WHERE n.grant_id = OLD.grant_id
+                            AND n.terminal_state = 'FAILED'
+                            AND n.grant_disposition = 'CONSUME'
                       )
                 """);
         }
