@@ -502,6 +502,6 @@ public final class TradeCounterExecutionClaimRepository {
         String proposalFingerprint,
         TradeCounterAuthorizationPolicy.Action action,
         TradeCounterAuthorizationPolicy.Destination destination,
-        State state,
+        TradeCounterExecutionAttemptRepository.State state,
         boolean consumed) {}
 }
