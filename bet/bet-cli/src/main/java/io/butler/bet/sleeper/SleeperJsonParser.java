@@ -106,7 +106,8 @@ public final class SleeperJsonParser {
                     optionalText(node, "position"),
                     optionalText(node, "team"),
                     optionalNonNegativeInt(node, "age"),
-                    optionalNonNegativeInt(node, "years_exp")));
+                    optionalNonNegativeInt(node, "years_exp"),
+                    stringList(node, "fantasy_positions")));
         });
         return Map.copyOf(players);
     }
@@ -260,9 +261,16 @@ public final class SleeperJsonParser {
     public record SleeperTradedPick(int season, int round, int originalRosterId,
                                     int previousOwnerRosterId, int ownerRosterId) {}
     public record SleeperPlayer(String id, String displayName, String position, String nflTeam,
-                                Integer reportedAge, Integer yearsExperience) {
+                                Integer reportedAge, Integer yearsExperience, List<String> fantasyPositions) {
         public SleeperPlayer(String id, String displayName, String position, String nflTeam) {
-            this(id, displayName, position, nflTeam, null, null);
+            this(id, displayName, position, nflTeam, null, null, List.of());
+        }
+        public SleeperPlayer(String id, String displayName, String position, String nflTeam,
+                             Integer reportedAge, Integer yearsExperience) {
+            this(id, displayName, position, nflTeam, reportedAge, yearsExperience, List.of());
+        }
+        public SleeperPlayer {
+            fantasyPositions = fantasyPositions == null ? List.of() : List.copyOf(fantasyPositions);
         }
     }
 }
