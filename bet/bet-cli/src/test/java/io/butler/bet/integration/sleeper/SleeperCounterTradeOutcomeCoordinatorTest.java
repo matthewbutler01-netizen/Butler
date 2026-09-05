@@ -94,6 +94,43 @@ class SleeperCounterTradeOutcomeCoordinatorTest {
     }
 
     @Test
+    void differentCompletedEvidenceAfterFinalizationReturnsMismatchAndPreservesOriginal() throws Exception {
+        Fixture fixture = fixture("different-completed-evidence");
+        var coordinator = new SleeperCounterTradeOutcomeCoordinator(fixture.database());
+        var original = decision(fixture, SleeperTradeReconciliationPolicy.State.MATCH_COMPLETE);
+        var first = coordinator.apply(original, APPLIED_AT);
+        var conflicting = new SleeperCounterTradeReconciliationOutcomePolicy.Decision(
+            original.policyId(),
+            original.reconciliationServiceId(),
+            original.reconciliationPolicyId(),
+            original.grantId(),
+            original.claimId(),
+            original.handoffId(),
+            original.movementSha256(),
+            original.week(),
+            original.state(),
+            original.reasonCode(),
+            original.terminalOutcomeEligibility(),
+            List.of("tx-other"),
+            "A different completed transaction was later presented as evidence.");
+
+        var second = coordinator.apply(conflicting, APPLIED_AT.plusSeconds(60));
+
+        assertEquals(SleeperCounterTradeOutcomeCoordinator.ApplyState.APPLIED, first.state());
+        assertEquals(SleeperCounterTradeOutcomeCoordinator.ApplyState.MISMATCH, second.state());
+        assertEquals(first.outcome().outcomeId(), second.outcome().outcomeId());
+        assertEquals("tx-complete", second.outcome().sleeperTransactionId());
+        assertEquals(APPLIED_AT, second.outcome().appliedAt());
+        assertEquals("tx-complete",
+            coordinator.findByClaimId(fixture.claimId()).orElseThrow().sleeperTransactionId());
+        assertEquals(TradeCounterExecutionAttemptRepository.State.SUCCEEDED,
+            new TradeCounterExecutionAttemptRepository(fixture.database())
+                .findByAttemptId(fixture.attemptId()).orElseThrow().state());
+        assertTrue(new TradeCounterAuthorizationGrantRepository(fixture.database())
+            .findById(fixture.grantId()).orElseThrow().consumed());
+    }
+
+    @Test
     void pendingAndNoMatchEvidenceNeverMutateAttemptOrGrant() throws Exception {
         for (var state : List.of(
             SleeperTradeReconciliationPolicy.State.MATCH_PENDING,
