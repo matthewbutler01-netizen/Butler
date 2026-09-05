@@ -2,8 +2,10 @@ package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerRepository;
+import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
 import io.butler.bet.domain.PlayerWeekProduction;
+import io.butler.bet.domain.PlayerWeekProductionCoverage;
 
 import java.io.IOException;
 import java.net.URI;
@@ -14,10 +16,12 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Imports raw nflverse regular-season week production using exact GSIS-to-Sleeper identity mapping. */
 public final class NflversePlayerWeekProductionImporter {
@@ -25,6 +29,7 @@ public final class NflversePlayerWeekProductionImporter {
 
     private final PlayerRepository players;
     private final PlayerWeekProductionRepository production;
+    private final PlayerWeekProductionCoverageRepository coverage;
     private final HttpClient http;
 
     public NflversePlayerWeekProductionImporter(Database database) {
@@ -38,6 +43,7 @@ public final class NflversePlayerWeekProductionImporter {
         Objects.requireNonNull(database, "database must not be null");
         this.players = new PlayerRepository(database);
         this.production = new PlayerWeekProductionRepository(database);
+        this.coverage = new PlayerWeekProductionCoverageRepository(database);
         this.http = Objects.requireNonNull(http, "http must not be null");
     }
 
@@ -76,8 +82,11 @@ public final class NflversePlayerWeekProductionImporter {
 
         Map<String, String> sleeperByGsis = buildCrosswalk(idRows);
         Map<String, String> localPlayerBySleeper = buildLocalPlayerIndex();
+        List<String> identityCoveredPlayerIds = identityCoveredPlayers(sleeperByGsis, localPlayerBySleeper);
         Map<PlayerWeekKey, ProviderProduction> mapped = new LinkedHashMap<>();
         List<UnmatchedProviderRow> unmatched = new ArrayList<>();
+        Map<Integer, Integer> providerRowsByWeek = new LinkedHashMap<>();
+        Map<Integer, Integer> unmatchedRowsByWeek = new LinkedHashMap<>();
         int requestedSeasonRows = 0;
         int regularSeasonRows = 0;
 
@@ -90,16 +99,19 @@ public final class NflversePlayerWeekProductionImporter {
             regularSeasonRows++;
 
             int week = parsePositiveInt(required(row, "week"), "week", "provider row");
+            providerRowsByWeek.merge(week, 1, Integer::sum);
             String gsisId = normalizeId(required(row, "player_id"));
             if (gsisId == null) throw new IllegalArgumentException("blank nflverse player_id for season " + season + " week " + week);
             String sleeperId = sleeperByGsis.get(gsisId);
             if (sleeperId == null) {
                 unmatched.add(new UnmatchedProviderRow(gsisId, null, week, "No GSIS-to-Sleeper mapping"));
+                unmatchedRowsByWeek.merge(week, 1, Integer::sum);
                 continue;
             }
             String localPlayerId = localPlayerBySleeper.get(sleeperId);
             if (localPlayerId == null) {
                 unmatched.add(new UnmatchedProviderRow(gsisId, sleeperId, week, "No local player for Sleeper id"));
+                unmatchedRowsByWeek.merge(week, 1, Integer::sum);
                 continue;
             }
 
@@ -131,8 +143,16 @@ public final class NflversePlayerWeekProductionImporter {
             throw new IllegalArgumentException("nflverse weekly stats contain no REG rows for season: " + season);
         }
 
+        Map<Integer, Integer> matchedRowsByWeek = new LinkedHashMap<>();
+        for (ProviderProduction provider : mapped.values()) {
+            matchedRowsByWeek.merge(provider.week(), 1, Integer::sum);
+        }
+
         int snapshotsWritten = 0;
         if (persist) {
+            // Revoke same-day coverage before writing anything. A failed refresh may leave harmless
+            // partial production rows, but it cannot leave stale authorization to infer missing rows as zero.
+            coverage.deleteBySeasonAsOf(season, SOURCE, asOfDate);
             for (ProviderProduction provider : mapped.values()) {
                 production.save(PlayerWeekProduction.create(
                     provider.localPlayerId(), season, provider.week(), provider.passingYards(),
@@ -140,6 +160,19 @@ public final class NflversePlayerWeekProductionImporter {
                     provider.rushingTouchdowns(), provider.receptions(), provider.receivingYards(),
                     provider.receivingTouchdowns(), provider.fumblesLost(), SOURCE, asOfDate));
                 snapshotsWritten++;
+            }
+            for (var entry : providerRowsByWeek.entrySet()) {
+                int week = entry.getKey();
+                coverage.replace(new PlayerWeekProductionCoverage(
+                    season,
+                    week,
+                    SOURCE,
+                    statsUri(season),
+                    asOfDate,
+                    entry.getValue(),
+                    matchedRowsByWeek.getOrDefault(week, 0),
+                    unmatchedRowsByWeek.getOrDefault(week, 0),
+                    identityCoveredPlayerIds));
             }
         }
 
@@ -164,6 +197,16 @@ public final class NflversePlayerWeekProductionImporter {
             }
         }
         return result;
+    }
+
+    private static List<String> identityCoveredPlayers(Map<String, String> sleeperByGsis,
+                                                       Map<String, String> localPlayerBySleeper) {
+        Set<String> sleeperIdsInCrosswalk = new HashSet<>(sleeperByGsis.values());
+        return localPlayerBySleeper.entrySet().stream()
+            .filter(entry -> sleeperIdsInCrosswalk.contains(entry.getKey()))
+            .map(Map.Entry::getValue)
+            .sorted()
+            .toList();
     }
 
     private static Map<String, String> buildCrosswalk(List<Map<String, String>> rows) {
