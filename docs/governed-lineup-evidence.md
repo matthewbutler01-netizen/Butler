@@ -35,11 +35,12 @@ butler league season-lineup-points-gap-evidence <league-id> <season>
 butler league season-lineup-capture-evidence <league-id> <season>
 butler league season-lineup-capture-common-universe-evidence <league-id> <season>
 butler league season-lineup-capture-ranking-evidence <league-id> <season>
+butler league season-lineup-capture-ranking-stability-evidence <league-id> <season>
 ```
 
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, sensitivity analysis, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -55,13 +56,7 @@ If the governed evidence moves while a season comparison is being assembled, But
 
 The started-lineup analyzer uses the exact ordered Sleeper starter snapshot. It does not reconstruct a lineup from final scores.
 
-Sleeper's literal starter value `"0"` is an explicit empty starting slot. Butler preserves it as empty. It is never treated as:
-
-- a player identifier;
-- a zero-point player;
-- an identity-covered player with no production row.
-
-Those cases remain distinct in the evidence model.
+Sleeper's literal starter value `"0"` is an explicit empty starting slot. Butler preserves it as empty. It is never treated as a player identifier, a zero-point player, or an identity-covered player with no production row.
 
 A nonzero starter must belong to the exact persisted team-week roster and must be eligible for the corresponding ordered starting slot. Duplicate starters, starter/slot-count mismatches, and invalid slot eligibility fail closed rather than being guessed around.
 
@@ -75,15 +70,11 @@ This is a retrospective calculation under the configuration Butler observed. It 
 
 A team-week points gap is available only when both the governed potential lineup and the observed started lineup are complete under the same evidence boundary.
 
-The calculation is exactly:
-
 ```text
 points gap = retrospective potential points - recalculated started points
 ```
 
-The gap is descriptive evidence. It is not a manager-efficiency percentage, manager score, fault assignment, or skill estimate.
-
-Incomplete lineups do not receive a partial, normalized, or extrapolated gap.
+The gap is descriptive evidence. It is not a manager-efficiency percentage, manager score, fault assignment, or skill estimate. Incomplete lineups do not receive a partial, normalized, or extrapolated gap.
 
 ## Lineup capture normalization
 
@@ -123,16 +114,7 @@ shared comparable weeks =
     Team B COMPARABLE_COMPLETE weeks
 ```
 
-Both teams' started/potential totals and capture rates are recalculated over that exact shared week set. Only then may Butler expose a signed descriptive contrast:
-
-```text
-Team A minus Team B contrast =
-    Team A shared-week capture rate
-    -
-    Team B shared-week capture rate
-```
-
-The output preserves ordered shared weeks, team-only comparable weeks, broader coverage counts, raw shared started/potential/gap totals, both shared-week rates when available, and the optional signed contrast.
+Both teams' started/potential totals and capture rates are recalculated over that exact shared week set. Only then may Butler expose a signed descriptive contrast.
 
 The pairwise contrast remains retrospective evidence, not a winner or manager-quality judgment. Shared calendar weeks do not reconstruct historical player startability. Pairwise evidence is not used as a secondary ranking tie-breaker.
 
@@ -169,31 +151,39 @@ The normative all-team rules are in [`league-lineup-capture-common-universe-meth
 
 The separate ranking surface may assign **lineup-capture ranks** only from the governed common-universe report. It does not rebuild evidence or rank independently scoped season rates.
 
-A ranking is published only when:
-
-- at least two repository teams exist;
-- the common-universe source is available;
-- at least **4 common comparable weeks** exist; and
-- every repository team has an available normalized common-universe lineup-capture rate.
+A ranking is published only when at least two repository teams exist, the common-universe source is available, at least **4 common comparable weeks** exist, and every repository team has an available normalized common-universe lineup-capture rate.
 
 If any repository team is unavailable, Butler withholds the **entire** ranking. It does not drop that team, assign it last place, impute a rate, or publish a partial leaderboard.
 
-Rank assignment uses only the governed six-decimal common-universe lineup-capture rate. Higher rate receives the better ordinal position. Exact ties at that governed precision use standard competition ranking:
-
-```text
-rates: 0.950000, 0.900000, 0.900000, 0.850000
-ranks: 1,        2,        2,        4
-```
-
-No secondary metric breaks a tie. Raw points gap, started points, potential points, coverage, team ID, pairwise contrast, or manager identity cannot alter the shared rank. Repository team-name order is used only for deterministic presentation within an exact tie.
+Rank assignment uses only the governed six-decimal common-universe lineup-capture rate. Higher rate receives the better ordinal position. Exact ties at that governed precision use standard competition ranking (`1, 2, 2, 4`). No secondary metric breaks a tie.
 
 Every ranked row retains the common started/potential/gap totals, common-week denominator, observed coverage, individually comparable coverage, and individually comparable weeks excluded from common. The nested common-universe source remains inspectable in neutral repository team-name order.
 
 The four-week minimum is a **governance floor**, not a statistical-confidence or significance claim. A lineup-capture rank is a rank of the governed retrospective metric, **not a manager rank** and not evidence of manager efficiency, quality, skill, fault, intent, or decision quality.
 
-V1 ranking computes no manager grade, tier, percentile, league average/median benchmark, distance from first place, pairwise win/loss score, Elo-like rating, confidence interval, stability band, recommendation, coverage-adjusted composite, or cross-league rank.
-
 The normative ranking rules are in [`league-lineup-capture-ranking-methodology.md`](league-lineup-capture-ranking-methodology.md).
+
+## League lineup-capture ranking stability
+
+The separate ranking-stability surface evaluates the deterministic sensitivity of an **already-governed available lineup-capture ranking** to removing one contributing common comparable week at a time.
+
+V1 uses leave-one-common-week-out sensitivity only. It requires at least **5 baseline common comparable weeks** so every perturbation still retains the BF-500 four-week ranking floor.
+
+For baseline common weeks `W = [w1 ... wn]`, Butler creates exactly `n` scenarios. Scenario `i` deliberately omits `wi`, retains every other baseline common week, recalculates every repository team's started/potential/gap totals and six-decimal lineup-capture rate from the nested governed weekly source evidence, and reapplies the same competition-ranking policy.
+
+The baseline common-universe report is not mutated or fabricated to make the omission look like an evidence gap. The omitted week is a sensitivity perturbation, not a reclassification of source comparability.
+
+Every perturbation keeps the exact baseline team universe. Butler does not drop an unavailable team or skip a difficult omitted-week scenario. If any required perturbation cannot produce an available normalized rate for every baseline team, the **entire stability summary is unavailable**.
+
+When all perturbations are available, Butler may expose deterministic team-level summaries including baseline rank/rate, distinct observed perturbation ranks, best and worst perturbation ranks, rank-range width, maximum absolute movement from baseline, unchanged/changed scenario counts, perturbation rate range, and maximum absolute rate movement.
+
+These are sensitivity observations, **not confidence intervals or probability statements**. V1 does not label a team or rank as stable, unstable, fragile, reliable, high-confidence, or low-confidence. It does not create a stability-adjusted replacement rank, average perturbation rank, league stability score, manager-consistency score, or stability leaderboard.
+
+The baseline BF-500 lineup-capture rank remains authoritative for the full common-week set. Stability evidence answers only how that governed metric ordering responds to the specified one-week omissions.
+
+Leave-one-week-out sensitivity does not repair historical-startability limitations and does not establish manager consistency, reliability, skill, quality, fault, intent, or causal decision quality.
+
+The normative stability rules are in [`league-lineup-capture-ranking-stability-methodology.md`](league-lineup-capture-ranking-stability-methodology.md).
 
 ## Team-season week universe
 
@@ -208,21 +198,20 @@ Every observed roster week remains visible in one of four states:
 
 Only `COMPARABLE_COMPLETE` weeks contribute to team-season started-point, potential-point, points-gap, and lineup-capture source totals.
 
-The denominator is always explicit. For example, `4 comparable complete observed weeks out of 7 observed weeks` means exactly that. Butler does not silently convert that into a seven-week estimate.
-
 Coverage remains separate from lineup capture. Butler does not penalize, multiply, or blend missing coverage into the normalized rate.
 
 ## League-season presentation
 
-League-season lineup evidence has three distinct presentation layers:
+League-season lineup evidence now has four distinct presentation layers:
 
 1. independently scoped team evidence in repository team-name order;
-2. the neutral all-team common-universe table in repository team-name order; and
-3. the separate governed lineup-capture ranking surface, available only under the v1 ranking prerequisites.
+2. the neutral all-team common-universe table in repository team-name order;
+3. the separate governed lineup-capture ranking surface, available only under BF-500 prerequisites; and
+4. deterministic leave-one-common-week-out ranking-stability evidence, available only under BF-504 prerequisites.
 
-The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. It does not mutate the source common-universe report or turn any other league evidence field into an ordinal score.
+The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability evidence does not replace or revise that baseline rank.
 
-Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, tier, pairwise matrix, Elo-like score, manager grade, or composite manager score.
+Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, tier, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability score, or probabilistic rank confidence.
 
 ## Identity-covered zero versus missing evidence
 
@@ -235,15 +224,18 @@ Butler preserves those distinctions so zero production is not confused with an e
 The governed lineup evidence stack does not establish:
 
 - manager efficiency;
-- manager quality or skill;
+- manager quality, consistency, reliability, or skill;
 - intent or fault;
 - historical startability beyond the evidence Butler actually persisted;
 - a causal manager ranking;
 - that rank 1 identifies the best manager;
 - that adjacent lineup-capture ranks represent a meaningful skill difference;
-- statistical confidence, significance, or stability of the ordinal positions;
-- a manager grade, tier, or percentile;
-- a league benchmark-relative manager score;
+- statistical confidence, significance, probability, or predictive stability of the ordinal positions;
+- a manager grade, tier, percentile, or stability label;
+- a league benchmark-relative manager score or league stability score;
+- a stability-adjusted replacement rank;
 - a recommendation about how a manager should have acted.
 
-The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. Any future step that turns it into manager ranking terminology, grades, tiers, percentiles, league benchmark scores, pairwise win/loss scoring, statistical confidence/stability claims, causal interpretation, skill/fault attribution, recommendations, coverage-adjusted composites, or cross-league ranking requires a new governed methodology decision before implementation.
+The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank without promoting it into statistical or manager-quality evidence.
+
+Any future step that adds qualitative stability tiers, manager consistency/reliability labels, confidence intervals or probability claims, bootstrap/permutation/Bayesian inference, stability-adjusted ranks, league-wide stability scores, recommendations, causal interpretation, skill/fault attribution, coverage-adjusted composites, or cross-league stability comparison requires a new governed methodology decision before implementation.
