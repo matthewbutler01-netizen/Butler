@@ -64,6 +64,13 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("six-decimal governed frequency"));
         assertTrue(output.contains("BF-508 movement magnitude remains separate"));
         assertTrue(output.contains("no frequency tier or combined score"));
+        assertTrue(output.contains(
+            "butler league lineup-capture-ranking-sensitivity-calibration-corpus-audit <start-season> <end-season>"));
+        assertTrue(output.contains("temporally disjoint baseline and future-only holdout windows"));
+        assertTrue(output.contains("Baseline requires at least five common weeks"));
+        assertTrue(output.contains("future-only holdout requires at least four common weeks"));
+        assertTrue(output.contains("Preserves cutoff exclusions and corpus breadth"));
+        assertTrue(output.contains("fits no calibration threshold or confidence model"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
@@ -79,9 +86,15 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("rank-change frequency does not alter the class"));
         assertTrue(output.contains("BF-512 frequency is deterministic changed-over-total perturbation context"));
         assertTrue(output.contains("not probability, confidence, significance, or prediction"));
+        assertTrue(output.contains("historical calibration audit uses future weeks only as an out-of-window persistence comparison"));
+        assertTrue(output.contains("a later rank is not true"));
+        assertTrue(output.contains("a future rank change does not prove the earlier governed rank was wrong"));
+        assertTrue(output.contains("team-cutoff rows are correlated within league-seasons"));
+        assertTrue(output.contains("not automatically an independent sample size"));
+        assertTrue(output.contains("No arbitrary corpus-size sufficiency threshold"));
+        assertTrue(output.contains("qualitative frequency threshold, probability model, or confidence score is authorized"));
         assertTrue(output.contains("Magnitude and frequency remain separate"));
-        assertTrue(output.contains("no qualitative frequency tier, combined magnitude-frequency score"));
-        assertTrue(output.contains("frequency-adjusted rank, sensitivity leaderboard, league-wide sensitivity score"));
+        assertTrue(output.contains("combined magnitude-frequency score, frequency-adjusted rank"));
         assertTrue(output.contains("manager consistency/reliability label"));
         assertTrue(output.contains("coverage-adjusted composite, or cross-league manager comparison"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
@@ -92,6 +105,7 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules."));
     }
 
     @Test
