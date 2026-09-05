@@ -108,6 +108,14 @@ public final class SleeperManualCounterHandoffRepository {
                     SELECT RAISE(ABORT, 'manual handoff presentation record is immutable');
                 END
                 """);
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_manual_counter_handoff_delete_immutable
+                BEFORE DELETE ON sleeper_manual_counter_handoffs
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'manual handoff presentation record is immutable');
+                END
+                """);
         }
     }
 
