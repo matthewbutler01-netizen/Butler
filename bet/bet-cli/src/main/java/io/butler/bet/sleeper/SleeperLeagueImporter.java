@@ -5,6 +5,7 @@ import io.butler.bet.data.LeagueLineupConfigurationRepository;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
 import io.butler.bet.data.LeagueValueFormatRepository;
+import io.butler.bet.data.PlayerFantasyPositionRepository;
 import io.butler.bet.data.PlayerProfileSnapshotRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.RosterRepository;
@@ -24,6 +25,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -40,6 +42,7 @@ public final class SleeperLeagueImporter {
     private final LeagueScoringSettingsRepository scoringSettings;
     private final TeamRepository teams;
     private final PlayerRepository players;
+    private final PlayerFantasyPositionRepository playerFantasyPositions;
     private final PlayerProfileSnapshotRepository playerProfiles;
     private final RosterRepository rosters;
     private final TeamSeasonPerformanceRepository performance;
@@ -55,6 +58,7 @@ public final class SleeperLeagueImporter {
         this.scoringSettings = new LeagueScoringSettingsRepository(database);
         this.teams = new TeamRepository(database);
         this.players = new PlayerRepository(database);
+        this.playerFantasyPositions = new PlayerFantasyPositionRepository(database);
         this.playerProfiles = new PlayerProfileSnapshotRepository(database);
         this.rosters = new RosterRepository(database);
         this.performance = new TeamSeasonPerformanceRepository(database);
@@ -108,6 +112,8 @@ public final class SleeperLeagueImporter {
                 SleeperJsonParser.SleeperPlayer sourcePlayer = sourcePlayers.get(sleeperPlayerId);
                 Player player = resolvePlayer(sleeperPlayerId, sourcePlayer);
                 players.save(player);
+                playerFantasyPositions.replace(player.getId(),
+                    sourcePlayer == null ? List.of() : sourcePlayer.fantasyPositions());
                 saveProfileSnapshot(player, sourcePlayer, importAsOfDate);
                 importedPlayerIds.add(player.getId());
                 desiredInternalPlayerIds.add(player.getId());
