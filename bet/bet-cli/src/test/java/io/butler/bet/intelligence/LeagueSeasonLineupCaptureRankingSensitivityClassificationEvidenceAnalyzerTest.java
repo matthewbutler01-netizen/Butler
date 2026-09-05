@@ -144,7 +144,7 @@ class LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzerT
     }
 
     @Test
-    void reportRejectsFabricatedSensitivityClass() throws Exception {
+    void reportRejectsReorderedClassifications() throws Exception {
         Fixture fixture = initializedFixture("classification-invariant.db");
         fixture.saveConfiguration();
         fixture.saveEligibility();
@@ -154,20 +154,19 @@ class LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzerT
             fixture.saveStandardProduction(week);
         }
         var report = fixture.analyzer().analyze("l1", 2026);
-        var first = report.teamClassifications().get(0);
-        var fabricatedFirst = new LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzer
-            .TeamSensitivityClassification(
-                first.teamId(), first.teamName(), first.baselineRank(), first.baselineLineupCaptureRate(),
-                first.perturbationScenarioCount(), first.maximumAbsoluteRankMovement(),
-                first.rankSensitivityRangeWidth(), first.baselineRankUnchangedScenarios(),
-                first.baselineRankChangedScenarios(),
-                LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzer.SensitivityClass
-                    .MODERATE_SENSITIVITY);
+        var reordered = List.of(
+            report.teamClassifications().get(2),
+            report.teamClassifications().get(0),
+            report.teamClassifications().get(1));
 
-        assertThrows(IllegalArgumentException.class, () -> new LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzer
-            .LeagueSensitivityClassificationReport(
-                report.policyId(), report.metricScope(), report.classificationPolicy(), report.sourceRankingStability(),
-                report.classificationState(), List.of(fabricatedFirst))));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new LeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceAnalyzer
+                .LeagueSensitivityClassificationReport(
+                    report.policyId(), report.metricScope(), report.classificationPolicy(),
+                    report.sourceRankingStability(), report.classificationState(), reordered));
+
+        assertEquals("sensitivity classification fields must match governed ranking stability source evidence",
+            error.getMessage());
     }
 
     private Fixture initializedFixture(String fileName) throws Exception {
