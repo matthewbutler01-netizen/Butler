@@ -113,6 +113,14 @@ public final class TradeCounterExecutionAttemptRepository {
                 END
                 """);
             statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_attempt_delete_retained
+                BEFORE DELETE ON trade_counter_execution_attempts
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'execution attempt audit record is retained and cannot be deleted');
+                END
+                """);
+            statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_attempt_legal_state
                 BEFORE UPDATE OF state ON trade_counter_execution_attempts
                 FOR EACH ROW
