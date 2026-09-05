@@ -52,6 +52,8 @@ public final class ButlerCommandRouter {
                 ButlerLeagueLineupCaptureRankingSensitivityCalibrationCorpusAuditCli.main(args);
             case LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CALIBRATION_CORPUS_READINESS ->
                 ButlerLeagueLineupCaptureRankingSensitivityCalibrationCorpusReadinessCli.main(args);
+            case LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CANDIDATE_THRESHOLD_STUDY ->
+                ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
             case LEAGUE_POSITIONAL_PRESSURE -> ButlerLeaguePositionalPressureCli.main(args);
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
@@ -143,6 +145,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-change-frequency-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_CHANGE_FREQUENCY_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "lineup-capture-ranking-sensitivity-calibration-corpus-audit")) return Route.LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CALIBRATION_CORPUS_AUDIT;
             if (equals(args[0], "league") && equals(args[1], "lineup-capture-ranking-sensitivity-calibration-corpus-readiness")) return Route.LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CALIBRATION_CORPUS_READINESS;
+            if (equals(args[0], "league") && equals(args[1], "lineup-capture-ranking-sensitivity-candidate-threshold-study")) return Route.LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CANDIDATE_THRESHOLD_STUDY;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
             if (equals(args[0], "league") && equals(args[1], "positional-pressure")) return Route.LEAGUE_POSITIONAL_PRESSURE;
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
@@ -228,6 +231,7 @@ public final class ButlerCommandRouter {
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_CHANGE_FREQUENCY_EVIDENCE,
                  LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CALIBRATION_CORPUS_AUDIT,
                  LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CALIBRATION_CORPUS_READINESS,
+                 LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CANDIDATE_THRESHOLD_STUDY,
                  LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
