@@ -155,6 +155,14 @@ public final class TradeCounterExecutionOutcomeCoordinator {
                 END
                 """);
             statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_outcome_delete_immutable
+                BEFORE DELETE ON trade_counter_execution_outcomes
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'execution outcome is immutable');
+                END
+                """);
+            statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_unknown_resolution_matching
                 BEFORE INSERT ON trade_counter_execution_unknown_resolutions
                 FOR EACH ROW
@@ -181,6 +189,14 @@ public final class TradeCounterExecutionOutcomeCoordinator {
             statement.executeUpdate("""
                 CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_unknown_resolution_immutable
                 BEFORE UPDATE ON trade_counter_execution_unknown_resolutions
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'UNKNOWN resolution is immutable');
+                END
+                """);
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_trade_counter_execution_unknown_resolution_delete_immutable
+                BEFORE DELETE ON trade_counter_execution_unknown_resolutions
                 FOR EACH ROW
                 BEGIN
                     SELECT RAISE(ABORT, 'UNKNOWN resolution is immutable');
