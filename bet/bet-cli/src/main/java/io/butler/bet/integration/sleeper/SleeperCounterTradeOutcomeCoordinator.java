@@ -16,6 +16,8 @@ import java.util.UUID;
 /**
  * Atomically finalizes one manual Sleeper counter trade only from BF-409 confirmed-success evidence.
  * This coordinator mutates local Butler state only and never performs an external platform action.
+ * Exact completed readback may supersede an unfinalized trade no-action acknowledgment, but it
+ * never rewrites a no-action lifecycle that was already finalized FAILED + CONSUME.
  */
 public final class SleeperCounterTradeOutcomeCoordinator {
     public static final String COORDINATOR_POLICY_ID =
@@ -104,6 +106,7 @@ public final class SleeperCounterTradeOutcomeCoordinator {
                 END
                 """);
         }
+        new SleeperCounterTradeNoActionResolutionRepository(database).initialize();
         TradeCounterManualTerminalGuardInstaller.installSleeperTradeSupport(database);
     }
 
@@ -124,6 +127,7 @@ public final class SleeperCounterTradeOutcomeCoordinator {
         }
 
         initialize();
+        var noActionResolutions = new SleeperCounterTradeNoActionResolutionRepository(database);
         try (var connection = database.openConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -158,6 +162,44 @@ public final class SleeperCounterTradeOutcomeCoordinator {
                         null,
                         "BF-409 success evidence does not match trusted persisted manual-trade coordinates.");
                 }
+
+                var noActionResolution = noActionResolutions.resolve(connection, decision, appliedAt);
+                switch (noActionResolution.state()) {
+                    case POST_CLOSURE_DISCREPANCY_RECORDED,
+                         POST_CLOSURE_DISCREPANCY_ALREADY_RECORDED -> {
+                        connection.commit();
+                        return new ApplyResult(
+                            ApplyState.POST_CLOSURE_DISCREPANCY,
+                            null,
+                            noActionResolution.reason()
+                                + " The existing FAILED terminal state and consumed authorization were not rewritten.");
+                    }
+                    case MISMATCH -> {
+                        connection.rollback();
+                        return new ApplyResult(
+                            ApplyState.MISMATCH,
+                            null,
+                            noActionResolution.reason());
+                    }
+                    case INVALID_STATE -> {
+                        connection.rollback();
+                        return new ApplyResult(
+                            ApplyState.INVALID_STATE,
+                            null,
+                            noActionResolution.reason());
+                    }
+                    case NOT_ELIGIBLE -> {
+                        connection.rollback();
+                        return new ApplyResult(
+                            ApplyState.NOT_ELIGIBLE,
+                            null,
+                            noActionResolution.reason());
+                    }
+                    case NOT_REQUIRED, SUPERSEDED, ALREADY_SUPERSEDED -> {
+                        // Exact active lifecycle may continue to the normal success terminalization.
+                    }
+                }
+
                 if (trusted.attemptState() != TradeCounterExecutionAttemptRepository.State.IN_FLIGHT) {
                     connection.rollback();
                     return new ApplyResult(
@@ -204,10 +246,16 @@ public final class SleeperCounterTradeOutcomeCoordinator {
                 }
 
                 connection.commit();
+                boolean superseded = noActionResolution.state()
+                    == SleeperCounterTradeNoActionResolutionRepository.ResolutionState.SUPERSEDED
+                    || noActionResolution.state()
+                    == SleeperCounterTradeNoActionResolutionRepository.ResolutionState.ALREADY_SUPERSEDED;
                 return new ApplyResult(
                     ApplyState.APPLIED,
                     outcome,
-                    "Exact completed Sleeper trade evidence was atomically persisted, the attempt marked SUCCEEDED, and the one-shot authorization consumed.");
+                    superseded
+                        ? "Exact completed Sleeper trade evidence atomically superseded the earlier unfinalized no-action acknowledgment, persisted success, marked the attempt SUCCEEDED, and consumed the one-shot authorization."
+                        : "Exact completed Sleeper trade evidence was atomically persisted, the attempt marked SUCCEEDED, and the one-shot authorization consumed.");
             } catch (SQLException e) {
                 connection.rollback();
                 Optional<StoredOutcome> concurrent = findByClaimId(decision.claimId());
@@ -408,6 +456,7 @@ public final class SleeperCounterTradeOutcomeCoordinator {
     public enum ApplyState {
         APPLIED,
         ALREADY_APPLIED,
+        POST_CLOSURE_DISCREPANCY,
         NOT_ELIGIBLE,
         NOT_FOUND,
         MISMATCH,
