@@ -59,6 +59,14 @@ public final class TradeCounterAuthorizationGrantRepository {
                 CREATE INDEX IF NOT EXISTS idx_trade_counter_authorization_grant_league
                 ON trade_counter_authorization_grants(league_id, consumed_at)
                 """);
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_trade_counter_authorization_grant_delete_retained
+                BEFORE DELETE ON trade_counter_authorization_grants
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'authorization grant audit record is retained and cannot be deleted');
+                END
+                """);
         }
     }
 
