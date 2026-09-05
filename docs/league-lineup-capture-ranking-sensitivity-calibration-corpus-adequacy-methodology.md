@@ -1,10 +1,12 @@
 # Governed lineup-capture rank-sensitivity calibration corpus adequacy methodology
 
-BF-521 defines what Butler must observe in the historical BF-518 calibration corpus before a later governed methodology may even design or evaluate candidate calibration thresholds.
+BF-521 defines what Butler must observe in the historical BF-518 calibration corpus before a later governed methodology may design or evaluate candidate calibration thresholds.
 
 This methodology does **not** fit thresholds, declare statistical sufficiency, estimate confidence, adjust ranks, or score managers.
 
 ## Methodology status
+
+BF-521 through BF-524 are implemented for v1 structural readiness.
 
 The v1 decision is:
 
@@ -14,15 +16,19 @@ THRESHOLD_FITTING_NOT_AUTHORIZED
 STATISTICAL_ADEQUACY_NOT_ESTABLISHED
 ```
 
-BF-521 authorizes a read-only structural-readiness assessment derived from the completed BF-518 historical calibration-corpus audit.
+Implemented production surfaces:
 
-A structurally ready corpus may justify a later methodology for threshold-study design. Structural readiness by itself does **not** authorize choosing, fitting, publishing, or optimizing thresholds.
+- BF-522 analyzer/report: `LeagueLineupCaptureRankingSensitivityCalibrationCorpusReadinessAnalyzer`
+- BF-523 CLI: `butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>`
+- BF-524 global help and durable documentation closeout
+
+The implementation is a read-only structural-readiness assessment derived from the completed BF-518 historical calibration-corpus audit.
+
+A structurally ready corpus may justify a later methodology for threshold-study design. Structural readiness by itself does **not** authorize choosing, generating, fitting, publishing, or optimizing thresholds.
 
 ## Why BF-521 does not use a headline N
 
-BF-517 deliberately refused to declare that a fixed number such as `N=30` or `N=100` makes a calibration corpus adequate.
-
-That remains correct.
+BF-517 deliberately refused to declare that a fixed number such as `N=30` or `N=100` makes a calibration corpus adequate. That remains correct.
 
 The BF-518 corpus contains correlated observations:
 
@@ -31,25 +37,19 @@ The BF-518 corpus contains correlated observations:
 - overlapping historical windows within one league-season; and
 - repeated league identities across seasons when persisted.
 
-Therefore `availableTeamCutoffRows` is not an independent sample count.
-
-BF-521 does not turn row count into statistical adequacy.
+Therefore `availableTeamCutoffRows` is not an independent sample count. BF-521 does not turn row count into statistical adequacy.
 
 ## Source of truth
 
-The only authorized source for BF-521 structural readiness is a valid BF-518:
+The only authorized source for structural readiness is a valid BF-518 `LeagueLineupCaptureRankingSensitivityCalibrationCorpusAuditAnalyzer.CorpusAuditReport`.
 
-`LeagueLineupCaptureRankingSensitivityCalibrationCorpusAuditAnalyzer.CorpusAuditReport`
+BF-522 must not rebuild lineup-capture evidence, reconstruct historical ranks independently, substitute standings, import manager grades, or infer missing historical samples.
 
-BF-521 must not rebuild lineup-capture evidence, reconstruct historical ranks independently, substitute standings, import manager grades, or infer missing historical samples.
+The readiness assessment preserves the BF-518 requested season scope, league-season identities, available/excluded cutoffs, team-count distribution, perturbation denominators, source sensitivity classes, and future-only temporal displacement evidence.
 
-The readiness assessment must preserve the BF-518 requested season scope, league-season identities, available/excluded cutoffs, team-count distribution, perturbation denominators, source sensitivity classes, and future-only temporal displacement evidence.
+## What structural readiness means
 
-## What “structural readiness” means
-
-Structural readiness is a narrow governance concept.
-
-It means the corpus contains the **minimum observable variation necessary to design a later threshold study without pretending one cluster, one season, one league size, one perturbation denominator, or one outcome state represents the broader problem**.
+Structural readiness is a narrow governance concept. It means the corpus contains the minimum observable variation necessary to design a later threshold study without pretending one cluster, one season, one league size, one perturbation denominator, or one outcome state represents the broader problem.
 
 Structural readiness does **not** mean:
 
@@ -63,118 +63,108 @@ Structural readiness does **not** mean:
 
 ## Core readiness gates
 
-BF-521 defines six core structural gates.
+BF-522 implements six core structural gates. They are **variation gates**, not sample-size sufficiency thresholds. Each uses the minimum count necessary for a dimension to exhibit more than one observed state.
 
-The values below are **variation gates**, not sample-size sufficiency thresholds. They use the minimum count required for a dimension to exhibit more than one observed state.
-
-### Gate 1 — multiple independent league identities
+### Gate 1 — `MULTIPLE_LEAGUE_IDENTITIES`
 
 The available-cutoff corpus must contain at least **2 distinct league IDs**.
 
-Reason: one league identity cannot demonstrate that observed sensitivity/outcome relationships are not unique to one league's participants, rules, or history.
+One league identity cannot show that observed sensitivity/outcome behavior is not unique to one league's participants, rules, or history. Two leagues are not thereby declared statistically sufficient.
 
-This gate does not imply that two leagues are statistically sufficient.
-
-### Gate 2 — multiple seasons
+### Gate 2 — `MULTIPLE_SEASONS`
 
 The available-cutoff corpus must contain at least **2 distinct seasons**.
 
-Reason: one season cannot expose whether the observed relationship is specific to one NFL/fantasy environment.
+One season cannot expose whether the observed relationship is specific to one NFL/fantasy environment. Two seasons are not thereby declared statistically sufficient.
 
-This gate does not imply that two seasons are statistically sufficient.
+### Gate 3 — `MULTIPLE_AVAILABLE_LEAGUE_SEASONS`
 
-### Gate 3 — multiple league-season clusters
+The available-cutoff corpus must contain at least **2 distinct league-season identities with at least one `AVAILABLE` BF-518 cutoff**.
 
-The available-cutoff corpus must contain at least **2 distinct league-season identities with at least one AVAILABLE BF-518 cutoff**.
+Rows from the same league-season remain one correlated cluster regardless of how many teams or cutoffs they contain. A league-season with no available BF-518 cutoff does not satisfy this gate.
 
-Rows from the same league-season remain one correlated cluster for this gate regardless of how many teams or cutoffs they contain.
-
-A league-season with no available BF-518 cutoff does not satisfy the gate.
-
-### Gate 4 — league-size variation
+### Gate 4 — `MULTIPLE_TEAM_COUNT_STRATA`
 
 The available-cutoff corpus must contain at least **2 distinct repository team-count values**.
 
-Reason: ordinal displacement has a different possible range in leagues of different sizes.
+Ordinal displacement has a different possible range in leagues of different sizes. A future methodology that intentionally restricts calibration to one league size may replace this gate only through a separate explicit scope decision.
 
-A future methodology that intentionally restricts calibration to one specific league size may replace this gate only through a separate explicit scope decision. BF-521 does not silently narrow the product scope.
-
-### Gate 5 — perturbation-denominator variation
+### Gate 5 — `MULTIPLE_PERTURBATION_DENOMINATORS`
 
 The available-cutoff corpus must contain at least **2 distinct baseline perturbation denominators**.
 
-For BF-518, the perturbation denominator equals the baseline common-week count used for the BF-504 leave-one-week-out scenarios.
+For BF-518, the denominator equals the baseline common-week count used for BF-504 leave-one-week-out scenarios. BF-516 established that values such as `1/5`, `1/6`, and `2/10` cannot be assumed semantically equivalent merely because decimal values look similar.
 
-Reason: BF-516 established that `1/5`, `1/6`, `2/10`, and similar frequencies cannot be assumed semantically equivalent merely because a decimal representation looks close.
-
-A corpus with only one denominator cannot support a study of denominator dependence.
-
-### Gate 6 — future temporal-outcome variation
+### Gate 6 — `TEMPORAL_OUTCOME_VARIATION`
 
 Across available BF-518 team-cutoff rows, the corpus must contain both:
 
 - at least one row with `exactNumericRankRetained = true`; and
 - at least one row with `absoluteTemporalRankDisplacement > 0`.
 
-Reason: a corpus where every future-only holdout rank is retained, or every future-only holdout rank moves, cannot reveal whether a candidate sensitivity rule separates different temporal outcomes.
+A corpus where every future-only holdout rank is retained, or every rank moves, cannot reveal whether a later candidate sensitivity rule separates different temporal outcomes. This is an outcome-variation gate, not a balanced-class requirement or probability claim.
 
-This is an outcome-variation gate, not a balanced-class requirement and not a probability statement.
+## Readiness state
+
+BF-522 publishes exactly one report-level state:
+
+```text
+READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN
+NOT_READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN
+```
+
+`READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` requires all six core gates.
+
+If any gate fails, the state is `NOT_READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` and every failed gate remains explicit.
+
+The report constructor recomputes the readiness state, gate evidence, and diagnostics from the nested BF-518 source and rejects fabricated readiness fields.
+
+A `READY` result authorizes only the **design of a later governed threshold-study methodology**. It does not authorize threshold generation, fitting, production publication, or confidence semantics.
+
+## Gate evidence
+
+For each core gate, BF-522 exposes:
+
+- the stable machine-readable gate identifier;
+- observed distinct count or outcome-state count;
+- required structural condition;
+- pass/fail result; and
+- the concrete observed identities/values where reasonably compact.
+
+BF-523 renders every gate before any aggregate interpretation.
 
 ## Source-feature coverage diagnostics
 
-BF-521 also requires visibility into source-feature coverage, but does not make every feature category a hard core gate.
+BF-522 also exposes descriptive source-feature diagnostics without turning every feature category into a hard gate.
 
-The readiness report must show whether available BF-518 rows include:
+The report preserves:
 
-- `LOW_SENSITIVITY`;
-- `MODERATE_SENSITIVITY`;
-- `HIGH_SENSITIVITY`;
-- multiple raw BF-512 rank-change-frequency values;
-- multiple changed-scenario numerators; and
-- multiple perturbation denominators.
+- BF-508 sensitivity-class counts;
+- BF-512 six-decimal rank-change-frequency distribution;
+- changed-scenario numerator distribution; and
+- perturbation-denominator values.
 
-Why BF-508 class coverage is not a core v1 gate:
+BF-508 class coverage is intentionally **not** a v1 core readiness gate. A later study may investigate raw BF-512 frequency without creating a magnitude-frequency interaction. Requiring all three BF-508 classes would silently force a model BF-521 did not authorize.
 
-A later study might examine BF-512 raw frequency without combining it with BF-508 magnitude class. Requiring all three BF-508 classes before even designing that study would silently force a magnitude-frequency model that BF-521 does not authorize.
+Any future magnitude-by-frequency methodology must separately require support for every interaction region it intends to interpret.
 
-However, any future methodology that proposes a magnitude-by-frequency interaction must explicitly require support for every interaction region it intends to interpret.
+## Frequency and numerator variation
 
-## Frequency-value variation
+The readiness diagnostics retain distinct BF-512 six-decimal frequencies and distinct `baselineRankChangedScenarios` values.
 
-The readiness report must expose the number of distinct observed BF-512 six-decimal frequencies among available rows.
-
-A single observed frequency value is a material limitation.
-
-BF-521 does not set a universal minimum number of distinct frequency values beyond requiring denominator variation in the core gates, because distinct decimals may still be generated by highly correlated rows from the same league-season.
-
-## Changed-scenario numerator variation
-
-The readiness report must expose the distinct `baselineRankChangedScenarios` values represented in available rows.
-
-This preserves the numerator behind BF-512 frequency rather than allowing a future threshold study to operate only on the decimal.
-
-BF-521 does not authorize pooling equal decimals produced by different numerator/denominator pairs as interchangeable evidence.
+Equal decimals produced by different numerator/denominator pairs are not automatically interchangeable evidence. A single observed frequency value is a visible limitation, but BF-521 sets no universal pass/fail count for distinct frequency decimals beyond the core denominator-variation gate.
 
 ## Exclusion burden remains visible
 
 A structurally ready corpus may still have substantial exclusions.
 
-The readiness report must retain BF-518 counts for:
+BF-522/BF-523 retain BF-518 counts for requested league-seasons, audited league-seasons, source-failure league-seasons, available cutoffs, excluded cutoffs, and underlying cutoff-state evidence.
 
-- requested league-seasons;
-- audited league-seasons;
-- source-failure league-seasons;
-- available cutoffs;
-- excluded cutoffs; and
-- every BF-518 cutoff exclusion state.
-
-BF-521 does not define an arbitrary maximum exclusion percentage.
-
-A future threshold-study methodology must review exclusion concentration before claiming broad applicability.
+BF-521 defines no arbitrary maximum exclusion percentage. A later threshold-study methodology must review exclusion concentration before making broader applicability claims.
 
 ## Concentration diagnostics
 
-The readiness report must expose concentration by at least:
+BF-522 exposes available-cutoff concentration by:
 
 - league ID;
 - season;
@@ -182,9 +172,9 @@ The readiness report must expose concentration by at least:
 - repository team count; and
 - perturbation denominator.
 
-The report may show counts and shares for inspection.
+BF-523 renders these distributions directly.
 
-BF-521 does not authorize a concentration-adjusted weight, effective-sample-size estimate, or automatic pass/fail percentage cap.
+BF-521 does not authorize concentration-adjusted weighting, effective-sample-size estimation, or an automatic pass/fail concentration cap.
 
 ## No random-row independence assumption
 
@@ -196,92 +186,42 @@ The following counts must never be described as independent observations:
 
 The primary clustering identity remains `league-id + season`.
 
-A future model-fitting methodology must split or validate at the league-season or broader cluster level, never randomly by team-cutoff row.
-
-## Readiness state
-
-A BF-521 structural-readiness implementation should use a report-level state equivalent to:
-
-```text
-READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN
-NOT_READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN
-```
-
-`READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` requires all six core gates.
-
-If any core gate fails, the report state is `NOT_READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` and the failed gates remain explicit.
-
-This state authorizes only the **design of a later governed threshold-study methodology**.
-
-It does not authorize threshold fitting or production publication.
-
-## Required gate evidence
-
-For each core gate, a future BF-522 structural-readiness report should expose:
-
-- gate identifier;
-- observed distinct count or outcome presence;
-- required structural condition;
-- pass/fail result; and
-- the concrete identities/values that produced the result where reasonably compact.
-
-The gate identifiers should be stable and machine-readable.
-
-Recommended v1 identifiers:
-
-```text
-MULTIPLE_LEAGUE_IDENTITIES
-MULTIPLE_SEASONS
-MULTIPLE_AVAILABLE_LEAGUE_SEASONS
-MULTIPLE_TEAM_COUNT_STRATA
-MULTIPLE_PERTURBATION_DENOMINATORS
-TEMPORAL_OUTCOME_VARIATION
-```
+A future fitting methodology must split or validate at the league-season or broader cluster level, never randomly by team-cutoff row.
 
 ## Missing dimensions must not be imputed
 
-If a requested historical scope contains only one league, one season, one team-count stratum, or one perturbation denominator, BF-521 must report that limitation.
+If the requested historical scope contains only one league, one season, one team-count stratum, one denominator, or only one temporal outcome state, BF-522 reports the failed gate.
 
-It must not:
-
-- synthesize additional league identities;
-- import unsupported public leagues;
-- clone one league into multiple pseudo-samples;
-- split one league-season's cutoffs into fake independent clusters;
-- invent team-count strata;
-- perturb denominators solely to manufacture variation; or
-- infer future outcomes for excluded BF-518 cutoffs.
+It must not synthesize league identities, import unsupported public leagues, clone a league into pseudo-samples, split one league-season into fake independent clusters, invent team-count strata, perturb denominators to manufacture variation, infer outcomes for excluded cutoffs, or weaken the gates.
 
 ## No historical outcome balancing
 
-BF-521 does not authorize downsampling, oversampling, SMOTE-like synthesis, class weighting, or other balancing operations.
+BF-521 does not authorize downsampling, oversampling, synthetic observations, class weighting, or other balancing operations.
 
-The readiness artifact reports the historical corpus as governed and observed.
-
-If future retention and movement outcomes are extremely imbalanced, that remains visible for the next methodology decision.
+The readiness artifact reports the historical corpus as governed and observed. Severe outcome imbalance remains visible for the next methodology decision.
 
 ## No threshold candidates yet
 
-Even when all six core gates pass, BF-521 does **not** authorize examining candidate thresholds such as:
+Even when all six gates pass, BF-521 through BF-524 do **not** authorize examining or generating candidate thresholds such as:
 
 - `frequency < 0.20`;
 - `frequency <= 1/5`;
 - `maximum movement <= 1`;
 - a magnitude-by-frequency lookup matrix; or
-- a threshold chosen to maximize future rank retention.
+- a threshold selected to maximize future rank retention.
 
-Those are threshold-study decisions and require a later methodology after structural readiness has been observed.
+Those are threshold-study decisions and require a new methodology after structural readiness has been observed.
 
-## No “adequate sample” language
+## No adequate-sample language
 
-Permitted language includes:
+Permitted statements include:
 
 - `The corpus passes the BF-521 structural variation gates.`
 - `The corpus contains more than one league identity, season, team-count stratum, perturbation denominator, and temporal outcome state.`
 - `The corpus is structurally ready for a later threshold-study methodology design.`
 - `The corpus remains statistically unqualified; BF-521 does not establish sample-size adequacy.`
 
-Prohibited language includes:
+Prohibited statements include:
 
 - `The sample is large enough.`
 - `The corpus is statistically adequate.`
@@ -291,31 +231,13 @@ Prohibited language includes:
 
 ## No confidence or probability semantics
 
-BF-521 does not authorize:
-
-- confidence intervals;
-- p-values;
-- standard errors;
-- bootstrap confidence;
-- posterior probability;
-- probability of future rank retention;
-- probability of future rank movement;
-- a confidence score; or
-- a reliability score.
+BF-521 through BF-524 do not authorize confidence intervals, p-values, standard errors, bootstrap confidence, posterior probability, probability of future rank retention/movement, confidence scores, or reliability scores.
 
 The future holdout rank remains a deterministic out-of-window ordinal comparison, not ground truth.
 
 ## No manager attribution
 
-No readiness result may be interpreted as:
-
-- manager consistency;
-- manager reliability;
-- manager skill;
-- coaching quality;
-- decision quality;
-- fault; or
-- causal responsibility.
+No readiness result may be interpreted as manager consistency, manager reliability, manager skill, coaching quality, decision quality, fault, or causal responsibility.
 
 The subject remains the historical behavior of Butler's governed lineup-capture ordinal artifact.
 
@@ -323,31 +245,33 @@ The subject remains the historical behavior of Butler's governed lineup-capture 
 
 BF-516 rejected qualitative BF-512 frequency bands because fixed thresholds were uncalibrated and denominator dependent.
 
-BF-517 authorized the historical temporal-holdout corpus audit needed to learn what evidence exists before any calibration study.
+BF-517 through BF-520 implemented the historical temporal-holdout corpus audit needed to learn what evidence exists before any calibration study.
 
-BF-521 is the next guardrail: it asks whether the BF-518 corpus contains enough **structural variation to justify designing a threshold study at all**.
+BF-521 through BF-524 implement the next guardrail: whether that BF-518 corpus contains enough **structural variation to justify designing a threshold study at all**.
 
-It still does not make the threshold decision.
+They still do not make the threshold decision.
 
 ## Policy identifier
 
-A conforming BF-521 methodology should use:
+The implemented BF-521/BF-522 policy identifier is:
 
 ```text
 league-lineup-capture-ranking-sensitivity-calibration-corpus-structural-readiness-v1-multi-cluster-multi-season-multi-size-multi-denominator-outcome-variation-no-thresholds-no-confidence
 ```
 
-The metric scope should state that the artifact assesses structural diversity/readiness of the governed BF-518 historical corpus and does not establish statistical sufficiency, calibrated thresholds, probabilities, confidence, manager quality, or adjusted ranks.
+The implemented metric scope is:
 
-## Authorized next sequence
+```text
+STRUCTURAL_DIVERSITY_READINESS_OF_GOVERNED_BF518_HISTORICAL_CALIBRATION_CORPUS_NO_STATISTICAL_SUFFICIENCY_NO_THRESHOLDS_NO_CONFIDENCE_NO_MANAGER_ATTRIBUTION
+```
 
-If BF-521 is approved, it authorizes only:
+## Implementation closeout
 
-1. **BF-522** — structural-readiness analyzer/report derived from BF-518 corpus audit;
-2. **BF-523** — structural-readiness CLI exposing every core gate and diagnostic distribution;
-3. **BF-524** — global help and durable documentation closeout; and
-4. stop again before any threshold candidate generation, threshold optimization, probability model, confidence model, or production calibration category.
+Completed sequence:
 
-If the actual BF-518 corpus fails one or more BF-521 core gates, BF-522/BF-523 should report that result rather than weaken the gates or synthesize evidence.
+1. **BF-521** — structural-readiness methodology;
+2. **BF-522** — `LeagueLineupCaptureRankingSensitivityCalibrationCorpusReadinessAnalyzer`;
+3. **BF-523** — `butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>`;
+4. **BF-524** — global help and durable documentation closeout.
 
-**Stop boundary:** a new governed methodology decision is required after BF-524 before Butler may generate candidate thresholds, compare threshold performance, declare quantitative support requirements, fit a calibration model, estimate probabilities, publish confidence semantics, adjust BF-500 ranks, score managers, rank teams by sensitivity, issue recommendations, or make cross-league manager comparisons.
+**Stop boundary:** a new governed methodology decision is required before Butler may generate candidate thresholds, compare threshold performance, declare quantitative support requirements, fit a calibration model, estimate probabilities, publish confidence semantics, adjust BF-500 ranks, score managers, rank teams by sensitivity, issue recommendations, or make cross-league manager comparisons.
