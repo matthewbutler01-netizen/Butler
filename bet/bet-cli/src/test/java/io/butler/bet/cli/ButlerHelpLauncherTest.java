@@ -71,6 +71,14 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("future-only holdout requires at least four common weeks"));
         assertTrue(output.contains("Preserves cutoff exclusions and corpus breadth"));
         assertTrue(output.contains("fits no calibration threshold or confidence model"));
+        assertTrue(output.contains(
+            "butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>"));
+        assertTrue(output.contains("six BF-521 structural-variation gates"));
+        assertTrue(output.contains("multiple league IDs, seasons, available league-seasons, team-count strata, perturbation denominators"));
+        assertTrue(output.contains("both retained and moved future-only rank outcomes"));
+        assertTrue(output.contains("all six must pass for structural readiness"));
+        assertTrue(output.contains("authorizes only later threshold-study methodology design"));
+        assertTrue(output.contains("not sample-size adequacy or calibration"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
@@ -91,6 +99,9 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("a future rank change does not prove the earlier governed rank was wrong"));
         assertTrue(output.contains("team-cutoff rows are correlated within league-seasons"));
         assertTrue(output.contains("not automatically an independent sample size"));
+        assertTrue(output.contains("BF-521 readiness gates test minimum structural variation only"));
+        assertTrue(output.contains("does not establish statistical adequacy"));
+        assertTrue(output.contains("permission to generate or fit threshold candidates"));
         assertTrue(output.contains("No arbitrary corpus-size sufficiency threshold"));
         assertTrue(output.contains("qualitative frequency threshold, probability model, or confidence score is authorized"));
         assertTrue(output.contains("Magnitude and frequency remain separate"));
@@ -106,6 +117,7 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md for structural-readiness rules."));
     }
 
     @Test
