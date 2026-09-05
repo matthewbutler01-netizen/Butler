@@ -172,7 +172,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
             new PlayerWeekProductionRepository(database).save(PlayerWeekProduction.create(
                 playerId, 2026, week,
                 0, passingTouchdowns, 0,
-                0, 0, 0,
+                0, 0,
                 0, 0, receivingTouchdowns,
                 0, "nflverse", AS_OF));
         }
