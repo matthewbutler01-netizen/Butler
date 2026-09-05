@@ -54,6 +54,11 @@ public final class ButlerHelpLauncher {
         System.out.println("    Audits persisted historical league-seasons with temporally disjoint baseline and future-only holdout windows.");
         System.out.println("    Baseline requires at least five common weeks; future-only holdout requires at least four common weeks.");
         System.out.println("    Preserves cutoff exclusions and corpus breadth; it fits no calibration threshold or confidence model.");
+        System.out.println("  butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>");
+        System.out.println("    Checks six BF-521 structural-variation gates over the governed BF-518 historical corpus.");
+        System.out.println("    Gates require multiple league IDs, seasons, available league-seasons, team-count strata, perturbation denominators,");
+        System.out.println("    and both retained and moved future-only rank outcomes; all six must pass for structural readiness.");
+        System.out.println("    Structural readiness authorizes only later threshold-study methodology design; it is not sample-size adequacy or calibration.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
@@ -67,6 +72,8 @@ public final class ButlerHelpLauncher {
         System.out.println("  The historical calibration audit uses future weeks only as an out-of-window persistence comparison; a later rank is not true,");
         System.out.println("  corrected, or ground-truth rank, and a future rank change does not prove the earlier governed rank was wrong.");
         System.out.println("  Calibration team-cutoff rows are correlated within league-seasons and are not automatically an independent sample size.");
+        System.out.println("  BF-521 readiness gates test minimum structural variation only; passing them does not establish statistical adequacy,");
+        System.out.println("  generalization, a trusted threshold, or permission to generate or fit threshold candidates.");
         System.out.println("  No arbitrary corpus-size sufficiency threshold, qualitative frequency threshold, probability model, or confidence score is authorized.");
         System.out.println("  Magnitude and frequency remain separate; Butler computes no combined magnitude-frequency score, frequency-adjusted rank,");
         System.out.println("  sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label, recommendation,");
@@ -80,6 +87,7 @@ public final class ButlerHelpLauncher {
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes.");
         System.out.println("  See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md for structural-readiness rules.");
     }
 
     static void printManualCounterUsage() {
