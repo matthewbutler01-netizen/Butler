@@ -46,6 +46,8 @@ public final class ButlerCommandRouter {
                 ButlerLeagueSeasonLineupCaptureRankingStabilityEvidenceCli.main(args);
             case LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_SENSITIVITY_CLASSIFICATION_EVIDENCE ->
                 ButlerLeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceCli.main(args);
+            case LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_CHANGE_FREQUENCY_EVIDENCE ->
+                ButlerLeagueSeasonLineupCaptureRankingChangeFrequencyEvidenceCli.main(args);
             case LEAGUE_ROSTER_STRENGTH -> ButlerLeagueRosterStrengthCli.main(args);
             case LEAGUE_POSITIONAL_PRESSURE -> ButlerLeaguePositionalPressureCli.main(args);
             case LEAGUE_TEAM_POSTURE -> ButlerLeagueTeamPostureCli.main(args);
@@ -134,6 +136,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-stability-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_STABILITY_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-sensitivity-classification-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_SENSITIVITY_CLASSIFICATION_EVIDENCE;
+            if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-change-frequency-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_CHANGE_FREQUENCY_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "roster-strength")) return Route.LEAGUE_ROSTER_STRENGTH;
             if (equals(args[0], "league") && equals(args[1], "positional-pressure")) return Route.LEAGUE_POSITIONAL_PRESSURE;
             if (equals(args[0], "league") && equals(args[1], "team-posture")) return Route.LEAGUE_TEAM_POSTURE;
@@ -216,6 +219,7 @@ public final class ButlerCommandRouter {
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE,
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_STABILITY_EVIDENCE,
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_SENSITIVITY_CLASSIFICATION_EVIDENCE,
+                 LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_CHANGE_FREQUENCY_EVIDENCE,
                  LEAGUE_ROSTER_STRENGTH, LEAGUE_POSITIONAL_PRESSURE,
                  LEAGUE_TEAM_POSTURE, LEAGUE_FUTURE_CAPITAL,
                  TRADE_SUPPORTING_EVIDENCE, TRADE_STRATEGIC_CONTEXT, TRADE_COUNTER_VALUE, TRADE_COUNTER_STRATEGIC,
