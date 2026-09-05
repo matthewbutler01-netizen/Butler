@@ -34,21 +34,26 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler league season-lineup-points-gap-evidence <league-id> <season>");
         System.out.println("    Exposes team points-gap evidence with each team's coverage denominator kept separate.");
         System.out.println("  butler league season-lineup-capture-evidence <league-id> <season>");
-        System.out.println("    Exposes team capture rates in repository team-name order with no league average or ranking.");
+        System.out.println("    Exposes independently scoped team capture rates in repository team-name order without ranking.");
         System.out.println("  butler league season-lineup-capture-common-universe-evidence <league-id> <season>");
         System.out.println("    Recalculates every repository team over the exact all-team common comparable week intersection.");
         System.out.println("    Presents one neutral team-name-ordered table; no team is dropped to widen the common universe.");
+        System.out.println("  butler league season-lineup-capture-ranking-evidence <league-id> <season>");
+        System.out.println("    Ranks only the governed all-team common-universe lineup-capture rate when at least four common weeks exist.");
+        System.out.println("    Every repository team must have an available common rate; otherwise no partial ranking is published.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
-        System.out.println("  League common-universe rows all use the same all-repository-team common comparable week set.");
-        System.out.println("  Lineup capture is descriptive normalization only: no manager efficiency, manager grade, rank, tier,");
-        System.out.println("  recommendation, intent, fault, or skill attribution is computed.");
-        System.out.println("  The common-universe table computes no league ranking, percentile, winner, average, median, benchmark,");
-        System.out.println("  pairwise matrix, manager score, or other hidden leaderboard arithmetic.");
+        System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
+        System.out.println("  The separate ranking surface permits lineup-capture rank only, not manager rank or manager efficiency.");
+        System.out.println("  Ranking uses governed six-decimal rates with competition ties; gap and coverage never break ties.");
+        System.out.println("  The four-week ranking floor is a governance threshold, not statistical confidence or skill evidence.");
+        System.out.println("  No manager grade, tier, percentile, recommendation, intent, fault, skill attribution, league benchmark,");
+        System.out.println("  confidence claim, coverage-adjusted composite, or cross-league ranking is computed.");
         System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
         System.out.println("  See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary.");
         System.out.println("  See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules.");
         System.out.println("  See docs/league-lineup-capture-common-universe-methodology.md for neutral league-table rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules.");
     }
 
     static void printManualCounterUsage() {

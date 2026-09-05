@@ -1,6 +1,6 @@
 # Governed lineup evidence
 
-Butler's lineup evidence surfaces are retrospective evidence tools. They recalculate what can be supported from persisted Sleeper roster/configuration observations and governed nflverse production evidence without turning the result into a manager grade.
+Butler's lineup evidence surfaces are retrospective evidence tools. They recalculate what can be supported from persisted Sleeper roster/configuration observations and governed nflverse production evidence without turning the result into a manager grade or skill claim.
 
 ## Commands
 
@@ -34,11 +34,12 @@ butler league season-potential-lineup-evidence <league-id> <season>
 butler league season-lineup-points-gap-evidence <league-id> <season>
 butler league season-lineup-capture-evidence <league-id> <season>
 butler league season-lineup-capture-common-universe-evidence <league-id> <season>
+butler league season-lineup-capture-ranking-evidence <league-id> <season>
 ```
 
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -86,7 +87,7 @@ Incomplete lineups do not receive a partial, normalized, or extrapolated gap.
 
 ## Lineup capture normalization
 
-Lineup capture is the only v1 normalization approved for this evidence stack. It is derived from the governed points-gap evidence rather than independently rescoring players or rebuilding lineups.
+Lineup capture is the v1 normalization approved for this evidence stack. It is derived from the governed points-gap evidence rather than independently rescoring players or rebuilding lineups.
 
 For one complete team-week comparison:
 
@@ -113,7 +114,7 @@ Lineup capture remains descriptive retrospective evidence. It is not manager eff
 
 Butler does not subtract two independently scoped team-season capture rates because the teams may have different comparable week sets.
 
-The governed pairwise command instead derives both teams from their team-season points-gap reports and forms one shared week universe:
+The governed pairwise command derives both teams from their team-season points-gap reports and forms one shared week universe:
 
 ```text
 shared comparable weeks =
@@ -131,23 +132,15 @@ Team A minus Team B contrast =
     Team B shared-week capture rate
 ```
 
-The output preserves:
+The output preserves ordered shared weeks, team-only comparable weeks, broader coverage counts, raw shared started/potential/gap totals, both shared-week rates when available, and the optional signed contrast.
 
-- ordered shared comparable weeks;
-- Team A-only comparable weeks;
-- Team B-only comparable weeks;
-- each team's observed and individually comparable counts;
-- both teams' raw shared started/potential/gap totals;
-- both shared-week capture rates when available; and
-- the optional signed rate/percentage-point contrast.
-
-The pairwise contrast is still retrospective evidence, not a winner or manager-quality judgment. Shared calendar weeks do not reconstruct historical player startability. The contrast must not be turned into a league ranking, manager grade, tier, recommendation, causal claim, skill estimate, or fault assignment.
+The pairwise contrast remains retrospective evidence, not a winner or manager-quality judgment. Shared calendar weeks do not reconstruct historical player startability. Pairwise evidence is not used as a secondary ranking tie-breaker.
 
 The normative pairwise rules are in [`lineup-capture-comparability-methodology.md`](lineup-capture-comparability-methodology.md).
 
 ## League common-universe lineup-capture table
 
-The governed league common-universe command removes the mismatched-week-set problem from a neutral league-wide presentation without creating a leaderboard.
+The governed league common-universe command removes the mismatched-week-set problem from a neutral league-wide presentation.
 
 Butler derives every row directly from each repository team's governed team-season points-gap report and forms one all-team week universe:
 
@@ -168,9 +161,39 @@ For each team, Butler recalculates raw started points, retrospective potential p
 
 If fewer than two repository teams exist, or if the all-team intersection contains no comparable complete week, normalized league comparison is unavailable. Butler does not fall back to independently scoped season rates.
 
-Rows remain in repository team-name order. The artifact contains no rank, tier, percentile, winner, league average/median, league benchmark difference, pairwise matrix, Elo-like score, or manager grade. Equal calendar coverage also does not reconstruct historical player startability or establish manager skill.
+The **common-universe table itself remains neutral**: rows stay in repository team-name order and it contains no rank, tier, percentile, winner, league average/median, benchmark difference, pairwise matrix, Elo-like score, or manager grade.
 
 The normative all-team rules are in [`league-lineup-capture-common-universe-methodology.md`](league-lineup-capture-common-universe-methodology.md).
+
+## League common-universe lineup-capture ranking
+
+The separate ranking surface may assign **lineup-capture ranks** only from the governed common-universe report. It does not rebuild evidence or rank independently scoped season rates.
+
+A ranking is published only when:
+
+- at least two repository teams exist;
+- the common-universe source is available;
+- at least **4 common comparable weeks** exist; and
+- every repository team has an available normalized common-universe lineup-capture rate.
+
+If any repository team is unavailable, Butler withholds the **entire** ranking. It does not drop that team, assign it last place, impute a rate, or publish a partial leaderboard.
+
+Rank assignment uses only the governed six-decimal common-universe lineup-capture rate. Higher rate receives the better ordinal position. Exact ties at that governed precision use standard competition ranking:
+
+```text
+rates: 0.950000, 0.900000, 0.900000, 0.850000
+ranks: 1,        2,        2,        4
+```
+
+No secondary metric breaks a tie. Raw points gap, started points, potential points, coverage, team ID, pairwise contrast, or manager identity cannot alter the shared rank. Repository team-name order is used only for deterministic presentation within an exact tie.
+
+Every ranked row retains the common started/potential/gap totals, common-week denominator, observed coverage, individually comparable coverage, and individually comparable weeks excluded from common. The nested common-universe source remains inspectable in neutral repository team-name order.
+
+The four-week minimum is a **governance floor**, not a statistical-confidence or significance claim. A lineup-capture rank is a rank of the governed retrospective metric, **not a manager rank** and not evidence of manager efficiency, quality, skill, fault, intent, or decision quality.
+
+V1 ranking computes no manager grade, tier, percentile, league average/median benchmark, distance from first place, pairwise win/loss score, Elo-like rating, confidence interval, stability band, recommendation, coverage-adjusted composite, or cross-league rank.
+
+The normative ranking rules are in [`league-lineup-capture-ranking-methodology.md`](league-lineup-capture-ranking-methodology.md).
 
 ## Team-season week universe
 
@@ -191,26 +214,15 @@ Coverage remains separate from lineup capture. Butler does not penalize, multipl
 
 ## League-season presentation
 
-League-season lineup evidence remains descriptive and neutral.
+League-season lineup evidence has three distinct presentation layers:
 
-The original league-season wrappers present each team's independently scoped evidence in repository team-name order with separate coverage denominators. The common-universe surface adds a second neutral presentation in which every normalized row uses the exact same all-repository-team common comparable week set.
+1. independently scoped team evidence in repository team-name order;
+2. the neutral all-team common-universe table in repository team-name order; and
+3. the separate governed lineup-capture ranking surface, available only under the v1 ranking prerequisites.
 
-Neither surface sorts by capture rate or converts displayed values into an ordinal league artifact.
+The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. It does not mutate the source common-universe report or turn any other league evidence field into an ordinal score.
 
-Butler does not compute a league-wide:
-
-- started-points total;
-- potential-points total;
-- points-gap total;
-- average points gap;
-- average or median lineup capture rate;
-- combined league lineup capture rate;
-- benchmark difference;
-- pairwise matrix;
-- comparison score;
-- rank, percentile, or tier.
-
-Pairwise contrast and the common-universe table do not change this ranking boundary. Butler does not generate every pairwise contrast, sort common-universe rates, or otherwise convert descriptive evidence into a hidden leaderboard.
+Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, tier, pairwise matrix, Elo-like score, manager grade, or composite manager score.
 
 ## Identity-covered zero versus missing evidence
 
@@ -220,16 +232,18 @@ Butler preserves those distinctions so zero production is not confused with an e
 
 ## What this evidence does not establish
 
-The governed lineup evidence stack does not by itself establish:
+The governed lineup evidence stack does not establish:
 
 - manager efficiency;
 - manager quality or skill;
 - intent or fault;
 - historical startability beyond the evidence Butler actually persisted;
-- a fair league-wide manager ranking;
-- transitive manager quality from pairwise contrasts;
-- statistical confidence or stability of pairwise or league-wide descriptive differences;
-- that common-universe rate differences are large or stable enough to support an ordinal interpretation;
+- a causal manager ranking;
+- that rank 1 identifies the best manager;
+- that adjacent lineup-capture ranks represent a meaningful skill difference;
+- statistical confidence, significance, or stability of the ordinal positions;
+- a manager grade, tier, or percentile;
+- a league benchmark-relative manager score;
 - a recommendation about how a manager should have acted.
 
-The approved lineup-capture, pairwise-comparability, and league common-universe methodologies define narrow descriptive evidence while preserving these attribution limits. Any future metric that turns these values into a manager score, ranking, tier, percentile, league benchmark comparison, recommendation, coverage-adjusted composite, statistical confidence claim, causal interpretation, or skill/fault claim requires a new governed methodology decision before implementation.
+The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. Any future step that turns it into manager ranking terminology, grades, tiers, percentiles, league benchmark scores, pairwise win/loss scoring, statistical confidence/stability claims, causal interpretation, skill/fault attribution, recommendations, coverage-adjusted composites, or cross-league ranking requires a new governed methodology decision before implementation.
