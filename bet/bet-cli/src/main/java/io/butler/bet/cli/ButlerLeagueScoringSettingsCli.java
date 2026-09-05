@@ -42,10 +42,10 @@ public final class ButlerLeagueScoringSettingsCli {
 
     static void run(Database database, String leagueId) throws SQLException {
         if (database == null) throw new IllegalArgumentException("database must not be null");
-        leagueId = requireText(leagueId, "league-id");
-        var league = new LeagueRepository(database).findById(leagueId)
-            .orElseThrow(() -> new IllegalArgumentException("League not found: " + leagueId));
-        var settings = new LeagueScoringSettingsRepository(database).findByLeagueId(leagueId);
+        String normalizedLeagueId = requireText(leagueId, "league-id");
+        var league = new LeagueRepository(database).findById(normalizedLeagueId)
+            .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
+        var settings = new LeagueScoringSettingsRepository(database).findByLeagueId(normalizedLeagueId);
 
         System.out.println("League scoring settings");
         System.out.println("League: " + league.getName() + " (" + league.getId() + ")");
