@@ -24,7 +24,14 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler trade counter-message-ack <trusted-grant-id> [--confirm SENT_EXACT_MESSAGE]");
         System.out.println("    Records explicit human evidence that the exact trusted message was sent outside Butler.");
         System.out.println("  butler trade counter-message-finalize <trusted-grant-id>");
-        System.out.println("    Local-only finalization from pre-existing durable acknowledgment evidence.");
+        System.out.println("    Local-only finalization from pre-existing durable sent-message acknowledgment evidence.");
+        System.out.println("  butler trade counter-no-action-ack <trusted-grant-id> [--confirm NO_EXTERNAL_ACTION_TAKEN]");
+        System.out.println("    Alternate recovery path for either manual action when the exact presented handoff was not acted on externally.");
+        System.out.println("    Records local evidence only; it does not mark the attempt FAILED or consume authorization.");
+        System.out.println("  butler trade counter-no-action-finalize <trusted-grant-id>");
+        System.out.println("    Separately finalizes durable exact no-action evidence as local FAILED + authorization close.");
+        System.out.println("    Any retry after no-action finalization requires a fresh explicit authorization.");
+        System.out.println("  Sent-message evidence and no-action evidence are mutually exclusive for the same manual message handoff.");
         System.out.println("  Sleeper writes remain manual; Butler's official Sleeper API access for this lifecycle is read-only.");
         System.out.println("  See docs/manual-sleeper-counter-lifecycle.md for the full safety model and command sequence.");
     }
