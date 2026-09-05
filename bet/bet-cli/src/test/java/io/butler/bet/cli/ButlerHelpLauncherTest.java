@@ -39,23 +39,29 @@ class ButlerHelpLauncherTest {
             "butler league season-lineup-points-gap-evidence <league-id> <season>"));
         assertTrue(output.contains(
             "butler league season-lineup-capture-evidence <league-id> <season>"));
-        assertTrue(output.contains("no league average or ranking"));
+        assertTrue(output.contains("independently scoped team capture rates"));
         assertTrue(output.contains(
             "butler league season-lineup-capture-common-universe-evidence <league-id> <season>"));
         assertTrue(output.contains("exact all-team common comparable week intersection"));
         assertTrue(output.contains("no team is dropped to widen the common universe"));
+        assertTrue(output.contains(
+            "butler league season-lineup-capture-ranking-evidence <league-id> <season>"));
+        assertTrue(output.contains("at least four common weeks exist"));
+        assertTrue(output.contains("otherwise no partial ranking is published"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
-        assertTrue(output.contains("same all-repository-team common comparable week set"));
-        assertTrue(output.contains("Lineup capture is descriptive normalization only"));
-        assertTrue(output.contains("no manager efficiency, manager grade, rank, tier"));
-        assertTrue(output.contains("recommendation, intent, fault, or skill attribution is computed"));
-        assertTrue(output.contains("computes no league ranking, percentile, winner, average, median, benchmark"));
-        assertTrue(output.contains("pairwise matrix, manager score, or other hidden leaderboard arithmetic"));
+        assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
+        assertTrue(output.contains("separate ranking surface permits lineup-capture rank only, not manager rank or manager efficiency"));
+        assertTrue(output.contains("governed six-decimal rates with competition ties"));
+        assertTrue(output.contains("gap and coverage never break ties"));
+        assertTrue(output.contains("four-week ranking floor is a governance threshold, not statistical confidence or skill evidence"));
+        assertTrue(output.contains("No manager grade, tier, percentile, recommendation, intent, fault, skill attribution, league benchmark"));
+        assertTrue(output.contains("confidence claim, coverage-adjusted composite, or cross-league ranking is computed"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
         assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
         assertTrue(output.contains("See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-common-universe-methodology.md for neutral league-table rules."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules."));
     }
 
     @Test
