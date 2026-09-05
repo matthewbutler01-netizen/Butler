@@ -28,10 +28,10 @@ public final class LeagueScoringCoverageAnalyzer {
     }
 
     public CoverageReport analyze(String leagueId) throws SQLException {
-        leagueId = requireText(leagueId, "leagueId");
-        var league = new LeagueRepository(database).findById(leagueId)
-            .orElseThrow(() -> new IllegalArgumentException("League not found: " + leagueId));
-        var settings = new LeagueScoringSettingsRepository(database).findByLeagueId(leagueId);
+        String normalizedLeagueId = requireText(leagueId, "leagueId");
+        var league = new LeagueRepository(database).findById(normalizedLeagueId)
+            .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
+        var settings = new LeagueScoringSettingsRepository(database).findByLeagueId(normalizedLeagueId);
 
         if (settings.isEmpty()) {
             return new CoverageReport(
@@ -53,13 +53,15 @@ public final class LeagueScoringCoverageAnalyzer {
         for (var entry : settings.entrySet()) {
             String statKey = entry.getKey();
             double points = entry.getValue();
-            String productionField = SUPPORTED_FIELDS.get(statKey);
+            String supportedField = SUPPORTED_FIELDS.get(statKey);
             RuleState state;
+            String productionField = null;
             if (Double.compare(points, 0.0d) == 0) {
                 state = RuleState.ZERO_IGNORED;
                 ignoredZero++;
-            } else if (productionField != null) {
+            } else if (supportedField != null) {
                 state = RuleState.SUPPORTED;
+                productionField = supportedField;
                 supportedNonzero++;
             } else {
                 state = RuleState.UNSUPPORTED_NONZERO;
