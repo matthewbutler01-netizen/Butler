@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerHelpLauncherTest {
     @Test
-    void manualCounterHelpSeparatesLocalStatusGetOnlyEvidenceAndHumanMessageAction() {
+    void manualCounterHelpSeparatesSuccessEvidenceNoActionRecoveryAndManualSleeperBoundary() {
         String output = capture(ButlerHelpLauncher::printManualCounterUsage);
 
         assertTrue(output.contains("butler trade counter-status <trusted-grant-id>"));
@@ -23,6 +23,13 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("butler trade counter-message-ack <trusted-grant-id> [--confirm SENT_EXACT_MESSAGE]"));
         assertTrue(output.contains("sent outside Butler"));
         assertTrue(output.contains("butler trade counter-message-finalize <trusted-grant-id>"));
+        assertTrue(output.contains("butler trade counter-no-action-ack <trusted-grant-id> [--confirm NO_EXTERNAL_ACTION_TAKEN]"));
+        assertTrue(output.contains("not acted on externally"));
+        assertTrue(output.contains("does not mark the attempt FAILED or consume authorization"));
+        assertTrue(output.contains("butler trade counter-no-action-finalize <trusted-grant-id>"));
+        assertTrue(output.contains("local FAILED + authorization close"));
+        assertTrue(output.contains("fresh explicit authorization"));
+        assertTrue(output.contains("mutually exclusive"));
         assertTrue(output.contains("Sleeper writes remain manual"));
         assertTrue(output.contains("official Sleeper API access for this lifecycle is read-only"));
     }
