@@ -2,10 +2,14 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.TradeCounterExecutionAttemptRepository;
+import io.butler.bet.execution.TradeCounterExecutionOutcomePolicy;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeExpectationSnapshotRepository;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeOutcomeCoordinator;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
+import io.butler.bet.integration.sleeper.SleeperManualCounterNoActionAcknowledgmentPolicy;
+import io.butler.bet.integration.sleeper.SleeperManualCounterNoActionAcknowledgmentRepository;
+import io.butler.bet.integration.sleeper.SleeperManualCounterNoActionOutcomeCoordinator;
 import io.butler.bet.intelligence.TradeCounterAuthorizationPolicy;
 
 import java.nio.file.Path;
@@ -43,9 +47,13 @@ public final class ButlerTradeCounterStatusCli {
 
             var snapshot = new SleeperCounterTradeExpectationSnapshotRepository(database)
                 .findByClaimId(handoff.claimId()).orElse(null);
-            var outcome = new SleeperCounterTradeOutcomeCoordinator(database)
+            var successOutcome = new SleeperCounterTradeOutcomeCoordinator(database)
                 .findByClaimId(handoff.claimId()).orElse(null);
-            print(inspect(handoff, snapshot, outcome));
+            var noActionAcknowledgment = new SleeperManualCounterNoActionAcknowledgmentRepository(database)
+                .findByClaimId(handoff.claimId()).orElse(null);
+            var noActionOutcome = new SleeperManualCounterNoActionOutcomeCoordinator(database)
+                .findByClaimId(handoff.claimId()).orElse(null);
+            print(inspect(handoff, snapshot, successOutcome, noActionAcknowledgment, noActionOutcome));
         } catch (SQLException e) {
             System.err.println("Database error while inspecting manual trade lifecycle: " + e.getMessage());
             System.exit(1);
@@ -72,7 +80,16 @@ public final class ButlerTradeCounterStatusCli {
     static LifecycleStatus inspect(
         SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
-        SleeperCounterTradeOutcomeCoordinator.StoredOutcome outcome) {
+        SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome) {
+        return inspect(handoff, snapshot, successOutcome, null, null);
+    }
+
+    static LifecycleStatus inspect(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
+        SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
+        SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment noActionAcknowledgment,
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome) {
         Objects.requireNonNull(handoff, "handoff must not be null");
         if (handoff.action() != TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE
             || handoff.destination().type() != TradeCounterAuthorizationPolicy.DestinationType.LEAGUE
@@ -82,20 +99,42 @@ public final class ButlerTradeCounterStatusCli {
         }
 
         if (snapshot != null) requireSnapshotMatches(handoff, snapshot);
-        if (outcome != null) {
+        if (successOutcome != null) {
             if (snapshot == null) {
                 throw new IllegalStateException(
-                    "terminal manual-trade outcome exists without provider expectation snapshot evidence");
+                    "terminal manual-trade success outcome exists without provider expectation snapshot evidence");
             }
-            requireOutcomeMatches(handoff, snapshot, outcome);
+            requireSuccessOutcomeMatches(handoff, snapshot, successOutcome);
+        }
+        if (noActionAcknowledgment != null) {
+            requireNoActionAcknowledgmentMatches(handoff, noActionAcknowledgment);
+        }
+        if (noActionOutcome != null) {
+            if (noActionAcknowledgment == null) {
+                throw new IllegalStateException(
+                    "terminal manual no-action outcome exists without durable no-action acknowledgment evidence");
+            }
+            requireNoActionOutcomeMatches(handoff, noActionAcknowledgment, noActionOutcome);
+        }
+        if (successOutcome != null && (noActionAcknowledgment != null || noActionOutcome != null)) {
+            throw new IllegalStateException(
+                "conflicting manual-trade success and no-action lifecycle evidence exists");
         }
 
-        State state = outcome != null
-            ? State.FINALIZED
-            : snapshot != null
-                ? State.LOCAL_UNFINALIZED
-                : State.SNAPSHOT_MISSING;
-        return new LifecycleStatus(state, handoff, snapshot, outcome);
+        State state;
+        if (noActionOutcome != null) {
+            state = State.NO_ACTION_FINALIZED;
+        } else if (noActionAcknowledgment != null) {
+            state = State.NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION;
+        } else if (successOutcome != null) {
+            state = State.FINALIZED;
+        } else if (snapshot != null) {
+            state = State.LOCAL_UNFINALIZED;
+        } else {
+            state = State.SNAPSHOT_MISSING;
+        }
+        return new LifecycleStatus(
+            state, handoff, snapshot, successOutcome, noActionAcknowledgment, noActionOutcome);
     }
 
     static void print(LifecycleStatus status) {
@@ -113,34 +152,56 @@ public final class ButlerTradeCounterStatusCli {
 
         if (status.snapshot() == null) {
             System.out.println("Provider expectation snapshot: NOT_RECORDED");
-            System.out.println("Local terminal outcome: NOT_RECORDED");
-            System.out.println("External Sleeper completion: NOT_INFERRED");
-            System.out.println("Next safe action: reconstruct a governed handoff that includes a provider expectation snapshot before reconciliation.");
         } else {
             var snapshot = status.snapshot();
             System.out.println("Provider expectation snapshot: RECORDED");
             System.out.println("Sleeper league ID snapshot: " + snapshot.sleeperLeagueId());
             System.out.println("Frozen movement SHA-256: " + snapshot.movementSha256());
             System.out.println("Snapshot captured at: " + snapshot.snapshottedAt());
+        }
 
-            if (status.outcome() == null) {
+        if (status.noActionAcknowledgment() != null) {
+            var acknowledgment = status.noActionAcknowledgment();
+            System.out.println("No-action acknowledgment evidence: RECORDED");
+            System.out.println("No-action acknowledgment ID: " + acknowledgment.acknowledgmentId());
+            System.out.println("No-action confirmation: " + acknowledgment.confirmation());
+            System.out.println("No-action acknowledged at: " + acknowledgment.acknowledgedAt());
+            System.out.println("External Sleeper completion: NOT_INFERRED");
+            if (status.noActionOutcome() == null) {
                 System.out.println("Local terminal outcome: NOT_RECORDED");
-                System.out.println("External Sleeper completion: NOT_INFERRED");
-                System.out.println("Next safe action: run trade counter-reconcile with an explicit Sleeper week for live GET-only evidence.");
+                System.out.println("Next safe action: run trade counter-no-action-finalize for this trusted grant only if the no-action acknowledgment remains correct.");
             } else {
-                var outcome = status.outcome();
-                System.out.println("Local terminal outcome: RECORDED");
-                System.out.println("Completed Sleeper transaction ID: " + outcome.sleeperTransactionId());
-                System.out.println("Sleeper week used for finalization: " + outcome.sleeperWeek());
+                var outcome = status.noActionOutcome();
+                System.out.println("Local terminal outcome: RECORDED_NO_ACTION");
+                System.out.println("Terminal outcome ID: " + outcome.outcomeId());
                 System.out.println("Terminal execution state: " + outcome.terminalState());
                 System.out.println("Authorization disposition: " + outcome.grantDisposition());
                 System.out.println("Finalization applied at: " + outcome.appliedAt());
-                System.out.println("Local Butler lifecycle is complete from previously verified exact completed readback.");
+                System.out.println("Local Butler lifecycle is closed from explicit durable no-action evidence; any retry requires fresh explicit authorization.");
+            }
+        } else if (status.successOutcome() != null) {
+            var outcome = status.successOutcome();
+            System.out.println("No-action acknowledgment evidence: NOT_RECORDED");
+            System.out.println("Local terminal outcome: RECORDED_SUCCESS");
+            System.out.println("Completed Sleeper transaction ID: " + outcome.sleeperTransactionId());
+            System.out.println("Sleeper week used for finalization: " + outcome.sleeperWeek());
+            System.out.println("Terminal execution state: " + outcome.terminalState());
+            System.out.println("Authorization disposition: " + outcome.grantDisposition());
+            System.out.println("Finalization applied at: " + outcome.appliedAt());
+            System.out.println("Local Butler lifecycle is complete from previously verified exact completed readback.");
+        } else {
+            System.out.println("No-action acknowledgment evidence: NOT_RECORDED");
+            System.out.println("Local terminal outcome: NOT_RECORDED");
+            System.out.println("External Sleeper completion: NOT_INFERRED");
+            if (status.snapshot() == null) {
+                System.out.println("Next safe action: reconstruct a governed handoff that includes a provider expectation snapshot before reconciliation, or record exact no-action evidence if this handoff was never acted on.");
+            } else {
+                System.out.println("Next safe action: run trade counter-reconcile with an explicit Sleeper week for live GET-only evidence, or record exact no-action evidence if this handoff was never acted on.");
             }
         }
 
         System.out.println("Local inspection only; this command performs no Sleeper request.");
-        System.out.println("This command does not submit, accept, reject, alter, reconcile, or finalize a trade.");
+        System.out.println("This command does not submit, accept, reject, alter, reconcile, acknowledge, or finalize a trade.");
         System.out.println("This command does not change execution state or consume authorization.");
     }
 
@@ -154,9 +215,9 @@ public final class ButlerTradeCounterStatusCli {
 
     static void printUsage() {
         System.out.println("  butler trade counter-status <trusted-grant-id>");
-        System.out.println("  Reads only local persisted trade handoff, provider snapshot, and terminal-outcome evidence.");
-        System.out.println("  Reports SNAPSHOT_MISSING, LOCAL_UNFINALIZED, or FINALIZED without inferring current Sleeper state.");
-        System.out.println("  This command performs no Sleeper request and does not reconcile or finalize anything.");
+        System.out.println("  Reads only local persisted trade handoff, provider snapshot, success outcome, and no-action lifecycle evidence.");
+        System.out.println("  Reports SNAPSHOT_MISSING, LOCAL_UNFINALIZED, FINALIZED, NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION, or NO_ACTION_FINALIZED without inferring current Sleeper state.");
+        System.out.println("  This command performs no Sleeper request and does not acknowledge, reconcile, or finalize anything.");
     }
 
     private static void requireSnapshotMatches(
@@ -170,7 +231,7 @@ public final class ButlerTradeCounterStatusCli {
         }
     }
 
-    private static void requireOutcomeMatches(
+    private static void requireSuccessOutcomeMatches(
         SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
         SleeperCounterTradeOutcomeCoordinator.StoredOutcome outcome) {
@@ -182,31 +243,86 @@ public final class ButlerTradeCounterStatusCli {
             || outcome.terminalState() != TradeCounterExecutionAttemptRepository.State.SUCCEEDED
             || !"CONSUME".equals(outcome.grantDisposition())) {
             throw new IllegalStateException(
-                "terminal manual-trade outcome does not match trusted local lifecycle coordinates");
+                "terminal manual-trade success outcome does not match trusted local lifecycle coordinates");
+        }
+    }
+
+    private static void requireNoActionAcknowledgmentMatches(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment acknowledgment) {
+        if (!handoff.claimId().equals(acknowledgment.claimId())
+            || !handoff.attemptId().equals(acknowledgment.attemptId())
+            || !handoff.grantId().equals(acknowledgment.grantId())
+            || !handoff.handoffId().equals(acknowledgment.handoffId())
+            || !handoff.payloadSha256().equals(acknowledgment.payloadSha256())
+            || handoff.action() != acknowledgment.action()
+            || !handoff.destination().equals(acknowledgment.destination())
+            || !SleeperManualCounterNoActionAcknowledgmentPolicy.REQUIRED_CONFIRMATION
+                .equals(acknowledgment.confirmation())
+            || acknowledgment.localTerminalEligibility()
+                != SleeperManualCounterNoActionAcknowledgmentPolicy.LocalTerminalEligibility.CONFIRMED_NO_ACTION_FAILURE
+            || acknowledgment.attemptTerminalState() != TradeCounterExecutionAttemptRepository.State.FAILED
+            || acknowledgment.grantDisposition() != TradeCounterExecutionOutcomePolicy.GrantDisposition.CONSUME) {
+            throw new IllegalStateException(
+                "durable manual-trade no-action acknowledgment does not match trusted handoff coordinates");
+        }
+    }
+
+    private static void requireNoActionOutcomeMatches(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment acknowledgment,
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome outcome) {
+        if (!acknowledgment.acknowledgmentId().equals(outcome.acknowledgmentId())
+            || !handoff.claimId().equals(outcome.claimId())
+            || !handoff.attemptId().equals(outcome.attemptId())
+            || !handoff.grantId().equals(outcome.grantId())
+            || !handoff.handoffId().equals(outcome.handoffId())
+            || !handoff.payloadSha256().equals(outcome.payloadSha256())
+            || handoff.action() != outcome.action()
+            || !handoff.destination().equals(outcome.destination())
+            || !acknowledgment.confirmation().equals(outcome.confirmation())
+            || !acknowledgment.acknowledgedAt().equals(outcome.acknowledgedAt())
+            || outcome.terminalState() != TradeCounterExecutionAttemptRepository.State.FAILED
+            || outcome.grantDisposition() != TradeCounterExecutionOutcomePolicy.GrantDisposition.CONSUME) {
+            throw new IllegalStateException(
+                "terminal manual-trade no-action outcome does not match trusted acknowledgment lifecycle coordinates");
         }
     }
 
     enum State {
         SNAPSHOT_MISSING,
         LOCAL_UNFINALIZED,
-        FINALIZED
+        FINALIZED,
+        NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION,
+        NO_ACTION_FINALIZED
     }
 
     record LifecycleStatus(
         State state,
         SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
-        SleeperCounterTradeOutcomeCoordinator.StoredOutcome outcome) {
+        SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment noActionAcknowledgment,
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome) {
         LifecycleStatus {
             Objects.requireNonNull(state, "state must not be null");
             Objects.requireNonNull(handoff, "handoff must not be null");
-            if ((state == State.SNAPSHOT_MISSING) != (snapshot == null)) {
-                throw new IllegalArgumentException(
-                    "snapshot-missing is the only lifecycle state without provider snapshot evidence");
+            boolean noActionState = state == State.NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION
+                || state == State.NO_ACTION_FINALIZED;
+            if ((state == State.SNAPSHOT_MISSING) && snapshot != null) {
+                throw new IllegalArgumentException("snapshot-missing lifecycle state cannot carry a provider snapshot");
             }
-            if ((state == State.FINALIZED) != (outcome != null)) {
-                throw new IllegalArgumentException(
-                    "only finalized lifecycle state may carry a terminal outcome");
+            if ((state == State.LOCAL_UNFINALIZED || state == State.FINALIZED) && snapshot == null) {
+                throw new IllegalArgumentException("ordinary trade lifecycle states require provider snapshot evidence");
+            }
+            if ((state == State.FINALIZED) != (successOutcome != null)) {
+                throw new IllegalArgumentException("only finalized success state may carry a trade success outcome");
+            }
+            if (noActionState != (noActionAcknowledgment != null)) {
+                throw new IllegalArgumentException("no-action lifecycle states require exactly one no-action acknowledgment path");
+            }
+            if ((state == State.NO_ACTION_FINALIZED) != (noActionOutcome != null)) {
+                throw new IllegalArgumentException("only finalized no-action state may carry a no-action terminal outcome");
             }
         }
     }
