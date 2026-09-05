@@ -53,6 +53,11 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("Omits each baseline common comparable week exactly once"));
         assertTrue(output.contains("at least five common weeks"));
         assertTrue(output.contains("no partial stability summary is published"));
+        assertTrue(output.contains(
+            "butler league season-lineup-capture-ranking-sensitivity-classification-evidence <league-id> <season>"));
+        assertTrue(output.contains("0=LOW, 1=MODERATE, 2+=HIGH sensitivity"));
+        assertTrue(output.contains("Requires complete available ranking-stability evidence"));
+        assertTrue(output.contains("no partial classification is published"));
         assertTrue(output.contains("not reconstructed historical startability"));
         assertTrue(output.contains("independently scoped season rates are not compared"));
         assertTrue(output.contains("neutral common-universe table remains team-name ordered"));
@@ -64,15 +69,18 @@ class ButlerHelpLauncherTest {
         assertTrue(output.contains("baseline rank remains authoritative"));
         assertTrue(output.contains("Stability requires five common weeks"));
         assertTrue(output.contains("every perturbation retains the four-week ranking floor"));
-        assertTrue(output.contains("No stable/unstable tier, confidence interval, probability, manager consistency/reliability label"));
-        assertTrue(output.contains("manager grade, percentile, recommendation, intent, fault, skill attribution, league-wide stability score"));
-        assertTrue(output.contains("coverage-adjusted composite, stability-adjusted replacement rank, or cross-league stability comparison is computed"));
+        assertTrue(output.contains("Sensitivity classes describe observed ordinal movement only"));
+        assertTrue(output.contains("not manager stability, consistency"));
+        assertTrue(output.contains("reliability, quality, confidence, probability, significance, prediction, or a replacement rank"));
+        assertTrue(output.contains("Class labels do not use movement frequency, rate movement, coverage, or manager identity"));
+        assertTrue(output.contains("sensitivity leaderboard, league-wide sensitivity score, recommendation, skill/fault attribution, or cross-league comparison"));
         assertTrue(output.contains("See docs/governed-lineup-evidence.md for the evidence model and safety boundaries."));
         assertTrue(output.contains("See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary."));
         assertTrue(output.contains("See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-common-universe-methodology.md for neutral league-table rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-methodology.md for governed lineup-capture ranking rules."));
         assertTrue(output.contains("See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules."));
+        assertTrue(output.contains("See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes."));
     }
 
     @Test
