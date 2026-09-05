@@ -1,6 +1,7 @@
 package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.LeagueLineupConfigurationRepository;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
@@ -13,6 +14,7 @@ import io.butler.bet.data.RosterRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamSeasonPerformanceRepository;
 import io.butler.bet.domain.League;
+import io.butler.bet.domain.LeagueConfigurationObservation;
 import io.butler.bet.domain.LeagueValueFormat;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerFantasyPositionObservation;
@@ -37,12 +39,14 @@ public final class SleeperLeagueImporter {
     private static final String PROFILE_SOURCE = "sleeper";
     private static final String PERFORMANCE_SOURCE = "sleeper";
     private static final String FANTASY_POSITION_SOURCE = "sleeper";
+    private static final String LEAGUE_CONFIGURATION_SOURCE = "sleeper";
 
     private final SleeperGateway gateway;
     private final LeagueRepository leagues;
     private final LeagueValueFormatRepository leagueFormats;
     private final LeagueLineupConfigurationRepository lineupConfiguration;
     private final LeagueScoringSettingsRepository scoringSettings;
+    private final LeagueConfigurationObservationRepository leagueConfigurationObservations;
     private final TeamRepository teams;
     private final PlayerRepository players;
     private final PlayerFantasyPositionRepository playerFantasyPositions;
@@ -60,6 +64,7 @@ public final class SleeperLeagueImporter {
         this.leagueFormats = new LeagueValueFormatRepository(database);
         this.lineupConfiguration = new LeagueLineupConfigurationRepository(database);
         this.scoringSettings = new LeagueScoringSettingsRepository(database);
+        this.leagueConfigurationObservations = new LeagueConfigurationObservationRepository(database);
         this.teams = new TeamRepository(database);
         this.players = new PlayerRepository(database);
         this.playerFantasyPositions = new PlayerFantasyPositionRepository(database);
@@ -85,6 +90,9 @@ public final class SleeperLeagueImporter {
         leagueFormats.save(league.getId(), valueFormat);
         lineupConfiguration.replace(league.getId(), sourceLeague.rosterPositions());
         scoringSettings.replace(league.getId(), sourceLeague.scoringSettings());
+        leagueConfigurationObservations.replace(new LeagueConfigurationObservation(
+            league.getId(), LEAGUE_CONFIGURATION_SOURCE, importAsOfDate, season,
+            sourceLeague.rosterPositions(), sourceLeague.scoringSettings()));
 
         Map<String, SleeperJsonParser.SleeperUser> owners = new HashMap<>();
         sourceUsers.forEach(user -> owners.put(user.id(), user));
