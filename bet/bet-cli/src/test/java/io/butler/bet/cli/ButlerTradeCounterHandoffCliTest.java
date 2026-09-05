@@ -46,7 +46,7 @@ class ButlerTradeCounterHandoffCliTest {
     }
 
     @Test
-    void messageHandoffPrintsExactPayloadAndAcknowledgmentGatedNextSteps() {
+    void messageHandoffPrintsExactPayloadAcknowledgmentGatedSuccessAndNoActionRecoverySteps() {
         var destination = new TradeCounterAuthorizationPolicy.Destination(
             TradeCounterAuthorizationPolicy.DestinationType.MANAGER, "manager-22");
         String output = capturePresented(
@@ -66,6 +66,10 @@ class ButlerTradeCounterHandoffCliTest {
         assertTrue(output.contains("Next safe local inspection: butler trade counter-message-status grant-1"));
         assertTrue(output.contains("butler trade counter-message-ack grant-1 --confirm SENT_EXACT_MESSAGE"));
         assertTrue(output.contains("butler trade counter-message-finalize grant-1"));
+        assertTrue(output.contains("butler trade counter-no-action-ack grant-1 --confirm NO_EXTERNAL_ACTION_TAKEN"));
+        assertTrue(output.contains("butler trade counter-no-action-finalize grant-1"));
+        assertTrue(output.contains("mutually exclusive for this handoff"));
+        assertTrue(output.contains("Any retry after no-action finalization requires fresh explicit authorization"));
         assertTrue(output.contains("Butler does not send the negotiation message."));
         assertTrue(output.contains("authorization grant remains unconsumed"));
         assertTrue(output.contains("execution attempt remains IN_FLIGHT"));
@@ -75,7 +79,7 @@ class ButlerTradeCounterHandoffCliTest {
     }
 
     @Test
-    void tradeHandoffWithoutSnapshotShowsLocalStatusButBlocksReconcileAndFinalizeGuidance() {
+    void tradeHandoffWithoutSnapshotBlocksReconciliationButStillOffersNoActionRecovery() {
         var destination = new TradeCounterAuthorizationPolicy.Destination(
             TradeCounterAuthorizationPolicy.DestinationType.LEAGUE, "l1");
         String payload = "{\"schema\":\"butler-counter-trade-request-v1\",\"proposalFingerprint\":\""
@@ -93,6 +97,9 @@ class ButlerTradeCounterHandoffCliTest {
         assertTrue(output.contains(PRESENTED_AT.toString()));
         assertTrue(output.contains("Next safe local inspection: butler trade counter-status grant-1"));
         assertTrue(output.contains("Do not reconcile or finalize this trade until a usable immutable provider expectation snapshot is available."));
+        assertTrue(output.contains("instead of inferring from absence"));
+        assertTrue(output.contains("butler trade counter-no-action-ack grant-1 --confirm NO_EXTERNAL_ACTION_TAKEN"));
+        assertTrue(output.contains("butler trade counter-no-action-finalize grant-1"));
         assertFalse(output.contains("butler trade counter-reconcile grant-1 <sleeper-week>"));
         assertFalse(output.contains("butler trade counter-finalize grant-1 <sleeper-week>"));
         assertFalse(output.contains("immutable provider expectation snapshot."));
@@ -100,7 +107,7 @@ class ButlerTradeCounterHandoffCliTest {
     }
 
     @Test
-    void tradeHandoffWithSnapshotShowsSeparateGetOnlyEvidenceAndExactReadbackFinalizationSteps() {
+    void tradeHandoffWithSnapshotShowsSeparateSuccessEvidenceAndNoActionRecoveryPaths() {
         var destination = new TradeCounterAuthorizationPolicy.Destination(
             TradeCounterAuthorizationPolicy.DestinationType.LEAGUE, "l1");
         String payload = "{\"schema\":\"butler-counter-trade-request-v1\",\"proposalFingerprint\":\""
@@ -119,6 +126,8 @@ class ButlerTradeCounterHandoffCliTest {
         assertTrue(output.contains("butler trade counter-reconcile grant-1 <sleeper-week>"));
         assertTrue(output.contains("may proceed only after exact completed readback"));
         assertTrue(output.contains("butler trade counter-finalize grant-1 <sleeper-week>"));
+        assertTrue(output.contains("butler trade counter-no-action-ack grant-1 --confirm NO_EXTERNAL_ACTION_TAKEN"));
+        assertTrue(output.contains("butler trade counter-no-action-finalize grant-1"));
         assertFalse(output.contains("butler trade counter-message-ack"));
         assertFalse(output.contains("submitted successfully"));
     }
