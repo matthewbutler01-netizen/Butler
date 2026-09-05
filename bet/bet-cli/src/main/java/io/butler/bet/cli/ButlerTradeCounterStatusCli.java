@@ -4,6 +4,7 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.TradeCounterExecutionAttemptRepository;
 import io.butler.bet.execution.TradeCounterExecutionOutcomePolicy;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeExpectationSnapshotRepository;
+import io.butler.bet.integration.sleeper.SleeperCounterTradeNoActionResolutionRepository;
 import io.butler.bet.integration.sleeper.SleeperCounterTradeOutcomeCoordinator;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffRepository;
 import io.butler.bet.integration.sleeper.SleeperManualCounterHandoffService;
@@ -53,7 +54,15 @@ public final class ButlerTradeCounterStatusCli {
                 .findByClaimId(handoff.claimId()).orElse(null);
             var noActionOutcome = new SleeperManualCounterNoActionOutcomeCoordinator(database)
                 .findByClaimId(handoff.claimId()).orElse(null);
-            print(inspect(handoff, snapshot, successOutcome, noActionAcknowledgment, noActionOutcome));
+            var noActionResolution = new SleeperCounterTradeNoActionResolutionRepository(database)
+                .findByClaimId(handoff.claimId()).orElse(null);
+            print(inspect(
+                handoff,
+                snapshot,
+                successOutcome,
+                noActionAcknowledgment,
+                noActionOutcome,
+                noActionResolution));
         } catch (SQLException e) {
             System.err.println("Database error while inspecting manual trade lifecycle: " + e.getMessage());
             System.exit(1);
@@ -81,7 +90,7 @@ public final class ButlerTradeCounterStatusCli {
         SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
         SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
         SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome) {
-        return inspect(handoff, snapshot, successOutcome, null, null);
+        return inspect(handoff, snapshot, successOutcome, null, null, null);
     }
 
     static LifecycleStatus inspect(
@@ -90,6 +99,22 @@ public final class ButlerTradeCounterStatusCli {
         SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
         SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment noActionAcknowledgment,
         SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome) {
+        return inspect(
+            handoff,
+            snapshot,
+            successOutcome,
+            noActionAcknowledgment,
+            noActionOutcome,
+            null);
+    }
+
+    static LifecycleStatus inspect(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
+        SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
+        SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment noActionAcknowledgment,
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome,
+        SleeperCounterTradeNoActionResolutionRepository.StoredResolution noActionResolution) {
         Objects.requireNonNull(handoff, "handoff must not be null");
         if (handoff.action() != TradeCounterAuthorizationPolicy.Action.SUBMIT_COUNTER_TRADE
             || handoff.destination().type() != TradeCounterAuthorizationPolicy.DestinationType.LEAGUE
@@ -116,13 +141,54 @@ public final class ButlerTradeCounterStatusCli {
             }
             requireNoActionOutcomeMatches(handoff, noActionAcknowledgment, noActionOutcome);
         }
-        if (successOutcome != null && (noActionAcknowledgment != null || noActionOutcome != null)) {
+        if (noActionResolution != null) {
+            if (snapshot == null || noActionAcknowledgment == null) {
+                throw new IllegalStateException(
+                    "trade no-action resolution requires provider snapshot and durable no-action acknowledgment evidence");
+            }
+            requireNoActionResolutionMatches(
+                handoff,
+                snapshot,
+                successOutcome,
+                noActionAcknowledgment,
+                noActionOutcome,
+                noActionResolution);
+        }
+
+        if (successOutcome != null && noActionOutcome != null) {
             throw new IllegalStateException(
-                "conflicting manual-trade success and no-action lifecycle evidence exists");
+                "terminal trade success cannot coexist with a finalized no-action terminal outcome");
+        }
+        if (successOutcome != null && noActionAcknowledgment != null
+            && (noActionResolution == null
+                || noActionResolution.resolutionType()
+                    != SleeperCounterTradeNoActionResolutionRepository.ResolutionType.SUPERSEDED_BY_CONFIRMED_TRADE)) {
+            throw new IllegalStateException(
+                "trade success and no-action acknowledgment coexist without governed supersession evidence");
+        }
+        if (noActionResolution != null
+            && noActionResolution.resolutionType()
+                == SleeperCounterTradeNoActionResolutionRepository.ResolutionType.SUPERSEDED_BY_CONFIRMED_TRADE
+            && successOutcome == null) {
+            throw new IllegalStateException(
+                "superseded trade no-action acknowledgment exists without its atomic success outcome");
+        }
+        if (noActionResolution != null
+            && noActionResolution.resolutionType()
+                == SleeperCounterTradeNoActionResolutionRepository.ResolutionType.POST_CLOSURE_EXTERNAL_ACTION
+            && noActionOutcome == null) {
+            throw new IllegalStateException(
+                "post-closure trade discrepancy exists without the finalized no-action terminal outcome");
         }
 
         State state;
-        if (noActionOutcome != null) {
+        if (noActionResolution != null
+            && noActionResolution.resolutionType()
+                == SleeperCounterTradeNoActionResolutionRepository.ResolutionType.POST_CLOSURE_EXTERNAL_ACTION) {
+            state = State.POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY;
+        } else if (successOutcome != null && noActionResolution != null) {
+            state = State.FINALIZED_AFTER_NO_ACTION_SUPERSESSION;
+        } else if (noActionOutcome != null) {
             state = State.NO_ACTION_FINALIZED;
         } else if (noActionAcknowledgment != null) {
             state = State.NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION;
@@ -134,7 +200,13 @@ public final class ButlerTradeCounterStatusCli {
             state = State.SNAPSHOT_MISSING;
         }
         return new LifecycleStatus(
-            state, handoff, snapshot, successOutcome, noActionAcknowledgment, noActionOutcome);
+            state,
+            handoff,
+            snapshot,
+            successOutcome,
+            noActionAcknowledgment,
+            noActionOutcome,
+            noActionResolution);
     }
 
     static void print(LifecycleStatus status) {
@@ -160,7 +232,36 @@ public final class ButlerTradeCounterStatusCli {
             System.out.println("Snapshot captured at: " + snapshot.snapshottedAt());
         }
 
-        if (status.noActionAcknowledgment() != null) {
+        if (status.state() == State.FINALIZED_AFTER_NO_ACTION_SUPERSESSION) {
+            var acknowledgment = status.noActionAcknowledgment();
+            var resolution = status.noActionResolution();
+            var outcome = status.successOutcome();
+            System.out.println("No-action acknowledgment evidence: RECORDED_HISTORICAL");
+            System.out.println("No-action acknowledgment ID: " + acknowledgment.acknowledgmentId());
+            System.out.println("No-action confirmation: " + acknowledgment.confirmation());
+            System.out.println("No-action resolution: " + resolution.resolutionType());
+            System.out.println("Resolution ID: " + resolution.resolutionId());
+            System.out.println("Resolution transaction ID: " + resolution.sleeperTransactionId());
+            System.out.println("Resolution Sleeper week: " + resolution.sleeperWeek());
+            System.out.println("Local terminal outcome: RECORDED_SUCCESS");
+            printSuccessOutcome(outcome);
+            System.out.println("The historical no-action acknowledgment remains immutable but was superseded before local closure by exact completed Sleeper readback.");
+        } else if (status.state() == State.POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY) {
+            var acknowledgment = status.noActionAcknowledgment();
+            var outcome = status.noActionOutcome();
+            var resolution = status.noActionResolution();
+            System.out.println("No-action acknowledgment evidence: RECORDED");
+            System.out.println("No-action acknowledgment ID: " + acknowledgment.acknowledgmentId());
+            System.out.println("No-action confirmation: " + acknowledgment.confirmation());
+            System.out.println("Local terminal outcome: RECORDED_NO_ACTION");
+            printNoActionOutcome(outcome);
+            System.out.println("No-action resolution: " + resolution.resolutionType());
+            System.out.println("Discrepancy resolution ID: " + resolution.resolutionId());
+            System.out.println("Observed completed Sleeper transaction ID: " + resolution.sleeperTransactionId());
+            System.out.println("Observed Sleeper week: " + resolution.sleeperWeek());
+            System.out.println("INVESTIGATION REQUIRED: exact completed readback appeared after the local no-action lifecycle was already closed.");
+            System.out.println("The historical FAILED terminal state and consumed authorization were not rewritten.");
+        } else if (status.noActionAcknowledgment() != null) {
             var acknowledgment = status.noActionAcknowledgment();
             System.out.println("No-action acknowledgment evidence: RECORDED");
             System.out.println("No-action acknowledgment ID: " + acknowledgment.acknowledgmentId());
@@ -171,23 +272,14 @@ public final class ButlerTradeCounterStatusCli {
                 System.out.println("Local terminal outcome: NOT_RECORDED");
                 System.out.println("Next safe action: run trade counter-no-action-finalize for this trusted grant only if the no-action acknowledgment remains correct.");
             } else {
-                var outcome = status.noActionOutcome();
                 System.out.println("Local terminal outcome: RECORDED_NO_ACTION");
-                System.out.println("Terminal outcome ID: " + outcome.outcomeId());
-                System.out.println("Terminal execution state: " + outcome.terminalState());
-                System.out.println("Authorization disposition: " + outcome.grantDisposition());
-                System.out.println("Finalization applied at: " + outcome.appliedAt());
+                printNoActionOutcome(status.noActionOutcome());
                 System.out.println("Local Butler lifecycle is closed from explicit durable no-action evidence; any retry requires fresh explicit authorization.");
             }
         } else if (status.successOutcome() != null) {
-            var outcome = status.successOutcome();
             System.out.println("No-action acknowledgment evidence: NOT_RECORDED");
             System.out.println("Local terminal outcome: RECORDED_SUCCESS");
-            System.out.println("Completed Sleeper transaction ID: " + outcome.sleeperTransactionId());
-            System.out.println("Sleeper week used for finalization: " + outcome.sleeperWeek());
-            System.out.println("Terminal execution state: " + outcome.terminalState());
-            System.out.println("Authorization disposition: " + outcome.grantDisposition());
-            System.out.println("Finalization applied at: " + outcome.appliedAt());
+            printSuccessOutcome(status.successOutcome());
             System.out.println("Local Butler lifecycle is complete from previously verified exact completed readback.");
         } else {
             System.out.println("No-action acknowledgment evidence: NOT_RECORDED");
@@ -215,9 +307,24 @@ public final class ButlerTradeCounterStatusCli {
 
     static void printUsage() {
         System.out.println("  butler trade counter-status <trusted-grant-id>");
-        System.out.println("  Reads only local persisted trade handoff, provider snapshot, success outcome, and no-action lifecycle evidence.");
-        System.out.println("  Reports SNAPSHOT_MISSING, LOCAL_UNFINALIZED, FINALIZED, NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION, or NO_ACTION_FINALIZED without inferring current Sleeper state.");
-        System.out.println("  This command performs no Sleeper request and does not acknowledge, reconcile, or finalize anything.");
+        System.out.println("  Reads only local persisted trade handoff, provider snapshot, success outcome, no-action evidence, and governed no-action resolution evidence.");
+        System.out.println("  Reports ordinary pending/success states, no-action pending/finalized states, superseded success, or post-closure external-action discrepancy without inferring current Sleeper state.");
+        System.out.println("  This command performs no Sleeper request and does not acknowledge, reconcile, resolve, or finalize anything.");
+    }
+
+    private static void printSuccessOutcome(SleeperCounterTradeOutcomeCoordinator.StoredOutcome outcome) {
+        System.out.println("Completed Sleeper transaction ID: " + outcome.sleeperTransactionId());
+        System.out.println("Sleeper week used for finalization: " + outcome.sleeperWeek());
+        System.out.println("Terminal execution state: " + outcome.terminalState());
+        System.out.println("Authorization disposition: " + outcome.grantDisposition());
+        System.out.println("Finalization applied at: " + outcome.appliedAt());
+    }
+
+    private static void printNoActionOutcome(SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome outcome) {
+        System.out.println("Terminal outcome ID: " + outcome.outcomeId());
+        System.out.println("Terminal execution state: " + outcome.terminalState());
+        System.out.println("Authorization disposition: " + outcome.grantDisposition());
+        System.out.println("Finalization applied at: " + outcome.appliedAt());
     }
 
     private static void requireSnapshotMatches(
@@ -289,12 +396,55 @@ public final class ButlerTradeCounterStatusCli {
         }
     }
 
+    private static void requireNoActionResolutionMatches(
+        SleeperManualCounterHandoffRepository.PresentedHandoff handoff,
+        SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
+        SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
+        SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment acknowledgment,
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome,
+        SleeperCounterTradeNoActionResolutionRepository.StoredResolution resolution) {
+        boolean baseMatches = acknowledgment.acknowledgmentId().equals(resolution.acknowledgmentId())
+            && handoff.claimId().equals(resolution.claimId())
+            && handoff.attemptId().equals(resolution.attemptId())
+            && handoff.grantId().equals(resolution.grantId())
+            && handoff.handoffId().equals(resolution.handoffId())
+            && handoff.payloadSha256().equals(resolution.payloadSha256())
+            && snapshot.movementSha256().equals(resolution.movementSha256());
+        if (!baseMatches) {
+            throw new IllegalStateException(
+                "trade no-action resolution does not match trusted handoff and provider snapshot coordinates");
+        }
+
+        if (resolution.resolutionType()
+            == SleeperCounterTradeNoActionResolutionRepository.ResolutionType.SUPERSEDED_BY_CONFIRMED_TRADE) {
+            if (successOutcome == null
+                || noActionOutcome != null
+                || resolution.noActionTerminalOutcomeId() != null
+                || successOutcome.sleeperWeek() != resolution.sleeperWeek()
+                || !successOutcome.sleeperTransactionId().equals(resolution.sleeperTransactionId())
+                || !successOutcome.movementSha256().equals(resolution.movementSha256())) {
+                throw new IllegalStateException(
+                    "trade no-action supersession does not match the atomic success outcome");
+            }
+            return;
+        }
+
+        if (successOutcome != null
+            || noActionOutcome == null
+            || !noActionOutcome.outcomeId().equals(resolution.noActionTerminalOutcomeId())) {
+            throw new IllegalStateException(
+                "post-closure trade discrepancy does not match the finalized no-action outcome");
+        }
+    }
+
     enum State {
         SNAPSHOT_MISSING,
         LOCAL_UNFINALIZED,
         FINALIZED,
+        FINALIZED_AFTER_NO_ACTION_SUPERSESSION,
         NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION,
-        NO_ACTION_FINALIZED
+        NO_ACTION_FINALIZED,
+        POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY
     }
 
     record LifecycleStatus(
@@ -303,26 +453,39 @@ public final class ButlerTradeCounterStatusCli {
         SleeperCounterTradeExpectationSnapshotRepository.Snapshot snapshot,
         SleeperCounterTradeOutcomeCoordinator.StoredOutcome successOutcome,
         SleeperManualCounterNoActionAcknowledgmentRepository.StoredAcknowledgment noActionAcknowledgment,
-        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome) {
+        SleeperManualCounterNoActionOutcomeCoordinator.StoredOutcome noActionOutcome,
+        SleeperCounterTradeNoActionResolutionRepository.StoredResolution noActionResolution) {
         LifecycleStatus {
             Objects.requireNonNull(state, "state must not be null");
             Objects.requireNonNull(handoff, "handoff must not be null");
-            boolean noActionState = state == State.NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION
-                || state == State.NO_ACTION_FINALIZED;
-            if ((state == State.SNAPSHOT_MISSING) && snapshot != null) {
+            boolean successState = state == State.FINALIZED
+                || state == State.FINALIZED_AFTER_NO_ACTION_SUPERSESSION;
+            boolean noActionAcknowledgmentState = state == State.NO_ACTION_ACKNOWLEDGED_PENDING_FINALIZATION
+                || state == State.NO_ACTION_FINALIZED
+                || state == State.FINALIZED_AFTER_NO_ACTION_SUPERSESSION
+                || state == State.POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY;
+            boolean noActionOutcomeState = state == State.NO_ACTION_FINALIZED
+                || state == State.POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY;
+            boolean resolutionState = state == State.FINALIZED_AFTER_NO_ACTION_SUPERSESSION
+                || state == State.POST_CLOSURE_EXTERNAL_ACTION_DISCREPANCY;
+
+            if (state == State.SNAPSHOT_MISSING && snapshot != null) {
                 throw new IllegalArgumentException("snapshot-missing lifecycle state cannot carry a provider snapshot");
             }
-            if ((state == State.LOCAL_UNFINALIZED || state == State.FINALIZED) && snapshot == null) {
-                throw new IllegalArgumentException("ordinary trade lifecycle states require provider snapshot evidence");
+            if ((state == State.LOCAL_UNFINALIZED || successState || resolutionState) && snapshot == null) {
+                throw new IllegalArgumentException("trade success/resolution lifecycle states require provider snapshot evidence");
             }
-            if ((state == State.FINALIZED) != (successOutcome != null)) {
-                throw new IllegalArgumentException("only finalized success state may carry a trade success outcome");
+            if (successState != (successOutcome != null)) {
+                throw new IllegalArgumentException("only success lifecycle states may carry a trade success outcome");
             }
-            if (noActionState != (noActionAcknowledgment != null)) {
-                throw new IllegalArgumentException("no-action lifecycle states require exactly one no-action acknowledgment path");
+            if (noActionAcknowledgmentState != (noActionAcknowledgment != null)) {
+                throw new IllegalArgumentException("no-action lifecycle states require durable no-action acknowledgment evidence");
             }
-            if ((state == State.NO_ACTION_FINALIZED) != (noActionOutcome != null)) {
-                throw new IllegalArgumentException("only finalized no-action state may carry a no-action terminal outcome");
+            if (noActionOutcomeState != (noActionOutcome != null)) {
+                throw new IllegalArgumentException("only finalized no-action states may carry a no-action terminal outcome");
+            }
+            if (resolutionState != (noActionResolution != null)) {
+                throw new IllegalArgumentException("only governed resolution states may carry trade no-action resolution evidence");
             }
         }
     }
