@@ -40,15 +40,16 @@ butler league season-lineup-capture-ranking-sensitivity-classification-evidence 
 butler league season-lineup-capture-ranking-change-frequency-evidence <league-id> <season>
 ```
 
-Historical calibration-corpus audit:
+Historical calibration-corpus evidence:
 
 ```text
 butler league lineup-capture-ranking-sensitivity-calibration-corpus-audit <start-season> <end-season>
+butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>
 ```
 
 ## Evidence chain
 
-The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, deterministic sensitivity analysis, qualitative movement classification, change-frequency measurement, historical temporal audit, and presentation.
+The lineup stack intentionally separates evidence collection, scoring, legal-lineup calculation, aggregation, normalization, comparison, ranking, deterministic sensitivity analysis, qualitative movement classification, change-frequency measurement, historical temporal audit, structural-readiness assessment, and presentation.
 
 For a team-week comparison, Butler requires the same governed evidence boundary for both sides of the comparison:
 
@@ -295,6 +296,41 @@ The corpus audit fits **no** qualitative frequency threshold, magnitude-frequenc
 
 The normative historical-audit rules are in [`league-lineup-capture-ranking-sensitivity-calibration-methodology.md`](league-lineup-capture-ranking-sensitivity-calibration-methodology.md).
 
+## Calibration corpus structural readiness
+
+BF-521 through BF-524 add a separate read-only structural-readiness layer over the governed BF-518 historical corpus.
+
+The readiness command is:
+
+```text
+butler league lineup-capture-ranking-sensitivity-calibration-corpus-readiness <start-season> <end-season>
+```
+
+BF-522 derives the readiness report directly from the BF-518 corpus audit. It does not rebuild historical lineup evidence or create a new ranking path.
+
+The corpus is `READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` only when all six structural variation gates pass:
+
+1. `MULTIPLE_LEAGUE_IDENTITIES` — at least 2 distinct league IDs with available cutoffs;
+2. `MULTIPLE_SEASONS` — at least 2 distinct seasons with available cutoffs;
+3. `MULTIPLE_AVAILABLE_LEAGUE_SEASONS` — at least 2 distinct league-season clusters with available cutoffs;
+4. `MULTIPLE_TEAM_COUNT_STRATA` — at least 2 repository team-count values;
+5. `MULTIPLE_PERTURBATION_DENOMINATORS` — at least 2 baseline perturbation denominators; and
+6. `TEMPORAL_OUTCOME_VARIATION` — at least one retained exact numeric future-only rank and at least one moved future-only rank.
+
+These gates test **minimum structural variation**, not statistical sample-size adequacy. A `READY` result means only that Butler may design a later governed threshold study. It does not mean the sample is large enough, statistically adequate, generalized, calibrated, or ready for production threshold publication.
+
+If any gate fails, BF-522 publishes `NOT_READY_FOR_THRESHOLD_STUDY_METHODOLOGY_DESIGN` and preserves the failed gate and observed values. It does not weaken the gate or synthesize evidence to make the corpus pass.
+
+BF-522/BF-523 preserve diagnostic context including BF-508 sensitivity-class counts, BF-512 frequency values, changed-scenario numerators, perturbation denominators, requested/audited/source-failure league-season counts, excluded cutoffs, and available-cutoff concentration by league ID, season, league-season identity, team count, and denominator.
+
+BF-508 class coverage is diagnostic rather than a v1 core gate. Structural readiness therefore does not silently require a magnitude-frequency interaction model.
+
+Team-cutoff rows remain correlated within league-seasons and are explicitly not an independent sample `N`. BF-521 defines no arbitrary `N=30`, `N=100`, exclusion-percentage cap, effective-sample-size calculation, or concentration-adjusted weighting rule.
+
+Even when every readiness gate passes, Butler generates **no candidate threshold**, fits no threshold, chooses no qualitative frequency bands, estimates no probability/confidence, adjusts no BF-500 rank, and creates no manager consistency/reliability score or sensitivity leaderboard.
+
+The normative structural-readiness rules are in [`league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md`](league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md).
+
 ## Team-season week universe
 
 Team-season evidence uses only persisted Sleeper roster weeks as its observed week universe. Butler does not fabricate unobserved weeks to make a season look complete.
@@ -312,19 +348,20 @@ Coverage remains separate from lineup capture. Butler does not penalize, multipl
 
 ## League-season presentation
 
-The governed lineup evidence family now has seven distinct analytical/presentation layers:
+The governed lineup evidence family now has eight distinct analytical/presentation layers:
 
 1. independently scoped team evidence in repository team-name order;
 2. the neutral all-team common-universe table in repository team-name order;
 3. the separate governed lineup-capture ranking surface, available only under BF-500 prerequisites;
 4. deterministic leave-one-common-week-out ranking-stability evidence, available only under BF-504 prerequisites;
 5. observed maximum-movement rank-sensitivity classification derived from the complete BF-504 artifact under BF-508 rules;
-6. observed changed-over-total rank-change frequency derived from the complete BF-504 artifact under BF-512 rules; and
-7. read-only historical temporal corpus audit under BF-517/BF-518 rules, comparing earlier governed diagnostics with strictly later future-only holdout ordinal movement without calibrating thresholds.
+6. observed changed-over-total rank-change frequency derived from the complete BF-504 artifact under BF-512 rules;
+7. read-only historical temporal corpus audit under BF-517/BF-518 rules, comparing earlier governed diagnostics with strictly later future-only holdout ordinal movement without calibrating thresholds; and
+8. BF-521/BF-522 structural-readiness assessment over the governed historical corpus, determining only whether minimum variation exists to design a later threshold-study methodology.
 
-The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability, magnitude classification, change frequency, and historical audit do not replace or revise the BF-500 baseline rank.
+The ranking surface changes presentation order only for the authorized common-universe lineup-capture metric. Stability, magnitude classification, change frequency, historical audit, and structural readiness do not replace or revise the BF-500 baseline rank.
 
-Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability/sensitivity score, probabilistic rank confidence, frequency-adjusted rank, combined magnitude-frequency score, calibrated frequency tier, or historical confidence score.
+Butler still does not compute a league-wide average/median lineup-capture benchmark, combined league capture rate, percentile, pairwise matrix, Elo-like score, manager grade, composite manager score, league-wide stability/sensitivity score, probabilistic rank confidence, frequency-adjusted rank, combined magnitude-frequency score, calibrated frequency tier, historical confidence score, or production calibration threshold.
 
 ## Identity-covered zero versus missing evidence
 
@@ -348,12 +385,14 @@ The governed lineup evidence stack does not establish:
 - that a future-only holdout rank is the true or corrected rank;
 - that future ordinal movement proves a baseline rank was wrong;
 - that team-cutoff rows are independent samples;
-- that any current corpus size is sufficient for threshold calibration;
+- that passing BF-521 readiness gates establishes statistical or sample-size adequacy;
+- that a `READY` result proves generalization or makes any threshold trustworthy;
+- any candidate or fitted calibration threshold;
 - a manager grade, manager tier, manager percentile, or manager-stability label;
 - a league benchmark-relative manager score or league stability/sensitivity score;
-- a stability-adjusted, frequency-adjusted, or confidence-adjusted replacement rank; or
+- a stability-adjusted, frequency-adjusted, calibration-adjusted, or confidence-adjusted replacement rank; or
 - a recommendation about how a manager should have acted.
 
-The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank. BF-508 may classify **observed maximum ordinal movement** as low, moderate, or high sensitivity. BF-512 separately reports **how often** the rank changed across the complete deterministic perturbation set. BF-517/BF-518 then permit a read-only historical audit against strictly later out-of-window ordinal movement. None of these layers converts the metric into statistical confidence or person-level evaluation.
+The governed lineup-capture rank is an ordinal presentation of one governed retrospective metric over one common evidence universe. BF-504 adds deterministic sensitivity evidence around that rank. BF-508 may classify **observed maximum ordinal movement** as low, moderate, or high sensitivity. BF-512 separately reports **how often** the rank changed across the complete deterministic perturbation set. BF-517/BF-518 permit a read-only historical audit against strictly later out-of-window ordinal movement. BF-521/BF-522 then assess only whether that historical corpus contains the minimum structural variation needed to design a later threshold study. None of these layers converts the metric into statistical confidence or person-level evaluation.
 
-Any future step that declares the historical corpus adequate for calibration, fits qualitative frequency thresholds, creates combined magnitude-frequency scores or matrices, estimates confidence or probability, predicts future rank, adjusts BF-500 ranks, assigns manager consistency/reliability labels, creates sensitivity leaderboards, issues recommendations, makes causal/skill/fault claims, applies coverage-adjusted composites, or compares managers across leagues requires a new governed methodology decision before implementation.
+Any future step that generates candidate thresholds, compares threshold performance, declares quantitative support requirements, fits qualitative frequency thresholds, creates combined magnitude-frequency scores or matrices, estimates confidence or probability, predicts future rank, adjusts BF-500 ranks, assigns manager consistency/reliability labels, creates sensitivity leaderboards, issues recommendations, makes causal/skill/fault claims, applies coverage-adjusted composites, or compares managers across leagues requires a new governed methodology decision before implementation.
