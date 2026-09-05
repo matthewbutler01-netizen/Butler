@@ -7,7 +7,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -295,8 +294,7 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyA
             if (numerator < 0 || denominator <= 0 || numerator > denominator) {
                 throw new IllegalArgumentException("frequency candidate must satisfy 0 <= numerator <= denominator");
             }
-            int gcd = gcd(numerator, denominator);
-            if (numerator / gcd != numerator || denominator / gcd != denominator) {
+            if (gcd(numerator, denominator) != 1) {
                 throw new IllegalArgumentException("frequency candidate must use canonical reduced rational form");
             }
         }
