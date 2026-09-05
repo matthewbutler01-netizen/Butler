@@ -91,6 +91,14 @@ public final class SleeperCounterTradeExpectationSnapshotRepository {
                     SELECT RAISE(ABORT, 'Sleeper trade expectation snapshot is immutable');
                 END
                 """);
+            statement.executeUpdate("""
+                CREATE TRIGGER IF NOT EXISTS trg_sleeper_counter_trade_snapshot_delete_immutable
+                BEFORE DELETE ON sleeper_counter_trade_expectation_snapshots
+                FOR EACH ROW
+                BEGIN
+                    SELECT RAISE(ABORT, 'Sleeper trade expectation snapshot is immutable');
+                END
+                """);
         }
     }
 
