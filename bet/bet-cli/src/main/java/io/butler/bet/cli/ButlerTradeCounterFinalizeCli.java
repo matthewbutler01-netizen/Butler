@@ -119,6 +119,11 @@ public final class ButlerTradeCounterFinalizeCli {
             System.out.println("Authorization disposition: " + outcome.grantDisposition());
             System.out.println("Finalization applied at: " + outcome.appliedAt());
             System.out.println("Local Butler execution is SUCCEEDED and the one-shot authorization is consumed.");
+        } else if (application.state()
+            == SleeperCounterTradeOutcomeCoordinator.ApplyState.POST_CLOSURE_DISCREPANCY) {
+            System.out.println("No success terminal outcome was applied because this lifecycle was already closed from exact no-action evidence.");
+            System.out.println("POST-CLOSURE DISCREPANCY: exact completed Sleeper readback conflicts with the closed local no-action lifecycle.");
+            System.out.println("The existing local FAILED terminal state and consumed authorization remain unchanged; investigate the external action.");
         } else {
             System.out.println("No local execution finalization was applied by this command invocation.");
         }
@@ -131,7 +136,9 @@ public final class ButlerTradeCounterFinalizeCli {
         System.out.println("  butler trade counter-finalize <trusted-grant-id> <sleeper-week>");
         System.out.println("  Sleeper week is explicit (1-30); Butler does not infer it.");
         System.out.println("  Butler rereads official Sleeper transaction evidence and requires BF-409 CONFIRMED_SUCCESS_EVIDENCE.");
-        System.out.println("  Only exact completed readback may atomically mark the local attempt SUCCEEDED and consume the one-shot authorization.");
+        System.out.println("  Exact completed readback may supersede an unfinalized trade no-action acknowledgment before local closure.");
+        System.out.println("  A no-action lifecycle already finalized FAILED + CONSUME is never rewritten; later exact completed readback is recorded as a post-closure discrepancy.");
+        System.out.println("  Only eligible active-state finalization may atomically mark the local attempt SUCCEEDED and consume the one-shot authorization.");
         System.out.println("  Sleeper access remains GET-only; this command performs no Sleeper write action.");
     }
 
