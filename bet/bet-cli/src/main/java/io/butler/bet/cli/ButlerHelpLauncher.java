@@ -19,6 +19,8 @@ public final class ButlerHelpLauncher {
         System.out.println("    Explicit-week official GET-only Sleeper transaction evidence; no local finalization.");
         System.out.println("  butler trade counter-finalize <trusted-grant-id> <sleeper-week>");
         System.out.println("    Rechecks GET-only evidence; only exact completed readback may finalize local success and consume authorization.");
+        System.out.println("    For trades only, exact completed readback may supersede an earlier unfinalized no-action acknowledgment while preserving that acknowledgment as immutable history.");
+        System.out.println("    Once no-action was finalized FAILED + CONSUME, later exact completed readback never rewrites local history; Butler records a post-closure external-action discrepancy for investigation.");
         System.out.println("  butler trade counter-message-status <trusted-grant-id>");
         System.out.println("    Local-only message lifecycle inspection; Butler does not send the message.");
         System.out.println("  butler trade counter-message-ack <trusted-grant-id> [--confirm SENT_EXACT_MESSAGE]");
