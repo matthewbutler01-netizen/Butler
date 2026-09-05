@@ -8,6 +8,7 @@ import io.butler.bet.data.PlayerWeekProductionRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -140,6 +141,7 @@ public final class LeagueTeamWeekPotentialLineupAnalyzer {
             coverage.leagueConfigurationAsOf(),
             coverage.rosterEvidenceAsOf(),
             coverage.productionCoverageAsOf(),
+            coverage.productionSourceUri(),
             List.copyOf(playerScores),
             lineup);
     }
@@ -197,6 +199,7 @@ public final class LeagueTeamWeekPotentialLineupAnalyzer {
         LocalDate leagueConfigurationAsOf,
         LocalDate rosterEvidenceAsOf,
         LocalDate productionCoverageAsOf,
+        URI productionSourceUri,
         List<PlayerScoreEvidence> playerScores,
         OptimalLegalLineupSolver.LineupResult lineup) {
         public PotentialLineupReport {
@@ -225,6 +228,7 @@ public final class LeagueTeamWeekPotentialLineupAnalyzer {
             Objects.requireNonNull(leagueConfigurationAsOf, "leagueConfigurationAsOf must not be null");
             Objects.requireNonNull(rosterEvidenceAsOf, "rosterEvidenceAsOf must not be null");
             Objects.requireNonNull(productionCoverageAsOf, "productionCoverageAsOf must not be null");
+            Objects.requireNonNull(productionSourceUri, "productionSourceUri must not be null");
             playerScores = List.copyOf(Objects.requireNonNull(playerScores, "playerScores must not be null"));
             Objects.requireNonNull(lineup, "lineup must not be null");
         }
