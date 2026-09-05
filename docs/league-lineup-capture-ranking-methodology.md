@@ -6,18 +6,18 @@ This methodology authorizes a narrow descriptive rank of the governed common-uni
 
 ## Methodology status
 
-This document is normative for the first league lineup-capture ranking implementation.
+This document is normative for the implemented v1 league lineup-capture ranking.
 
 The ranking decision is intentionally constrained:
 
-- every ranked team must come from the exact repository team universe already represented by the governed common-universe report;
-- every ranked team must use the same all-team common comparable week set;
-- the common week set must contain at least four weeks before any ordinal rank is published;
-- every repository team must have an available governed common-universe lineup-capture rate;
-- ranks are based only on the governed common-universe lineup-capture rate at the existing six-decimal materialized precision;
+- every ranked team comes from the exact repository team universe represented by the governed common-universe report;
+- every ranked team uses the same all-team common comparable week set;
+- the common week set contains at least four weeks before any ordinal rank is published;
+- every repository team has an available governed common-universe lineup-capture rate;
+- ranks use only the governed common-universe lineup-capture rate at six-decimal materialized precision;
 - exact ties at that governed precision share the same rank;
-- Butler must preserve raw common started/potential/gap totals and coverage context alongside rank; and
-- Butler must not translate the rank into manager quality, intent, fault, skill, or decision quality.
+- raw common started/potential/gap totals and coverage context remain visible alongside rank; and
+- the rank is not translated into manager quality, intent, fault, skill, or decision quality.
 
 ## Governed term
 
@@ -25,7 +25,7 @@ The permitted term is **lineup-capture rank** or **common-universe lineup-captur
 
 It means only:
 
-> the ordinal position of a team's governed retrospective lineup-capture rate relative to the other repository teams in the same league and season, when every team is measured over the same sufficiently large governed common comparable week set.
+> the ordinal position of a team's governed retrospective lineup-capture rate relative to the other repository teams in the same league and season, when every team is measured over the same governed common comparable week set and the v1 ranking prerequisites are satisfied.
 
 The artifact must not be named or summarized as:
 
@@ -45,9 +45,9 @@ The ranking source of truth is the governed league common-universe lineup-captur
 league-season-lineup-capture-common-universe-evidence-v1-all-repository-teams-common-comparable-weeks-neutral-no-ranking
 ```
 
-The ranking implementation must not independently reconstruct team seasons, rescore players, recalculate legal lineups, form a new team universe, widen one team's week set, drop a team, or reuse independently scoped full-season rates.
+The implemented analyzer does not independently reconstruct team seasons, rescore players, recalculate legal lineups, form a new team universe, widen one team's week set, drop a team, or reuse independently scoped full-season rates.
 
-The entire common-universe source report should remain nested and inspectable in the ranking report so the ordinal artifact cannot detach from its evidence boundary.
+The complete common-universe source report remains nested and inspectable in the ranking report so the ordinal artifact cannot detach from its evidence boundary.
 
 ## Ranking availability
 
@@ -61,7 +61,7 @@ A league lineup-capture ranking is available only when all of the following are 
 
 If any requirement fails, the **entire ranking is unavailable**.
 
-Butler must not publish a partial ranking that silently omits an unavailable team.
+Butler does not publish a partial ranking that silently omits an unavailable team.
 
 ## Four-week governance floor
 
@@ -81,16 +81,16 @@ The only metric authorized for v1 rank assignment is each team's governed common
 common lineup capture rate = common started points / common potential points
 ```
 
-The ranking implementation must use the already-materialized governed rate at:
+The implementation ranks the already-materialized governed rate at:
 
 ```text
 scale: 6 decimal places
 rounding: HALF_UP
 ```
 
-It must **not** rank on the two-decimal CLI percentage.
+It does **not** rank on the two-decimal CLI percentage.
 
-It must not rank on:
+It does not rank on:
 
 - raw points gap;
 - raw started points;
@@ -131,7 +131,7 @@ ranks: 1,        2,        2,        4
 
 No secondary metric breaks a tie.
 
-In particular, Butler must not break ties using:
+In particular, Butler does not break ties using:
 
 - raw points gap;
 - started points;
@@ -142,7 +142,7 @@ In particular, Butler must not break ties using:
 - head-to-head results; or
 - pairwise lineup-capture contrast.
 
-Within a tied rank, repository team-name order is permitted only as deterministic presentation order. It is not a hidden tie-breaker and must not change the shared ordinal rank.
+Within a tied rank, repository team-name order is used only as deterministic presentation order. It is not a hidden tie-breaker and does not change the shared ordinal rank.
 
 ## Ranked report ordering
 
@@ -153,11 +153,11 @@ When ranking is available, ranked rows are presented by:
 
 This is the first governed lineup artifact authorized to change the neutral team-name order based on a metric.
 
-The source common-universe report itself remains unchanged and retains repository team-name order. The ranking artifact must nest that source rather than mutate its presentation semantics.
+The source common-universe report itself remains unchanged and retains repository team-name order. The ranking artifact nests that source rather than mutating its presentation semantics.
 
 ## Required ranked-row evidence
 
-Each ranked row must expose, at minimum:
+Each ranked row exposes:
 
 - numeric lineup-capture rank;
 - team ID;
@@ -171,11 +171,11 @@ Each ranked row must expose, at minimum:
 - individually comparable-complete week count; and
 - individually comparable but excluded-from-common week numbers.
 
-The report must expose the league ID/name, season, repository team count, common comparable week numbers, minimum-common-week policy, ranking state, and the complete nested common-universe source report.
+The report also exposes the league/season identity through the nested source, repository team count, common comparable week numbers, the four-week minimum, ranking state, ranking policy, and the complete nested common-universe source report.
 
 ## Ranking states
 
-A conforming implementation should make unavailability explicit rather than returning an empty leaderboard without explanation.
+The implementation makes unavailability explicit rather than returning an empty leaderboard without explanation.
 
 V1 states are:
 
@@ -189,13 +189,13 @@ UNAVAILABLE_TEAM_COMMON_RATE
 
 `UNAVAILABLE_TEAM_COMMON_RATE` applies when the common week universe exists and meets the four-week floor but at least one repository team cannot produce an available normalized common-universe rate under the existing zero/negative-point rules.
 
-When ranking is unavailable, the nested common-universe report remains inspectable.
+When ranking is unavailable, the nested common-universe report remains inspectable and the CLI publishes no partial rank rows.
 
 ## No partial ranking
 
 The ranking team universe is all repository teams from the nested source.
 
-If one team is unavailable, Butler must not:
+If one team is unavailable, Butler does not:
 
 - drop that team;
 - rank only the available teams;
@@ -246,7 +246,7 @@ The four-week floor is not a statistical model.
 
 V1 does not publish confidence intervals, p-values, probability that one team is truly better, stability bands, uncertainty scores, or claims that a one-position difference is meaningful.
 
-Two teams may receive adjacent ranks even when their governed rates are extremely close. The raw rates and evidence denominator must remain visible so the ordinal position cannot masquerade as a quantified skill gap.
+Two teams may receive adjacent ranks even when their governed rates are extremely close. The raw rates and evidence denominator remain visible so the ordinal position cannot masquerade as a quantified skill gap.
 
 Any confidence or stability claim requires separate statistical methodology.
 
@@ -271,23 +271,32 @@ V1 does not permit statements such as:
 - `A two-position difference is statistically meaningful.`
 - `This manager deserves credit or blame for the rank.`
 
-## Proposed policy identifier
+## Policy identifier
 
-A conforming first implementation should use:
+The implemented analyzer uses:
 
 ```text
 league-season-lineup-capture-ranking-v1-common-universe-min-4-weeks-competition-ranking-no-manager-attribution
 ```
 
-The metric scope should state that the artifact is a retrospective ordinal ordering of governed common-universe lineup-capture rates, not manager performance.
+Its metric scope states that the artifact is a retrospective ordinal ordering of governed common-universe lineup-capture rates, not manager performance.
 
-## Authorized implementation sequence
+## Implemented v1 command surface
 
-After this methodology is accepted, the defensible implementation path is:
+The BF-501 and BF-502 implementation authorized by this methodology is complete:
 
-1. league-season lineup-capture ranking analyzer derived only from the governed common-universe report;
-2. constructor-time invariants that recompute ranking availability, rank order, ties, and ranked rows from the nested source;
-3. ranking CLI that exposes rank, raw common evidence, rates, denominator, and explicit non-manager boundary;
-4. global help and governed lineup documentation closeout.
+```text
+butler league season-lineup-capture-ranking-evidence <league-id> <season>
+```
 
-**Stop boundary:** implementation must stop again before manager ranking terminology, manager grades, tiers, percentiles, league benchmarks, pairwise win/loss scoring, statistical confidence or stability claims, causal interpretation, skill/fault attribution, recommendations, coverage-adjusted composites, or cross-league ranking.
+The implementation preserves the intended layering:
+
+1. the ranking analyzer derives only from the governed league common-universe report;
+2. ranking fails closed for fewer than two teams, no common weeks, fewer than four common weeks, or any unavailable team common rate;
+3. no partial ranking is published;
+4. available teams are ordered only by governed six-decimal common-universe lineup-capture rate;
+5. exact ties use standard competition ranking with team-name order only for deterministic display inside a shared rank;
+6. ranked rows retain raw common totals, the common denominator, broader coverage, and excluded comparable weeks; and
+7. the CLI explicitly labels the artifact `lineup-capture rank` and rejects manager-quality/statistical-confidence interpretation.
+
+**Stop boundary:** the v1 lineup-capture ranking implementation is complete. Any manager ranking terminology, manager grades, tiers, percentiles, league average/median benchmarks, pairwise win/loss scoring, statistical confidence or stability claims, causal interpretation, skill/fault attribution, recommendations, coverage-adjusted composites, or cross-league ranking requires a new governed methodology decision before implementation.
