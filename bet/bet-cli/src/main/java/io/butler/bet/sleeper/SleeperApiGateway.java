@@ -34,6 +34,12 @@ final class SleeperApiGateway implements SleeperGateway {
     }
 
     @Override
+    public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String leagueId, int week)
+        throws IOException, InterruptedException {
+        return new SleeperMatchupParser().parse(client.getLeagueMatchups(leagueId, week));
+    }
+
+    @Override
     public List<SleeperJsonParser.SleeperTradedPick> fetchTradedPicks(String leagueId) throws IOException, InterruptedException {
         return parser.parseTradedPicks(client.getLeagueTradedPicks(leagueId));
     }
