@@ -50,6 +50,10 @@ public final class ButlerHelpLauncher {
         System.out.println("  butler league season-lineup-capture-ranking-change-frequency-evidence <league-id> <season>");
         System.out.println("    Reports changed required one-week-out scenarios divided by the complete perturbation count.");
         System.out.println("    Uses six-decimal governed frequency; BF-508 movement magnitude remains separate with no frequency tier or combined score.");
+        System.out.println("  butler league lineup-capture-ranking-sensitivity-calibration-corpus-audit <start-season> <end-season>");
+        System.out.println("    Audits persisted historical league-seasons with temporally disjoint baseline and future-only holdout windows.");
+        System.out.println("    Baseline requires at least five common weeks; future-only holdout requires at least four common weeks.");
+        System.out.println("    Preserves cutoff exclusions and corpus breadth; it fits no calibration threshold or confidence model.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
@@ -60,9 +64,13 @@ public final class ButlerHelpLauncher {
         System.out.println("  Stability requires five common weeks so every perturbation retains the four-week ranking floor.");
         System.out.println("  BF-508 sensitivity classes still use maximum absolute rank movement only; rank-change frequency does not alter the class.");
         System.out.println("  BF-512 frequency is deterministic changed-over-total perturbation context, not probability, confidence, significance, or prediction.");
-        System.out.println("  Magnitude and frequency remain separate; Butler computes no qualitative frequency tier, combined magnitude-frequency score,");
-        System.out.println("  frequency-adjusted rank, sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label,");
-        System.out.println("  recommendation, skill/fault attribution, coverage-adjusted composite, or cross-league manager comparison.");
+        System.out.println("  The historical calibration audit uses future weeks only as an out-of-window persistence comparison; a later rank is not true,");
+        System.out.println("  corrected, or ground-truth rank, and a future rank change does not prove the earlier governed rank was wrong.");
+        System.out.println("  Calibration team-cutoff rows are correlated within league-seasons and are not automatically an independent sample size.");
+        System.out.println("  No arbitrary corpus-size sufficiency threshold, qualitative frequency threshold, probability model, or confidence score is authorized.");
+        System.out.println("  Magnitude and frequency remain separate; Butler computes no combined magnitude-frequency score, frequency-adjusted rank,");
+        System.out.println("  sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label, recommendation,");
+        System.out.println("  skill/fault attribution, coverage-adjusted composite, or cross-league manager comparison.");
         System.out.println("  See docs/governed-lineup-evidence.md for the evidence model and safety boundaries.");
         System.out.println("  See docs/lineup-capture-methodology.md for the governed capture formula and stop boundary.");
         System.out.println("  See docs/lineup-capture-comparability-methodology.md for shared-week pairwise contrast rules.");
@@ -71,6 +79,7 @@ public final class ButlerHelpLauncher {
         System.out.println("  See docs/league-lineup-capture-ranking-stability-methodology.md for deterministic rank-sensitivity rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-classification-methodology.md for observed sensitivity classes.");
         System.out.println("  See docs/league-lineup-capture-ranking-change-frequency-methodology.md for observed changed-over-total frequency rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules.");
     }
 
     static void printManualCounterUsage() {
