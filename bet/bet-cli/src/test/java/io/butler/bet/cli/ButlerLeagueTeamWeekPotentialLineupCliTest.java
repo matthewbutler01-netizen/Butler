@@ -5,6 +5,7 @@ import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupCoverageAnalyzer;
 import io.butler.bet.intelligence.LineupSlotEligibilityPolicy;
 import io.butler.bet.intelligence.OptimalLegalLineupSolver;
+import io.butler.bet.sleeper.SleeperHistoricalLineupEvidenceImporter;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,6 +30,20 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
         assertEquals("t1", options.teamId());
         assertEquals(2026, options.season());
         assertEquals(3, options.week());
+        assertFalse(options.syncSleeper());
+        assertEquals(ButlerCommandRouter.Route.LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP,
+            ButlerCommandRouter.route(args));
+    }
+
+    @Test
+    void parsesOptionalSleeperHistoricalPrerequisiteSync() {
+        var args = new String[]{
+            "league", "team-week-potential-lineup", "l1", "t1", "2025", "1", "--sync-sleeper"};
+        var options = ButlerLeagueTeamWeekPotentialLineupCli.parse(args);
+
+        assertEquals(2025, options.season());
+        assertEquals(1, options.week());
+        assertTrue(options.syncSleeper());
         assertEquals(ButlerCommandRouter.Route.LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP,
             ButlerCommandRouter.route(args));
     }
@@ -40,6 +56,27 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
             new String[]{"league", "team-week-potential-lineup", "l1", "t1", "2026", "0"}));
         assertThrows(IllegalArgumentException.class, () -> ButlerLeagueTeamWeekPotentialLineupCli.parse(
             new String[]{"league", "team-week-potential-lineup", "l1", "t1", "2026"}));
+        assertThrows(IllegalArgumentException.class, () -> ButlerLeagueTeamWeekPotentialLineupCli.parse(
+            new String[]{"league", "team-week-potential-lineup", "l1", "t1", "2026", "3", "--bad"}));
+    }
+
+    @Test
+    void printsHistoricalSyncSummary() {
+        var result = new SleeperHistoricalLineupEvidenceImporter.ImportResult(
+            "l1", 2025, 1, "old-league", 1, 12, "sleeper", LocalDate.of(2026, 9, 6));
+        PrintStream original = System.out;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(bytes));
+            ButlerLeagueTeamWeekPotentialLineupCli.printSync(result);
+        } finally {
+            System.setOut(original);
+        }
+        String output = bytes.toString();
+        assertTrue(output.contains("historical lineup prerequisites synchronized"));
+        assertTrue(output.contains("Resolved Sleeper league: old-league"));
+        assertTrue(output.contains("History hops: 1"));
+        assertTrue(output.contains("Team-week roster snapshots: 12 week=1"));
     }
 
     @Test

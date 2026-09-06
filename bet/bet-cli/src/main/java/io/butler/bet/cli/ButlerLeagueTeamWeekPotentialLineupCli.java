@@ -2,7 +2,9 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
+import io.butler.bet.sleeper.SleeperHistoricalLineupEvidenceImporter;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.SQLException;
@@ -11,14 +13,27 @@ import java.sql.SQLException;
 public final class ButlerLeagueTeamWeekPotentialLineupCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
     private static final String COMMAND = "team-week-potential-lineup";
+    private static final String SYNC_SLEEPER = "--sync-sleeper";
 
     private ButlerLeagueTeamWeekPotentialLineupCli() {}
 
     public static void main(String[] args) {
         try {
             Options options = parse(args);
-            print(new LeagueTeamWeekPotentialLineupAnalyzer(initializedDatabase()).analyze(
+            Database database = initializedDatabase();
+            if (options.syncSleeper()) {
+                printSync(new SleeperHistoricalLineupEvidenceImporter(database).syncWeek(
+                    options.leagueId(), options.season(), options.week()));
+            }
+            print(new LeagueTeamWeekPotentialLineupAnalyzer(database).analyze(
                 options.leagueId(), options.teamId(), options.season(), options.week()));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Sleeper historical lineup prerequisite sync interrupted: " + e.getMessage());
+            System.exit(1);
+        } catch (IOException e) {
+            System.err.println("Sleeper historical lineup prerequisite sync failed: " + e.getMessage());
+            System.exit(1);
         } catch (SQLException e) {
             System.err.println("Database error while building team-week potential lineup: " + e.getMessage());
             System.exit(1);
@@ -29,9 +44,13 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
     }
 
     static Options parse(String[] args) {
-        if (!isCommand(args) || args.length != 6) {
-            throw new IllegalArgumentException(
-                "Usage: butler league team-week-potential-lineup <league-id> <team-id> <season> <week>");
+        if (!isCommand(args) || (args.length != 6 && args.length != 7)) {
+            throw usage();
+        }
+        boolean syncSleeper = false;
+        if (args.length == 7) {
+            if (!SYNC_SLEEPER.equalsIgnoreCase(args[6])) throw usage();
+            syncSleeper = true;
         }
         String leagueId = requireText(args[2], "league-id");
         String teamId = requireText(args[3], "team-id");
@@ -41,13 +60,24 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
         if (week <= 0) throw new IllegalArgumentException("week must be positive");
-        return new Options(leagueId, teamId, season, week);
+        return new Options(leagueId, teamId, season, week, syncSleeper);
     }
 
     static boolean isCommand(String[] args) {
         return args != null && args.length >= 2
             && "league".equalsIgnoreCase(args[0])
             && COMMAND.equalsIgnoreCase(args[1]);
+    }
+
+    static void printSync(SleeperHistoricalLineupEvidenceImporter.ImportResult result) {
+        System.out.println("Sleeper historical lineup prerequisites synchronized.");
+        System.out.println("Resolved Sleeper league: " + result.sleeperLeagueId());
+        System.out.println("History hops: " + result.historyHops());
+        System.out.println("League configuration: season=" + result.season()
+            + " source=" + result.source() + " as-of=" + result.asOfDate());
+        System.out.println("Team-week roster snapshots: " + result.teamsImported()
+            + " week=" + result.week());
+        System.out.println();
     }
 
     static void print(LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport report) {
@@ -113,6 +143,11 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
         return database;
     }
 
+    private static IllegalArgumentException usage() {
+        return new IllegalArgumentException(
+            "Usage: butler league team-week-potential-lineup <league-id> <team-id> <season> <week> [--sync-sleeper]");
+    }
+
     private static String points(BigDecimal value) {
         return value.stripTrailingZeros().toPlainString();
     }
@@ -130,5 +165,5 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
         }
     }
 
-    record Options(String leagueId, String teamId, int season, int week) {}
+    record Options(String leagueId, String teamId, int season, int week, boolean syncSleeper) {}
 }
