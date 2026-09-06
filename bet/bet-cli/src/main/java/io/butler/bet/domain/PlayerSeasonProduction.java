@@ -19,6 +19,13 @@ public record PlayerSeasonProduction(
     int receivingYards,
     int receivingTouchdowns,
     int fumblesLost,
+    int passingTwoPointConversions,
+    int rushingAttempts,
+    int rushingTwoPointConversions,
+    int receivingTwoPointConversions,
+    int fumbleRecoveryTouchdowns,
+    int specialTeamsTouchdowns,
+    int rawScoringSchemaVersion,
     String source,
     LocalDate asOfDate) implements RawScoringProduction {
 
@@ -35,8 +42,28 @@ public record PlayerSeasonProduction(
         requireNonNegative(receptions, "receptions");
         requireNonNegative(receivingTouchdowns, "receivingTouchdowns");
         requireNonNegative(fumblesLost, "fumblesLost");
-        // Passing, rushing, and receiving yardage remain signed because legitimate NFL
-        // production rows may be negative.
+        requireNonNegative(passingTwoPointConversions, "passingTwoPointConversions");
+        requireNonNegative(rushingAttempts, "rushingAttempts");
+        requireNonNegative(rushingTwoPointConversions, "rushingTwoPointConversions");
+        requireNonNegative(receivingTwoPointConversions, "receivingTwoPointConversions");
+        requireNonNegative(fumbleRecoveryTouchdowns, "fumbleRecoveryTouchdowns");
+        requireNonNegative(specialTeamsTouchdowns, "specialTeamsTouchdowns");
+        if (rawScoringSchemaVersion < LEGACY_SCHEMA_VERSION || rawScoringSchemaVersion > EXTENDED_SCHEMA_VERSION) {
+            throw new IllegalArgumentException("rawScoringSchemaVersion must be 1 or 2");
+        }
+        // Passing, rushing, and receiving yardage remain signed because legitimate NFL production rows may be negative.
+    }
+
+    /** Compatibility constructor for pre-BF-548 call sites and persisted v1 evidence. */
+    public PlayerSeasonProduction(
+        String id, String playerId, int season, int gamesPlayed,
+        int passingYards, int passingTouchdowns, int interceptions,
+        int rushingYards, int rushingTouchdowns,
+        int receptions, int receivingYards, int receivingTouchdowns,
+        int fumblesLost, String source, LocalDate asOfDate) {
+        this(id, playerId, season, gamesPlayed, passingYards, passingTouchdowns, interceptions,
+            rushingYards, rushingTouchdowns, receptions, receivingYards, receivingTouchdowns, fumblesLost,
+            0, 0, 0, 0, 0, 0, LEGACY_SCHEMA_VERSION, source, asOfDate);
     }
 
     public static PlayerSeasonProduction create(
@@ -48,6 +75,23 @@ public record PlayerSeasonProduction(
         return new PlayerSeasonProduction(UUID.randomUUID().toString(), playerId, season, gamesPlayed,
             passingYards, passingTouchdowns, interceptions, rushingYards, rushingTouchdowns,
             receptions, receivingYards, receivingTouchdowns, fumblesLost, source, asOfDate);
+    }
+
+    public static PlayerSeasonProduction createExactScoringV2(
+        String playerId, int season, int gamesPlayed,
+        int passingYards, int passingTouchdowns, int interceptions,
+        int rushingYards, int rushingTouchdowns,
+        int receptions, int receivingYards, int receivingTouchdowns,
+        int fumblesLost, int passingTwoPointConversions, int rushingAttempts,
+        int rushingTwoPointConversions, int receivingTwoPointConversions,
+        int fumbleRecoveryTouchdowns, int specialTeamsTouchdowns,
+        String source, LocalDate asOfDate) {
+        return new PlayerSeasonProduction(UUID.randomUUID().toString(), playerId, season, gamesPlayed,
+            passingYards, passingTouchdowns, interceptions, rushingYards, rushingTouchdowns,
+            receptions, receivingYards, receivingTouchdowns, fumblesLost,
+            passingTwoPointConversions, rushingAttempts, rushingTwoPointConversions,
+            receivingTwoPointConversions, fumbleRecoveryTouchdowns, specialTeamsTouchdowns,
+            EXTENDED_SCHEMA_VERSION, source, asOfDate);
     }
 
     private static String requireText(String value, String field) {
