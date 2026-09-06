@@ -3,15 +3,19 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.LeagueRepository;
+import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
+import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
+import io.butler.bet.domain.Player;
 import io.butler.bet.domain.Team;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +27,7 @@ class SleeperHistoricalLineupEvidenceImporterTest {
     @TempDir Path tempDir;
 
     @Test
-    void resolvesHistoryPersistsSeasonConfigurationAndWeekRosterEvidence() throws Exception {
+    void resolvesHistoryPersistsPlayersConfigurationAndWeekRosterEvidence() throws Exception {
         Database database = initializedLeague();
         var source = new FakeSource();
         var importer = new SleeperHistoricalLineupEvidenceImporter(source, database);
@@ -33,8 +37,18 @@ class SleeperHistoricalLineupEvidenceImporterTest {
         assertEquals("old", result.sleeperLeagueId());
         assertEquals(1, result.historyHops());
         assertEquals(2, result.teamsImported());
+        assertEquals(5, result.playersHydrated());
+        assertEquals(5, result.newPlayersCreated());
         assertEquals(2025, result.season());
         assertEquals(1, result.week());
+
+        var player = new PlayerRepository(database).findByExternalId("p1").orElseThrow();
+        assertEquals("Player p1", player.getDisplayName());
+        assertEquals("QB", player.getPosition());
+        var positions = new PlayerFantasyPositionObservationRepository(database)
+            .findLatest(player.getId(), "sleeper").orElseThrow();
+        assertEquals(List.of("QB"), positions.providerFantasyPositions());
+        assertEquals(result.asOfDate(), positions.asOfDate());
 
         var configuration = new LeagueConfigurationObservationRepository(database)
             .findLatestForSeason("l1", 2025, "sleeper").orElseThrow();
@@ -51,6 +65,48 @@ class SleeperHistoricalLineupEvidenceImporterTest {
             .findLatest("t2", 2025, 1, "sleeper").orElseThrow();
         assertEquals(List.of("p4", "p5"), team2.providerPlayerIds());
         assertEquals(List.of("p4"), team2.providerStarterIds());
+    }
+
+    @Test
+    void preservesExistingButlerPlayerIdentityWhileRefreshingPositionObservation() throws Exception {
+        Database database = initializedLeague();
+        new PlayerRepository(database).save(new Player("existing-id", "p1", "Existing Name", "QB", "OLD"));
+
+        var result = new SleeperHistoricalLineupEvidenceImporter(new FakeSource(), database)
+            .syncWeek("l1", 2025, 1);
+
+        assertEquals(5, result.playersHydrated());
+        assertEquals(4, result.newPlayersCreated());
+        var player = new PlayerRepository(database).findByExternalId("p1").orElseThrow();
+        assertEquals("existing-id", player.getId());
+        assertEquals("Existing Name", player.getDisplayName());
+        var positions = new PlayerFantasyPositionObservationRepository(database)
+            .findLatest("existing-id", "sleeper").orElseThrow();
+        assertEquals(List.of("QB"), positions.providerFantasyPositions());
+    }
+
+    @Test
+    void missingProviderPlayerFailsBeforeHistoricalEvidencePersistence() throws Exception {
+        Database database = initializedLeague();
+        FakeSource source = new FakeSource() {
+            @Override
+            public Map<String, SleeperJsonParser.SleeperPlayer> fetchPlayers() {
+                Map<String, SleeperJsonParser.SleeperPlayer> players = new LinkedHashMap<>(super.fetchPlayers());
+                players.remove("p3");
+                return Map.copyOf(players);
+            }
+        };
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> new SleeperHistoricalLineupEvidenceImporter(source, database).syncWeek("l1", 2025, 1));
+
+        assertTrue(error.getMessage().contains("No Sleeper player record"));
+        assertTrue(error.getMessage().contains("p3"));
+        assertTrue(new LeagueConfigurationObservationRepository(database)
+            .findLatestForSeason("l1", 2025, "sleeper").isEmpty());
+        assertTrue(new TeamWeekRosterEvidenceRepository(database)
+            .findLatest("t1", 2025, 1, "sleeper").isEmpty());
+        assertTrue(new PlayerRepository(database).findByExternalId("p1").isEmpty());
     }
 
     @Test
@@ -152,6 +208,23 @@ class SleeperHistoricalLineupEvidenceImporterTest {
                     1, List.of("p1", "p2", "p3"), List.of("p1", "p2")),
                 new SleeperMatchupParser.SleeperMatchup(
                     2, List.of("p4", "p5"), List.of("p4")));
+        }
+
+        @Override
+        public Map<String, SleeperJsonParser.SleeperPlayer> fetchPlayers() {
+            Map<String, SleeperJsonParser.SleeperPlayer> players = new LinkedHashMap<>();
+            players.put("p1", player("p1", "QB", List.of("QB")));
+            players.put("p2", player("p2", "RB", List.of("RB")));
+            players.put("p3", player("p3", "WR", List.of("WR")));
+            players.put("p4", player("p4", "TE", List.of("TE")));
+            players.put("p5", player("p5", "WR", List.of("WR")));
+            return Map.copyOf(players);
+        }
+
+        private static SleeperJsonParser.SleeperPlayer player(
+            String id, String position, List<String> fantasyPositions) {
+            return new SleeperJsonParser.SleeperPlayer(
+                id, "Player " + id, position, "NFL", 25, 3, fantasyPositions);
         }
     }
 }
