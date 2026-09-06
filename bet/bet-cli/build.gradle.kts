@@ -45,3 +45,10 @@ val historicalLineupSeasonSync by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerHistoricalLineupSeasonSyncCli")
 }
+
+val sleeperCorpusAcquisitionPlan by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Enumerates target-season Sleeper corpus candidates from a known anchor franchise without importing them."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperCorpusAcquisitionPlanCli")
+}
