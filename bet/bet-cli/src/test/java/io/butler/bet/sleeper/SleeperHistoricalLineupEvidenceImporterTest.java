@@ -90,20 +90,22 @@ class SleeperHistoricalLineupEvidenceImporterTest {
     }
 
     @Test
-    void starterOutsidePlayerListFailsClosed() throws Exception {
+    void preservesProviderStarterOrderAndPlaceholdersExactly() throws Exception {
         Database database = initializedLeague();
         FakeSource source = new FakeSource() {
             @Override
             public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String sleeperLeagueId, int week) {
                 return List.of(
-                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p1"), List.of("not-rostered")),
-                    new SleeperMatchupParser.SleeperMatchup(2, List.of("p4"), List.of("p4")));
+                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p1"), List.of("p1", "0", "0")),
+                    new SleeperMatchupParser.SleeperMatchup(2, List.of("p4"), List.of("p4", "0")));
             }
         };
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-            () -> new SleeperHistoricalLineupEvidenceImporter(source, database).syncWeek("l1", 2025, 1));
-        assertTrue(error.getMessage().contains("starter is not in roster player list"));
+        new SleeperHistoricalLineupEvidenceImporter(source, database).syncWeek("l1", 2025, 1);
+
+        var team1 = new TeamWeekRosterEvidenceRepository(database)
+            .findLatest("t1", 2025, 1, "sleeper").orElseThrow();
+        assertEquals(List.of("p1", "0", "0"), team1.providerStarterIds());
     }
 
     private Database initializedLeague() throws Exception {
