@@ -28,3 +28,13 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+val butlerAcceptanceTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Runs Butler acceptance tests tagged with JUnit's 'acceptance' tag."
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("acceptance")
+    }
+}
