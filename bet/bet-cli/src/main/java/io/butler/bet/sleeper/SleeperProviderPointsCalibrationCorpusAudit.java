@@ -174,9 +174,13 @@ public final class SleeperProviderPointsCalibrationCorpusAudit {
             detail = Objects.requireNonNull(detail, "detail must not be null")
                 .map(value -> requireText(value, "detail"));
 
-            if ((coverageState == LeagueScoringCoverageAnalyzer.CoverageState.COMPLETE)
-                != (unsupportedNonzeroRules == 0)) {
-                throw new IllegalArgumentException("complete coverage must match zero unsupported rules");
+            if (coverageState == LeagueScoringCoverageAnalyzer.CoverageState.COMPLETE
+                && unsupportedNonzeroRules != 0) {
+                throw new IllegalArgumentException("complete coverage cannot have unsupported rules");
+            }
+            if (coverageState == LeagueScoringCoverageAnalyzer.CoverageState.INCOMPLETE
+                && unsupportedNonzeroRules == 0) {
+                throw new IllegalArgumentException("incomplete coverage must identify unsupported rules");
             }
             if ((state == EntryState.CALIBRATED) != calibration.isPresent()) {
                 throw new IllegalArgumentException("only calibrated entries may carry a calibration report");
@@ -185,8 +189,15 @@ public final class SleeperProviderPointsCalibrationCorpusAudit {
                 && coverageState == LeagueScoringCoverageAnalyzer.CoverageState.COMPLETE) {
                 throw new IllegalArgumentException("rule-ineligible entry cannot have complete coverage");
             }
+            if ((state == EntryState.CALIBRATED || state == EntryState.CALIBRATION_ERROR)
+                && coverageState != LeagueScoringCoverageAnalyzer.CoverageState.COMPLETE) {
+                throw new IllegalArgumentException("calibration states require complete rule coverage");
+            }
             if (state != EntryState.CALIBRATED && detail.isEmpty()) {
                 throw new IllegalArgumentException("non-calibrated entries require detail");
+            }
+            if (state == EntryState.CALIBRATED && detail.isPresent()) {
+                throw new IllegalArgumentException("calibrated entries must not carry error detail");
             }
             calibration.ifPresent(report -> {
                 if (!leagueId.equals(report.leagueId()) || season != report.season()
@@ -220,8 +231,8 @@ public final class SleeperProviderPointsCalibrationCorpusAudit {
             if (ruleEligibleLeagueSeasons + ruleIneligibleLeagueSeasons != leagueSeasons) {
                 throw new IllegalArgumentException("rule eligibility counts must reconcile");
             }
-            if (calibratedLeagueSeasons + calibrationErrorLeagueSeasons > ruleEligibleLeagueSeasons) {
-                throw new IllegalArgumentException("calibration states cannot exceed rule-eligible corpus");
+            if (calibratedLeagueSeasons + calibrationErrorLeagueSeasons != ruleEligibleLeagueSeasons) {
+                throw new IllegalArgumentException("every rule-eligible league-season must have a calibration state");
             }
             if (leagueSeasonsWithComparableRows > calibratedLeagueSeasons
                 || comparableRows > providerRows || exactMatches > comparableRows
