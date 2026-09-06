@@ -59,3 +59,10 @@ val sleeperCohortCorpusAcquisitionPlan by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperCohortCorpusAcquisitionPlanCli")
 }
+
+val sleeperCohortCorpusHydrate by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Hydrates the complete BF-555 cohort candidate frame using provider lineage without outcome-based selection."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperCohortCorpusHydrateCli")
+}
