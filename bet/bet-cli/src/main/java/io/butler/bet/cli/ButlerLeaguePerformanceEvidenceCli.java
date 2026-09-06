@@ -3,20 +3,29 @@ package io.butler.bet.cli;
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueCompetitiveTierAnalyzer;
 import io.butler.bet.intelligence.LeaguePerformanceEvidenceAnalyzer;
+import io.butler.bet.sleeper.SleeperHistoricalTeamPerformanceImporter;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 
-/** Read-only CLI for observed team-season competitive performance and governed relative tiers. */
+/** Read-only evidence by default, with an explicit Sleeper historical-sync flag. */
 public final class ButlerLeaguePerformanceEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
+    private static final String SYNC_SLEEPER = "--sync-sleeper";
 
     private ButlerLeaguePerformanceEvidenceCli() {}
 
     public static void main(String[] args) {
         try {
             Options options = parse(args);
-            var analyzer = new LeaguePerformanceEvidenceAnalyzer(initializedDatabase());
+            Database database = initializedDatabase();
+            if (options.syncSleeper()) {
+                var sync = new SleeperHistoricalTeamPerformanceImporter(database)
+                    .syncSeason(options.leagueId(), options.season());
+                printSync(sync);
+            }
+            var analyzer = new LeaguePerformanceEvidenceAnalyzer(database);
             var report = options.source() == null
                 ? analyzer.analyze(options.leagueId(), options.season())
                 : analyzer.analyze(options.leagueId(), options.season(), options.source());
@@ -24,6 +33,13 @@ public final class ButlerLeaguePerformanceEvidenceCli {
         } catch (SQLException e) {
             System.err.println("Database error while building league performance evidence: " + e.getMessage());
             System.exit(1);
+        } catch (IOException e) {
+            System.err.println("Sleeper historical performance sync error: " + e.getMessage());
+            System.exit(3);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.err.println("Sleeper historical performance sync interrupted.");
+            System.exit(4);
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -32,16 +48,31 @@ public final class ButlerLeaguePerformanceEvidenceCli {
 
     static Options parse(String[] args) {
         if (!isCommand(args) || (args.length != 4 && args.length != 5)) {
-            throw new IllegalArgumentException("league performance-evidence requires league id and season, with optional source");
+            throw new IllegalArgumentException(
+                "league performance-evidence requires league id and season, with optional source or --sync-sleeper");
         }
-        return new Options(requireText(args[2], "league-id"), parseSeason(args[3]),
-            args.length == 5 ? requireText(args[4], "source") : null);
+        String source = null;
+        boolean syncSleeper = false;
+        if (args.length == 5) {
+            if (SYNC_SLEEPER.equalsIgnoreCase(args[4])) syncSleeper = true;
+            else source = requireText(args[4], "source");
+        }
+        return new Options(requireText(args[2], "league-id"), parseSeason(args[3]), source, syncSleeper);
     }
 
     static boolean isCommand(String[] args) {
         return args != null && args.length >= 2
             && "league".equalsIgnoreCase(args[0])
             && "performance-evidence".equalsIgnoreCase(args[1]);
+    }
+
+    private static void printSync(SleeperHistoricalTeamPerformanceImporter.ImportResult result) {
+        System.out.println("Sleeper historical team performance synchronized.");
+        System.out.println("Resolved Sleeper league: " + result.sleeperLeagueId());
+        System.out.println("History hops: " + result.historyHops());
+        System.out.println("Performance snapshots: " + result.teamsImported()
+            + "  season=" + result.season() + "  source=" + result.source() + "  as-of=" + result.asOfDate());
+        System.out.println();
     }
 
     static void print(LeaguePerformanceEvidenceAnalyzer.PerformanceReport report) {
@@ -91,5 +122,5 @@ public final class ButlerLeaguePerformanceEvidenceCli {
         return database;
     }
 
-    record Options(String leagueId, int season, String source) {}
+    record Options(String leagueId, int season, String source, boolean syncSleeper) {}
 }
