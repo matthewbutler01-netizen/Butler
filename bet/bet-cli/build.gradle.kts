@@ -80,3 +80,10 @@ val sleeperSeasonProviderPointsCoverageAudit by tasks.registering(JavaExec::clas
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCoverageAuditCli")
 }
+
+val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "BF-560 fail-closed atomic persistence of roster-wide historical Sleeper players_points evidence."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsEvidenceSyncCli")
+}
