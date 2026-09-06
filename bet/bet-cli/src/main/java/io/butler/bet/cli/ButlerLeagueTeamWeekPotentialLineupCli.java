@@ -75,6 +75,10 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
         System.out.println("History hops: " + result.historyHops());
         System.out.println("League configuration: season=" + result.season()
             + " source=" + result.source() + " as-of=" + result.asOfDate());
+        System.out.println("Player identity/position observations: " + result.playersHydrated()
+            + " new-player-mappings=" + result.newPlayersCreated());
+        System.out.println("Eligibility provenance: current dated Sleeper fantasy-position observation; "
+            + "not reconstructed historical eligibility.");
         System.out.println("Team-week roster snapshots: " + result.teamsImported()
             + " week=" + result.week());
         System.out.println();
