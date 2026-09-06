@@ -10,7 +10,7 @@ import java.util.Objects;
 
 /**
  * Binds persisted league scoring evidence to the latest persisted player-week production snapshot
- * for one explicit source. Exact scoring remains blocked unless league scoring coverage is complete.
+ * for one explicit source. Exact scoring remains blocked unless player-week scoring coverage is complete.
  */
 public final class LeaguePlayerWeekScoringAnalyzer {
     public static final String POLICY_ID =
@@ -30,7 +30,7 @@ public final class LeaguePlayerWeekScoringAnalyzer {
         if (season <= 0) throw new IllegalArgumentException("season must be positive");
         if (week <= 0) throw new IllegalArgumentException("week must be positive");
 
-        var coverage = new LeagueScoringCoverageAnalyzer(database).analyze(normalizedLeagueId);
+        var coverage = new LeagueScoringCoverageAnalyzer(database).analyzeWeek(normalizedLeagueId);
         if (!coverage.exactScoringEligible()) {
             throw new IllegalStateException(
                 "Exact league scoring unavailable for " + normalizedLeagueId + ": " + coverage.reason());
