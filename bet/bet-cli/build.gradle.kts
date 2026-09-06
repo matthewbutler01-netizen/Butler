@@ -94,3 +94,10 @@ val sleeperSeasonProviderPointsCalibration by tasks.registering(JavaExec::class)
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCalibrationCli")
 }
+
+val sleeperProviderPointsCalibrationCorpusAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-565 audit of every persisted Sleeper provider-points league-season for exact BF-562 calibration eligibility."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperProviderPointsCalibrationCorpusAuditCli")
+}
