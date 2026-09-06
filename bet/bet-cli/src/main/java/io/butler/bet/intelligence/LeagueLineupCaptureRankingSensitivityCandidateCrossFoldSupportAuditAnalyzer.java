@@ -329,7 +329,9 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
                 || doesNotMeetRuleTotalAbsoluteTemporalRankDisplacement != expectedDoesNotMeet) {
                 throw new IllegalArgumentException("fold direction totals must match raw BF-526 side distributions");
             }
-            if (directionState != directionState(expectedMeets, expectedDoesNotMeet)) {
+            if (directionState
+                != LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.directionState(
+                    expectedMeets, expectedDoesNotMeet)) {
                 throw new IllegalArgumentException("fold direction state must match raw BF-526 side totals");
             }
         }
