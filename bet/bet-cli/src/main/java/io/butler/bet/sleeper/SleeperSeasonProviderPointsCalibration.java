@@ -50,7 +50,7 @@ public final class SleeperSeasonProviderPointsCalibration {
 
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
-        var coverage = new LeagueScoringCoverageAnalyzer(database).analyze(normalizedLeagueId);
+        var coverage = new LeagueScoringCoverageAnalyzer(database).analyzeWeek(normalizedLeagueId);
         if (!coverage.exactScoringEligible()) {
             throw new IllegalStateException(
                 "Exact league scoring unavailable for calibration: " + coverage.reason());

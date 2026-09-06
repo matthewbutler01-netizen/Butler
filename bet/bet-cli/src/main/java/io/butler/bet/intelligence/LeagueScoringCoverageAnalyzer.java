@@ -11,7 +11,7 @@ import java.util.Objects;
 
 /**
  * Determines whether persisted league scoring rules are exactly representable by Butler's raw
- * player-season production evidence. This analyzer never calculates fantasy points.
+ * production evidence at the requested production grain. This analyzer never calculates fantasy points.
  */
 public final class LeagueScoringCoverageAnalyzer {
     public static final String POLICY_ID =
@@ -23,7 +23,26 @@ public final class LeagueScoringCoverageAnalyzer {
         this.database = Objects.requireNonNull(database, "database must not be null");
     }
 
+    /** Preserves the original BF-521 player-season coverage contract. */
     public CoverageReport analyze(String leagueId) throws SQLException {
+        return analyzeForGrain(
+            leagueId,
+            SupportedScoringStat.ProductionGrain.SEASON_AND_WEEK,
+            "player-season");
+    }
+
+    /** Exact coverage for scoring one persisted player-week production row. */
+    public CoverageReport analyzeWeek(String leagueId) throws SQLException {
+        return analyzeForGrain(
+            leagueId,
+            SupportedScoringStat.ProductionGrain.WEEK_ONLY,
+            "player-week");
+    }
+
+    private CoverageReport analyzeForGrain(
+        String leagueId,
+        SupportedScoringStat.ProductionGrain productionGrain,
+        String productionLabel) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
@@ -39,7 +58,8 @@ public final class LeagueScoringCoverageAnalyzer {
                 0,
                 0,
                 0,
-                "No persisted provider scoring settings are available; exact scoring coverage cannot be established.");
+                "No persisted provider scoring settings are available; exact " + productionLabel
+                    + " scoring coverage cannot be established.");
         }
 
         List<RuleCoverage> rules = new ArrayList<>();
@@ -55,7 +75,7 @@ public final class LeagueScoringCoverageAnalyzer {
             if (Double.compare(points, 0.0d) == 0) {
                 state = RuleState.ZERO_IGNORED;
                 ignoredZero++;
-            } else if (supported != null) {
+            } else if (supported != null && supported.supports(productionGrain)) {
                 state = RuleState.SUPPORTED;
                 productionField = supported.productionField();
                 supportedNonzero++;
@@ -70,8 +90,9 @@ public final class LeagueScoringCoverageAnalyzer {
             ? CoverageState.COMPLETE
             : CoverageState.INCOMPLETE;
         String reason = state == CoverageState.COMPLETE
-            ? "Every nonzero scoring rule is representable by a stored raw player-season production field."
-            : "At least one nonzero scoring rule is not representable by Butler's stored raw player-season production fields.";
+            ? "Every nonzero scoring rule is exactly representable for stored raw " + productionLabel + " production."
+            : "At least one nonzero scoring rule is not exactly representable for Butler's stored raw "
+                + productionLabel + " production.";
         return new CoverageReport(
             POLICY_ID,
             league.getId(),

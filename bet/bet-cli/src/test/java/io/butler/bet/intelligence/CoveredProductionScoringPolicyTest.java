@@ -49,6 +49,37 @@ class CoveredProductionScoringPolicyTest {
     }
 
     @Test
+    void weeklyYardageThresholdBonusesStackUsingConfiguredValues() {
+        var week = new PlayerWeekProduction(
+            "week-prod-bonus", "player-1", 2026, 7,
+            400, 0, 0, 200, 0, 0, 200, 0, 0,
+            "nflverse", LocalDate.of(2026, 10, 20));
+        Map<String, Double> scoring = new LinkedHashMap<>();
+        scoring.put("bonus_pass_yd_300", 1.0);
+        scoring.put("bonus_pass_yd_400", 2.0);
+        scoring.put("bonus_rush_yd_100", 1.0);
+        scoring.put("bonus_rush_yd_200", 2.0);
+        scoring.put("bonus_rec_yd_100", 1.0);
+        scoring.put("bonus_rec_yd_200", 2.0);
+
+        var result = policy.score(week, scoring);
+
+        assertEquals(0, result.totalPoints().compareTo(new BigDecimal("9.0")));
+        assertEquals(6, result.components().size());
+        assertTrue(result.components().stream().allMatch(component -> component.rawValue() == 1));
+    }
+
+    @Test
+    void seasonAggregateFailsClosedForWeeklyThresholdBonus() {
+        var error = assertThrows(IllegalStateException.class,
+            () -> policy.score(
+                production(400, 0, 0, 0, 0, 0, 0, 0, 0),
+                Map.of("bonus_pass_yd_300", 1.0)));
+
+        assertTrue(error.getMessage().contains("requires player-week production"));
+    }
+
+    @Test
     void preservesLegitimateNegativeYardageContributions() {
         var result = policy.score(production(0, 0, 0, -5, 0, 0, 0, 0, 0), Map.of("rush_yd", 0.1));
 
