@@ -73,3 +73,10 @@ val sleeperWeekScoringSourceAudit by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperWeekScoringSourceAuditCli")
 }
+
+val sleeperSeasonProviderPointsCoverageAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-559 audit of roster-wide historical Sleeper players_points coverage across weeks 1-18."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCoverageAuditCli")
+}
