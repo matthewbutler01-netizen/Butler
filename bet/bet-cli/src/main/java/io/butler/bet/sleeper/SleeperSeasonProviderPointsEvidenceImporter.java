@@ -106,11 +106,7 @@ public final class SleeperSeasonProviderPointsEvidenceImporter {
         repository.replaceSeasonSnapshot(normalizedLeagueId, season, SOURCE, asOfDate, validated);
         List<ProviderPlayerWeekPointsEvidence> readBack =
             repository.findSnapshot(normalizedLeagueId, season, SOURCE, asOfDate);
-        if (!validated.equals(readBack)) {
-            throw new IllegalStateException(
-                "Provider-points read-back reconciliation failed: expected=" + validated.size()
-                    + " readBack=" + readBack.size());
-        }
+        ProviderPointsEvidenceReconciler.reconcile(validated, readBack);
 
         return new ImportResult(
             POLICY_ID,
