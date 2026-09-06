@@ -66,6 +66,28 @@ public final class LeagueConfigurationObservationRepository {
             requireText(source, "source").trim(), providerSeason);
     }
 
+    /** Returns distinct known provider seasons for a league, excluding legacy unknown-season rows. */
+    public List<Integer> findObservedProviderSeasons(String leagueId) throws SQLException {
+        String normalizedLeagueId = requireText(leagueId, "leagueId").trim();
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (var statement = connection.prepareStatement("""
+                SELECT DISTINCT provider_season
+                FROM league_configuration_observations
+                WHERE league_id=? AND provider_season<>?
+                ORDER BY provider_season
+                """)) {
+                statement.setString(1, normalizedLeagueId);
+                statement.setInt(2, UNKNOWN_SEASON);
+                try (var results = statement.executeQuery()) {
+                    List<Integer> seasons = new ArrayList<>();
+                    while (results.next()) seasons.add(results.getInt("provider_season"));
+                    return List.copyOf(seasons);
+                }
+            }
+        }
+    }
+
     private Optional<LeagueConfigurationObservation> findLatestInternal(
         String leagueId, String source, Integer providerSeason) throws SQLException {
         try (Connection connection = database.openConnection()) {

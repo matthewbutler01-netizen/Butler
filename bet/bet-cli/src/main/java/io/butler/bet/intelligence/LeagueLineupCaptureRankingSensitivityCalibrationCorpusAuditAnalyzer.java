@@ -1,6 +1,7 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.LeagueRepository;
 
 import java.math.BigDecimal;
@@ -13,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * Audits the historical corpus available for future lineup-capture rank-sensitivity calibration.
@@ -44,21 +46,27 @@ public final class LeagueLineupCaptureRankingSensitivityCalibrationCorpusAuditAn
         List<LeagueSeasonSourceFailure> sourceFailures = new ArrayList<>();
         int leaguesWithoutSeason = 0;
         var commonAnalyzer = new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer(database);
+        var configurationRepository = new LeagueConfigurationObservationRepository(database);
 
         for (var league : new LeagueRepository(database).findAll()) {
-            Integer season = league.getSeason();
-            if (season == null) {
+            var candidateSeasons = new TreeSet<Integer>();
+            Integer currentSeason = league.getSeason();
+            if (currentSeason == null) {
                 leaguesWithoutSeason++;
-                continue;
+            } else {
+                candidateSeasons.add(currentSeason);
             }
-            if (season < startSeason || season > endSeason) continue;
+            candidateSeasons.addAll(configurationRepository.findObservedProviderSeasons(league.getId()));
 
-            try {
-                var source = commonAnalyzer.analyze(league.getId(), season);
-                leagueSeasons.add(LeagueSeasonAudit.fromSource(source));
-            } catch (IllegalStateException sourceUnavailable) {
-                sourceFailures.add(new LeagueSeasonSourceFailure(
-                    league.getId(), league.getName(), season, SourceFailureState.SOURCE_EVIDENCE_UNAVAILABLE));
+            for (int season : candidateSeasons) {
+                if (season < startSeason || season > endSeason) continue;
+                try {
+                    var source = commonAnalyzer.analyze(league.getId(), season);
+                    leagueSeasons.add(LeagueSeasonAudit.fromSource(source));
+                } catch (IllegalStateException sourceUnavailable) {
+                    sourceFailures.add(new LeagueSeasonSourceFailure(
+                        league.getId(), league.getName(), season, SourceFailureState.SOURCE_EVIDENCE_UNAVAILABLE));
+                }
             }
         }
 
