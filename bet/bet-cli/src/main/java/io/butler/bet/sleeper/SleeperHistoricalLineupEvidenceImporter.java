@@ -5,9 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.LeagueRepository;
+import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
+import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.LeagueConfigurationObservation;
+import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerFantasyPositionObservation;
 import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
 
@@ -17,12 +21,14 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
-/** Hydrates the provider-observed historical configuration and team-week roster evidence required by lineup analysis. */
+/** Hydrates the provider-observed historical configuration and team-week evidence required by lineup analysis. */
 public final class SleeperHistoricalLineupEvidenceImporter {
     private static final String SOURCE = "sleeper";
     private static final int MAX_HISTORY_HOPS = 30;
@@ -30,6 +36,8 @@ public final class SleeperHistoricalLineupEvidenceImporter {
     private final HistoricalSource source;
     private final LeagueRepository leagues;
     private final TeamRepository teams;
+    private final PlayerRepository players;
+    private final PlayerFantasyPositionObservationRepository fantasyPositionObservations;
     private final LeagueConfigurationObservationRepository configurations;
     private final TeamWeekRosterEvidenceRepository rosterEvidence;
 
@@ -42,6 +50,8 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         this.source = Objects.requireNonNull(source, "source must not be null");
         this.leagues = new LeagueRepository(database);
         this.teams = new TeamRepository(database);
+        this.players = new PlayerRepository(database);
+        this.fantasyPositionObservations = new PlayerFantasyPositionObservationRepository(database);
         this.configurations = new LeagueConfigurationObservationRepository(database);
         this.rosterEvidence = new TeamWeekRosterEvidenceRepository(database);
     }
@@ -87,7 +97,14 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         requireExactRosterIdentity(historicalRosters.keySet(), matchups.keySet(), targetSeason,
             "week " + week + " matchups");
 
+        Set<String> requestedPlayerIds = matchupPlayerIds(matchups.values());
+        Map<String, SleeperJsonParser.SleeperPlayer> sourcePlayers = source.fetchPlayers();
+        Map<String, SleeperJsonParser.SleeperPlayer> validatedPlayers =
+            validateRequestedPlayers(requestedPlayerIds, sourcePlayers, targetSeason, week);
+
         LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
+        int newPlayers = hydratePlayers(validatedPlayers, asOfDate);
+
         configurations.replace(new LeagueConfigurationObservation(
             leagueId,
             SOURCE,
@@ -118,8 +135,37 @@ public final class SleeperHistoricalLineupEvidenceImporter {
             resolved.sleeperLeagueId(),
             resolved.historyHops(),
             teamsImported,
+            validatedPlayers.size(),
+            newPlayers,
             SOURCE,
             asOfDate);
+    }
+
+    private int hydratePlayers(Map<String, SleeperJsonParser.SleeperPlayer> sourcePlayers, LocalDate asOfDate)
+        throws SQLException {
+        int created = 0;
+        for (Map.Entry<String, SleeperJsonParser.SleeperPlayer> entry : sourcePlayers.entrySet()) {
+            String externalId = entry.getKey();
+            SleeperJsonParser.SleeperPlayer sourcePlayer = entry.getValue();
+            Player existing = players.findByExternalId(externalId).orElse(null);
+            Player player = existing;
+            if (player == null) {
+                String displayName = requireText(sourcePlayer.displayName(),
+                    "Sleeper player display name for " + externalId);
+                String position = usable(sourcePlayer.position()) ? sourcePlayer.position().trim() : "UNKNOWN";
+                player = new Player(
+                    UUID.randomUUID().toString(),
+                    externalId,
+                    displayName,
+                    position,
+                    sourcePlayer.nflTeam());
+                players.save(player);
+                created++;
+            }
+            fantasyPositionObservations.replace(new PlayerFantasyPositionObservation(
+                player.getId(), SOURCE, asOfDate, sourcePlayer.fantasyPositions()));
+        }
+        return created;
     }
 
     private ResolvedSeason resolveSeason(String currentSleeperLeagueId, int targetSeason)
@@ -151,6 +197,49 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         }
         throw new IllegalStateException(
             "Sleeper history exceeded " + MAX_HISTORY_HOPS + " links before requested season " + targetSeason);
+    }
+
+    private static Set<String> matchupPlayerIds(Iterable<SleeperMatchupParser.SleeperMatchup> matchups) {
+        Set<String> result = new LinkedHashSet<>();
+        for (var matchup : matchups) {
+            for (String playerId : matchup.playerIds()) {
+                result.add(requireText(playerId, "Sleeper matchup player id"));
+            }
+        }
+        if (result.isEmpty()) {
+            throw new IllegalStateException("historical Sleeper week contains no rostered player ids");
+        }
+        return result;
+    }
+
+    private static Map<String, SleeperJsonParser.SleeperPlayer> validateRequestedPlayers(
+        Set<String> requestedPlayerIds,
+        Map<String, SleeperJsonParser.SleeperPlayer> sourcePlayers,
+        int season,
+        int week) {
+        if (sourcePlayers == null || sourcePlayers.isEmpty()) {
+            throw new IllegalStateException("Sleeper player dataset is empty");
+        }
+        Map<String, SleeperJsonParser.SleeperPlayer> result = new LinkedHashMap<>();
+        for (String playerId : requestedPlayerIds) {
+            var sourcePlayer = sourcePlayers.get(playerId);
+            if (sourcePlayer == null) {
+                throw new IllegalStateException(
+                    "No Sleeper player record for historical matchup player id " + playerId
+                        + " in season " + season + " week " + week);
+            }
+            if (!playerId.equals(sourcePlayer.id())) {
+                throw new IllegalStateException(
+                    "Sleeper player identity mismatch for requested id " + playerId
+                        + ": returned=" + sourcePlayer.id());
+            }
+            if (!usable(sourcePlayer.displayName())) {
+                throw new IllegalStateException(
+                    "Sleeper player record has no display name for historical matchup player id " + playerId);
+            }
+            result.put(playerId, sourcePlayer);
+        }
+        return result;
     }
 
     private static Map<String, Team> currentTeamsByRosterId(List<Team> currentTeams) {
@@ -210,6 +299,10 @@ public final class SleeperHistoricalLineupEvidenceImporter {
                 + season + ": missing=" + missing + " extra=" + extra);
     }
 
+    private static boolean usable(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(field + " must not be blank");
@@ -224,6 +317,8 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         List<SleeperJsonParser.SleeperRoster> fetchRosters(String sleeperLeagueId)
             throws IOException, InterruptedException;
         List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String sleeperLeagueId, int week)
+            throws IOException, InterruptedException;
+        Map<String, SleeperJsonParser.SleeperPlayer> fetchPlayers()
             throws IOException, InterruptedException;
     }
 
@@ -247,6 +342,8 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         String sleeperLeagueId,
         int historyHops,
         int teamsImported,
+        int playersHydrated,
+        int newPlayersCreated,
         String source,
         LocalDate asOfDate) {}
 
@@ -282,6 +379,12 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String sleeperLeagueId, int week)
             throws IOException, InterruptedException {
             return matchupParser.parse(client.getLeagueMatchups(sleeperLeagueId, week));
+        }
+
+        @Override
+        public Map<String, SleeperJsonParser.SleeperPlayer> fetchPlayers()
+            throws IOException, InterruptedException {
+            return parser.parsePlayers(client.getNflPlayers());
         }
 
         private static String text(JsonNode node, String field) throws IOException {
