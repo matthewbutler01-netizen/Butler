@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,7 +46,7 @@ class LeagueScoringCoverageAnalyzerTest {
     }
 
     @Test
-    void incompleteWhenAnyNonzeroRuleNeedsProductionButlerDoesNotStore() throws Exception {
+    void seasonCoverageKeepsWeeklyThresholdBonusesFailClosed() throws Exception {
         Database database = leagueDatabase("incomplete.db");
         settings(database).replace("league-1", Map.of(
             "pass_td", 6.0,
@@ -59,9 +60,33 @@ class LeagueScoringCoverageAnalyzerTest {
         assertEquals(1, report.supportedNonzeroRules());
         assertEquals(2, report.unsupportedNonzeroRules());
         assertTrue(report.rules().stream()
-            .filter(rule -> rule.statKey().equals("bonus_rec_te"))
+            .filter(rule -> rule.statKey().equals("bonus_pass_yd_300") || rule.statKey().equals("bonus_rec_te"))
             .allMatch(rule -> rule.state() == LeagueScoringCoverageAnalyzer.RuleState.UNSUPPORTED_NONZERO
                 && rule.productionField() == null));
+    }
+
+    @Test
+    void weekCoverageSupportsAllSixExactYardageThresholdBonuses() throws Exception {
+        Database database = leagueDatabase("week-bonuses.db");
+        Map<String, Double> scoring = new LinkedHashMap<>();
+        scoring.put("bonus_pass_yd_300", 1.0);
+        scoring.put("bonus_pass_yd_400", 2.0);
+        scoring.put("bonus_rush_yd_100", 1.0);
+        scoring.put("bonus_rush_yd_200", 2.0);
+        scoring.put("bonus_rec_yd_100", 1.0);
+        scoring.put("bonus_rec_yd_200", 2.0);
+        settings(database).replace("league-1", scoring);
+
+        var report = new LeagueScoringCoverageAnalyzer(database).analyzeWeek("league-1");
+
+        assertEquals(LeagueScoringCoverageAnalyzer.CoverageState.COMPLETE, report.state());
+        assertTrue(report.exactScoringEligible());
+        assertEquals(6, report.supportedNonzeroRules());
+        assertEquals(0, report.unsupportedNonzeroRules());
+        assertTrue(report.rules().stream().allMatch(rule ->
+            rule.state() == LeagueScoringCoverageAnalyzer.RuleState.SUPPORTED
+                && rule.productionField() != null
+                && rule.productionField().startsWith("weekly")));
     }
 
     @Test
