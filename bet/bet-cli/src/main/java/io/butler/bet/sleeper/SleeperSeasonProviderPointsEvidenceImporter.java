@@ -1,5 +1,6 @@
 package io.butler.bet.sleeper;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.butler.bet.data.Database;
@@ -38,7 +39,8 @@ public final class SleeperSeasonProviderPointsEvidenceImporter {
     private final Database database;
     private final Source source;
     private final LocalDate asOfDate;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper()
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
 
     public SleeperSeasonProviderPointsEvidenceImporter(Database database) {
         this(database, new LiveSource(), LocalDate.now(ZoneOffset.UTC));
