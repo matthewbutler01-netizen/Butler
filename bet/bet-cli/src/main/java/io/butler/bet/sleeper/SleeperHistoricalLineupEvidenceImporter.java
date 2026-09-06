@@ -86,7 +86,6 @@ public final class SleeperHistoricalLineupEvidenceImporter {
             matchupsByRosterId(source.fetchMatchups(resolved.sleeperLeagueId(), week));
         requireExactRosterIdentity(historicalRosters.keySet(), matchups.keySet(), targetSeason,
             "week " + week + " matchups");
-        for (var matchup : matchups.values()) validateMatchup(matchup, targetSeason, week);
 
         LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
         configurations.replace(new LeagueConfigurationObservation(
@@ -197,32 +196,6 @@ public final class SleeperHistoricalLineupEvidenceImporter {
             }
         }
         return result;
-    }
-
-    private static void validateMatchup(SleeperMatchupParser.SleeperMatchup matchup, int season, int week) {
-        Set<String> players = new HashSet<>();
-        for (String player : matchup.playerIds()) {
-            String normalized = requireText(player, "matchup player id");
-            if (!players.add(normalized)) {
-                throw new IllegalStateException(
-                    "duplicate Sleeper matchup player id for season " + season + " week " + week
-                        + " roster " + matchup.rosterId() + ": " + normalized);
-            }
-        }
-        Set<String> starters = new HashSet<>();
-        for (String starter : matchup.starterIds()) {
-            String normalized = requireText(starter, "matchup starter id");
-            if (!starters.add(normalized)) {
-                throw new IllegalStateException(
-                    "duplicate Sleeper matchup starter id for season " + season + " week " + week
-                        + " roster " + matchup.rosterId() + ": " + normalized);
-            }
-            if (!players.contains(normalized)) {
-                throw new IllegalStateException(
-                    "Sleeper matchup starter is not in roster player list for season " + season + " week " + week
-                        + " roster " + matchup.rosterId() + ": " + normalized);
-            }
-        }
     }
 
     private static void requireExactRosterIdentity(Set<String> expected, Set<String> actual,
