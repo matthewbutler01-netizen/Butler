@@ -52,3 +52,10 @@ val sleeperCorpusAcquisitionPlan by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperCorpusAcquisitionPlanCli")
 }
+
+val sleeperCohortCorpusAcquisitionPlan by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Enumerates target-season Sleeper corpus candidates across all owners represented in an anchor league without importing them."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperCohortCorpusAcquisitionPlanCli")
+}
