@@ -66,3 +66,10 @@ val sleeperCohortCorpusHydrate by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperCohortCorpusHydrateCli")
 }
+
+val sleeperWeekScoringSourceAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-558 proof audit of Sleeper weekly raw-stat coverage and exact matchup scoring parity."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperWeekScoringSourceAuditCli")
+}
