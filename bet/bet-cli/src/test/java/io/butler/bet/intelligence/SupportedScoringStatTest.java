@@ -13,8 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SupportedScoringStatTest {
     @Test
     void exposesExactlyTheProductionBackedScoringKeys() {
-        assertEquals(21, SupportedScoringStat.values().length);
+        assertEquals(22, SupportedScoringStat.values().length);
         assertEquals("passingYards", SupportedScoringStat.find("pass_yd").productionField());
+        assertEquals("sacksSuffered", SupportedScoringStat.find("pass_sack").productionField());
+        assertEquals(3, SupportedScoringStat.find("pass_sack").minimumRawScoringSchemaVersion());
         assertEquals("fumblesLost", SupportedScoringStat.find("fum_lost").productionField());
         assertEquals("passingTwoPointConversions", SupportedScoringStat.find("pass_2pt").productionField());
         assertEquals("rushingAttempts", SupportedScoringStat.find("rush_att").productionField());
@@ -51,10 +53,13 @@ class SupportedScoringStatTest {
     }
 
     @Test
-    void weeklyOnlyBonusesDoNotClaimSeasonAggregateSupport() {
+    void weeklyOnlyRulesDoNotClaimSeasonAggregateSupport() {
         var bonus = SupportedScoringStat.find("bonus_pass_yd_300");
+        var sacks = SupportedScoringStat.find("pass_sack");
         assertTrue(bonus.supports(SupportedScoringStat.ProductionGrain.WEEK_ONLY));
         assertFalse(bonus.supports(SupportedScoringStat.ProductionGrain.SEASON_AND_WEEK));
+        assertTrue(sacks.supports(SupportedScoringStat.ProductionGrain.WEEK_ONLY));
+        assertFalse(sacks.supports(SupportedScoringStat.ProductionGrain.SEASON_AND_WEEK));
         assertTrue(SupportedScoringStat.find("pass_yd")
             .supports(SupportedScoringStat.ProductionGrain.SEASON_AND_WEEK));
         assertTrue(SupportedScoringStat.find("pass_yd")

@@ -27,13 +27,14 @@ import java.util.Set;
 /** Imports raw nflverse regular-season week production using exact GSIS-to-Sleeper identity mapping. */
 public final class NflversePlayerWeekProductionImporter {
     public static final String SOURCE = NflversePlayerSeasonProductionImporter.SOURCE;
-    private static final Set<String> EXTENDED_COLUMNS = Set.of(
+    private static final Set<String> V2_COLUMNS = Set.of(
         "passing_2pt_conversions",
         "carries",
         "rushing_2pt_conversions",
         "receiving_2pt_conversions",
         "fumble_recovery_tds",
         "special_teams_tds");
+    private static final String V3_SACKS_SUFFERED_COLUMN = "sacks_suffered";
 
     private final PlayerRepository players;
     private final PlayerWeekProductionRepository production;
@@ -182,20 +183,33 @@ public final class NflversePlayerWeekProductionImporter {
             coverage.deleteBySeasonAsOf(season, SOURCE, asOfDate);
             for (ProviderProduction provider : mapped.values()) {
                 ProviderStats stats = provider.stats();
-                PlayerWeekProduction snapshot = provider.rawSchema() == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                    ? PlayerWeekProduction.createExactScoringV2(
+                PlayerWeekProduction snapshot;
+                if (provider.rawSchema() == RawScoringProduction.SACKS_SUFFERED_SCHEMA_VERSION) {
+                    snapshot = PlayerWeekProduction.createExactScoringV3(
                         provider.localPlayerId(), season, provider.week(),
                         stats.passingYards(), stats.passingTouchdowns(), stats.interceptions(),
                         stats.rushingYards(), stats.rushingTouchdowns(), stats.receptions(),
                         stats.receivingYards(), stats.receivingTouchdowns(), stats.fumblesLost(),
                         stats.passingTwoPointConversions(), stats.rushingAttempts(),
                         stats.rushingTwoPointConversions(), stats.receivingTwoPointConversions(),
-                        stats.fumbleRecoveryTouchdowns(), stats.specialTeamsTouchdowns(), SOURCE, asOfDate)
-                    : PlayerWeekProduction.create(
+                        stats.fumbleRecoveryTouchdowns(), stats.specialTeamsTouchdowns(), stats.sacksSuffered(),
+                        SOURCE, asOfDate);
+                } else if (provider.rawSchema() == RawScoringProduction.EXTENDED_SCHEMA_VERSION) {
+                    snapshot = PlayerWeekProduction.createExactScoringV2(
+                        provider.localPlayerId(), season, provider.week(),
+                        stats.passingYards(), stats.passingTouchdowns(), stats.interceptions(),
+                        stats.rushingYards(), stats.rushingTouchdowns(), stats.receptions(),
+                        stats.receivingYards(), stats.receivingTouchdowns(), stats.fumblesLost(),
+                        stats.passingTwoPointConversions(), stats.rushingAttempts(),
+                        stats.rushingTwoPointConversions(), stats.receivingTwoPointConversions(),
+                        stats.fumbleRecoveryTouchdowns(), stats.specialTeamsTouchdowns(), SOURCE, asOfDate);
+                } else {
+                    snapshot = PlayerWeekProduction.create(
                         provider.localPlayerId(), season, provider.week(),
                         stats.passingYards(), stats.passingTouchdowns(), stats.interceptions(),
                         stats.rushingYards(), stats.rushingTouchdowns(), stats.receptions(),
                         stats.receivingYards(), stats.receivingTouchdowns(), stats.fumblesLost(), SOURCE, asOfDate);
+                }
                 production.save(snapshot);
                 snapshotsWritten++;
             }
@@ -230,6 +244,7 @@ public final class NflversePlayerWeekProductionImporter {
     }
 
     private static ProviderStats parseProviderStats(Map<String, String> row, int rawSchema, String id) {
+        boolean atLeastV2 = rawSchema >= RawScoringProduction.EXTENDED_SCHEMA_VERSION;
         return new ProviderStats(
             parseSignedInt(value(row, "passing_yards"), "passing_yards", id),
             parseNonNegativeInt(value(row, "passing_tds"), "passing_tds", id),
@@ -242,26 +257,28 @@ public final class NflversePlayerWeekProductionImporter {
             parseNonNegativeInt(value(row, "sack_fumbles_lost"), "sack_fumbles_lost", id)
                 + parseNonNegativeInt(value(row, "rushing_fumbles_lost"), "rushing_fumbles_lost", id)
                 + parseNonNegativeInt(value(row, "receiving_fumbles_lost"), "receiving_fumbles_lost", id),
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "passing_2pt_conversions"), "passing_2pt_conversions", id) : 0,
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "carries"), "carries", id) : 0,
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "rushing_2pt_conversions"), "rushing_2pt_conversions", id) : 0,
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "receiving_2pt_conversions"), "receiving_2pt_conversions", id) : 0,
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "fumble_recovery_tds"), "fumble_recovery_tds", id) : 0,
-            rawSchema == RawScoringProduction.EXTENDED_SCHEMA_VERSION
-                ? parseNonNegativeInt(value(row, "special_teams_tds"), "special_teams_tds", id) : 0);
+            atLeastV2 ? parseNonNegativeInt(value(row, "passing_2pt_conversions"), "passing_2pt_conversions", id) : 0,
+            atLeastV2 ? parseNonNegativeInt(value(row, "carries"), "carries", id) : 0,
+            atLeastV2 ? parseNonNegativeInt(value(row, "rushing_2pt_conversions"), "rushing_2pt_conversions", id) : 0,
+            atLeastV2 ? parseNonNegativeInt(value(row, "receiving_2pt_conversions"), "receiving_2pt_conversions", id) : 0,
+            atLeastV2 ? parseNonNegativeInt(value(row, "fumble_recovery_tds"), "fumble_recovery_tds", id) : 0,
+            atLeastV2 ? parseNonNegativeInt(value(row, "special_teams_tds"), "special_teams_tds", id) : 0,
+            rawSchema >= RawScoringProduction.SACKS_SUFFERED_SCHEMA_VERSION
+                ? parseNonNegativeInt(value(row, V3_SACKS_SUFFERED_COLUMN), V3_SACKS_SUFFERED_COLUMN, id) : 0);
     }
 
     private static int detectRawScoringSchema(Map<String, String> row) {
-        long present = EXTENDED_COLUMNS.stream().filter(row::containsKey).count();
-        if (present == 0) return RawScoringProduction.LEGACY_SCHEMA_VERSION;
-        if (present == EXTENDED_COLUMNS.size()) return RawScoringProduction.EXTENDED_SCHEMA_VERSION;
+        long v2Present = V2_COLUMNS.stream().filter(row::containsKey).count();
+        boolean sacksPresent = row.containsKey(V3_SACKS_SUFFERED_COLUMN);
+        if (v2Present == 0 && !sacksPresent) return RawScoringProduction.LEGACY_SCHEMA_VERSION;
+        if (v2Present == V2_COLUMNS.size()) {
+            return sacksPresent
+                ? RawScoringProduction.SACKS_SUFFERED_SCHEMA_VERSION
+                : RawScoringProduction.EXTENDED_SCHEMA_VERSION;
+        }
         throw new IllegalArgumentException(
-            "partial nflverse extended scoring schema; expected all columns " + EXTENDED_COLUMNS);
+            "partial nflverse raw scoring schema; v2 requires all columns " + V2_COLUMNS
+                + " and v3 requires those columns plus " + V3_SACKS_SUFFERED_COLUMN);
     }
 
     public static URI statsUri(int season) {
@@ -433,7 +450,8 @@ public final class NflversePlayerWeekProductionImporter {
         int rushingTwoPointConversions,
         int receivingTwoPointConversions,
         int fumbleRecoveryTouchdowns,
-        int specialTeamsTouchdowns) {
+        int specialTeamsTouchdowns,
+        int sacksSuffered) {
 
         boolean isZero() {
             return passingYards == 0
@@ -450,7 +468,8 @@ public final class NflversePlayerWeekProductionImporter {
                 && rushingTwoPointConversions == 0
                 && receivingTwoPointConversions == 0
                 && fumbleRecoveryTouchdowns == 0
-                && specialTeamsTouchdowns == 0;
+                && specialTeamsTouchdowns == 0
+                && sacksSuffered == 0;
         }
     }
 

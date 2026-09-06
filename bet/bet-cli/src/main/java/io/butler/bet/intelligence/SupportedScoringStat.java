@@ -14,6 +14,7 @@ public enum SupportedScoringStat {
     PASSING_YARDS("pass_yd", "passingYards", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::passingYards),
     PASSING_TOUCHDOWNS("pass_td", "passingTouchdowns", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::passingTouchdowns),
     INTERCEPTIONS("pass_int", "interceptions", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::interceptions),
+    PASSING_SACKS_SUFFERED("pass_sack", "sacksSuffered", 3, ProductionGrain.WEEK_ONLY, RawScoringProduction::sacksSuffered),
     RUSHING_YARDS("rush_yd", "rushingYards", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::rushingYards),
     RUSHING_TOUCHDOWNS("rush_td", "rushingTouchdowns", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::rushingTouchdowns),
     RECEPTIONS("rec", "receptions", 1, ProductionGrain.SEASON_AND_WEEK, RawScoringProduction::receptions),
@@ -72,7 +73,7 @@ public enum SupportedScoringStat {
         ProductionGrain actualGrain = grainOf(production);
         if (!supports(actualGrain)) {
             throw new IllegalStateException("Exact scoring for Sleeper stat '" + statKey
-                + "' requires player-week production; season aggregates cannot prove weekly threshold bonuses.");
+                + "' requires player-week production; season aggregates cannot prove this weekly-only scoring rule.");
         }
         if (production.rawScoringSchemaVersion() < minimumRawScoringSchemaVersion) {
             throw new IllegalStateException("Exact scoring for Sleeper stat '" + statKey
