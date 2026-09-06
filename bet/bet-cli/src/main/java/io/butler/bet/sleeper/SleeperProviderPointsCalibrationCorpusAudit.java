@@ -199,12 +199,13 @@ public final class SleeperProviderPointsCalibrationCorpusAudit {
             if (state == EntryState.CALIBRATED && detail.isPresent()) {
                 throw new IllegalArgumentException("calibrated entries must not carry error detail");
             }
-            calibration.ifPresent(report -> {
+            if (calibration.isPresent()) {
+                var report = calibration.orElseThrow();
                 if (!leagueId.equals(report.leagueId()) || season != report.season()
                     || providerRows != report.providerRows()) {
                     throw new IllegalArgumentException("calibration provenance must match audit entry");
                 }
-            });
+            }
         }
     }
 
