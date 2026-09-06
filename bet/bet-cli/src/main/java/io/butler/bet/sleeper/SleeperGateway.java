@@ -8,6 +8,10 @@ interface SleeperGateway {
     SleeperJsonParser.SleeperLeague fetchLeague(String leagueId) throws IOException, InterruptedException;
     List<SleeperJsonParser.SleeperUser> fetchUsers(String leagueId) throws IOException, InterruptedException;
     List<SleeperJsonParser.SleeperRoster> fetchRosters(String leagueId) throws IOException, InterruptedException;
+    default List<SleeperJsonParser.SleeperLeague> fetchUserLeagues(String userId, int season)
+        throws IOException, InterruptedException {
+        return List.of();
+    }
     default List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String leagueId, int week)
         throws IOException, InterruptedException {
         return List.of();
