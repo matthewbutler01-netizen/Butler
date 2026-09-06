@@ -38,3 +38,10 @@ val butlerAcceptanceTest by tasks.registering(Test::class) {
         includeTags("acceptance")
     }
 }
+
+val historicalLineupSeasonSync by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Hydrates provider-observed historical Sleeper lineup evidence for all populated weeks in a season."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerHistoricalLineupSeasonSyncCli")
+}
