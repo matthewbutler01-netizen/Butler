@@ -41,13 +41,8 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         Objects.requireNonNull(source, "candidate threshold study source must not be null");
         Computed computed = compute(source);
         return new CandidateCrossFoldSupportAuditReport(
-            POLICY_ID,
-            METRIC_SCOPE,
-            AUDIT_POLICY,
-            source,
-            computed.state(),
-            computed.frequencyCandidates(),
-            computed.magnitudeCandidates());
+            POLICY_ID, METRIC_SCOPE, AUDIT_POLICY, source,
+            computed.state(), computed.frequencyCandidates(), computed.magnitudeCandidates());
     }
 
     private static Computed compute(
@@ -65,98 +60,69 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
             }
         }
 
-        List<FrequencyCandidateAudit> frequencyCandidates = source.frequencyCandidates().stream()
-            .map(candidate -> auditFrequencyCandidate(candidate, source.folds().size(), foldsByIdentity))
+        List<FrequencyCandidateAudit> frequency = source.frequencyCandidates().stream()
+            .map(candidate -> auditFrequency(candidate, source.folds().size(), foldsByIdentity))
             .toList();
-        List<MagnitudeCandidateAudit> magnitudeCandidates = source.magnitudeCandidates().stream()
-            .map(candidate -> auditMagnitudeCandidate(candidate, source.folds().size(), foldsByIdentity))
+        List<MagnitudeCandidateAudit> magnitude = source.magnitudeCandidates().stream()
+            .map(candidate -> auditMagnitude(candidate, source.folds().size(), foldsByIdentity))
             .toList();
-
-        return new Computed(ReportState.AVAILABLE, frequencyCandidates, magnitudeCandidates);
+        return new Computed(ReportState.AVAILABLE, frequency, magnitude);
     }
 
-    private static FrequencyCandidateAudit auditFrequencyCandidate(
+    private static FrequencyCandidateAudit auditFrequency(
         LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FrequencyCandidateSummary candidate,
         int totalFolds,
         Map<String, LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation> foldsByIdentity) {
         CandidateCounts counts = counts(candidate.folds().stream()
             .map(LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FrequencyCandidateFoldOutcome::state)
             .toList(), totalFolds);
-
-        Breadth breadth = breadthFrequency(candidate.folds(), foldsByIdentity);
+        Breadth breadth = frequencyBreadth(candidate.folds(), foldsByIdentity);
         List<FoldDirectionAudit> directions = new ArrayList<>();
         for (var outcome : candidate.folds()) {
             if (outcome.state()
-                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
-                continue;
+                == LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
+                directions.add(directionAudit(
+                    requireFold(foldsByIdentity, outcome.heldOutLeagueSeason()),
+                    outcome.meetsRule(), outcome.doesNotMeetRule()));
             }
-            directions.add(directionAudit(
-                requireFold(foldsByIdentity, outcome.heldOutLeagueSeason()),
-                outcome.meetsRule(),
-                outcome.doesNotMeetRule()));
         }
-
-        SupportState supportState = supportState(
-            counts.evaluableFolds(),
-            breadth.heldOutLeagueSeasons().size(),
-            breadth.repositoryTeamCountStrata().size(),
-            breadth.sharedSidePerturbationDenominators().size(),
-            true);
-
+        SupportState state = supportState(
+            counts.evaluableFolds(), breadth.heldOutLeagueSeasons().size(), breadth.repositoryTeamCountStrata().size(),
+            breadth.sharedSidePerturbationDenominators().size(), true);
         return new FrequencyCandidateAudit(
-            candidate.candidate(),
-            counts,
-            breadth.heldOutLeagueIds(),
-            breadth.heldOutSeasons(),
-            breadth.heldOutLeagueSeasons(),
-            breadth.repositoryTeamCountStrata(),
-            breadth.sharedSidePerturbationDenominators(),
-            supportState,
-            List.copyOf(directions),
-            directionCounts(directions));
+            candidate.candidate(), counts,
+            breadth.heldOutLeagueIds(), breadth.heldOutSeasons(), breadth.heldOutLeagueSeasons(),
+            breadth.repositoryTeamCountStrata(), breadth.sharedSidePerturbationDenominators(),
+            state, List.copyOf(directions), directionCounts(directions));
     }
 
-    private static MagnitudeCandidateAudit auditMagnitudeCandidate(
+    private static MagnitudeCandidateAudit auditMagnitude(
         LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.MagnitudeCandidateSummary candidate,
         int totalFolds,
         Map<String, LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation> foldsByIdentity) {
         CandidateCounts counts = counts(candidate.folds().stream()
             .map(LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.MagnitudeCandidateFoldOutcome::state)
             .toList(), totalFolds);
-
-        Breadth breadth = breadthMagnitude(candidate.folds(), foldsByIdentity);
+        Breadth breadth = magnitudeBreadth(candidate.folds(), foldsByIdentity);
         List<FoldDirectionAudit> directions = new ArrayList<>();
         for (var outcome : candidate.folds()) {
             if (outcome.state()
-                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
-                continue;
+                == LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
+                directions.add(directionAudit(
+                    requireFold(foldsByIdentity, outcome.heldOutLeagueSeason()),
+                    outcome.meetsRule(), outcome.doesNotMeetRule()));
             }
-            directions.add(directionAudit(
-                requireFold(foldsByIdentity, outcome.heldOutLeagueSeason()),
-                outcome.meetsRule(),
-                outcome.doesNotMeetRule()));
         }
-
-        SupportState supportState = supportState(
-            counts.evaluableFolds(),
-            breadth.heldOutLeagueSeasons().size(),
-            breadth.repositoryTeamCountStrata().size(),
-            0,
-            false);
-
+        SupportState state = supportState(
+            counts.evaluableFolds(), breadth.heldOutLeagueSeasons().size(), breadth.repositoryTeamCountStrata().size(),
+            0, false);
         return new MagnitudeCandidateAudit(
-            candidate.candidate(),
-            counts,
-            breadth.heldOutLeagueIds(),
-            breadth.heldOutSeasons(),
-            breadth.heldOutLeagueSeasons(),
-            breadth.repositoryTeamCountStrata(),
-            supportState,
-            List.copyOf(directions),
-            directionCounts(directions));
+            candidate.candidate(), counts,
+            breadth.heldOutLeagueIds(), breadth.heldOutSeasons(), breadth.heldOutLeagueSeasons(),
+            breadth.repositoryTeamCountStrata(), state, List.copyOf(directions), directionCounts(directions));
     }
 
-    private static Breadth breadthFrequency(
+    private static Breadth frequencyBreadth(
         List<LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FrequencyCandidateFoldOutcome> outcomes,
         Map<String, LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation> foldsByIdentity) {
         Set<String> leagueIds = new TreeSet<>();
@@ -165,57 +131,56 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         Set<Integer> teamCounts = new TreeSet<>();
         Set<Integer> meetsDenominators = new TreeSet<>();
         Set<Integer> doesNotMeetDenominators = new TreeSet<>();
-
         for (var outcome : outcomes) {
             if (outcome.state()
-                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
-                continue;
-            }
+                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) continue;
             var fold = requireFold(foldsByIdentity, outcome.heldOutLeagueSeason());
-            leagueIds.add(fold.heldOutLeagueId());
-            seasons.add(fold.heldOutSeason());
-            leagueSeasons.add(fold.heldOutLeagueSeason());
-            teamCounts.add(fold.repositoryTeamCount());
+            addBreadth(fold, leagueIds, seasons, leagueSeasons, teamCounts);
             meetsDenominators.addAll(outcome.meetsRule().perturbationDenominatorDistribution().keySet());
             doesNotMeetDenominators.addAll(outcome.doesNotMeetRule().perturbationDenominatorDistribution().keySet());
         }
-
         Set<Integer> shared = new TreeSet<>(meetsDenominators);
         shared.retainAll(doesNotMeetDenominators);
-        return new Breadth(
-            List.copyOf(leagueIds),
-            List.copyOf(seasons),
-            List.copyOf(leagueSeasons),
-            List.copyOf(teamCounts),
-            List.copyOf(shared));
+        return breadth(leagueIds, seasons, leagueSeasons, teamCounts, shared);
     }
 
-    private static Breadth breadthMagnitude(
+    private static Breadth magnitudeBreadth(
         List<LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.MagnitudeCandidateFoldOutcome> outcomes,
         Map<String, LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation> foldsByIdentity) {
         Set<String> leagueIds = new TreeSet<>();
         Set<Integer> seasons = new TreeSet<>();
         Set<String> leagueSeasons = new TreeSet<>();
         Set<Integer> teamCounts = new TreeSet<>();
-
         for (var outcome : outcomes) {
             if (outcome.state()
-                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) {
-                continue;
-            }
-            var fold = requireFold(foldsByIdentity, outcome.heldOutLeagueSeason());
-            leagueIds.add(fold.heldOutLeagueId());
-            seasons.add(fold.heldOutSeason());
-            leagueSeasons.add(fold.heldOutLeagueSeason());
-            teamCounts.add(fold.repositoryTeamCount());
+                != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.CandidateFoldState.EVALUABLE) continue;
+            addBreadth(requireFold(foldsByIdentity, outcome.heldOutLeagueSeason()),
+                leagueIds, seasons, leagueSeasons, teamCounts);
         }
+        return breadth(leagueIds, seasons, leagueSeasons, teamCounts, Set.of());
+    }
 
+    private static void addBreadth(
+        LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation fold,
+        Set<String> leagueIds,
+        Set<Integer> seasons,
+        Set<String> leagueSeasons,
+        Set<Integer> teamCounts) {
+        leagueIds.add(fold.heldOutLeagueId());
+        seasons.add(fold.heldOutSeason());
+        leagueSeasons.add(fold.heldOutLeagueSeason());
+        teamCounts.add(fold.repositoryTeamCount());
+    }
+
+    private static Breadth breadth(
+        Set<String> leagueIds,
+        Set<Integer> seasons,
+        Set<String> leagueSeasons,
+        Set<Integer> teamCounts,
+        Set<Integer> sharedDenominators) {
         return new Breadth(
-            List.copyOf(leagueIds),
-            List.copyOf(seasons),
-            List.copyOf(leagueSeasons),
-            List.copyOf(teamCounts),
-            List.of());
+            List.copyOf(leagueIds), List.copyOf(seasons), List.copyOf(leagueSeasons),
+            List.copyOf(teamCounts), List.copyOf(sharedDenominators));
     }
 
     private static LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FoldEvaluation requireFold(
@@ -237,14 +202,8 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         int unevaluable = 0;
         for (var state : states) {
             switch (state) {
-                case EVALUABLE -> {
-                    generated++;
-                    evaluable++;
-                }
-                case UNEVALUABLE_NO_HELD_OUT_SPLIT -> {
-                    generated++;
-                    unevaluable++;
-                }
+                case EVALUABLE -> { generated++; evaluable++; }
+                case UNEVALUABLE_NO_HELD_OUT_SPLIT -> { generated++; unevaluable++; }
                 case NOT_GENERATED_IN_DEVELOPMENT_FOLD -> notGenerated++;
             }
         }
@@ -278,21 +237,16 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         }
         long meetsTotal = totalAbsoluteDisplacement(meets.absoluteTemporalRankDisplacementDistribution());
         long doesNotMeetTotal = totalAbsoluteDisplacement(doesNotMeet.absoluteTemporalRankDisplacementDistribution());
-        DirectionState direction = meetsTotal < doesNotMeetTotal
-            ? DirectionState.MEETS_SIDE_LOWER_TOTAL_ABSOLUTE_DISPLACEMENT
-            : meetsTotal > doesNotMeetTotal
-                ? DirectionState.MEETS_SIDE_HIGHER_TOTAL_ABSOLUTE_DISPLACEMENT
-                : DirectionState.EQUAL_TOTAL_ABSOLUTE_DISPLACEMENT;
+        DirectionState state = directionState(meetsTotal, doesNotMeetTotal);
         return new FoldDirectionAudit(
-            fold.heldOutLeagueId(),
-            fold.heldOutSeason(),
-            fold.heldOutLeagueSeason(),
-            fold.repositoryTeamCount(),
-            direction,
-            meetsTotal,
-            doesNotMeetTotal,
-            meets,
-            doesNotMeet);
+            fold.heldOutLeagueId(), fold.heldOutSeason(), fold.heldOutLeagueSeason(), fold.repositoryTeamCount(),
+            state, meetsTotal, doesNotMeetTotal, meets, doesNotMeet);
+    }
+
+    private static DirectionState directionState(long meetsTotal, long doesNotMeetTotal) {
+        if (meetsTotal < doesNotMeetTotal) return DirectionState.MEETS_SIDE_LOWER_TOTAL_ABSOLUTE_DISPLACEMENT;
+        if (meetsTotal > doesNotMeetTotal) return DirectionState.MEETS_SIDE_HIGHER_TOTAL_ABSOLUTE_DISPLACEMENT;
+        return DirectionState.EQUAL_TOTAL_ABSOLUTE_DISPLACEMENT;
     }
 
     static long totalAbsoluteDisplacement(Map<Integer, Integer> distribution) {
@@ -313,10 +267,7 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         return Map.copyOf(counts);
     }
 
-    public enum ReportState {
-        AVAILABLE,
-        UNAVAILABLE_CANDIDATE_STUDY
-    }
+    public enum ReportState { AVAILABLE, UNAVAILABLE_CANDIDATE_STUDY }
 
     public enum SupportState {
         NO_EVALUABLE_FOLDS,
@@ -378,12 +329,7 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
                 || doesNotMeetRuleTotalAbsoluteTemporalRankDisplacement != expectedDoesNotMeet) {
                 throw new IllegalArgumentException("fold direction totals must match raw BF-526 side distributions");
             }
-            DirectionState expectedDirection = expectedMeets < expectedDoesNotMeet
-                ? DirectionState.MEETS_SIDE_LOWER_TOTAL_ABSOLUTE_DISPLACEMENT
-                : expectedMeets > expectedDoesNotMeet
-                    ? DirectionState.MEETS_SIDE_HIGHER_TOTAL_ABSOLUTE_DISPLACEMENT
-                    : DirectionState.EQUAL_TOTAL_ABSOLUTE_DISPLACEMENT;
-            if (directionState != expectedDirection) {
+            if (directionState != directionState(expectedMeets, expectedDoesNotMeet)) {
                 throw new IllegalArgumentException("fold direction state must match raw BF-526 side totals");
             }
         }
@@ -408,20 +354,16 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
             evaluableHeldOutLeagueSeasons = immutable(evaluableHeldOutLeagueSeasons, "evaluableHeldOutLeagueSeasons");
             repositoryTeamCountStrata = immutable(repositoryTeamCountStrata, "repositoryTeamCountStrata");
             perturbationDenominatorsRepresentedOnBothSides = immutable(
-                perturbationDenominatorsRepresentedOnBothSides,
-                "perturbationDenominatorsRepresentedOnBothSides");
+                perturbationDenominatorsRepresentedOnBothSides, "perturbationDenominatorsRepresentedOnBothSides");
             Objects.requireNonNull(supportState, "supportState must not be null");
             foldDirections = immutable(foldDirections, "foldDirections");
             directionCounts = Map.copyOf(Objects.requireNonNull(directionCounts, "directionCounts must not be null"));
             if (foldDirections.size() != counts.evaluableFolds()) {
                 throw new IllegalArgumentException("frequency direction rows must equal evaluable fold count");
             }
-            SupportState expected = supportState(
-                counts.evaluableFolds(),
-                evaluableHeldOutLeagueSeasons.size(),
-                repositoryTeamCountStrata.size(),
-                perturbationDenominatorsRepresentedOnBothSides.size(),
-                true);
+            SupportState expected = LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.supportState(
+                counts.evaluableFolds(), evaluableHeldOutLeagueSeasons.size(), repositoryTeamCountStrata.size(),
+                perturbationDenominatorsRepresentedOnBothSides.size(), true);
             if (supportState != expected) throw new IllegalArgumentException("frequency support state is inconsistent");
             validateDirectionCounts(foldDirections, directionCounts);
         }
@@ -450,12 +392,8 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
             if (foldDirections.size() != counts.evaluableFolds()) {
                 throw new IllegalArgumentException("magnitude direction rows must equal evaluable fold count");
             }
-            SupportState expected = supportState(
-                counts.evaluableFolds(),
-                evaluableHeldOutLeagueSeasons.size(),
-                repositoryTeamCountStrata.size(),
-                0,
-                false);
+            SupportState expected = LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.supportState(
+                counts.evaluableFolds(), evaluableHeldOutLeagueSeasons.size(), repositoryTeamCountStrata.size(), 0, false);
             if (supportState != expected) throw new IllegalArgumentException("magnitude support state is inconsistent");
             validateDirectionCounts(foldDirections, directionCounts);
         }
@@ -477,12 +415,12 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
             Objects.requireNonNull(reportState, "reportState must not be null");
             frequencyCandidates = immutable(frequencyCandidates, "frequencyCandidates");
             magnitudeCandidates = immutable(magnitudeCandidates, "magnitudeCandidates");
-
             Computed expected = compute(sourceCandidateStudy);
             if (reportState != expected.state()
                 || !frequencyCandidates.equals(expected.frequencyCandidates())
                 || !magnitudeCandidates.equals(expected.magnitudeCandidates())) {
-                throw new IllegalArgumentException("candidate cross-fold support audit fields must match governed BF-526 source evidence");
+                throw new IllegalArgumentException(
+                    "candidate cross-fold support audit fields must match governed BF-526 source evidence");
             }
         }
     }
@@ -494,8 +432,7 @@ public final class LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSuppor
         if (!counts.equals(expected)) {
             throw new IllegalArgumentException("direction counts must match evaluable fold direction rows");
         }
-        int total = counts.values().stream().mapToInt(Integer::intValue).sum();
-        if (total != foldDirections.size()) {
+        if (counts.values().stream().mapToInt(Integer::intValue).sum() != foldDirections.size()) {
             throw new IllegalArgumentException("direction counts must preserve evaluable fold count");
         }
     }
