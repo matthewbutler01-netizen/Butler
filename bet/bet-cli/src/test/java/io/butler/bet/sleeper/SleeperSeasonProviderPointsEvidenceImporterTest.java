@@ -13,7 +13,6 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -24,12 +23,12 @@ class SleeperSeasonProviderPointsEvidenceImporterTest {
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 6);
 
     @Test
-    void persistsCompleteSeasonEvidenceIncludingBenchDefenseAndPlaceholder() throws Exception {
+    void persistsCompleteSeasonEvidenceIncludingBenchDefensePlaceholderAndExactDecimal() throws Exception {
         Database database = initialized("complete.db");
         String week1 = """
             [
               {"roster_id":1,"players":["p1","p2","CHI","0"],"starters":["p1","CHI","0"],
-               "players_points":{"p1":10.50,"p2":-1.25,"CHI":7.00}},
+               "players_points":{"p1":10.12345678901234567890123456789,"p2":-1.25,"CHI":7.00}},
               {"roster_id":2,"players":["p3"],"starters":["p3"],
                "players_points":{"p3":3.5}}
             ]
@@ -48,6 +47,8 @@ class SleeperSeasonProviderPointsEvidenceImporterTest {
         var persisted = new ProviderPlayerWeekPointsEvidenceRepository(database)
             .findSnapshot("l1", 2025, "sleeper", AS_OF);
         assertEquals(4, persisted.size());
+        var p1 = persisted.stream().filter(row -> row.providerPlayerId().equals("p1")).findFirst().orElseThrow();
+        assertEquals(new BigDecimal("10.12345678901234567890123456789"), p1.points());
         var bench = persisted.stream().filter(row -> row.providerPlayerId().equals("p2")).findFirst().orElseThrow();
         assertEquals(new BigDecimal("-1.25"), bench.points());
         var defense = persisted.stream().filter(row -> row.providerPlayerId().equals("CHI")).findFirst().orElseThrow();
