@@ -36,3 +36,9 @@ allprojects {
         }
     }
 }
+
+tasks.register("butlerAcceptanceTest") {
+    group = "verification"
+    description = "Runs the Butler acceptance test suite."
+    dependsOn(":bet:bet-cli:butlerAcceptanceTest")
+}
