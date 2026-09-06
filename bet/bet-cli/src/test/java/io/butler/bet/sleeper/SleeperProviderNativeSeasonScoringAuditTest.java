@@ -54,7 +54,7 @@ class SleeperProviderNativeSeasonScoringAuditTest {
             week.scores().stream().map(SleeperProviderNativeSeasonScoringAudit.PlayerScoreEvidence::providerPlayerId).toList());
         assertEquals("-0.50", week.scores().get(0).points().toPlainString());
         assertEquals("12.3400", week.scores().get(1).points().toPlainString());
-        assertEquals(2, week.scores().get(1).points().scale() + 2); // scale is 4; proves no decimal coercion
+        assertEquals(4, week.scores().get(1).points().scale());
         assertEquals("1", week.expectedProviderRosterId());
         assertEquals("1", week.observedProviderRosterId());
         assertTrue(week.blockers().isEmpty());
