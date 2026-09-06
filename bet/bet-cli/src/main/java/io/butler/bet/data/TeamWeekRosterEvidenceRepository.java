@@ -112,6 +112,43 @@ public final class TeamWeekRosterEvidenceRepository {
         return List.copyOf(result);
     }
 
+    /**
+     * Returns exactly one latest persisted roster snapshot for every observed team-week in one
+     * league-season. The result is deterministic by canonical team id, then week.
+     */
+    public List<TeamWeekRosterEvidence> findLatestByLeagueSeason(
+        String leagueId, int season, String source) throws SQLException {
+        requireText(leagueId, "leagueId");
+        requireText(source, "source");
+        if (season < 1999 || season > 2100) throw new IllegalArgumentException("season must be between 1999 and 2100");
+
+        List<TeamWeekRosterEvidence> result = new ArrayList<>();
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            String sql = "SELECT id, league_id, team_id, season, week, source, as_of_date " +
+                "FROM team_week_roster_evidence WHERE league_id=? AND season=? AND source=? " +
+                "ORDER BY team_id ASC, week ASC, as_of_date DESC, id DESC";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, leagueId.trim());
+                statement.setInt(2, season);
+                statement.setString(3, source.trim());
+                try (ResultSet rs = statement.executeQuery()) {
+                    String previousTeamId = null;
+                    int previousWeek = -1;
+                    while (rs.next()) {
+                        String teamId = rs.getString("team_id");
+                        int week = rs.getInt("week");
+                        if (teamId.equals(previousTeamId) && week == previousWeek) continue;
+                        result.add(map(connection, rs));
+                        previousTeamId = teamId;
+                        previousWeek = week;
+                    }
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
     private static TeamWeekRosterEvidence map(Connection connection, ResultSet rs) throws SQLException {
         String id = rs.getString("id");
         return new TeamWeekRosterEvidence(
