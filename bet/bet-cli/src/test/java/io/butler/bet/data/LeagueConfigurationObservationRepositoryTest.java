@@ -48,6 +48,30 @@ class LeagueConfigurationObservationRepositoryTest {
     }
 
     @Test
+    void sameDateObservationsForDifferentSeasonsCoexist() throws Exception {
+        Database database = initialized();
+        League league = new League("l1", "ext", "League", 2026);
+        new LeagueRepository(database).save(league);
+        LeagueConfigurationObservationRepository repository =
+            new LeagueConfigurationObservationRepository(database);
+        LocalDate observed = LocalDate.of(2026, 9, 6);
+
+        repository.replace(new LeagueConfigurationObservation(
+            league.getId(), "sleeper", observed, 2026,
+            List.of("QB", "RB", "FLEX"), Map.of("pass_td", 4.0)));
+        repository.replace(new LeagueConfigurationObservation(
+            league.getId(), "sleeper", observed, 2025,
+            List.of("QB", "RB", "WR", "SUPER_FLEX"), Map.of("pass_td", 6.0)));
+
+        var current = repository.findLatestForSeason(league.getId(), 2026, "sleeper").orElseThrow();
+        var historical = repository.findLatestForSeason(league.getId(), 2025, "sleeper").orElseThrow();
+        assertEquals(List.of("QB", "RB", "FLEX"), current.lineupSlots());
+        assertEquals(4.0, current.scoringSettings().get("pass_td"));
+        assertEquals(List.of("QB", "RB", "WR", "SUPER_FLEX"), historical.lineupSlots());
+        assertEquals(6.0, historical.scoringSettings().get("pass_td"));
+    }
+
+    @Test
     void unknownProviderSeasonRemainsDistinctFromSeasonSpecificEvidence() throws Exception {
         Database database = initialized();
         League league = new League("l1", "ext", "League");
