@@ -25,6 +25,7 @@ public record PlayerWeekProduction(
     int receivingTwoPointConversions,
     int fumbleRecoveryTouchdowns,
     int specialTeamsTouchdowns,
+    int sacksSuffered,
     int rawScoringSchemaVersion,
     String source,
     LocalDate asOfDate) implements RawScoringProduction {
@@ -48,8 +49,13 @@ public record PlayerWeekProduction(
         requireNonNegative(receivingTwoPointConversions, "receivingTwoPointConversions");
         requireNonNegative(fumbleRecoveryTouchdowns, "fumbleRecoveryTouchdowns");
         requireNonNegative(specialTeamsTouchdowns, "specialTeamsTouchdowns");
-        if (rawScoringSchemaVersion < LEGACY_SCHEMA_VERSION || rawScoringSchemaVersion > EXTENDED_SCHEMA_VERSION) {
-            throw new IllegalArgumentException("rawScoringSchemaVersion must be 1 or 2");
+        requireNonNegative(sacksSuffered, "sacksSuffered");
+        if (rawScoringSchemaVersion < LEGACY_SCHEMA_VERSION
+            || rawScoringSchemaVersion > SACKS_SUFFERED_SCHEMA_VERSION) {
+            throw new IllegalArgumentException("rawScoringSchemaVersion must be 1, 2, or 3");
+        }
+        if (rawScoringSchemaVersion < SACKS_SUFFERED_SCHEMA_VERSION && sacksSuffered != 0) {
+            throw new IllegalArgumentException("sacksSuffered requires raw scoring schema v3");
         }
     }
 
@@ -62,7 +68,24 @@ public record PlayerWeekProduction(
         int fumblesLost, String source, LocalDate asOfDate) {
         this(id, playerId, season, week, passingYards, passingTouchdowns, interceptions,
             rushingYards, rushingTouchdowns, receptions, receivingYards, receivingTouchdowns, fumblesLost,
-            0, 0, 0, 0, 0, 0, LEGACY_SCHEMA_VERSION, source, asOfDate);
+            0, 0, 0, 0, 0, 0, 0, LEGACY_SCHEMA_VERSION, source, asOfDate);
+    }
+
+    /** Compatibility constructor for BF-548/BF-563 v1-v2 call sites. Schema v3 requires explicit sacks. */
+    public PlayerWeekProduction(
+        String id, String playerId, int season, int week,
+        int passingYards, int passingTouchdowns, int interceptions,
+        int rushingYards, int rushingTouchdowns,
+        int receptions, int receivingYards, int receivingTouchdowns,
+        int fumblesLost, int passingTwoPointConversions, int rushingAttempts,
+        int rushingTwoPointConversions, int receivingTwoPointConversions,
+        int fumbleRecoveryTouchdowns, int specialTeamsTouchdowns,
+        int rawScoringSchemaVersion, String source, LocalDate asOfDate) {
+        this(id, playerId, season, week, passingYards, passingTouchdowns, interceptions,
+            rushingYards, rushingTouchdowns, receptions, receivingYards, receivingTouchdowns,
+            fumblesLost, passingTwoPointConversions, rushingAttempts, rushingTwoPointConversions,
+            receivingTwoPointConversions, fumbleRecoveryTouchdowns, specialTeamsTouchdowns,
+            compatibilitySacks(rawScoringSchemaVersion), rawScoringSchemaVersion, source, asOfDate);
     }
 
     public static PlayerWeekProduction create(
@@ -90,7 +113,32 @@ public record PlayerWeekProduction(
             receptions, receivingYards, receivingTouchdowns, fumblesLost,
             passingTwoPointConversions, rushingAttempts, rushingTwoPointConversions,
             receivingTwoPointConversions, fumbleRecoveryTouchdowns, specialTeamsTouchdowns,
-            EXTENDED_SCHEMA_VERSION, source, asOfDate);
+            0, EXTENDED_SCHEMA_VERSION, source, asOfDate);
+    }
+
+    public static PlayerWeekProduction createExactScoringV3(
+        String playerId, int season, int week,
+        int passingYards, int passingTouchdowns, int interceptions,
+        int rushingYards, int rushingTouchdowns,
+        int receptions, int receivingYards, int receivingTouchdowns,
+        int fumblesLost, int passingTwoPointConversions, int rushingAttempts,
+        int rushingTwoPointConversions, int receivingTwoPointConversions,
+        int fumbleRecoveryTouchdowns, int specialTeamsTouchdowns, int sacksSuffered,
+        String source, LocalDate asOfDate) {
+        return new PlayerWeekProduction(UUID.randomUUID().toString(), playerId, season, week,
+            passingYards, passingTouchdowns, interceptions, rushingYards, rushingTouchdowns,
+            receptions, receivingYards, receivingTouchdowns, fumblesLost,
+            passingTwoPointConversions, rushingAttempts, rushingTwoPointConversions,
+            receivingTwoPointConversions, fumbleRecoveryTouchdowns, specialTeamsTouchdowns,
+            sacksSuffered, SACKS_SUFFERED_SCHEMA_VERSION, source, asOfDate);
+    }
+
+    private static int compatibilitySacks(int rawScoringSchemaVersion) {
+        if (rawScoringSchemaVersion > EXTENDED_SCHEMA_VERSION) {
+            throw new IllegalArgumentException(
+                "schema v3 requires explicit sacksSuffered; use the v3 constructor/factory");
+        }
+        return 0;
     }
 
     private static String requireText(String value, String field) {
