@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,6 +27,19 @@ class SleeperLeagueLineageResolverTest {
             lineage.linksNewestToOldest().stream().map(SleeperLeagueLineageResolver.LeagueLink::leagueId).toList());
         assertTrue(lineage.containsSleeperLeagueId("2024"));
         assertEquals(3, source.calls);
+    }
+
+    @Test
+    void treatsZeroSentinelAsLineageTerminatorWithoutFetchingLeagueZero() throws Exception {
+        FakeSource source = new FakeSource();
+        source.links.put("2022", new SleeperLeagueLineageResolver.LeagueLink("2022", 2022, " 0 "));
+
+        var lineage = new SleeperLeagueLineageResolver(source).resolve("2022");
+
+        assertEquals("2022", lineage.rootSleeperLeagueId());
+        assertEquals(1, lineage.linksNewestToOldest().size());
+        assertNull(lineage.linksNewestToOldest().get(0).previousLeagueId());
+        assertEquals(1, source.calls);
     }
 
     @Test
