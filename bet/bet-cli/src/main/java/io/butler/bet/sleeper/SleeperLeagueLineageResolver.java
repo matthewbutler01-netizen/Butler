@@ -159,7 +159,9 @@ public final class SleeperLeagueLineageResolver {
     }
 
     private static String normalizeOptional(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim();
+        return "0".equals(normalized) ? null : normalized;
     }
 
     private static String requireText(String value, String field) {
