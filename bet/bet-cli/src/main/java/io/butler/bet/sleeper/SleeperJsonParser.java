@@ -22,7 +22,18 @@ public final class SleeperJsonParser {
     }
 
     public SleeperLeague parseLeague(String json) throws JsonProcessingException {
+        return parseLeagueNode(mapper.readTree(json));
+    }
+
+    public List<SleeperLeague> parseLeagues(String json) throws JsonProcessingException {
         JsonNode root = mapper.readTree(json);
+        if (!root.isArray()) throw new IllegalArgumentException("Sleeper leagues payload must be an array");
+        List<SleeperLeague> leagues = new ArrayList<>();
+        for (JsonNode node : root) leagues.add(parseLeagueNode(node));
+        return List.copyOf(leagues);
+    }
+
+    private static SleeperLeague parseLeagueNode(JsonNode root) {
         JsonNode settings = root.path("settings");
         return new SleeperLeague(
             requiredText(root, "league_id"),
