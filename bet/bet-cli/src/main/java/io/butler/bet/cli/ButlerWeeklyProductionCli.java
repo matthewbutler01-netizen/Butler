@@ -66,8 +66,9 @@ public final class ButlerWeeklyProductionCli {
             : "nflverse weekly production preview");
         System.out.printf("Season: %d  source=%s  as-of=%s%n",
             result.season(), NflversePlayerWeekProductionImporter.SOURCE, result.asOfDate());
-        System.out.printf("Provider rows: total=%d season=%d regular-season=%d%n",
-            result.providerRows(), result.requestedSeasonRows(), result.regularSeasonRows());
+        System.out.printf("Provider rows: total=%d season=%d regular-season=%d blank-id-zero-excluded=%d%n",
+            result.providerRows(), result.requestedSeasonRows(), result.regularSeasonRows(),
+            result.excludedBlankPlayerRows());
         System.out.printf("Matched player-weeks: %d  unmatched provider rows: %d  snapshots written: %d%n",
             result.matchedPlayerWeeks(), result.unmatchedProviderRows(), result.snapshotsWritten());
         System.out.println("Raw REG week production only; no fantasy scoring, lineup optimization, ranking, or recommendation is performed.");

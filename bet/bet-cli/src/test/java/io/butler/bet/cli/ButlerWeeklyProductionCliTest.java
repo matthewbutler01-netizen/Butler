@@ -39,7 +39,7 @@ class ButlerWeeklyProductionCliTest {
     @Test
     void printsRawEvidenceBoundaryAndCounts() {
         var result = new NflversePlayerWeekProductionImporter.ImportResult(
-            2025, LocalDate.of(2026, 1, 20), false, 100, 90, 80, 70, 10, 0, List.of());
+            2025, LocalDate.of(2026, 1, 20), false, 100, 90, 80, 70, 10, 3, 0, List.of());
         PrintStream original = System.out;
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try {
@@ -52,6 +52,7 @@ class ButlerWeeklyProductionCliTest {
         String output = bytes.toString();
         assertTrue(output.contains("weekly production preview"));
         assertTrue(output.contains("regular-season=80"));
+        assertTrue(output.contains("blank-id-zero-excluded=3"));
         assertTrue(output.contains("Matched player-weeks: 70"));
         assertTrue(output.contains("no fantasy scoring, lineup optimization, ranking, or recommendation"));
     }

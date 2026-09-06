@@ -2,6 +2,7 @@ package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerRepository;
+import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
 import io.butler.bet.domain.Player;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class NflversePlayerWeekProductionImporterTest {
         assertEquals(3, result.requestedSeasonRows());
         assertEquals(2, result.regularSeasonRows());
         assertEquals(2, result.matchedPlayerWeeks());
+        assertEquals(0, result.excludedBlankPlayerRows());
         assertEquals(2, result.snapshotsWritten());
         var repository = new PlayerWeekProductionRepository(database);
         var week1 = repository.findLatest("p1", 2025, 1, "nflverse").orElseThrow();
@@ -75,8 +77,56 @@ class NflversePlayerWeekProductionImporterTest {
 
         assertEquals(0, result.matchedPlayerWeeks());
         assertEquals(1, result.unmatchedProviderRows());
-        assertEquals("No GSIS-to-Sleeper mapping", result.unmatched().get(0).reason());
+        assertEquals("No GSIS-to-Sleeper mapping", result.unmatched().getFirst().reason());
         assertTrue(new PlayerWeekProductionRepository(database).findLatest("p1", 2025, 1, "nflverse").isEmpty());
+    }
+
+    @Test
+    void excludesZeroProductionBlankPlayerRowsWithoutGrantingCoverage() throws Exception {
+        Database database = initialized();
+        new PlayerRepository(database).save(new Player("p1", "1001", "Test Runner", "RB", "CHI"));
+        var importer = new NflversePlayerWeekProductionImporter(database);
+        LocalDate asOfDate = LocalDate.of(2026, 1, 20);
+        String stats = header()
+            + row("", 2025, 1, "REG", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            + row("00-0000001", 2025, 1, "REG", 0, 0, 0, 10, 0, 1, 5, 0, 0, 0, 0);
+
+        var result = importer.importCsv(
+            2025, stats, "gsis_id,sleeper_id\n00-0000001,1001\n", asOfDate);
+
+        assertEquals(2, result.regularSeasonRows());
+        assertEquals(1, result.excludedBlankPlayerRows());
+        assertEquals(1, result.matchedPlayerWeeks());
+        assertEquals(0, result.unmatchedProviderRows());
+        assertEquals(1, result.snapshotsWritten());
+        assertTrue(new PlayerWeekProductionRepository(database)
+            .findLatest("p1", 2025, 1, "nflverse").isPresent());
+
+        var coverage = new PlayerWeekProductionCoverageRepository(database)
+            .findLatest(2025, 1, "nflverse").orElseThrow();
+        assertEquals(1, coverage.providerRows());
+        assertEquals(1, coverage.matchedPlayerWeeks());
+        assertEquals(0, coverage.unmatchedProviderRows());
+        assertEquals(java.util.List.of("p1"), coverage.identityCoveredPlayerIds());
+    }
+
+    @Test
+    void rejectsNonzeroProductionBlankPlayerRows() throws Exception {
+        Database database = initialized();
+        new PlayerRepository(database).save(new Player("p1", "1001", "Test Runner", "RB", "CHI"));
+        var importer = new NflversePlayerWeekProductionImporter(database);
+        String stats = header()
+            + row("", 2025, 1, "REG", 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0)
+            + row("00-0000001", 2025, 1, "REG", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> importer.importCsv(
+            2025, stats, "gsis_id,sleeper_id\n00-0000001,1001\n", LocalDate.of(2026, 1, 20)));
+
+        assertTrue(error.getMessage().contains("blank nflverse player_id carries nonzero stored production"));
+        assertTrue(new PlayerWeekProductionRepository(database)
+            .findLatest("p1", 2025, 1, "nflverse").isEmpty());
+        assertTrue(new PlayerWeekProductionCoverageRepository(database)
+            .findLatest(2025, 1, "nflverse").isEmpty());
     }
 
     @Test
