@@ -87,3 +87,10 @@ val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsEvidenceSyncCli")
 }
+
+val sleeperSeasonProviderPointsCalibration by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-562 calibration of persisted Sleeper players_points against Butler exact nflverse weekly scoring."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCalibrationCli")
+}
