@@ -14,6 +14,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -30,7 +31,7 @@ public final class SleeperProviderNativeSeasonScoringAudit {
     public static final String POLICY_ID =
         "sleeper-provider-native-season-scoring-audit-v1-exact-roster-identity-parity-read-only";
     public static final String SOURCE = SleeperSeasonProviderPointsEvidenceImporter.SOURCE;
-    public static final String SOURCE_SURFACE = SleeperSeasonProviderPointsEvidenceImporter.SOURCE_SURFACE;
+    public static final String EXPECTED_SOURCE_SURFACE = SleeperSeasonProviderPointsEvidenceImporter.SOURCE_SURFACE;
 
     private final Database database;
 
@@ -65,14 +66,25 @@ public final class SleeperProviderNativeSeasonScoringAudit {
 
         LocalDate providerAsOf = null;
         String providerLeagueId = null;
+        String providerSourceSurface = null;
         if (!points.isEmpty()) {
-            providerAsOf = points.getFirst().asOfDate();
-            providerLeagueId = points.getFirst().providerLeagueId();
+            ProviderPlayerWeekPointsEvidence first = points.getFirst();
+            providerAsOf = first.asOfDate();
+            providerLeagueId = first.providerLeagueId();
+            providerSourceSurface = first.sourceSurface();
+
+            if (!EXPECTED_SOURCE_SURFACE.equals(providerSourceSurface)) {
+                addOnce(globalBlockers,
+                    "Provider-points snapshot uses unexpected source surface: " + providerSourceSurface);
+            }
             for (ProviderPlayerWeekPointsEvidence row : points) {
                 if (!SOURCE.equals(row.source())) {
                     addOnce(globalBlockers, "Provider-points snapshot contains unexpected source: " + row.source());
                 }
-                if (!SOURCE_SURFACE.equals(row.sourceSurface())) {
+                if (!providerSourceSurface.equals(row.sourceSurface())) {
+                    addOnce(globalBlockers, "Provider-points latest snapshot contains mixed source surfaces");
+                }
+                if (!EXPECTED_SOURCE_SURFACE.equals(row.sourceSurface())) {
                     addOnce(globalBlockers,
                         "Provider-points snapshot contains unexpected source surface: " + row.sourceSurface());
                 }
@@ -133,7 +145,7 @@ public final class SleeperProviderNativeSeasonScoringAudit {
             league.getName(),
             season,
             SOURCE,
-            points.isEmpty() ? null : SOURCE_SURFACE,
+            providerSourceSurface,
             providerLeagueId,
             providerAsOf,
             state,
@@ -172,6 +184,9 @@ public final class SleeperProviderNativeSeasonScoringAudit {
             }
             if (!SOURCE.equals(roster.source())) {
                 blockers.add("Roster evidence source is not Sleeper");
+            }
+            if (roster.providerPlayerIds().isEmpty()) {
+                blockers.add("Roster evidence contains no provider player identities");
             }
         }
 
@@ -218,9 +233,10 @@ public final class SleeperProviderNativeSeasonScoringAudit {
         if (!extra.isEmpty()) blockers.add("Extra provider-points identities: " + extra);
 
         List<PlayerScoreEvidence> scores = new ArrayList<>();
+        Set<String> scoredIds = new HashSet<>();
         for (String providerPlayerId : rosterIds) {
             ProviderPlayerWeekPointsEvidence row = rowByPlayer.get(providerPlayerId);
-            if (row != null && scores.stream().noneMatch(score -> score.providerPlayerId().equals(providerPlayerId))) {
+            if (row != null && scoredIds.add(providerPlayerId)) {
                 scores.add(new PlayerScoreEvidence(providerPlayerId, row.points(), row.id()));
             }
         }
@@ -334,9 +350,10 @@ public final class SleeperProviderNativeSeasonScoringAudit {
                     || expectedProviderRosterId == null || observedProviderRosterId == null) {
                     throw new IllegalArgumentException("READY team-week requires complete roster provenance");
                 }
-                if (candidateIdentityCount != providerPointRowCount || candidateIdentityCount != scores.size()
-                    || !missingProviderPlayerIds.isEmpty() || !extraProviderPlayerIds.isEmpty()) {
-                    throw new IllegalArgumentException("READY team-week requires exact identity-set parity");
+                if (candidateIdentityCount <= 0 || candidateIdentityCount != providerPointRowCount
+                    || candidateIdentityCount != scores.size() || !missingProviderPlayerIds.isEmpty()
+                    || !extraProviderPlayerIds.isEmpty()) {
+                    throw new IllegalArgumentException("READY team-week requires nonempty exact identity-set parity");
                 }
             }
         }
@@ -378,7 +395,8 @@ public final class SleeperProviderNativeSeasonScoringAudit {
             }
             if (state == AuditState.READY) {
                 if (!blockers.isEmpty() || observedTeamWeeks == 0 || readyTeamWeeks != observedTeamWeeks
-                    || sourceSurface == null || providerLeagueId == null || providerPointsAsOf == null
+                    || sourceSurface == null || !EXPECTED_SOURCE_SURFACE.equals(sourceSurface)
+                    || providerLeagueId == null || providerPointsAsOf == null
                     || scoredIdentities != candidateIdentities) {
                     throw new IllegalArgumentException("READY audit requires complete provider-native provenance and parity");
                 }
