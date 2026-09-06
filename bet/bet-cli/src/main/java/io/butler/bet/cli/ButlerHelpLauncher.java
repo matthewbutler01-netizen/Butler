@@ -64,6 +64,11 @@ public final class ButlerHelpLauncher {
         System.out.println("    Frequency candidates preserve exact development-observed rational values; movement candidates use observed integer cutoffs.");
         System.out.println("    Candidate folds preserve EVALUABLE, UNEVALUABLE_NO_HELD_OUT_SPLIT, and NOT_GENERATED_IN_DEVELOPMENT_FOLD states.");
         System.out.println("    The study never selects, optimizes, recommends, fits, refines, or publishes a production threshold.");
+        System.out.println("  butler league lineup-capture-ranking-sensitivity-candidate-cross-fold-support-audit <start-season> <end-season>");
+        System.out.println("    Audits BF-526 candidates across held-out league-season folds for structural support breadth and raw displacement direction.");
+        System.out.println("    Support states are NO_EVALUABLE_FOLDS, SINGLE_EVALUABLE_FOLD, MULTI_FOLD_NARROW_SUPPORT, or MULTI_FOLD_DIVERSE_SUPPORT.");
+        System.out.println("    Direction states compare raw total absolute temporal rank displacement beside each side's row count and full distributions.");
+        System.out.println("    The audit never scores, ranks, selects, tie-breaks, fits, refines, or publishes a production threshold.");
         System.out.println("  Boundary: potential uses observed provider configuration, not reconstructed historical startability.");
         System.out.println("  Pairwise contrast uses only shared comparable weeks; independently scoped season rates are not compared.");
         System.out.println("  The neutral common-universe table remains team-name ordered and contains no ranking or league benchmark arithmetic.");
@@ -81,6 +86,10 @@ public final class ButlerHelpLauncher {
         System.out.println("  BF-525 candidate generation uses development-cluster baseline features only; held-out cluster values never expand that fold's candidate set.");
         System.out.println("  BF-525 keeps raw frequency and maximum movement as separate candidate families and defines no magnitude-frequency composite.");
         System.out.println("  Candidate output order is by family/value, never apparent performance, and no winner/optimal/recommended threshold is authorized.");
+        System.out.println("  BF-529/BF-530 support states describe evidence breadth only, not confidence, adequacy, probability, or candidate quality.");
+        System.out.println("  BF-530 fold-direction counts remain raw descriptive audit evidence; they are not a win rate, probability, support score, or ranking input.");
+        System.out.println("  BF-530 preserves BF-526 candidate order and may not reorder or tie-break candidates using support or displacement results.");
+        System.out.println("  After BF-532, a new governed methodology decision is required before any scalar objective, normalized candidate score, or candidate selection.");
         System.out.println("  No arbitrary corpus-size sufficiency threshold, probability model, confidence score, adjusted rank, or manager grade is authorized.");
         System.out.println("  Magnitude and frequency remain separate; Butler computes no combined magnitude-frequency score, frequency-adjusted rank,");
         System.out.println("  sensitivity leaderboard, league-wide sensitivity score, manager consistency/reliability label, recommendation,");
@@ -96,6 +105,8 @@ public final class ButlerHelpLauncher {
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-methodology.md for historical corpus-audit rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-calibration-corpus-adequacy-methodology.md for structural-readiness rules.");
         System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-candidate-threshold-study-methodology.md for candidate-study rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-candidate-cross-fold-support-methodology.md for candidate-support audit rules.");
+        System.out.println("  See docs/league-lineup-capture-ranking-sensitivity-candidate-cross-fold-support-implementation.md for BF-529 through BF-532 closeout.");
     }
 
     static void printManualCounterUsage() {
