@@ -9,7 +9,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -118,6 +117,29 @@ public final class ProviderPlayerWeekPointsEvidenceRepository {
         }
     }
 
+    /**
+     * Enumerates the complete persisted evidence universe for one source. A league-season appears
+     * exactly once regardless of how many snapshots or player-week rows exist for it.
+     */
+    public List<LeagueSeasonRef> findDistinctLeagueSeasons(String source) throws SQLException {
+        source = requireText(source, "source");
+        List<LeagueSeasonRef> result = new ArrayList<>();
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT DISTINCT league_id, season FROM provider_player_week_points_evidence " +
+                    "WHERE source=? ORDER BY season ASC, league_id ASC")) {
+                statement.setString(1, source);
+                try (ResultSet rs = statement.executeQuery()) {
+                    while (rs.next()) {
+                        result.add(new LeagueSeasonRef(rs.getString("league_id"), rs.getInt("season")));
+                    }
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
     public List<ProviderPlayerWeekPointsEvidence> findSnapshot(
         String leagueId, int season, String source, LocalDate asOfDate) throws SQLException {
         leagueId = requireText(leagueId, "leagueId");
@@ -197,5 +219,12 @@ public final class ProviderPlayerWeekPointsEvidenceRepository {
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value.trim();
+    }
+
+    public record LeagueSeasonRef(String leagueId, int season) {
+        public LeagueSeasonRef {
+            leagueId = requireText(leagueId, "leagueId");
+            if (season < 1999 || season > 2100) throw new IllegalArgumentException("invalid season");
+        }
     }
 }
