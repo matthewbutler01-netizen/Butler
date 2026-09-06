@@ -63,7 +63,8 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
     @Test
     void printsHistoricalSyncSummary() {
         var result = new SleeperHistoricalLineupEvidenceImporter.ImportResult(
-            "l1", 2025, 1, "old-league", 1, 12, "sleeper", LocalDate.of(2026, 9, 6));
+            "l1", 2025, 1, "old-league", 1, 12, 187, 24,
+            "sleeper", LocalDate.of(2026, 9, 6));
         PrintStream original = System.out;
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try {
@@ -76,6 +77,8 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
         assertTrue(output.contains("historical lineup prerequisites synchronized"));
         assertTrue(output.contains("Resolved Sleeper league: old-league"));
         assertTrue(output.contains("History hops: 1"));
+        assertTrue(output.contains("Player identity/position observations: 187 new-player-mappings=24"));
+        assertTrue(output.contains("not reconstructed historical eligibility"));
         assertTrue(output.contains("Team-week roster snapshots: 12 week=1"));
     }
 
