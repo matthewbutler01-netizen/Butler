@@ -72,6 +72,55 @@ class LeagueConfigurationObservationRepositoryTest {
     }
 
     @Test
+    void migratesLegacySameDateKeyWithoutLosingExistingObservation() throws Exception {
+        Database database = initialized();
+        League league = new League("l1", "ext", "League", 2026);
+        new LeagueRepository(database).save(league);
+        try (var connection = database.openConnection(); var statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                CREATE TABLE league_configuration_observations (
+                    league_id TEXT NOT NULL, source TEXT NOT NULL, as_of_date TEXT NOT NULL,
+                    provider_season INTEGER,
+                    PRIMARY KEY (league_id, source, as_of_date),
+                    FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE)
+                """);
+            statement.executeUpdate("""
+                CREATE TABLE league_configuration_observation_slots (
+                    league_id TEXT NOT NULL, source TEXT NOT NULL, as_of_date TEXT NOT NULL,
+                    ordinal INTEGER NOT NULL, slot TEXT NOT NULL,
+                    PRIMARY KEY (league_id, source, as_of_date, ordinal),
+                    FOREIGN KEY (league_id, source, as_of_date)
+                      REFERENCES league_configuration_observations(league_id, source, as_of_date) ON DELETE CASCADE)
+                """);
+            statement.executeUpdate("""
+                CREATE TABLE league_configuration_observation_scoring (
+                    league_id TEXT NOT NULL, source TEXT NOT NULL, as_of_date TEXT NOT NULL,
+                    stat_key TEXT NOT NULL, points_per_unit REAL NOT NULL,
+                    PRIMARY KEY (league_id, source, as_of_date, stat_key),
+                    FOREIGN KEY (league_id, source, as_of_date)
+                      REFERENCES league_configuration_observations(league_id, source, as_of_date) ON DELETE CASCADE)
+                """);
+            statement.executeUpdate("INSERT INTO league_configuration_observations VALUES('l1','sleeper','2026-09-06',2026)");
+            statement.executeUpdate("INSERT INTO league_configuration_observation_slots VALUES('l1','sleeper','2026-09-06',0,'QB')");
+            statement.executeUpdate("INSERT INTO league_configuration_observation_scoring VALUES('l1','sleeper','2026-09-06','pass_td',4.0)");
+        }
+
+        LeagueConfigurationObservationRepository repository =
+            new LeagueConfigurationObservationRepository(database);
+        var migrated = repository.findLatestForSeason("l1", 2026, "sleeper").orElseThrow();
+        assertEquals(List.of("QB"), migrated.lineupSlots());
+        assertEquals(4.0, migrated.scoringSettings().get("pass_td"));
+
+        repository.replace(new LeagueConfigurationObservation(
+            "l1", "sleeper", LocalDate.of(2026, 9, 6), 2025,
+            List.of("QB", "SUPER_FLEX"), Map.of("pass_td", 6.0)));
+        assertEquals(List.of("QB"),
+            repository.findLatestForSeason("l1", 2026, "sleeper").orElseThrow().lineupSlots());
+        assertEquals(List.of("QB", "SUPER_FLEX"),
+            repository.findLatestForSeason("l1", 2025, "sleeper").orElseThrow().lineupSlots());
+    }
+
+    @Test
     void unknownProviderSeasonRemainsDistinctFromSeasonSpecificEvidence() throws Exception {
         Database database = initialized();
         League league = new League("l1", "ext", "League");
