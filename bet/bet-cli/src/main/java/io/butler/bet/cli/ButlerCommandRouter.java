@@ -138,7 +138,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "team-season-lineup-capture-evidence")) return Route.LEAGUE_TEAM_SEASON_LINEUP_CAPTURE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-pair-lineup-capture-contrast-evidence")) return Route.LEAGUE_TEAM_PAIR_LINEUP_CAPTURE_CONTRAST_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-potential-lineup-evidence")) return Route.LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE;
-            if (equals(args[0], "league") && equals(args[1], "season-lineup-points-gap-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE;
+            if (equals(args[0], "league") && equals(args[1], "season-lineup-points-gap-evidence")) return Route.LEAGUE_SEASON_LINEUP_POINTS_GAP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-common-universe-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_COMMON_UNIVERSE_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "season-lineup-capture-ranking-evidence")) return Route.LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE;
@@ -226,7 +226,7 @@ public final class ButlerCommandRouter {
                  LEAGUE_TEAM_WEEK_LINEUP_CAPTURE_EVIDENCE,
                  LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_TEAM_SEASON_LINEUP_POINTS_GAP_EVIDENCE,
                  LEAGUE_TEAM_SEASON_LINEUP_CAPTURE_EVIDENCE, LEAGUE_TEAM_PAIR_LINEUP_CAPTURE_CONTRAST_EVIDENCE,
-                 LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE,
+                 LEAGUE_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_SEASON_LINEUP_POINTS_GAP_EVIDENCE,
                  LEAGUE_SEASON_LINEUP_CAPTURE_EVIDENCE, LEAGUE_SEASON_LINEUP_CAPTURE_COMMON_UNIVERSE_EVIDENCE,
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_EVIDENCE,
                  LEAGUE_SEASON_LINEUP_CAPTURE_RANKING_STABILITY_EVIDENCE,
