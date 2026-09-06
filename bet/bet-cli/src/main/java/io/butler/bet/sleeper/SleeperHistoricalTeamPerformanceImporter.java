@@ -50,20 +50,20 @@ public final class SleeperHistoricalTeamPerformanceImporter {
 
     public ImportResult syncSeason(String butlerLeagueId, int targetSeason)
         throws IOException, InterruptedException, SQLException {
-        butlerLeagueId = requireText(butlerLeagueId, "butlerLeagueId");
+        String normalizedLeagueId = requireText(butlerLeagueId, "butlerLeagueId");
         if (targetSeason < 1999 || targetSeason > 2100) {
             throw new IllegalArgumentException("targetSeason must be between 1999 and 2100");
         }
 
-        var league = leagues.findById(butlerLeagueId)
-            .orElseThrow(() -> new IllegalArgumentException("league not found: " + butlerLeagueId));
+        var league = leagues.findById(normalizedLeagueId)
+            .orElseThrow(() -> new IllegalArgumentException("league not found: " + normalizedLeagueId));
         String currentSleeperLeagueId = requireText(league.getExternalId(), "league external Sleeper id");
 
         ResolvedSeason resolved = resolveSeason(currentSleeperLeagueId, targetSeason);
         List<SleeperJsonParser.SleeperRoster> historicalRosters = source.fetchRosters(resolved.sleeperLeagueId());
-        List<Team> currentTeams = teams.findByLeagueId(butlerLeagueId);
+        List<Team> currentTeams = teams.findByLeagueId(normalizedLeagueId);
         if (currentTeams.isEmpty()) {
-            throw new IllegalStateException("league has no Butler teams: " + butlerLeagueId);
+            throw new IllegalStateException("league has no Butler teams: " + normalizedLeagueId);
         }
 
         Map<String, Team> teamsByRosterId = currentTeamsByRosterId(currentTeams);
@@ -74,7 +74,7 @@ public final class SleeperHistoricalTeamPerformanceImporter {
         for (Map.Entry<String, Team> entry : teamsByRosterId.entrySet()) {
             var roster = rostersById.get(entry.getKey());
             performance.save(new TeamSeasonPerformance(
-                butlerLeagueId,
+                normalizedLeagueId,
                 entry.getValue().getId(),
                 targetSeason,
                 roster.wins(),
@@ -87,7 +87,7 @@ public final class SleeperHistoricalTeamPerformanceImporter {
         }
 
         return new ImportResult(
-            butlerLeagueId,
+            normalizedLeagueId,
             targetSeason,
             resolved.sleeperLeagueId(),
             teamsByRosterId.size(),
