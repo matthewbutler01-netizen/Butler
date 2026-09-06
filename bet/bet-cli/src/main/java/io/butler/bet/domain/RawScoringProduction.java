@@ -4,6 +4,7 @@ package io.butler.bet.domain;
 public interface RawScoringProduction {
     int LEGACY_SCHEMA_VERSION = 1;
     int EXTENDED_SCHEMA_VERSION = 2;
+    int SACKS_SUFFERED_SCHEMA_VERSION = 3;
 
     String id();
     String playerId();
@@ -30,4 +31,5 @@ public interface RawScoringProduction {
     default int receivingTwoPointConversions() { return 0; }
     default int fumbleRecoveryTouchdowns() { return 0; }
     default int specialTeamsTouchdowns() { return 0; }
+    default int sacksSuffered() { return 0; }
 }
