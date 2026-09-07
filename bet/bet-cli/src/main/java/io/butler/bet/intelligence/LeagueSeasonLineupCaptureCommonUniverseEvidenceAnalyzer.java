@@ -15,18 +15,19 @@ import java.util.Set;
 
 /**
  * Recalculates every repository team's descriptive lineup-capture evidence over the exact same
- * all-team common comparable week universe. Rows remain in repository team-name order and this
- * artifact intentionally contains no rank, tier, league average, winner, or manager judgment.
+ * all-team common comparable week universe under one governed league-season historical scoring lane.
+ * Rows remain in repository team-name order and this artifact intentionally contains no rank, tier,
+ * league average, winner, or manager judgment.
  */
 public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "league-season-lineup-capture-common-universe-evidence-v1-all-repository-teams-common-comparable-weeks-neutral-no-ranking";
+        "league-season-lineup-capture-common-universe-evidence-v2-historical-scoring-lane-all-repository-teams-common-comparable-weeks-neutral-no-ranking";
     public static final String METRIC_SCOPE =
-        "RETROSPECTIVE_LEAGUE_TEAM_LINEUP_CAPTURE_OVER_ALL_REPOSITORY_TEAMS_COMMON_COMPARABLE_COMPLETE_OBSERVED_WEEKS_NO_MANAGER_ATTRIBUTION";
+        "RETROSPECTIVE_LEAGUE_TEAM_LINEUP_CAPTURE_GOVERNED_HISTORICAL_SCORING_LANE_OVER_ALL_REPOSITORY_TEAMS_COMMON_COMPARABLE_COMPLETE_OBSERVED_WEEKS_NO_MANAGER_ATTRIBUTION";
     public static final String WEEK_UNIVERSE =
         "INTERSECTION_OF_ALL_REPOSITORY_TEAMS_COMPARABLE_COMPLETE_OBSERVED_ROSTER_WEEKS";
     public static final String PRESENTATION_SCOPE =
-        "ALL_REPOSITORY_TEAMS_REPOSITORY_TEAM_NAME_ORDER_COMMON_UNIVERSE_NO_RANKING_NO_LEAGUE_ARITHMETIC";
+        "ALL_REPOSITORY_TEAMS_REPOSITORY_TEAM_NAME_ORDER_GOVERNED_HISTORICAL_SCORING_LANE_COMMON_UNIVERSE_NO_RANKING_NO_LEAGUE_ARITHMETIC";
 
     private final Database database;
 
@@ -40,27 +41,24 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
 
-        var scoringLane = new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
-        if (scoringLane.lane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-            throw new IllegalStateException(
-                "League common-universe lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
-        }
+        HistoricalScoringLaneSelector.Selection scoringLane =
+            new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
 
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
         var seasonAnalyzer = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer(database);
         List<SourceTeam> sources = new ArrayList<>();
         for (var team : new TeamRepository(database).findByLeagueId(normalizedLeagueId)) {
-            sources.add(new SourceTeam(
-                team.getId(),
-                team.getName(),
-                seasonAnalyzer.analyze(normalizedLeagueId, team.getId(), season)));
+            var source = seasonAnalyzer.analyze(normalizedLeagueId, team.getId(), season);
+            requireSameScoringLane(scoringLane, source);
+            sources.add(new SourceTeam(team.getId(), team.getName(), source));
         }
 
-        return fromSources(normalizedLeagueId, league.getName(), season, sources);
+        return fromSources(scoringLane, normalizedLeagueId, league.getName(), season, sources);
     }
 
     private static LeagueCommonUniverseReport fromSources(
+        HistoricalScoringLaneSelector.Selection scoringLane,
         String leagueId,
         String leagueName,
         int season,
@@ -71,6 +69,9 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             METRIC_SCOPE,
             WEEK_UNIVERSE,
             PRESENTATION_SCOPE,
+            scoringLane.policyId(),
+            scoringLane.lane(),
+            scoringLane.scoringPolicyId(),
             LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.POLICY_ID,
             leagueId,
             leagueName,
@@ -78,6 +79,17 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             computed.state(),
             computed.commonWeeks(),
             computed.teams());
+    }
+
+    private static void requireSameScoringLane(
+        HistoricalScoringLaneSelector.Selection selected,
+        LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport nested) {
+        if (!selected.policyId().equals(nested.scoringLaneSelectionPolicyId())
+            || selected.lane() != nested.scoringLane()
+            || !selected.scoringPolicyId().equals(nested.scoringPolicyId())) {
+            throw new IllegalStateException(
+                "League common-universe lineup capture unavailable: nested team-season evidence moved to a different historical scoring lane");
+        }
     }
 
     private static Computed compute(List<SourceTeam> inputSources) {
@@ -125,27 +137,54 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
         Set<String> teamIds = new HashSet<>();
         String leagueId = null;
         Integer season = null;
+        String selectorPolicyId = null;
+        HistoricalScoringLaneSelector.Lane scoringLane = null;
+        String scoringPolicyId = null;
         String previousTeamName = null;
         for (SourceTeam source : sources) {
             if (!teamIds.add(source.teamId())) {
                 throw new IllegalArgumentException("league common-universe sources must contain distinct teams");
             }
             var seasonSource = source.sourceSeasonPointsGap();
-            if (seasonSource.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-                throw new IllegalArgumentException(
-                    "league common-universe report cannot contain provider-native team source until this artifact migrates");
-            }
+            requireGovernedScoringLane(seasonSource);
             if (leagueId == null) {
                 leagueId = seasonSource.leagueId();
                 season = seasonSource.season();
+                selectorPolicyId = seasonSource.scoringLaneSelectionPolicyId();
+                scoringLane = seasonSource.scoringLane();
+                scoringPolicyId = seasonSource.scoringPolicyId();
             } else if (!leagueId.equals(seasonSource.leagueId()) || season != seasonSource.season()) {
                 throw new IllegalArgumentException("league common-universe sources must share league and season");
+            } else if (!selectorPolicyId.equals(seasonSource.scoringLaneSelectionPolicyId())
+                || scoringLane != seasonSource.scoringLane()
+                || !scoringPolicyId.equals(seasonSource.scoringPolicyId())) {
+                throw new IllegalArgumentException(
+                    "league common-universe sources must share one governed historical scoring lane");
             }
             if (previousTeamName != null && previousTeamName.compareTo(source.teamName()) > 0) {
                 throw new IllegalArgumentException("teams must preserve repository team-name order");
             }
             previousTeamName = source.teamName();
         }
+    }
+
+    private static void requireGovernedScoringLane(
+        LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport source) {
+        if (!HistoricalScoringLaneSelector.POLICY_ID.equals(source.scoringLaneSelectionPolicyId())) {
+            throw new IllegalArgumentException(
+                "league common-universe source must use governed historical scoring lane selector");
+        }
+        if (!expectedScoringPolicy(source.scoringLane()).equals(source.scoringPolicyId())) {
+            throw new IllegalArgumentException(
+                "league common-universe source scoring policy must match selected historical scoring lane");
+        }
+    }
+
+    private static String expectedScoringPolicy(HistoricalScoringLaneSelector.Lane lane) {
+        Objects.requireNonNull(lane, "scoringLane must not be null");
+        return lane == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE
+            ? HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID
+            : CoveredProductionScoringPolicy.POLICY_ID;
     }
 
     private static List<Integer> comparableWeeks(
@@ -180,12 +219,24 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
         }
         if (!baseline.leagueConfigurationAsOf().equals(candidate.leagueConfigurationAsOf())
             || !baseline.rosterEvidenceAsOf().equals(candidate.rosterEvidenceAsOf())
-            || !baseline.productionCoverageAsOf().equals(candidate.productionCoverageAsOf())
-            || !baseline.productionSourceUri().equals(candidate.productionSourceUri())
+            || !baseline.scoringLaneSelectionPolicyId().equals(candidate.scoringLaneSelectionPolicyId())
+            || baseline.scoringLane() != candidate.scoringLane()
             || !baseline.scoringPolicyId().equals(candidate.scoringPolicyId())
             || !baseline.solverPolicyId().equals(candidate.solverPolicyId())
             || !baseline.eligibilityPolicyId().equals(candidate.eligibilityPolicyId())
             || baseline.startingSlots() != candidate.startingSlots()) {
+            throw new IllegalStateException(
+                "League common-universe lineup capture unavailable: common week governed evidence boundary differs");
+        }
+        if (baseline.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            if (!Objects.equals(baseline.productionCoverageAsOf(), candidate.productionCoverageAsOf())
+                || !Objects.equals(baseline.productionSourceUri(), candidate.productionSourceUri())) {
+                throw new IllegalStateException(
+                    "League common-universe lineup capture unavailable: common week governed evidence boundary differs");
+            }
+        } else if (!Objects.equals(baseline.providerPointsAsOf(), candidate.providerPointsAsOf())
+            || !Objects.equals(baseline.providerPointsSourceSurface(), candidate.providerPointsSourceSurface())
+            || !Objects.equals(baseline.providerLeagueId(), candidate.providerLeagueId())) {
             throw new IllegalStateException(
                 "League common-universe lineup capture unavailable: common week governed evidence boundary differs");
         }
@@ -309,10 +360,7 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             if (!teamId.equals(sourceSeasonPointsGap.teamId())) {
                 throw new IllegalArgumentException("teamId must match nested season points-gap evidence");
             }
-            if (sourceSeasonPointsGap.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-                throw new IllegalArgumentException(
-                    "league common-universe report cannot contain provider-native team source until this artifact migrates");
-            }
+            requireGovernedScoringLane(sourceSeasonPointsGap);
             if (observedWeeks != sourceSeasonPointsGap.aggregate().observedWeeks()
                 || individuallyComparableWeeks != sourceSeasonPointsGap.aggregate().comparableCompleteWeeks()) {
                 throw new IllegalArgumentException("row coverage counts must match nested governed source evidence");
@@ -372,6 +420,9 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
         String metricScope,
         String weekUniverse,
         String presentationScope,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
+        String scoringPolicyId,
         String teamSeasonPointsGapPolicyId,
         String leagueId,
         String leagueName,
@@ -386,6 +437,13 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             if (!WEEK_UNIVERSE.equals(weekUniverse)) throw new IllegalArgumentException("unexpected weekUniverse");
             if (!PRESENTATION_SCOPE.equals(presentationScope)) {
                 throw new IllegalArgumentException("unexpected presentationScope");
+            }
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
+            if (!expectedScoringPolicy(scoringLane).equals(scoringPolicyId)) {
+                throw new IllegalArgumentException("scoring policy does not match selected league-season lane");
             }
             if (!LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.POLICY_ID.equals(teamSeasonPointsGapPolicyId)) {
                 throw new IllegalArgumentException("unexpected teamSeasonPointsGapPolicyId");
@@ -405,6 +463,12 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
                 var source = team.sourceSeasonPointsGap();
                 if (!leagueId.equals(source.leagueId()) || season != source.season()) {
                     throw new IllegalArgumentException("nested team evidence must match league and season");
+                }
+                if (!scoringLaneSelectionPolicyId.equals(source.scoringLaneSelectionPolicyId())
+                    || scoringLane != source.scoringLane()
+                    || !scoringPolicyId.equals(source.scoringPolicyId())) {
+                    throw new IllegalArgumentException(
+                        "nested team evidence must match selected league-season scoring lane");
                 }
                 sources.add(new SourceTeam(team.teamId(), team.teamName(), source));
             }
@@ -433,6 +497,36 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
                         "league common-universe team rows must match governed all-team source evidence");
                 }
             }
+        }
+
+        /** Source-compatible nflverse constructor retained for callers that built the v1 report directly. */
+        public LeagueCommonUniverseReport(
+            String policyId,
+            String metricScope,
+            String weekUniverse,
+            String presentationScope,
+            String teamSeasonPointsGapPolicyId,
+            String leagueId,
+            String leagueName,
+            int season,
+            CommonUniverseState commonUniverseState,
+            List<Integer> commonComparableWeeks,
+            List<TeamCommonEvidence> teams) {
+            this(
+                policyId,
+                metricScope,
+                weekUniverse,
+                presentationScope,
+                HistoricalScoringLaneSelector.POLICY_ID,
+                HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+                CoveredProductionScoringPolicy.POLICY_ID,
+                teamSeasonPointsGapPolicyId,
+                leagueId,
+                leagueName,
+                season,
+                commonUniverseState,
+                commonComparableWeeks,
+                teams);
         }
     }
 
