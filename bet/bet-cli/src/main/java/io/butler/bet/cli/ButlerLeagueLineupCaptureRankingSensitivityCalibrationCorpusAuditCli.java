@@ -95,6 +95,10 @@ public final class ButlerLeagueLineupCaptureRankingSensitivityCalibrationCorpusA
             System.out.println("  repository teams: " + leagueSeason.sourceCommonUniverse().teams().size());
             System.out.println("  full common comparable weeks: "
                 + leagueSeason.sourceCommonUniverse().commonComparableWeeks());
+            System.out.println("  source scoring lane selector: "
+                + leagueSeason.sourceCommonUniverse().scoringLaneSelectionPolicyId());
+            System.out.println("  source scoring lane: " + leagueSeason.sourceCommonUniverse().scoringLane());
+            System.out.println("  source scoring policy: " + leagueSeason.sourceCommonUniverse().scoringPolicyId());
 
             for (var cutoff : leagueSeason.cutoffs()) {
                 System.out.println("  cutoff after week " + cutoff.cutoffAfterWeek()
