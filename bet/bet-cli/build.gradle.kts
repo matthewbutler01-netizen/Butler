@@ -108,3 +108,10 @@ val sleeperProviderNativeSeasonScoringAudit by tasks.registering(JavaExec::class
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperProviderNativeSeasonScoringAuditCli")
 }
+
+val sleeperProviderNativeLineupSensitivityCorpusAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-587 audit of the complete persisted provider-points frame through governed provider-native lineup-sensitivity evidence."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli")
+}
