@@ -12,13 +12,15 @@ import java.util.Objects;
  */
 public final class LineupSlotEligibilityPolicy {
     public static final String POLICY_ID =
-        "lineup-slot-eligibility-v1-provider-fantasy-positions-fail-closed";
+        "lineup-slot-eligibility-v2-provider-fantasy-positions-k-def-fail-closed";
 
     private static final Map<String, SlotRule> RULES = Map.ofEntries(
         Map.entry("QB", starter("QB", List.of("QB"))),
         Map.entry("RB", starter("RB", List.of("RB"))),
         Map.entry("WR", starter("WR", List.of("WR"))),
         Map.entry("TE", starter("TE", List.of("TE"))),
+        Map.entry("K", starter("K", List.of("K"))),
+        Map.entry("DEF", starter("DEF", List.of("DEF"))),
         Map.entry("FLEX", starter("FLEX", List.of("RB", "WR", "TE"))),
         Map.entry("SUPER_FLEX", starter("SUPER_FLEX", List.of("QB", "RB", "WR", "TE"))),
         Map.entry("BN", nonStarting("BN")),
