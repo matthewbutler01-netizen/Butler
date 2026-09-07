@@ -63,10 +63,14 @@ class ButlerLeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceCli
         }
 
         var report = fixture.analyzer().analyze("l1", 2026);
+        var common = report.sourceRankingStability().sourceBaselineRanking().sourceCommonUniverse();
         String output = capture(() ->
             ButlerLeagueSeasonLineupCaptureRankingSensitivityClassificationEvidenceCli.print(report));
 
         assertTrue(output.contains("League season lineup-capture ranking sensitivity classification evidence"));
+        assertTrue(output.contains("Source scoring lane selector: " + common.scoringLaneSelectionPolicyId()));
+        assertTrue(output.contains("Source scoring lane: " + common.scoringLane()));
+        assertTrue(output.contains("Source scoring policy: " + common.scoringPolicyId()));
         assertTrue(output.contains("Classification state: AVAILABLE"));
         assertTrue(output.contains(
             "Rule: max absolute rank movement 0 = LOW_SENSITIVITY; 1 = MODERATE_SENSITIVITY; 2+ = HIGH_SENSITIVITY"));
