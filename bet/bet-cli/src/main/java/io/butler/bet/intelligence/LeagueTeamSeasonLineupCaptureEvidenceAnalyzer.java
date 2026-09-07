@@ -32,6 +32,10 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
     static SeasonLineupCaptureReport fromSource(
         LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport source) {
         Objects.requireNonNull(source, "source must not be null");
+        if (source.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "Team-season lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
+        }
         CaptureRateState state = expectedState(source);
         Optional<BigDecimal> rate = state == CaptureRateState.AVAILABLE
             ? Optional.of(calculateRate(source))
@@ -95,6 +99,10 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (!METRIC_SCOPE.equals(metricScope)) throw new IllegalArgumentException("unexpected metricScope");
             Objects.requireNonNull(sourceSeasonPointsGap, "sourceSeasonPointsGap must not be null");
+            if (sourceSeasonPointsGap.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                throw new IllegalArgumentException(
+                    "team-season lineup capture report cannot contain provider-native source until this artifact migrates");
+            }
             Objects.requireNonNull(rateState, "rateState must not be null");
             lineupCaptureRate = Objects.requireNonNull(lineupCaptureRate, "lineupCaptureRate must not be null");
 
