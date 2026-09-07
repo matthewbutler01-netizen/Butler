@@ -13,10 +13,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -109,6 +107,10 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
         if (providerRosters.isEmpty()) {
             rosterBlockers.add("Provider returned no current rosters");
         }
+        if (providerLeague.totalRosters() > 0 && providerLeague.totalRosters() != providerRosters.size()) {
+            rosterBlockers.add("Provider declared roster count " + providerLeague.totalRosters()
+                + " does not match returned roster count " + providerRosters.size());
+        }
         if (persistedTeams.size() != providerRosters.size()) {
             rosterBlockers.add("Persisted Butler team count " + persistedTeams.size()
                 + " does not match provider roster count " + providerRosters.size());
@@ -129,7 +131,9 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
 
         List<String> lineupBlockers = new ArrayList<>(rosterBlockers);
         lineupBlockers.addAll(ownerBlockers);
-        long rostersWithoutStarterSurface = providerRosters.stream().filter(roster -> !roster.startersFieldPresent()).count();
+        long rostersWithoutStarterSurface = providerRosters.stream()
+            .filter(roster -> !roster.startersFieldPresent())
+            .count();
         if (rostersWithoutStarterSurface > 0) {
             lineupBlockers.add(rostersWithoutStarterSurface + " provider roster(s) have no starters field");
         }
@@ -192,7 +196,9 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
         int season = parseSeason(root.get("season"));
         String status = text(root.get("status"));
         JsonNode settings = root.path("settings");
-        Integer leg = settings.has("leg") && settings.get("leg").canConvertToInt() ? settings.get("leg").intValue() : null;
+        Integer leg = settings.has("leg") && settings.get("leg").canConvertToInt()
+            ? settings.get("leg").intValue()
+            : null;
         int totalRosters = root.path("total_rosters").asInt(0);
         List<String> rosterPositions = stringArray(root.get("roster_positions"), "roster_positions");
         JsonNode scoring = root.get("scoring_settings");
@@ -256,9 +262,8 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
         return List.copyOf(result);
     }
 
-    private static <T> Set<T> difference(Set<T> left, Set<T> right) {
-        Set<T> result = new TreeSet<>();
-        result.addAll(left);
+    private static Set<String> difference(Set<String> left, Set<String> right) {
+        Set<String> result = new TreeSet<>(left);
         result.removeAll(right);
         return result;
     }
@@ -342,11 +347,13 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
             leagueId = requireText(leagueId, "leagueId");
             leagueName = requireText(leagueName, "leagueName");
             sleeperLeagueId = requireText(sleeperLeagueId, "sleeperLeagueId");
-            unmappedPlayerExamples = List.copyOf(unmappedPlayerExamples);
-            providerRosterIdsMissingPersistedTeam = List.copyOf(providerRosterIdsMissingPersistedTeam);
-            persistedTeamRosterIdsMissingProvider = List.copyOf(persistedTeamRosterIdsMissingProvider);
-            unknownOwnerIds = List.copyOf(unknownOwnerIds);
-            rosterOwners = List.copyOf(rosterOwners);
+            unmappedPlayerExamples = List.copyOf(Objects.requireNonNull(unmappedPlayerExamples, "unmappedPlayerExamples must not be null"));
+            providerRosterIdsMissingPersistedTeam = List.copyOf(Objects.requireNonNull(
+                providerRosterIdsMissingPersistedTeam, "providerRosterIdsMissingPersistedTeam must not be null"));
+            persistedTeamRosterIdsMissingProvider = List.copyOf(Objects.requireNonNull(
+                persistedTeamRosterIdsMissingProvider, "persistedTeamRosterIdsMissingProvider must not be null"));
+            unknownOwnerIds = List.copyOf(Objects.requireNonNull(unknownOwnerIds, "unknownOwnerIds must not be null"));
+            rosterOwners = List.copyOf(Objects.requireNonNull(rosterOwners, "rosterOwners must not be null"));
             Objects.requireNonNull(currentRosterContext, "currentRosterContext must not be null");
             Objects.requireNonNull(lineupContextPrerequisites, "lineupContextPrerequisites must not be null");
             Objects.requireNonNull(waiverFreeAgentInventoryPrerequisites, "waiverFreeAgentInventoryPrerequisites must not be null");
