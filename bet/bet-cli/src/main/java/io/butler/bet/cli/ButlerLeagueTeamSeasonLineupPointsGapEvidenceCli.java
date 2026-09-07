@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
 
 import java.math.BigDecimal;
@@ -57,6 +58,9 @@ public final class ButlerLeagueTeamSeasonLineupPointsGapEvidenceCli {
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Aggregate policy: " + report.aggregatePolicy());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Scoring lane: " + report.scoringLane());
+        System.out.println("Scoring policy: " + report.scoringPolicyId());
         System.out.println("Source potential-season policy: " + report.sourcePotentialSeasonPolicyId());
         System.out.println("Started-lineup policy: " + report.startedLineupPolicyId());
         System.out.println("Points-gap policy: " + report.pointsGapPolicyId());
@@ -87,15 +91,21 @@ public final class ButlerLeagueTeamSeasonLineupPointsGapEvidenceCli {
                     System.out.println("    potential points: "
                         + points(week.sourcePotentialWeek().potentialLineup().lineup().totalPoints()));
                     System.out.println("    started filled slots: " + started.filledSlots() + "/" + started.requiredSlots());
-                    System.out.println("    recalculated started points: " + points(started.totalStartedPoints()));
+                    System.out.println("    started points: " + points(started.totalStartedPoints()));
                     System.out.println("    aggregate eligibility: excluded because observed started lineup is incomplete");
                 }
                 case COMPARABLE_COMPLETE -> {
                     var gap = week.pointsGap();
                     System.out.println("    league configuration as-of: " + gap.leagueConfigurationAsOf());
-                    System.out.println("    production coverage as-of: " + gap.productionCoverageAsOf());
-                    System.out.println("    production source: " + gap.productionSourceUri());
-                    System.out.println("    recalculated started points: " + points(gap.startedPoints()));
+                    if (gap.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                        System.out.println("    production coverage as-of: " + gap.productionCoverageAsOf());
+                        System.out.println("    production source: " + gap.productionSourceUri());
+                    } else {
+                        System.out.println("    provider points as-of: " + gap.providerPointsAsOf());
+                        System.out.println("    provider points source surface: " + gap.providerPointsSourceSurface());
+                        System.out.println("    provider league id: " + gap.providerLeagueId());
+                    }
+                    System.out.println("    started points: " + points(gap.startedPoints()));
                     System.out.println("    retrospective potential points: " + points(gap.potentialPoints()));
                     System.out.println("    potential-minus-started points gap: " + points(gap.pointsGap()));
                     System.out.println("    aggregate eligibility: included");
@@ -128,10 +138,11 @@ public final class ButlerLeagueTeamSeasonLineupPointsGapEvidenceCli {
                 + aggregate.observedWeeks() + " observed week(s)");
         }
         System.out.println();
-        System.out.println("Boundary: raw descriptive totals over comparable complete observed weeks only. "
-            + "Unobserved, blocked, and incomplete weeks are not normalized away. Potential uses observed provider "
-            + "configuration and is not reconstructed historical startability. No average gap, efficiency percentage, "
-            + "manager score, rank, tier, recommendation, intent, fault, or skill attribution is computed.");
+        System.out.println("Boundary: raw descriptive totals over comparable complete observed weeks only under one "
+            + "governed league-season historical scoring lane. Unobserved, blocked, and incomplete weeks are not "
+            + "normalized away. Potential uses observed provider configuration and is not reconstructed historical "
+            + "startability. No average gap, efficiency percentage, manager score, rank, tier, recommendation, intent, "
+            + "fault, or skill attribution is computed.");
     }
 
     private static Database initializedDatabase() throws SQLException {
