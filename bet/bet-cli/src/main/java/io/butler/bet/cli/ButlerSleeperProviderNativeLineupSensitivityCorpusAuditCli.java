@@ -1,12 +1,18 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer;
+import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
 import io.butler.bet.intelligence.SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzer;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.TreeSet;
 
-/** No-argument BF-587 operator surface for the complete BF-565 provider-points frame. */
+/** No-argument BF-587/BF-588 operator surface for the complete BF-565 provider-points frame. */
 public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -107,7 +113,13 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
             }
             entry.detail().ifPresent(detail -> System.out.println("  downstream exception: " + detail));
             entry.downstreamAudit().ifPresent(audit -> {
-                System.out.println("  BF-518 common-universe state: " + audit.sourceCommonUniverse().commonUniverseState());
+                var source = audit.sourceCommonUniverse();
+                System.out.println("  BF-518 common-universe state: " + source.commonUniverseState());
+                if (source.commonUniverseState()
+                    == LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonUniverseState
+                        .UNAVAILABLE_NO_COMMON_COMPARABLE_WEEKS) {
+                    printZeroCommonWeekDiagnostics(source);
+                }
                 for (var cutoff : audit.cutoffs()) {
                     System.out.println("  cutoff after week " + cutoff.cutoffAfterWeek()
                         + " | baseline=" + cutoff.baselineCommonWeeks()
@@ -121,5 +133,62 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
         System.out.println();
         System.out.println("Selection rule: every distinct league-season with persisted Sleeper provider-points evidence is included exactly once before provider-native, BF-518, BF-521, candidate-study, or support-audit outcomes are observed. This command accepts no selection arguments.");
         System.out.println("Boundary: read-only evidence audit. BLOCKED and unavailable entries remain visible. BF-518 cutoff states are descriptive evidence, not BF-521 readiness, statistical confidence, candidate quality, or a threshold-selection score. This command does not fit, rank, select, recommend, or publish a threshold and does not evaluate managers.");
+    }
+
+    private static void printZeroCommonWeekDiagnostics(
+        LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.LeagueCommonUniverseReport source) {
+        System.out.println("  BF-588 zero-common-week diagnostics: descriptive source evidence only; all-team intersection remains authoritative.");
+        System.out.println("  Team individually-comparable evidence:");
+        for (var team : source.teams()) {
+            var season = team.sourceSeasonPointsGap();
+            var stateCounts = new EnumMap<LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState, Integer>(
+                LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.class);
+            List<Integer> comparableWeeks = new ArrayList<>();
+            for (var week : season.weeks()) {
+                stateCounts.merge(week.state(), 1, Integer::sum);
+                if (week.state() == LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE) {
+                    comparableWeeks.add(week.week());
+                }
+            }
+            System.out.println("    " + team.teamName() + " [" + team.teamId() + "]"
+                + " | observed=" + season.aggregate().observedWeeks()
+                + " | comparable=" + season.aggregate().comparableCompleteWeeks()
+                + " | comparable weeks=" + comparableWeeks
+                + " | week states=" + stateCounts);
+        }
+
+        TreeSet<Integer> observedWeeks = new TreeSet<>();
+        for (var team : source.teams()) {
+            for (var week : team.sourceSeasonPointsGap().weeks()) observedWeeks.add(week.week());
+        }
+        System.out.println("  Week-by-week all-team comparability coverage:");
+        for (int weekNumber : observedWeeks) {
+            int comparableTeams = 0;
+            List<String> nonComparable = new ArrayList<>();
+            for (var team : source.teams()) {
+                var week = team.sourceSeasonPointsGap().weeks().stream()
+                    .filter(value -> value.week() == weekNumber)
+                    .findFirst();
+                if (week.isEmpty()) {
+                    nonComparable.add(team.teamName() + "=NO_OBSERVED_ROSTER_WEEK");
+                    continue;
+                }
+                var evidence = week.orElseThrow();
+                if (evidence.state()
+                    == LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE) {
+                    comparableTeams++;
+                    continue;
+                }
+                String detail = team.teamName() + "=" + evidence.state();
+                if (!evidence.blockers().isEmpty()) {
+                    detail += "(" + String.join(" / ", evidence.blockers()) + ")";
+                }
+                nonComparable.add(detail);
+            }
+            System.out.println("    week " + weekNumber
+                + " | comparable teams=" + comparableTeams + "/" + source.teams().size()
+                + " | non-comparable=" + nonComparable);
+        }
+        System.out.println("  BF-588 diagnostic boundary: these rows explain loss of the all-team intersection; they do not authorize a partial common-universe fallback or change BF-518/BF-521 semantics.");
     }
 }
