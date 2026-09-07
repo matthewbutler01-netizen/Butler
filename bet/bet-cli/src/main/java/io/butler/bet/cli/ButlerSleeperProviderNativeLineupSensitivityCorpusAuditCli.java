@@ -2,6 +2,8 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueConfigurationObservationRepository;
+import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
+import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.intelligence.LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
@@ -21,7 +23,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-/** No-argument BF-587/BF-588/BF-589 operator surface for the complete BF-565 provider-points frame. */
+/** No-argument BF-587/BF-588/BF-589/BF-590 operator surface for the complete BF-565 provider-points frame. */
 public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
     private static final String SLEEPER_SOURCE = "sleeper";
@@ -162,6 +164,8 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
         Objects.requireNonNull(report, "report must not be null");
         var configurations = new LeagueConfigurationObservationRepository(database);
         var rosters = new TeamWeekRosterEvidenceRepository(database);
+        var players = new PlayerRepository(database);
+        var fantasyPositions = new PlayerFantasyPositionObservationRepository(database);
         var slotPolicy = new LineupSlotEligibilityPolicy();
         Map<LeagueSeasonKey, StarterSlotDiagnostics> result = new LinkedHashMap<>();
 
@@ -188,6 +192,7 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
                 .toList();
 
             Map<Integer, Integer> starterCountDistribution = new TreeMap<>();
+            List<io.butler.bet.domain.TeamWeekRosterEvidence> observedRosters = new ArrayList<>();
             int rosterSnapshots = 0;
             int snapshotsContainingZeroSentinel = 0;
             int literalZeroSentinelEntries = 0;
@@ -197,12 +202,41 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
                         .orElseThrow(() -> new IllegalStateException(
                             "BF-589 diagnostic unavailable: nested source references missing roster evidence for "
                                 + team.teamId() + "/" + entry.season() + "/" + week.week()));
+                    observedRosters.add(roster);
                     int starterCount = roster.providerStarterIds().size();
                     starterCountDistribution.merge(starterCount, 1, Integer::sum);
                     rosterSnapshots++;
                     int zeroCount = (int) roster.providerStarterIds().stream().filter("0"::equals).count();
                     if (zeroCount > 0) snapshotsContainingZeroSentinel++;
                     literalZeroSentinelEntries += zeroCount;
+                }
+            }
+
+            List<OmittedSlotCandidateDiagnostics> omissionCandidates = new ArrayList<>();
+            int oneShortSnapshots = 0;
+            if (!supportedStartingSlots.isEmpty()) {
+                for (var roster : observedRosters) {
+                    if (roster.providerStarterIds().size() == supportedStartingSlots.size() - 1) oneShortSnapshots++;
+                }
+                for (int omittedOrdinal = 0; omittedOrdinal < supportedStartingSlots.size(); omittedOrdinal++) {
+                    int compatibleSnapshots = 0;
+                    for (var roster : observedRosters) {
+                        if (roster.providerStarterIds().size() != supportedStartingSlots.size() - 1) continue;
+                        if (isCompatibleWithSingleOmittedSlot(
+                            roster.providerStarterIds(),
+                            supportedStartingSlots,
+                            omittedOrdinal,
+                            slotPolicy,
+                            players,
+                            fantasyPositions)) {
+                            compatibleSnapshots++;
+                        }
+                    }
+                    omissionCandidates.add(new OmittedSlotCandidateDiagnostics(
+                        omittedOrdinal,
+                        supportedStartingSlots.get(omittedOrdinal),
+                        oneShortSnapshots,
+                        compatibleSnapshots));
                 }
             }
 
@@ -216,9 +250,40 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
                     starterCountDistribution,
                     rosterSnapshots,
                     snapshotsContainingZeroSentinel,
-                    literalZeroSentinelEntries));
+                    literalZeroSentinelEntries,
+                    oneShortSnapshots,
+                    omissionCandidates));
         }
         return Map.copyOf(result);
+    }
+
+    private static boolean isCompatibleWithSingleOmittedSlot(
+        List<String> providerStarterIds,
+        List<String> supportedStartingSlots,
+        int omittedOrdinal,
+        LineupSlotEligibilityPolicy slotPolicy,
+        PlayerRepository players,
+        PlayerFantasyPositionObservationRepository fantasyPositions) throws SQLException {
+        int starterOrdinal = 0;
+        for (int slotOrdinal = 0; slotOrdinal < supportedStartingSlots.size(); slotOrdinal++) {
+            if (slotOrdinal == omittedOrdinal) continue;
+            String providerStarterId = providerStarterIds.get(starterOrdinal++);
+            if ("0".equals(providerStarterId)) continue;
+
+            var player = players.findByExternalId(providerStarterId)
+                .orElseThrow(() -> new IllegalStateException(
+                    "BF-590 diagnostic unavailable: no Butler player mapping for Sleeper starter "
+                        + providerStarterId));
+            var positions = fantasyPositions.findLatest(player.getId(), SLEEPER_SOURCE)
+                .orElseThrow(() -> new IllegalStateException(
+                    "BF-590 diagnostic unavailable: no Sleeper fantasy-position observation for starter "
+                        + providerStarterId));
+            if (!slotPolicy.isPlayerEligible(
+                supportedStartingSlots.get(slotOrdinal), positions.providerFantasyPositions())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void printZeroCommonWeekDiagnostics(
@@ -239,6 +304,41 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
                 + starterSlotDiagnostics.snapshotsContainingZeroSentinel()
                 + " | literal 0 sentinel entries: " + starterSlotDiagnostics.literalZeroSentinelEntries());
             System.out.println("  BF-589 diagnostic boundary: these counts do not authorize dropping a configured slot, padding a starter array, reordering starters, or reconstructing missing starter identities.");
+
+            System.out.println("  BF-590 ordered single-omitted-slot compatibility: observed starter order and identities remain unchanged.");
+            System.out.println("    exactly-one-short snapshots evaluated: "
+                + starterSlotDiagnostics.oneShortSnapshots() + "/" + starterSlotDiagnostics.rosterSnapshots());
+            for (var candidate : starterSlotDiagnostics.omissionCandidates()) {
+                System.out.println("    omit ordinal " + candidate.omittedOrdinal()
+                    + " " + candidate.slot()
+                    + " | compatible snapshots=" + candidate.compatibleSnapshots()
+                    + "/" + candidate.evaluatedSnapshots()
+                    + " | fully compatible=" + candidate.fullyCompatible());
+            }
+            List<OmittedSlotCandidateDiagnostics> fullyCompatible = starterSlotDiagnostics.omissionCandidates().stream()
+                .filter(OmittedSlotCandidateDiagnostics::fullyCompatible)
+                .toList();
+            List<String> fullyCompatibleLabels = fullyCompatible.stream()
+                .map(OmittedSlotCandidateDiagnostics::slot)
+                .distinct()
+                .toList();
+            System.out.println("    fully compatible candidate ordinals: "
+                + fullyCompatible.stream().map(OmittedSlotCandidateDiagnostics::omittedOrdinal).toList());
+            System.out.println("    fully compatible slot labels: " + fullyCompatibleLabels);
+            String evidenceState;
+            if (starterSlotDiagnostics.oneShortSnapshots() == 0) {
+                evidenceState = "NOT_APPLICABLE_NO_EXACTLY_ONE_SHORT_SNAPSHOTS";
+            } else if (fullyCompatible.isEmpty()) {
+                evidenceState = "NO_FULLY_COMPATIBLE_SINGLE_OMISSION";
+            } else if (fullyCompatible.size() == 1) {
+                evidenceState = "UNIQUE_ORDINAL_COMPATIBILITY";
+            } else if (fullyCompatibleLabels.size() == 1) {
+                evidenceState = "UNIQUE_SLOT_LABEL_MULTIPLE_EQUIVALENT_ORDINALS";
+            } else {
+                evidenceState = "AMBIGUOUS_MULTIPLE_SLOT_LABELS";
+            }
+            System.out.println("    compatibility evidence state: " + evidenceState);
+            System.out.println("  BF-590 diagnostic boundary: compatibility is descriptive structural evidence only. It does not remove a slot, rewrite historical configuration, reconstruct starters, or authorize downstream use of an inferred lineup shape.");
         }
         System.out.println("  Team individually-comparable evidence:");
         for (var team : source.teams()) {
@@ -301,6 +401,24 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
         }
     }
 
+    record OmittedSlotCandidateDiagnostics(
+        int omittedOrdinal,
+        String slot,
+        int evaluatedSnapshots,
+        int compatibleSnapshots) {
+        OmittedSlotCandidateDiagnostics {
+            if (omittedOrdinal < 0) throw new IllegalArgumentException("omittedOrdinal must not be negative");
+            if (slot == null || slot.isBlank()) throw new IllegalArgumentException("slot must not be blank");
+            if (evaluatedSnapshots < 0 || compatibleSnapshots < 0 || compatibleSnapshots > evaluatedSnapshots) {
+                throw new IllegalArgumentException("invalid BF-590 candidate counts");
+            }
+        }
+
+        boolean fullyCompatible() {
+            return evaluatedSnapshots > 0 && compatibleSnapshots == evaluatedSnapshots;
+        }
+    }
+
     record StarterSlotDiagnostics(
         LocalDate configurationAsOf,
         List<String> rosterPositions,
@@ -309,7 +427,9 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
         Map<Integer, Integer> starterCountDistribution,
         int rosterSnapshots,
         int snapshotsContainingZeroSentinel,
-        int literalZeroSentinelEntries) {
+        int literalZeroSentinelEntries,
+        int oneShortSnapshots,
+        List<OmittedSlotCandidateDiagnostics> omissionCandidates) {
         StarterSlotDiagnostics {
             Objects.requireNonNull(configurationAsOf, "configurationAsOf must not be null");
             rosterPositions = List.copyOf(Objects.requireNonNull(rosterPositions, "rosterPositions must not be null"));
@@ -318,13 +438,19 @@ public final class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli {
             unsupportedSlots = List.copyOf(Objects.requireNonNull(unsupportedSlots, "unsupportedSlots must not be null"));
             starterCountDistribution = Map.copyOf(Objects.requireNonNull(
                 starterCountDistribution, "starterCountDistribution must not be null"));
+            omissionCandidates = List.copyOf(Objects.requireNonNull(
+                omissionCandidates, "omissionCandidates must not be null"));
             if (rosterSnapshots < 0 || snapshotsContainingZeroSentinel < 0 || literalZeroSentinelEntries < 0
-                || snapshotsContainingZeroSentinel > rosterSnapshots) {
-                throw new IllegalArgumentException("invalid BF-589 diagnostic counts");
+                || snapshotsContainingZeroSentinel > rosterSnapshots || oneShortSnapshots < 0
+                || oneShortSnapshots > rosterSnapshots) {
+                throw new IllegalArgumentException("invalid starter-slot diagnostic counts");
             }
             int distributedSnapshots = starterCountDistribution.values().stream().mapToInt(Integer::intValue).sum();
             if (distributedSnapshots != rosterSnapshots) {
                 throw new IllegalArgumentException("starter-count distribution must equal roster snapshot count");
+            }
+            if (!supportedStartingSlots.isEmpty() && omissionCandidates.size() != supportedStartingSlots.size()) {
+                throw new IllegalArgumentException("BF-590 omission candidates must cover every supported starting ordinal");
             }
         }
     }
