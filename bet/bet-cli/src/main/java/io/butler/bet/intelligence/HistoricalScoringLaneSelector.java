@@ -136,17 +136,22 @@ public final class HistoricalScoringLaneSelector {
                         "nflverse selection requires absent provider evidence and no selector blockers");
                 }
             } else {
-                providerSourceSurface = requireText(providerSourceSurface, "providerSourceSurface");
-                providerLeagueId = requireText(providerLeagueId, "providerLeagueId");
-                Objects.requireNonNull(providerPointsAsOf, "providerPointsAsOf must not be null");
                 Objects.requireNonNull(providerAudit, "providerAudit must not be null");
                 if (!leagueId.equals(providerAudit.leagueId()) || season != providerAudit.season()) {
                     throw new IllegalArgumentException("provider audit identity must match selection");
                 }
+                if (providerSourceSurface != null) {
+                    providerSourceSurface = requireText(providerSourceSurface, "providerSourceSurface");
+                }
+                if (providerLeagueId != null) {
+                    providerLeagueId = requireText(providerLeagueId, "providerLeagueId");
+                }
                 if (state == SelectionState.READY) {
                     if (providerAudit.state() != SleeperProviderNativeSeasonScoringAudit.AuditState.READY
+                        || providerSourceSurface == null || providerLeagueId == null || providerPointsAsOf == null
                         || !blockers.isEmpty()) {
-                        throw new IllegalArgumentException("READY provider selection requires READY audit and no blockers");
+                        throw new IllegalArgumentException(
+                            "READY provider selection requires READY audit, complete provenance, and no blockers");
                     }
                 } else if (providerAudit.state() != SleeperProviderNativeSeasonScoringAudit.AuditState.BLOCKED
                     || blockers.isEmpty()) {
