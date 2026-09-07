@@ -109,6 +109,13 @@ val sleeperCurrentSeasonSuccessorDiscovery by tasks.registering(JavaExec::class)
     mainClass.set("io.butler.bet.cli.ButlerSleeperCurrentSeasonSuccessorDiscoveryCli")
 }
 
+val sleeperCurrentSeasonSuccessorRelink by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "BF-597 governed compare-and-set relink to the unique BF-596-proven 2026 Sleeper successor."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperCurrentSeasonSuccessorRelinkCli")
+}
+
 val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class) {
     group = "application"
     description = "BF-560 fail-closed atomic persistence of roster-wide historical Sleeper players_points evidence."
