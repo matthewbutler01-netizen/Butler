@@ -31,6 +31,12 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
 
+        var scoringLane = new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
+        if (scoringLane.lane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "League-season lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
+        }
+
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
         var teamAnalyzer = new LeagueTeamSeasonLineupCaptureEvidenceAnalyzer(database);
@@ -108,6 +114,10 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
                 var source = team.seasonEvidence().sourceSeasonPointsGap();
                 if (!leagueId.equals(source.leagueId()) || season != source.season()) {
                     throw new IllegalArgumentException("nested team capture evidence must match league and season");
+                }
+                if (source.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                    throw new IllegalArgumentException(
+                        "league-season lineup capture report cannot contain provider-native team source until this artifact migrates");
                 }
                 if (previousTeamName != null && previousTeamName.compareTo(team.teamName()) > 0) {
                     throw new IllegalArgumentException("teams must preserve repository team-name order");
