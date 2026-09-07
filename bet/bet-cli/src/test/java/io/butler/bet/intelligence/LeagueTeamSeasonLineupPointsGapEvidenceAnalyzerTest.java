@@ -7,6 +7,7 @@ import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
+import io.butler.bet.data.ProviderPlayerWeekPointsEvidenceRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
@@ -15,8 +16,10 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerFantasyPositionObservation;
 import io.butler.bet.domain.PlayerWeekProduction;
 import io.butler.bet.domain.PlayerWeekProductionCoverage;
+import io.butler.bet.domain.ProviderPlayerWeekPointsEvidence;
 import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
+import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -29,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -68,6 +72,9 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
 
         assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WEEK_UNIVERSE, report.weekUniverse());
         assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.AGGREGATE_POLICY, report.aggregatePolicy());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT, report.scoringLane());
+        assertEquals(CoveredProductionScoringPolicy.POLICY_ID, report.scoringPolicyId());
         assertEquals(5, report.weeks().size());
         assertEquals(List.of(1, 2, 3, 4, 5), report.weeks().stream()
             .map(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekEvidence::week).toList());
@@ -93,7 +100,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
             report.weeks().get(3).state());
         assertTrue(report.weeks().get(3).startedLineup() != null);
         assertTrue(!report.weeks().get(3).startedLineup().complete());
-        assertEquals(null, report.weeks().get(3).pointsGap());
+        assertNull(report.weeks().get(3).pointsGap());
 
         assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.BLOCKED,
             report.weeks().get(4).state());
@@ -109,6 +116,83 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
         assertEquals(new BigDecimal("30.0"), aggregate.comparableTotalStartedPoints().orElseThrow());
         assertEquals(new BigDecimal("36.0"), aggregate.comparableTotalPotentialPoints().orElseThrow());
         assertEquals(new BigDecimal("6.0"), aggregate.comparableTotalPointsGap().orElseThrow());
+    }
+
+    @Test
+    void providerNativeSeasonAggregatesPersistedPointsUnderOneLane() throws Exception {
+        Fixture fixture = initializedFixture();
+        fixture.saveConfiguration();
+        fixture.saveEligibility();
+        fixture.saveRoster(1, List.of("s1", "s2", "s3"), List.of("s1", "s2"));
+        fixture.saveProviderPoints(1, Map.of(
+            "s1", new BigDecimal("4.0"),
+            "s2", new BigDecimal("6.0"),
+            "s3", new BigDecimal("12.0")));
+
+        var report = fixture.analyzer().analyze("l1", "t1", 2026);
+
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, report.scoringPolicyId());
+        assertEquals(1, report.weeks().size());
+        var week = report.weeks().get(0);
+        assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE, week.state());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, week.pointsGap().scoringLane());
+        assertEquals(PROVIDER_AS_OF, week.pointsGap().providerPointsAsOf());
+        assertEquals(SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+            week.pointsGap().providerPointsSourceSurface());
+        assertEquals("provider-l1", week.pointsGap().providerLeagueId());
+        assertNull(week.pointsGap().productionCoverageAsOf());
+        assertNull(week.pointsGap().productionSourceUri());
+        assertEquals(new BigDecimal("10.0"), week.pointsGap().startedPoints());
+        assertEquals(new BigDecimal("16.0"), week.pointsGap().potentialPoints());
+        assertEquals(new BigDecimal("6.0"), week.pointsGap().pointsGap());
+        assertEquals(1, report.aggregate().comparableCompleteWeeks());
+        assertEquals(new BigDecimal("10.0"), report.aggregate().comparableTotalStartedPoints().orElseThrow());
+        assertEquals(new BigDecimal("16.0"), report.aggregate().comparableTotalPotentialPoints().orElseThrow());
+        assertEquals(new BigDecimal("6.0"), report.aggregate().comparableTotalPointsGap().orElseThrow());
+    }
+
+    @Test
+    void incompleteProviderNativeSeasonNeverFallsBackToReadyNflverse() throws Exception {
+        Fixture fixture = initializedFixture();
+        fixture.saveConfiguration();
+        fixture.saveEligibility();
+        fixture.saveRoster(1, List.of("s1", "s2", "s3"), List.of("s1", "s2"));
+        fixture.saveProviderPoints(1, Map.of(
+            "s1", new BigDecimal("4.0"),
+            "s2", new BigDecimal("6.0")));
+        fixture.saveCoverage(1, List.of("p1", "p2", "p3"));
+        fixture.saveProduction("p1", 1, 1, 0);
+        fixture.saveProduction("p2", 1, 0, 1);
+        fixture.saveProduction("p3", 1, 0, 2);
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> fixture.analyzer().analyze("l1", "t1", 2026));
+
+        assertTrue(error.getMessage().contains("Missing provider-points identities"));
+        assertTrue(error.getMessage().contains("s3"));
+    }
+
+    @Test
+    void providerNativeSeasonRemainsBlockedAtCaptureAndLeagueSeasonBoundaries() throws Exception {
+        Fixture fixture = initializedFixture();
+        fixture.saveConfiguration();
+        fixture.saveEligibility();
+        fixture.saveRoster(1, List.of("s1", "s2", "s3"), List.of("s1", "s2"));
+        fixture.saveProviderPoints(1, Map.of(
+            "s1", new BigDecimal("4.0"),
+            "s2", new BigDecimal("6.0"),
+            "s3", new BigDecimal("12.0")));
+
+        var source = fixture.analyzer().analyze("l1", "t1", 2026);
+        IllegalStateException captureError = assertThrows(IllegalStateException.class,
+            () -> LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.fromSource(source));
+        assertTrue(captureError.getMessage().contains("has not migrated to provider-native historical scoring"));
+
+        IllegalStateException leagueError = assertThrows(IllegalStateException.class,
+            () -> new LeagueSeasonLineupPointsGapEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
+        assertTrue(leagueError.getMessage().contains("has not migrated to provider-native historical scoring"));
     }
 
     @Test
@@ -174,6 +258,9 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
             report.metricScope(),
             report.weekUniverse(),
             report.aggregatePolicy(),
+            report.scoringLaneSelectionPolicyId(),
+            report.scoringLane(),
+            report.scoringPolicyId(),
             report.sourcePotentialSeasonPolicyId(),
             report.startedLineupPolicyId(),
             report.pointsGapPolicyId(),
@@ -197,6 +284,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
     }
 
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 5);
+    private static final LocalDate PROVIDER_AS_OF = LocalDate.of(2026, 9, 6);
 
     private record Fixture(Database database) {
         LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer analyzer() {
@@ -236,6 +324,17 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
                 0, 0,
                 0, 0, receivingTouchdowns,
                 0, "nflverse", AS_OF));
+        }
+
+        void saveProviderPoints(int week, Map<String, BigDecimal> pointsByProviderId) throws Exception {
+            List<ProviderPlayerWeekPointsEvidence> rows = pointsByProviderId.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> ProviderPlayerWeekPointsEvidence.create(
+                    "l1", "t1", "1", "provider-l1", 2026, week, entry.getKey(), entry.getValue(),
+                    "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_AS_OF))
+                .toList();
+            new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
+                "l1", 2026, "sleeper", PROVIDER_AS_OF, rows);
         }
     }
 }
