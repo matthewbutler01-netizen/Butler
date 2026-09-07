@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.CoveredProductionScoringPolicy;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamSeasonPotentialLineupEvidenceAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupCoverageAnalyzer;
@@ -48,9 +49,13 @@ class ButlerLeagueTeamSeasonPotentialLineupEvidenceCliTest {
         var readyCoverage = new LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageReport(
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
             "l1", "t1", 2026, 1,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageState.READY,
-            asOf, asOf, asOf, source, List.of(), List.of());
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+            asOf, asOf, asOf, source,
+            null, null, null,
+            List.of(), List.of());
         var lineup = new OptimalLegalLineupSolver.LineupResult(
             OptimalLegalLineupSolver.POLICY_ID,
             LineupSlotEligibilityPolicy.POLICY_ID,
@@ -60,11 +65,15 @@ class ButlerLeagueTeamSeasonPotentialLineupEvidenceCliTest {
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             CoveredProductionScoringPolicy.POLICY_ID,
             OptimalLegalLineupSolver.POLICY_ID,
             LineupSlotEligibilityPolicy.POLICY_ID,
             "l1", "t1", 2026, 1,
-            asOf, asOf, asOf, source, List.of(), lineup);
+            asOf, asOf, asOf, source,
+            null, null, null,
+            List.of(), lineup);
         var qualifying = new LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekEvidence(
             1,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekState.QUALIFYING_COMPLETE,
@@ -77,9 +86,13 @@ class ButlerLeagueTeamSeasonPotentialLineupEvidenceCliTest {
         var blockedCoverage = new LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageReport(
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
             "l1", "t1", 2026, 2,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageState.BLOCKED,
-            asOf, asOf, null, null, List.of(), List.of(blocker));
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+            asOf, asOf, null, null,
+            null, null, null,
+            List.of(), List.of(blocker));
         var blocked = new LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekEvidence(
             2,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekState.BLOCKED,
@@ -97,6 +110,8 @@ class ButlerLeagueTeamSeasonPotentialLineupEvidenceCliTest {
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.AVERAGE_POLICY,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             "l1", "t1", 2026,
@@ -113,6 +128,8 @@ class ButlerLeagueTeamSeasonPotentialLineupEvidenceCliTest {
 
         String output = bytes.toString();
         assertTrue(output.contains(LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE));
+        assertTrue(output.contains("Scoring lane selection policy: " + HistoricalScoringLaneSelector.POLICY_ID));
+        assertTrue(output.contains("Selected scoring lane: NFLVERSE_EXACT"));
         assertTrue(output.contains("Week 1 | QUALIFYING_COMPLETE"));
         assertTrue(output.contains("potential points: 10"));
         assertTrue(output.contains("aggregate eligibility: included"));
