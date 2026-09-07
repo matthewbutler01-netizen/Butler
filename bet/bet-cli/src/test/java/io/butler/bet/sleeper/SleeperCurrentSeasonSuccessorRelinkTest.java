@@ -32,7 +32,7 @@ class SleeperCurrentSeasonSuccessorRelinkTest {
         assertEquals("l1", persisted.getId());
         assertEquals("Best", persisted.getName());
         assertEquals("successor-2026", persisted.getExternalId());
-        assertEquals(2026, persisted.getSeason());
+        assertEquals(Integer.valueOf(2026), persisted.getSeason());
     }
 
     @Test
@@ -91,7 +91,7 @@ class SleeperCurrentSeasonSuccessorRelinkTest {
     private static void assertUnchanged(Database database, String externalId, int season) throws Exception {
         League persisted = new LeagueRepository(database).findById("l1").orElseThrow();
         assertEquals(externalId, persisted.getExternalId());
-        assertEquals(season, persisted.getSeason());
+        assertEquals(Integer.valueOf(season), persisted.getSeason());
         assertEquals("Best", persisted.getName());
     }
 
