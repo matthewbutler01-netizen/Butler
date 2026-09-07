@@ -88,6 +88,13 @@ val sleeperSeasonProviderPointsDuplicateRosterDiagnostic by tasks.registering(Ja
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsDuplicateRosterDiagnosticCli")
 }
 
+val sleeperSeasonDuplicateRosterTransactionProvenanceDiagnostic by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-594 transaction and final-roster provenance for BF-593 cross-roster duplicates."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonDuplicateRosterTransactionProvenanceDiagnosticCli")
+}
+
 val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class) {
     group = "application"
     description = "BF-560 fail-closed atomic persistence of roster-wide historical Sleeper players_points evidence."

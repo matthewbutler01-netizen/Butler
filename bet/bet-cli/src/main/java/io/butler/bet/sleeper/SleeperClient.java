@@ -40,6 +40,11 @@ public final class SleeperClient {
         return get("league/" + encodePath(leagueId) + "/matchups/" + week);
     }
 
+    public String getLeagueTransactions(String leagueId, int round) throws IOException, InterruptedException {
+        if (round < 1 || round > 18) throw new IllegalArgumentException("round must be between 1 and 18");
+        return get("league/" + encodePath(leagueId) + "/transactions/" + round);
+    }
+
     /** Returns Sleeper's read-only historical raw NFL stat map for one regular-season week. */
     public String getNflWeeklyStats(int season, int week) throws IOException, InterruptedException {
         if (season < 1999 || season > 2100) {
