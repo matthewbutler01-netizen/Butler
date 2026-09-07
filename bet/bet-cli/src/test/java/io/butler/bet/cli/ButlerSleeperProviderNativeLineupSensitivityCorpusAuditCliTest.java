@@ -131,6 +131,74 @@ class ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCliTest {
         assertFalse(output.toLowerCase().contains("winning candidate:"));
     }
 
+    @Test
+    void diagnosesPersistedStarterArrayCountMismatchWithoutReconstruction() throws Exception {
+        Database database = new Database(tempDir.resolve("starter-count-mismatch.db"));
+        database.initialize();
+
+        new LeagueRepository(database).save(new League("l3", "L3", "League Three", 2025));
+        TeamRepository teams = new TeamRepository(database);
+        teams.save(new Team("t1", "1", "l3", "Team One"));
+        teams.save(new Team("t2", "2", "l3", "Team Two"));
+
+        PlayerRepository players = new PlayerRepository(database);
+        players.save(new Player("q1", "qb-1", "QB One", "QB", "CHI"));
+        players.save(new Player("r1", "rb-1", "RB One", "RB", "CHI"));
+        players.save(new Player("q2", "qb-2", "QB Two", "QB", "DET"));
+        players.save(new Player("r2", "rb-2", "RB Two", "RB", "DET"));
+
+        new LeagueConfigurationObservationRepository(database).replace(new LeagueConfigurationObservation(
+            "l3", "sleeper", AS_OF, 2025, List.of("QB", "RB", "BN"), Map.of("pass_td", 4.0)));
+        PlayerFantasyPositionObservationRepository eligibility =
+            new PlayerFantasyPositionObservationRepository(database);
+        eligibility.replace(new PlayerFantasyPositionObservation("q1", "sleeper", AS_OF, List.of("QB")));
+        eligibility.replace(new PlayerFantasyPositionObservation("r1", "sleeper", AS_OF, List.of("RB")));
+        eligibility.replace(new PlayerFantasyPositionObservation("q2", "sleeper", AS_OF, List.of("QB")));
+        eligibility.replace(new PlayerFantasyPositionObservation("r2", "sleeper", AS_OF, List.of("RB")));
+
+        TeamWeekRosterEvidenceRepository rosters = new TeamWeekRosterEvidenceRepository(database);
+        rosters.save(TeamWeekRosterEvidence.create(
+            "l3", "t1", 2025, 1, List.of("qb-1", "rb-1"), List.of("qb-1"), "sleeper", AS_OF));
+        rosters.save(TeamWeekRosterEvidence.create(
+            "l3", "t2", 2025, 1, List.of("qb-2", "rb-2"), List.of("qb-2"), "sleeper", AS_OF));
+
+        List<ProviderPlayerWeekPointsEvidence> providerRows = List.of(
+            ProviderPlayerWeekPointsEvidence.create(
+                "l3", "t1", "1", "provider-l3", 2025, 1, "qb-1", new BigDecimal("10.0"),
+                "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_AS_OF),
+            ProviderPlayerWeekPointsEvidence.create(
+                "l3", "t1", "1", "provider-l3", 2025, 1, "rb-1", new BigDecimal("8.0"),
+                "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_AS_OF),
+            ProviderPlayerWeekPointsEvidence.create(
+                "l3", "t2", "2", "provider-l3", 2025, 1, "qb-2", new BigDecimal("12.0"),
+                "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_AS_OF),
+            ProviderPlayerWeekPointsEvidence.create(
+                "l3", "t2", "2", "provider-l3", 2025, 1, "rb-2", new BigDecimal("7.0"),
+                "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_AS_OF));
+        new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
+            "l3", 2025, "sleeper", PROVIDER_AS_OF, providerRows);
+
+        var report = new SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzer(database).audit();
+        var diagnostics = ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli
+            .collectStarterSlotDiagnostics(database, report);
+        String output = capture(() ->
+            ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli.print(report, diagnostics));
+
+        assertTrue(output.contains("UNAVAILABLE_NO_COMMON_COMPARABLE_WEEKS"));
+        assertTrue(output.contains("ordered Sleeper starter count 1 does not match supported starting-slot count 2"));
+        assertTrue(output.contains("BF-589 starter-slot count diagnostics"));
+        assertTrue(output.contains("persisted roster_positions: [QB, RB, BN]"));
+        assertTrue(output.contains("supported starting slots: [QB, RB]"));
+        assertTrue(output.contains("supported starting-slot count: 2"));
+        assertTrue(output.contains("unsupported roster positions: []"));
+        assertTrue(output.contains("observed ordered starter-array length distribution: {1=2}"));
+        assertTrue(output.contains("roster snapshots: 2 | snapshots containing literal 0 sentinel: 0 | literal 0 sentinel entries: 0"));
+        assertTrue(output.contains("do not authorize dropping a configured slot, padding a starter array, reordering starters, or reconstructing missing starter identities"));
+        assertFalse(output.toLowerCase().contains("selected threshold:"));
+        assertFalse(output.toLowerCase().contains("best candidate:"));
+        assertFalse(output.toLowerCase().contains("winning candidate:"));
+    }
+
     private static String capture(Runnable runnable) {
         PrintStream previous = System.out;
         var bytes = new ByteArrayOutputStream();
