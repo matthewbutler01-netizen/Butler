@@ -56,6 +56,31 @@ public final class LeagueRepository {
         return result;
     }
 
+    /**
+     * Compare-and-set update for a governed provider relink. The row changes only when the
+     * current external id still equals the caller's expected value; league name/id are preserved.
+     */
+    public boolean updateExternalIdAndSeasonIfCurrent(
+        String id,
+        String expectedExternalId,
+        String newExternalId,
+        int newSeason) throws SQLException {
+        String normalizedId = requireText(id, "id");
+        String normalizedExpected = requireText(expectedExternalId, "expectedExternalId");
+        String normalizedNew = requireText(newExternalId, "newExternalId");
+        if (newSeason <= 0) throw new IllegalArgumentException("newSeason must be positive");
+
+        String sql = "UPDATE leagues SET external_id=?, season=? WHERE id=? AND external_id=?";
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, normalizedNew);
+            statement.setInt(2, newSeason);
+            statement.setString(3, normalizedId);
+            statement.setString(4, normalizedExpected);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
     public boolean deleteById(String id) throws SQLException {
         requireText(id, "id");
         try (Connection connection = database.openConnection();
