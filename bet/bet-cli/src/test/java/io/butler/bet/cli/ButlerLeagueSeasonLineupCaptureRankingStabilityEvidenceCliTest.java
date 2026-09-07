@@ -65,10 +65,14 @@ class ButlerLeagueSeasonLineupCaptureRankingStabilityEvidenceCliTest {
         }
         var report = new LeagueSeasonLineupCaptureRankingStabilityEvidenceAnalyzer(fixture.database())
             .analyze("l1", 2026);
+        var source = report.sourceBaselineRanking().sourceCommonUniverse();
 
         String output = capture(() -> ButlerLeagueSeasonLineupCaptureRankingStabilityEvidenceCli.print(report));
 
         assertTrue(output.contains("League season lineup-capture ranking stability evidence"));
+        assertTrue(output.contains("Source scoring lane selector: " + source.scoringLaneSelectionPolicyId()));
+        assertTrue(output.contains("Source scoring lane: " + source.scoringLane()));
+        assertTrue(output.contains("Source scoring policy: " + source.scoringPolicyId()));
         assertTrue(output.contains("Minimum common-week floor for baseline rank: 4"));
         assertTrue(output.contains("Minimum common-week floor for leave-one-week-out stability: 5"));
         assertTrue(output.contains("Baseline common comparable weeks: [1, 2, 3, 4, 5]"));
