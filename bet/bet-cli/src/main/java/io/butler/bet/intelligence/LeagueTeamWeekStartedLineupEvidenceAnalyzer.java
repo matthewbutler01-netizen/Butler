@@ -37,6 +37,14 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
 
     public StartedLineupReport analyze(String leagueId, String teamId, int season, int week)
         throws SQLException {
+        var scoringLane = new HistoricalScoringLaneSelector(database).select(leagueId, season);
+        if (scoringLane.lane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+            throw new IllegalStateException(
+                "Started lineup unavailable: this artifact requires recalculated exact nflverse scoring "
+                    + "and does not consume provider-reported points; provider-native historical scoring "
+                    + "evidence is present for the requested league-season");
+        }
+
         var scoredRoster = new LeagueTeamWeekPotentialLineupAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
 

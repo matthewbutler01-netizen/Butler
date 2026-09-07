@@ -15,7 +15,7 @@ import java.util.Objects;
  */
 public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "league-season-potential-lineup-evidence-v1-team-name-order-no-ranking-no-cross-team-aggregate";
+        "league-season-potential-lineup-evidence-v2-single-historical-scoring-lane-team-name-order-no-ranking-no-cross-team-aggregate";
 
     private final Database database;
 
@@ -31,19 +31,23 @@ public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
 
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
+        HistoricalScoringLaneSelector.Selection scoringLane =
+            new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
         var teamAnalyzer = new LeagueTeamSeasonPotentialLineupEvidenceAnalyzer(database);
         List<TeamEvidence> teams = new ArrayList<>();
         for (var team : new TeamRepository(database).findByLeagueId(normalizedLeagueId)) {
             teams.add(new TeamEvidence(
                 team.getId(),
                 team.getName(),
-                teamAnalyzer.analyze(normalizedLeagueId, team.getId(), season)));
+                teamAnalyzer.analyze(normalizedLeagueId, team.getId(), season, scoringLane)));
         }
 
         return new LeagueEvidenceReport(
             POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            scoringLane.lane(),
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.POLICY_ID,
             normalizedLeagueId,
             league.getName(),
@@ -74,6 +78,8 @@ public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
         String policyId,
         String metricScope,
         String weekUniverse,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
         String teamSeasonPolicyId,
         String leagueId,
         String leagueName,
@@ -87,6 +93,10 @@ public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
             if (!LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE.equals(weekUniverse)) {
                 throw new IllegalArgumentException("unexpected weekUniverse");
             }
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
             if (!LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.POLICY_ID.equals(teamSeasonPolicyId)) {
                 throw new IllegalArgumentException("unexpected teamSeasonPolicyId");
             }
@@ -98,8 +108,10 @@ public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
             teams = List.copyOf(Objects.requireNonNull(teams, "teams must not be null"));
             String previousTeamName = null;
             for (TeamEvidence team : teams) {
-                if (!leagueId.equals(team.seasonEvidence().leagueId()) || season != team.seasonEvidence().season()) {
-                    throw new IllegalArgumentException("nested team evidence must match league and season");
+                if (!leagueId.equals(team.seasonEvidence().leagueId()) || season != team.seasonEvidence().season()
+                    || scoringLane != team.seasonEvidence().scoringLane()) {
+                    throw new IllegalArgumentException(
+                        "nested team evidence must match league, season, and scoring lane");
                 }
                 if (previousTeamName != null && previousTeamName.compareTo(team.teamName()) > 0) {
                     throw new IllegalArgumentException("teams must preserve repository team-name order");

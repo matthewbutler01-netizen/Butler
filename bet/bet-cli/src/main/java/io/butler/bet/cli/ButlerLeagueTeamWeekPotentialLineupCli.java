@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
 import io.butler.bet.sleeper.SleeperHistoricalLineupEvidenceImporter;
 
@@ -96,6 +97,8 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
         System.out.println("Policies:");
         System.out.println("  calculation: " + report.policyId());
         System.out.println("  coverage: " + report.coveragePolicyId());
+        System.out.println("  scoring lane selection: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("  selected scoring lane: " + report.scoringLane());
         System.out.println("  scoring: " + report.scoringPolicyId());
         System.out.println("  solver: " + report.solverPolicyId());
         System.out.println("  eligibility: " + report.eligibilityPolicyId());
@@ -103,22 +106,33 @@ public final class ButlerLeagueTeamWeekPotentialLineupCli {
         System.out.println("Evidence provenance:");
         System.out.println("  league configuration as-of: " + report.leagueConfigurationAsOf());
         System.out.println("  roster evidence as-of: " + report.rosterEvidenceAsOf());
-        System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
-        System.out.println("  production source: " + report.productionSourceUri());
+        if (report.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+            System.out.println("  provider points as-of: " + report.providerPointsAsOf());
+            System.out.println("  provider source surface: " + report.providerPointsSourceSurface());
+            System.out.println("  historical provider league: " + report.providerLeagueId());
+        } else {
+            System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
+            System.out.println("  production source: " + report.productionSourceUri());
+        }
         System.out.println();
         System.out.println("Player score evidence:");
         for (var player : report.playerScores()) {
             System.out.println("  Sleeper " + player.providerPlayerId() + " -> Butler " + player.playerId());
             System.out.println("    eligibility as-of: " + player.eligibilityObservationAsOf());
             System.out.println("    fantasy positions: " + player.providerFantasyPositions());
-            System.out.println("    production state: " + player.productionState());
-            System.out.println("    production coverage as-of: " + player.productionCoverageAsOf());
-            if (player.productionId() == null) {
-                System.out.println("    production id: none (identity-covered zero)");
-                System.out.println("    scoring policy: none (zero authorized by coverage evidence)");
-            } else {
-                System.out.println("    production id: " + player.productionId());
+            if (player.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+                System.out.println("    provider points evidence id: " + player.providerPointsEvidenceId());
                 System.out.println("    scoring policy: " + player.scoringPolicyId());
+            } else {
+                System.out.println("    production state: " + player.productionState());
+                System.out.println("    production coverage as-of: " + player.productionCoverageAsOf());
+                if (player.productionId() == null) {
+                    System.out.println("    production id: none (identity-covered zero)");
+                    System.out.println("    scoring policy: none (zero authorized by coverage evidence)");
+                } else {
+                    System.out.println("    production id: " + player.productionId());
+                    System.out.println("    scoring policy: " + player.scoringPolicyId());
+                }
             }
             System.out.println("    points: " + points(player.fantasyPoints()));
         }
