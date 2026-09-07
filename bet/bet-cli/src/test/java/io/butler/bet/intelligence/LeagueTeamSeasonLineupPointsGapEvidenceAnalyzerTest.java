@@ -154,7 +154,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
     }
 
     @Test
-    void incompleteProviderNativeSeasonNeverFallsBackToReadyNflverse() throws Exception {
+    void incompleteProviderNativeSeasonIsBlockedAndNeverFallsBackToReadyNflverse() throws Exception {
         Fixture fixture = initializedFixture();
         fixture.saveConfiguration();
         fixture.saveEligibility();
@@ -167,11 +167,18 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
         fixture.saveProduction("p2", 1, 0, 1);
         fixture.saveProduction("p3", 1, 0, 2);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-            () -> fixture.analyzer().analyze("l1", "t1", 2026));
+        var report = fixture.analyzer().analyze("l1", "t1", 2026);
 
-        assertTrue(error.getMessage().contains("Missing provider-points identities"));
-        assertTrue(error.getMessage().contains("s3"));
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, report.scoringPolicyId());
+        assertEquals(1, report.weeks().size());
+        assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.BLOCKED,
+            report.weeks().get(0).state());
+        assertTrue(report.weeks().get(0).blockers().stream().anyMatch(
+            blocker -> blocker.contains("Missing provider-points identities") && blocker.contains("s3")));
+        assertEquals(1, report.aggregate().blockedWeeks());
+        assertEquals(0, report.aggregate().comparableCompleteWeeks());
+        assertTrue(report.aggregate().comparableTotalPointsGap().isEmpty());
     }
 
     @Test
