@@ -7,6 +7,7 @@ import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
+import io.butler.bet.data.ProviderPlayerWeekPointsEvidenceRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
@@ -15,8 +16,10 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerFantasyPositionObservation;
 import io.butler.bet.domain.PlayerWeekProduction;
 import io.butler.bet.domain.PlayerWeekProductionCoverage;
+import io.butler.bet.domain.ProviderPlayerWeekPointsEvidence;
 import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
+import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -60,6 +63,18 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
             report.slots().get(1).scoreEvidence().productionState());
         assertEquals(COVERAGE_DATE, report.productionCoverageAsOf());
         assertEquals(URI.create("https://example.test/week.csv"), report.productionSourceUri());
+    }
+
+    @Test
+    void providerNativeHistoricalEvidenceCannotMigrateStartedLineupArtifact() throws Exception {
+        Fixture fixture = readyFixture(List.of("s1", "s2"));
+        fixture.saveProviderPoints();
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> fixture.analyzer().analyze("l1", "t1", 2026, 3));
+
+        assertTrue(error.getMessage().contains("requires recalculated exact nflverse scoring"));
+        assertTrue(error.getMessage().contains("does not consume provider-reported points"));
     }
 
     @Test
@@ -138,6 +153,8 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
     private static final LocalDate OBSERVATION_DATE = LocalDate.of(2026, 9, 5);
     private static final LocalDate ROSTER_DATE = LocalDate.of(2026, 9, 5);
     private static final LocalDate COVERAGE_DATE = LocalDate.of(2026, 9, 5);
+    private static final LocalDate PROVIDER_DATE = LocalDate.of(2026, 9, 6);
+    private static final String PROVIDER_LEAGUE_ID = "provider-l1";
 
     private record Fixture(Database database) {
         LeagueTeamWeekStartedLineupEvidenceAnalyzer analyzer() {
@@ -159,6 +176,20 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
         void saveEligibility(String playerId, List<String> positions) throws Exception {
             new PlayerFantasyPositionObservationRepository(database).replace(
                 new PlayerFantasyPositionObservation(playerId, "sleeper", OBSERVATION_DATE, positions));
+        }
+
+        void saveProviderPoints() throws Exception {
+            List<ProviderPlayerWeekPointsEvidence> rows = List.of(
+                ProviderPlayerWeekPointsEvidence.create(
+                    "l1", "t1", "1", PROVIDER_LEAGUE_ID, 2026, 3, "s1",
+                    new BigDecimal("12.5"), "sleeper",
+                    SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_DATE),
+                ProviderPlayerWeekPointsEvidence.create(
+                    "l1", "t1", "1", PROVIDER_LEAGUE_ID, 2026, 3, "s2",
+                    new BigDecimal("8.25"), "sleeper",
+                    SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_DATE));
+            new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
+                "l1", 2026, "sleeper", PROVIDER_DATE, rows);
         }
 
         void saveCoverage(List<String> identityCoveredPlayerIds) throws Exception {
