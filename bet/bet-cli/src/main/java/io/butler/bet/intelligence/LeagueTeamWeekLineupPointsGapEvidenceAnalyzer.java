@@ -33,6 +33,12 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
         throws SQLException {
         var potential = new LeagueTeamWeekPotentialLineupAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
+        if (potential.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "Lineup points gap unavailable: this downstream artifact remains on exact nflverse scoring "
+                    + "and has not migrated to provider-native historical scoring");
+        }
+
         var started = new LeagueTeamWeekStartedLineupEvidenceAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
 

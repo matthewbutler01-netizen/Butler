@@ -7,6 +7,7 @@ import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
+import io.butler.bet.data.ProviderPlayerWeekPointsEvidenceRepository;
 import io.butler.bet.data.TeamRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
@@ -15,8 +16,10 @@ import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerFantasyPositionObservation;
 import io.butler.bet.domain.PlayerWeekProduction;
 import io.butler.bet.domain.PlayerWeekProductionCoverage;
+import io.butler.bet.domain.ProviderPlayerWeekPointsEvidence;
 import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
+import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -77,6 +80,18 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
         assertTrue(error.getMessage().contains("observed started lineup is incomplete (1/2)"));
     }
 
+    @Test
+    void providerNativeLaneRemainsBlockedAtPointsGapBoundary() throws Exception {
+        Fixture fixture = fixture(List.of("s1", "s2"));
+        fixture.saveProviderPoints();
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> fixture.analyzer().analyze("l1", "t1", 2026, 3));
+
+        assertTrue(error.getMessage().contains("remains on exact nflverse scoring"));
+        assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
+    }
+
     private Fixture fixture(List<String> starters) throws Exception {
         Database database = new Database(tempDir.resolve("lineup-gap.db"));
         database.initialize();
@@ -125,10 +140,27 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
     }
 
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 5);
+    private static final LocalDate PROVIDER_AS_OF = LocalDate.of(2026, 9, 6);
 
     private record Fixture(Database database) {
         LeagueTeamWeekLineupPointsGapEvidenceAnalyzer analyzer() {
             return new LeagueTeamWeekLineupPointsGapEvidenceAnalyzer(database);
+        }
+
+        void saveProviderPoints() throws Exception {
+            List<ProviderPlayerWeekPointsEvidence> rows = List.of(
+                providerPoints("s1", new BigDecimal("4.0")),
+                providerPoints("s2", new BigDecimal("6.0")),
+                providerPoints("s3", new BigDecimal("12.0")));
+            new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
+                "l1", 2026, "sleeper", PROVIDER_AS_OF, rows);
+        }
+
+        private ProviderPlayerWeekPointsEvidence providerPoints(String providerPlayerId, BigDecimal points) {
+            return ProviderPlayerWeekPointsEvidence.create(
+                "l1", "t1", "1", "provider-l1", 2026, 3, providerPlayerId,
+                points, "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+                PROVIDER_AS_OF);
         }
     }
 }
