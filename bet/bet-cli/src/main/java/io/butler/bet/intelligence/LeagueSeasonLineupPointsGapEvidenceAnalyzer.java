@@ -31,6 +31,12 @@ public final class LeagueSeasonLineupPointsGapEvidenceAnalyzer {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
 
+        var scoringLane = new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
+        if (scoringLane.lane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "League-season lineup points gap unavailable: this downstream artifact has not migrated to provider-native historical scoring");
+        }
+
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
         var teamAnalyzer = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer(database);
