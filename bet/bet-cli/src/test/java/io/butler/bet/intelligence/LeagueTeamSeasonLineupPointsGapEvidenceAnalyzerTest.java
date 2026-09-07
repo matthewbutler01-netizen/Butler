@@ -182,7 +182,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
     }
 
     @Test
-    void providerNativeSeasonRemainsBlockedAtCaptureAndLeagueSeasonBoundaries() throws Exception {
+    void providerNativeSeasonRemainsBlockedAtCaptureButFlowsThroughLeagueSeasonGap() throws Exception {
         Fixture fixture = initializedFixture();
         fixture.saveConfiguration();
         fixture.saveEligibility();
@@ -197,9 +197,12 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
             () -> LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.fromSource(source));
         assertTrue(captureError.getMessage().contains("has not migrated to provider-native historical scoring"));
 
-        IllegalStateException leagueError = assertThrows(IllegalStateException.class,
-            () -> new LeagueSeasonLineupPointsGapEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
-        assertTrue(leagueError.getMessage().contains("has not migrated to provider-native historical scoring"));
+        var league = new LeagueSeasonLineupPointsGapEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, league.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, league.scoringPolicyId());
+        assertEquals(1, league.teams().size());
+        assertEquals(new BigDecimal("6.0"),
+            league.teams().get(0).seasonEvidence().aggregate().comparableTotalPointsGap().orElseThrow());
     }
 
     @Test
