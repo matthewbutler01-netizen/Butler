@@ -37,6 +37,10 @@ public final class LeagueSeasonLineupCaptureRankingEvidenceAnalyzer {
     static LeagueRankingReport fromSource(
         LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.LeagueCommonUniverseReport source) {
         Objects.requireNonNull(source, "source common-universe report must not be null");
+        if (source.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "League-season lineup capture ranking unavailable: this downstream artifact has not migrated to provider-native historical scoring");
+        }
         Computed computed = compute(source);
         return new LeagueRankingReport(
             POLICY_ID,
@@ -192,6 +196,10 @@ public final class LeagueSeasonLineupCaptureRankingEvidenceAnalyzer {
             }
             if (!RANKING_POLICY.equals(rankingPolicy)) throw new IllegalArgumentException("unexpected rankingPolicy");
             Objects.requireNonNull(sourceCommonUniverse, "sourceCommonUniverse must not be null");
+            if (sourceCommonUniverse.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                throw new IllegalArgumentException(
+                    "league-season lineup capture ranking report cannot contain provider-native source until this artifact migrates");
+            }
             Objects.requireNonNull(rankingState, "rankingState must not be null");
             rankedTeams = List.copyOf(Objects.requireNonNull(rankedTeams, "rankedTeams must not be null"));
 
