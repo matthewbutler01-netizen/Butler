@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.CoveredProductionScoringPolicy;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueSeasonPotentialLineupEvidenceAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamSeasonPotentialLineupEvidenceAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
@@ -52,6 +53,8 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
             LeagueSeasonPotentialLineupEvidenceAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.POLICY_ID,
             "l1", "League", 2026,
             List.of(
@@ -73,6 +76,8 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
         int alphaIndex = output.indexOf("Alpha Team [t-alpha]");
         int betaIndex = output.indexOf("Beta Team [t-beta]");
         assertTrue(alphaIndex >= 0 && betaIndex > alphaIndex);
+        assertTrue(output.contains("Scoring lane selection policy: " + HistoricalScoringLaneSelector.POLICY_ID));
+        assertTrue(output.contains("Selected scoring lane: NFLVERSE_EXACT"));
         assertTrue(output.contains("Team order: repository team-name order; never score-ranked."));
         assertTrue(output.contains("qualifying total potential points: 4"));
         assertTrue(output.contains("qualifying total potential points: 20"));
@@ -104,6 +109,8 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WEEK_UNIVERSE,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.AVERAGE_POLICY,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             "l1", teamId, 2026, weeks, aggregate);
@@ -114,9 +121,13 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
         var coverage = new LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageReport(
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
             "l1", teamId, 2026, week,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageState.READY,
-            AS_OF, AS_OF, AS_OF, SOURCE, List.of(), List.of());
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+            AS_OF, AS_OF, AS_OF, SOURCE,
+            null, null, null,
+            List.of(), List.of());
         var lineup = new OptimalLegalLineupSolver.LineupResult(
             OptimalLegalLineupSolver.POLICY_ID,
             LineupSlotEligibilityPolicy.POLICY_ID,
@@ -126,11 +137,15 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             CoveredProductionScoringPolicy.POLICY_ID,
             OptimalLegalLineupSolver.POLICY_ID,
             LineupSlotEligibilityPolicy.POLICY_ID,
             "l1", teamId, 2026, week,
-            AS_OF, AS_OF, AS_OF, SOURCE, List.of(), lineup);
+            AS_OF, AS_OF, AS_OF, SOURCE,
+            null, null, null,
+            List.of(), lineup);
         return new LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekEvidence(
             week,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekState.QUALIFYING_COMPLETE,
@@ -143,9 +158,13 @@ class ButlerLeagueSeasonPotentialLineupEvidenceCliTest {
         var coverage = new LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageReport(
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
             "l1", teamId, 2026, week,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageState.BLOCKED,
-            AS_OF, AS_OF, null, null, List.of(), List.of(blocker));
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+            AS_OF, AS_OF, null, null,
+            null, null, null,
+            List.of(), List.of(blocker));
         return new LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekEvidence(
             week,
             LeagueTeamSeasonPotentialLineupEvidenceAnalyzer.WeekState.BLOCKED,
