@@ -20,6 +20,7 @@ import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCalibrati
 import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer;
 import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer;
 import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -33,8 +34,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Tag("acceptance")
 class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoricalScoringLaneTest {
     @TempDir Path tempDir;
 
@@ -49,8 +52,12 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
         saveSeasonEvidence(database, "l1", 2025, List.of("a", "b"), 9, true);
         saveSeasonEvidence(database, "l2", 2026, List.of("c", "d", "e"), 10, false);
 
-        var supportReport = new LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer(database)
-            .analyze(2025, 2026);
+        var analyzer = new LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer(database);
+        var supportReport = analyzer.analyze(2025, 2026);
+        var repeatedSupportReport = analyzer.analyze(2025, 2026);
+        assertEquals(supportReport, repeatedSupportReport,
+            "identical persisted provider-native evidence must produce identical governed reports");
+
         var report = supportReport.sourceCandidateStudy();
         var readiness = report.sourceReadiness();
         var source = readiness.sourceCorpusAudit();
@@ -167,6 +174,10 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
 
         String supportOutput = capture(() ->
             ButlerLeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditCli.print(supportReport));
+        String repeatedSupportOutput = capture(() ->
+            ButlerLeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditCli.print(repeatedSupportReport));
+        assertEquals(supportOutput, repeatedSupportOutput,
+            "identical provider-native reports must render deterministic CLI evidence");
         assertTrue(supportOutput.contains("source scoring lane selector: " + HistoricalScoringLaneSelector.POLICY_ID));
         assertTrue(supportOutput.contains("source scoring lane: "
             + HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE));
@@ -178,6 +189,16 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
         assertTrue(supportOutput.contains("Support states are evidence-breadth labels, not confidence"));
         assertTrue(supportOutput.contains("does not normalize those totals into a scalar score"));
         assertTrue(supportOutput.contains("select or break ties among candidates"));
+        assertFalse(supportOutput.toLowerCase().contains("selected threshold:"));
+        assertFalse(supportOutput.toLowerCase().contains("best candidate:"));
+        assertFalse(supportOutput.toLowerCase().contains("winning candidate:"));
+
+        assertEquals(
+            ButlerCommandRouter.Route
+                .LEAGUE_LINEUP_CAPTURE_RANKING_SENSITIVITY_CANDIDATE_CROSS_FOLD_SUPPORT_AUDIT,
+            ButlerCommandRouter.route(new String[] {
+                "league", "lineup-capture-ranking-sensitivity-candidate-cross-fold-support-audit", "2025", "2026"
+            }));
     }
 
     private static void saveLeague(
