@@ -1,7 +1,6 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
-import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 
 import java.math.BigDecimal;
@@ -40,11 +39,9 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
         var scoredRoster = new LeagueTeamWeekPotentialLineupAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
 
-        var configuration = new LeagueConfigurationObservationRepository(database)
-            .findLatestForSeason(scoredRoster.leagueId(), season,
-                LeagueTeamWeekPotentialLineupCoverageAnalyzer.SLEEPER_SOURCE)
-            .orElseThrow(() -> new IllegalStateException(
-                "Started lineup unavailable: league configuration moved after scoring evidence"));
+        var lineupConfiguration = new HistoricalEffectiveLineupConfigurationResolver(database)
+            .select(scoredRoster.leagueId(), season, LeagueTeamWeekPotentialLineupCoverageAnalyzer.SLEEPER_SOURCE);
+        var configuration = lineupConfiguration.rawConfiguration();
         if (!configuration.asOfDate().equals(scoredRoster.leagueConfigurationAsOf())) {
             throw new IllegalStateException(
                 "Started lineup unavailable: league configuration moved after scoring evidence");
@@ -61,10 +58,7 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
         }
 
         LineupSlotEligibilityPolicy eligibilityPolicy = new LineupSlotEligibilityPolicy();
-        List<String> startingSlots = configuration.lineupSlots().stream()
-            .filter(slot -> eligibilityPolicy.ruleFor(slot).state()
-                == LineupSlotEligibilityPolicy.SlotState.STARTING_SUPPORTED)
-            .toList();
+        List<String> startingSlots = lineupConfiguration.effectiveSupportedStartingSlots();
 
         if (rosterEvidence.providerStarterIds().size() != startingSlots.size()) {
             throw new IllegalStateException(

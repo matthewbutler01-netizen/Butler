@@ -1,7 +1,6 @@
 package io.butler.bet.intelligence;
 
 import io.butler.bet.data.Database;
-import io.butler.bet.data.LeagueConfigurationObservationRepository;
 import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerWeekProductionCoverageRepository;
 import io.butler.bet.data.PlayerWeekProductionRepository;
@@ -52,10 +51,9 @@ public final class LeagueTeamWeekPotentialLineupAnalyzer {
 
         int season = coverage.season();
         int week = coverage.week();
-        var configuration = new LeagueConfigurationObservationRepository(database)
-            .findLatestForSeason(coverage.leagueId(), season,
-                LeagueTeamWeekPotentialLineupCoverageAnalyzer.SLEEPER_SOURCE)
-            .orElseThrow(() -> new IllegalStateException("League configuration moved after readiness check"));
+        var lineupConfiguration = new HistoricalEffectiveLineupConfigurationResolver(database)
+            .select(coverage.leagueId(), season, LeagueTeamWeekPotentialLineupCoverageAnalyzer.SLEEPER_SOURCE);
+        var configuration = lineupConfiguration.rawConfiguration();
         if (!configuration.asOfDate().equals(coverage.leagueConfigurationAsOf())) {
             throw new IllegalStateException("League configuration moved after readiness check");
         }
@@ -181,7 +179,7 @@ public final class LeagueTeamWeekPotentialLineupAnalyzer {
                 points));
         }
 
-        var lineup = new OptimalLegalLineupSolver().solve(configuration.lineupSlots(), candidates);
+        var lineup = new OptimalLegalLineupSolver().solve(lineupConfiguration.effectiveLineupSlots(), candidates);
         return new PotentialLineupReport(
             POLICY_ID,
             coverage.policyId(),

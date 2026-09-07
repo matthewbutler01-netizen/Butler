@@ -122,3 +122,10 @@ val sleeperProviderNativeLineupSensitivityConfigurationLineage by tasks.register
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperProviderNativeLineupSensitivityConfigurationLineageCli")
 }
+
+val sleeperHistoricalEffectiveLineupConfigurationSync by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "BF-592 governed fixed-frame persistence of effective historical lineup configuration when BF-590 and BF-591 agree exactly."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperHistoricalEffectiveLineupConfigurationSyncCli")
+}
