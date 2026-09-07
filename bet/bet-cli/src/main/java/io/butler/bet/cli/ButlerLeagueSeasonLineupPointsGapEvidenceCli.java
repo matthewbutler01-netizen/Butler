@@ -2,7 +2,6 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.LeagueSeasonLineupPointsGapEvidenceAnalyzer;
-import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -56,6 +55,9 @@ public final class ButlerLeagueSeasonLineupPointsGapEvidenceCli {
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Presentation scope: " + report.presentationScope());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Scoring lane: " + report.scoringLane());
+        System.out.println("Scoring policy: " + report.scoringPolicyId());
         System.out.println("Team-season policy: " + report.teamSeasonPolicyId());
         System.out.println("Team order: repository team-name order; never score-ranked.");
         System.out.println();
@@ -107,11 +109,12 @@ public final class ButlerLeagueSeasonLineupPointsGapEvidenceCli {
             System.out.println();
         }
 
-        System.out.println("Boundary: teams are not ranked and no cross-team started-points, potential-points, "
-            + "points-gap total, average, normalized percentage, or comparison score is computed. Differing team "
-            + "coverage denominators remain separate. Potential uses observed provider configuration and is not "
-            + "reconstructed historical startability. No manager-efficiency score, tier, recommendation, intent, "
-            + "fault, or skill attribution is computed.");
+        System.out.println("Boundary: descriptive team-by-team lineup points-gap evidence only under one governed "
+            + "league-season historical scoring lane. Teams are not ranked and no cross-team started-points, "
+            + "potential-points, points-gap total, average, normalized percentage, or comparison score is computed. "
+            + "Differing team coverage denominators remain separate. Potential uses observed provider configuration "
+            + "and is not reconstructed historical startability. No manager-efficiency score, tier, recommendation, "
+            + "intent, fault, or skill attribution is computed.");
     }
 
     private static Database initializedDatabase() throws SQLException {
