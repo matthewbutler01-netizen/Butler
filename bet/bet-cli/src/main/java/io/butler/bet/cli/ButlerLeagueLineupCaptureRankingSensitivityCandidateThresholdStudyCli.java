@@ -62,6 +62,17 @@ public final class ButlerLeagueLineupCaptureRankingSensitivityCandidateThreshold
         System.out.println("Study state: " + report.studyState());
         System.out.println();
 
+        System.out.println("Source historical scoring lanes:");
+        for (var leagueSeason : source.leagueSeasons()) {
+            var commonUniverse = leagueSeason.sourceCommonUniverse();
+            System.out.println("  " + leagueSeason.leagueName() + " [" + leagueSeason.leagueId() + "] "
+                + leagueSeason.season());
+            System.out.println("    source scoring lane selector: " + commonUniverse.scoringLaneSelectionPolicyId());
+            System.out.println("    source scoring lane: " + commonUniverse.scoringLane());
+            System.out.println("    source scoring policy: " + commonUniverse.scoringPolicyId());
+        }
+        System.out.println();
+
         if (report.studyState()
             != LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.StudyState.AVAILABLE) {
             System.out.println("No candidate fold evidence is published because the BF-525 study prerequisite is unavailable.");
