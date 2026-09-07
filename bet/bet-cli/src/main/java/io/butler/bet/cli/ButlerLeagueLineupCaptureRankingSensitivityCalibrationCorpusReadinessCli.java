@@ -63,6 +63,17 @@ public final class ButlerLeagueLineupCaptureRankingSensitivityCalibrationCorpusR
         System.out.println("Readiness state: " + report.readinessState());
         System.out.println();
 
+        System.out.println("Source historical scoring lanes:");
+        for (var leagueSeason : source.leagueSeasons()) {
+            var commonUniverse = leagueSeason.sourceCommonUniverse();
+            System.out.println("  " + leagueSeason.leagueName() + " [" + leagueSeason.leagueId() + "] "
+                + leagueSeason.season());
+            System.out.println("    source scoring lane selector: " + commonUniverse.scoringLaneSelectionPolicyId());
+            System.out.println("    source scoring lane: " + commonUniverse.scoringLane());
+            System.out.println("    source scoring policy: " + commonUniverse.scoringPolicyId());
+        }
+        System.out.println();
+
         System.out.println("Core BF-521 structural variation gates:");
         for (var gate : report.gates()) {
             System.out.println("  [" + (gate.passed() ? "PASS" : "FAIL") + "] " + gate.gateId());
