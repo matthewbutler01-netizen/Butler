@@ -44,6 +44,23 @@ class OptimalLegalLineupSolverTest {
     }
 
     @Test
+    void solvesDedicatedKickerAndDefenseSlotsWithoutAdmittingThemToFlex() {
+        var result = solver.solve(
+            List.of("K", "DEF", "FLEX"),
+            List.of(
+                player("kicker", List.of("K"), "12.5"),
+                player("defense", List.of("DEF"), "11"),
+                player("receiver", List.of("WR"), "8")));
+
+        assertTrue(result.complete());
+        assertEquals(3, result.filledSlots());
+        assertEquals(new BigDecimal("31.5"), result.totalPoints());
+        assertEquals("kicker", result.assignments().get(0).playerId());
+        assertEquals("defense", result.assignments().get(1).playerId());
+        assertEquals("receiver", result.assignments().get(2).playerId());
+    }
+
+    @Test
     void maximizesFilledSlotsBeforePointsEvenWhenEligibleStarterScoresNegative() {
         var result = solver.solve(
             List.of("QB", "FLEX"),
