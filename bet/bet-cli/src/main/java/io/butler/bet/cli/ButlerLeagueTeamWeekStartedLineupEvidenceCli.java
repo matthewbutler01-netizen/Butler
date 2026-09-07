@@ -1,13 +1,14 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamWeekStartedLineupEvidenceAnalyzer;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.SQLException;
 
-/** Exposes governed recalculated team-week started-lineup evidence without manager judgment. */
+/** Exposes governed team-week started-lineup evidence without manager judgment. */
 public final class ButlerLeagueTeamWeekStartedLineupEvidenceCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
     private static final String COMMAND = "team-week-started-lineup-evidence";
@@ -56,26 +57,34 @@ public final class ButlerLeagueTeamWeekStartedLineupEvidenceCli {
         System.out.println("Team: " + report.teamId());
         System.out.println("Season/week: " + report.season() + "/" + report.week());
         System.out.println("Metric scope: " + report.metricScope());
-        System.out.println("Interpretation: exact persisted Sleeper starter order scored from governed production evidence; "
-            + "not provider-reported matchup points.");
+        System.out.println("Interpretation: exact persisted Sleeper starter order scored from the governed "
+            + "league-season historical scoring lane.");
         System.out.println();
         System.out.println("Policies:");
         System.out.println("  calculation: " + report.policyId());
         System.out.println("  coverage: " + report.coveragePolicyId());
+        System.out.println("  scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("  scoring lane: " + report.scoringLane());
         System.out.println("  scoring: " + report.scoringPolicyId());
         System.out.println("  eligibility: " + report.eligibilityPolicyId());
         System.out.println();
         System.out.println("Evidence provenance:");
         System.out.println("  league configuration as-of: " + report.leagueConfigurationAsOf());
         System.out.println("  roster evidence as-of: " + report.rosterEvidenceAsOf());
-        System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
-        System.out.println("  production source: " + report.productionSourceUri());
+        if (report.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
+            System.out.println("  production source: " + report.productionSourceUri());
+        } else {
+            System.out.println("  provider points as-of: " + report.providerPointsAsOf());
+            System.out.println("  provider points source surface: " + report.providerPointsSourceSurface());
+            System.out.println("  provider league id: " + report.providerLeagueId());
+        }
         System.out.println();
         System.out.println("Observed starting slots:");
         for (var slot : report.slots()) {
             if (slot.state() == LeagueTeamWeekStartedLineupEvidenceAnalyzer.StartedSlotState.EMPTY) {
                 System.out.println("  #" + slot.ordinal() + " " + slot.slot()
-                    + " -> EMPTY (Sleeper starter sentinel 0; no player production assigned)");
+                    + " -> EMPTY (Sleeper starter sentinel 0; no player score assigned)");
             } else {
                 var score = slot.scoreEvidence();
                 System.out.println("  #" + slot.ordinal() + " " + slot.slot()
@@ -83,20 +92,26 @@ public final class ButlerLeagueTeamWeekStartedLineupEvidenceCli {
                     + " | " + points(slot.fantasyPoints()));
                 System.out.println("    eligibility as-of: " + score.eligibilityObservationAsOf());
                 System.out.println("    fantasy positions: " + score.providerFantasyPositions());
-                System.out.println("    production state: " + score.productionState());
-                System.out.println("    production coverage as-of: " + score.productionCoverageAsOf());
-                if (score.productionId() == null) {
-                    System.out.println("    production id: none (identity-covered zero)");
-                    System.out.println("    scoring policy: none (zero authorized by coverage evidence)");
-                } else {
-                    System.out.println("    production id: " + score.productionId());
+                System.out.println("    scoring lane: " + score.scoringLane());
+                if (score.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+                    System.out.println("    provider points evidence id: " + score.providerPointsEvidenceId());
                     System.out.println("    scoring policy: " + score.scoringPolicyId());
+                } else {
+                    System.out.println("    production state: " + score.productionState());
+                    System.out.println("    production coverage as-of: " + score.productionCoverageAsOf());
+                    if (score.productionId() == null) {
+                        System.out.println("    production id: none (identity-covered zero)");
+                        System.out.println("    scoring policy: none (zero authorized by coverage evidence)");
+                    } else {
+                        System.out.println("    production id: " + score.productionId());
+                        System.out.println("    scoring policy: " + score.scoringPolicyId());
+                    }
                 }
             }
         }
         System.out.println("Filled starter slots: " + report.filledSlots() + "/" + report.requiredSlots());
         System.out.println("Complete observed starting lineup: " + report.complete());
-        System.out.println("Total recalculated started points: " + points(report.totalStartedPoints()));
+        System.out.println("Total started points: " + points(report.totalStartedPoints()));
         System.out.println();
         System.out.println("Boundary: started-lineup evidence only; no potential-vs-started comparison, "
             + "manager-efficiency score, rank, tier, recommendation, or intent inference is computed.");
