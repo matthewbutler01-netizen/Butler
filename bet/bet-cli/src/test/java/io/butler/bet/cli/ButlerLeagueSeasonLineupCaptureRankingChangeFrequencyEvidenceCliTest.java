@@ -66,11 +66,15 @@ class ButlerLeagueSeasonLineupCaptureRankingChangeFrequencyEvidenceCliTest {
         }
 
         var report = fixture.analyzer().analyze("l1", 2026);
+        var source = report.sourceRankingStability().sourceBaselineRanking().sourceCommonUniverse();
         String output = capture(() -> ButlerLeagueSeasonLineupCaptureRankingChangeFrequencyEvidenceCli.print(report));
 
         assertTrue(output.contains("League season lineup-capture ranking change-frequency evidence"));
         assertTrue(output.contains("League: League [l1]"));
         assertTrue(output.contains("Season: 2026"));
+        assertTrue(output.contains("Source scoring lane selector: " + source.scoringLaneSelectionPolicyId()));
+        assertTrue(output.contains("Source scoring lane: " + source.scoringLane()));
+        assertTrue(output.contains("Source scoring policy: " + source.scoringPolicyId()));
         assertTrue(output.contains("Frequency state: AVAILABLE"));
         assertTrue(output.contains("Required perturbation scenario count: 5"));
         assertTrue(output.contains("Alpha Team [ta]"));

@@ -62,6 +62,9 @@ public final class ButlerLeagueSeasonLineupCaptureRankingChangeFrequencyEvidence
         System.out.println("Policy: " + report.policyId());
         System.out.println("Frequency policy: " + report.frequencyPolicy());
         System.out.println("Source ranking-stability policy: " + stability.policyId());
+        System.out.println("Source scoring lane selector: " + source.scoringLaneSelectionPolicyId());
+        System.out.println("Source scoring lane: " + source.scoringLane());
+        System.out.println("Source scoring policy: " + source.scoringPolicyId());
         System.out.println("Source stability state: " + stability.stabilityState());
         System.out.println("Baseline common comparable weeks: " + source.commonComparableWeeks());
         System.out.println("Required perturbation scenario count: " + stability.scenarios().size());
