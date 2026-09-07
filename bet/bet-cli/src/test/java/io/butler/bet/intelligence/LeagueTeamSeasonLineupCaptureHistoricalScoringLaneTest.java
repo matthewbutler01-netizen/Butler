@@ -84,7 +84,7 @@ class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
     }
 
     @Test
-    void leagueSeasonCaptureRemainsProviderNativeFirewall() throws Exception {
+    void providerNativeFlowsThroughLeagueSeasonCaptureButStopsAtCommonUniverse() throws Exception {
         Fixture fixture = fixture("firewall.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
@@ -95,8 +95,13 @@ class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
             .analyze("l1", "t1", 2026);
         assertEquals(new BigDecimal("0.625000"), teamSeason.lineupCaptureRate().orElseThrow());
 
+        var leagueSeason = new LeagueSeasonLineupCaptureEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, leagueSeason.scoringLane());
+        assertEquals(new BigDecimal("0.625000"),
+            leagueSeason.teams().get(0).seasonEvidence().lineupCaptureRate().orElseThrow());
+
         IllegalStateException error = assertThrows(IllegalStateException.class,
-            () -> new LeagueSeasonLineupCaptureEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
+            () -> new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
         assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
     }
 
