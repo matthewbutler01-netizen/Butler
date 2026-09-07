@@ -81,6 +81,13 @@ val sleeperSeasonProviderPointsCoverageAudit by tasks.registering(JavaExec::clas
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCoverageAuditCli")
 }
 
+val sleeperSeasonProviderPointsDuplicateRosterDiagnostic by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-593 diagnostic of duplicate historical Sleeper roster identity observations."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsDuplicateRosterDiagnosticCli")
+}
+
 val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class) {
     group = "application"
     description = "BF-560 fail-closed atomic persistence of roster-wide historical Sleeper players_points evidence."
