@@ -1,7 +1,9 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer;
+import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -59,6 +61,9 @@ public final class ButlerLeagueSeasonLineupCaptureCommonUniverseEvidenceCli {
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Presentation scope: " + report.presentationScope());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Scoring lane: " + report.scoringLane());
+        System.out.println("Scoring policy: " + report.scoringPolicyId());
         System.out.println("Team-season points-gap policy: " + report.teamSeasonPointsGapPolicyId());
         System.out.println("Repository team count: " + report.teams().size());
         System.out.println("Common-universe state: " + report.commonUniverseState());
@@ -92,16 +97,40 @@ public final class ButlerLeagueSeasonLineupCaptureCommonUniverseEvidenceCli {
                 + " | " + optionalPoints(team.commonTotalPotentialPoints())
                 + " | " + optionalPoints(team.commonTotalPointsGap())
                 + " | " + capture(team));
+            printCommonWeekProvenance(report, team);
         }
         System.out.println();
 
-        System.out.println("Boundary: every normalized row uses the same all-repository-team common comparable week set; "
-            + "Butler does not drop a low-coverage team to widen that universe and does not fall back to independently "
-            + "scoped season rates. Rows stay in repository team-name order. This table computes no rank, tier, percentile, "
-            + "winner, league average or median, distance from a league benchmark, pairwise matrix, or manager score. "
-            + "Potential uses observed provider configuration and is not reconstructed historical startability. Lineup "
-            + "capture remains descriptive retrospective evidence only, not manager efficiency, manager quality, skill, "
-            + "fault, intent, decision quality, or a recommendation.");
+        System.out.println("Boundary: every normalized row uses the same all-repository-team common comparable week set "
+            + "under one governed league-season historical scoring lane; Butler does not drop a low-coverage team to widen "
+            + "that universe and does not fall back to independently scoped season rates. Rows stay in repository team-name "
+            + "order. This table computes no rank, tier, percentile, winner, league average or median, distance from a league "
+            + "benchmark, pairwise matrix, or manager score. Potential uses observed provider configuration and is not "
+            + "reconstructed historical startability. Lineup capture remains descriptive retrospective evidence only, not "
+            + "manager efficiency, manager quality, skill, fault, intent, decision quality, or a recommendation.");
+    }
+
+    private static void printCommonWeekProvenance(
+        LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.LeagueCommonUniverseReport report,
+        LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.TeamCommonEvidence team) {
+        for (int commonWeek : report.commonComparableWeeks()) {
+            var week = team.sourceSeasonPointsGap().weeks().stream()
+                .filter(candidate -> candidate.week() == commonWeek
+                    && candidate.state() == LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE)
+                .findFirst()
+                .orElseThrow();
+            var gap = week.pointsGap();
+            if (gap.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                System.out.println("  common week " + commonWeek + " production coverage as-of: "
+                    + gap.productionCoverageAsOf());
+                System.out.println("  common week " + commonWeek + " production source: " + gap.productionSourceUri());
+            } else {
+                System.out.println("  common week " + commonWeek + " provider points as-of: " + gap.providerPointsAsOf());
+                System.out.println("  common week " + commonWeek + " provider points source surface: "
+                    + gap.providerPointsSourceSurface());
+                System.out.println("  common week " + commonWeek + " provider league id: " + gap.providerLeagueId());
+            }
+        }
     }
 
     private static String capture(
