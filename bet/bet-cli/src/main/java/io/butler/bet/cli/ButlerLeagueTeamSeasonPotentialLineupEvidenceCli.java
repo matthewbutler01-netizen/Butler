@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamSeasonPotentialLineupEvidenceAnalyzer;
 
 import java.math.BigDecimal;
@@ -57,6 +58,8 @@ public final class ButlerLeagueTeamSeasonPotentialLineupEvidenceCli {
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Average policy: " + report.averagePolicy());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selection policy: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Selected scoring lane: " + report.scoringLane());
         System.out.println("Coverage policy: " + report.coveragePolicyId());
         System.out.println("Potential-lineup policy: " + report.potentialLineupPolicyId());
         System.out.println();
@@ -71,17 +74,18 @@ public final class ButlerLeagueTeamSeasonPotentialLineupEvidenceCli {
                 for (String blocker : week.blockers()) {
                     System.out.println("    blocker: " + blocker);
                 }
-                if (week.coverage().productionCoverageAsOf() != null) {
-                    System.out.println("    production coverage as-of: " + week.coverage().productionCoverageAsOf());
-                }
-                if (week.coverage().productionSourceUri() != null) {
-                    System.out.println("    production source: " + week.coverage().productionSourceUri());
-                }
+                printCoverageProvenance(week.coverage());
             } else {
                 var potential = week.potentialLineup();
                 System.out.println("    league configuration as-of: " + potential.leagueConfigurationAsOf());
-                System.out.println("    production coverage as-of: " + potential.productionCoverageAsOf());
-                System.out.println("    production source: " + potential.productionSourceUri());
+                if (potential.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+                    System.out.println("    provider points as-of: " + potential.providerPointsAsOf());
+                    System.out.println("    provider source surface: " + potential.providerPointsSourceSurface());
+                    System.out.println("    historical provider league: " + potential.providerLeagueId());
+                } else {
+                    System.out.println("    production coverage as-of: " + potential.productionCoverageAsOf());
+                    System.out.println("    production source: " + potential.productionSourceUri());
+                }
                 System.out.println("    filled starter slots: " + potential.lineup().filledSlots()
                     + "/" + potential.lineup().startingSlots());
                 System.out.println("    complete legal lineup: " + potential.lineup().complete());
@@ -116,6 +120,28 @@ public final class ButlerLeagueTeamSeasonPotentialLineupEvidenceCli {
         System.out.println();
         System.out.println("Boundary: observed Sleeper roster weeks only; unobserved weeks are not treated as covered. "
             + "Potential lineups are not reconstructed historical startability, not rankings, and not recommendations.");
+    }
+
+    private static void printCoverageProvenance(
+        io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupCoverageAnalyzer.CoverageReport coverage) {
+        if (coverage.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
+            if (coverage.providerPointsAsOf() != null) {
+                System.out.println("    provider points as-of: " + coverage.providerPointsAsOf());
+            }
+            if (coverage.providerPointsSourceSurface() != null) {
+                System.out.println("    provider source surface: " + coverage.providerPointsSourceSurface());
+            }
+            if (coverage.providerLeagueId() != null) {
+                System.out.println("    historical provider league: " + coverage.providerLeagueId());
+            }
+        } else {
+            if (coverage.productionCoverageAsOf() != null) {
+                System.out.println("    production coverage as-of: " + coverage.productionCoverageAsOf());
+            }
+            if (coverage.productionSourceUri() != null) {
+                System.out.println("    production source: " + coverage.productionSourceUri());
+            }
+        }
     }
 
     private static Database initializedDatabase() throws SQLException {
