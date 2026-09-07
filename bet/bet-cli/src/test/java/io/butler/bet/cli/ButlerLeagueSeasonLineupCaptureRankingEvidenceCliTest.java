@@ -60,6 +60,10 @@ class ButlerLeagueSeasonLineupCaptureRankingEvidenceCliTest {
         String output = capture(() -> ButlerLeagueSeasonLineupCaptureRankingEvidenceCli.print(report));
 
         assertTrue(output.contains("League season lineup-capture ranking evidence"));
+        assertTrue(output.contains("Source scoring lane selector: "
+            + report.sourceCommonUniverse().scoringLaneSelectionPolicyId()));
+        assertTrue(output.contains("Source scoring lane: " + report.sourceCommonUniverse().scoringLane()));
+        assertTrue(output.contains("Source scoring policy: " + report.sourceCommonUniverse().scoringPolicyId()));
         assertTrue(output.contains("Minimum common-week governance floor: 4"));
         assertTrue(output.contains("Common comparable weeks: [1, 2, 3, 4]"));
         assertTrue(output.contains("Ranking state: AVAILABLE"));
