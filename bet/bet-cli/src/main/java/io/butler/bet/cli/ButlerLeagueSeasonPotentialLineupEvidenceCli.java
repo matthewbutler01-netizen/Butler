@@ -55,6 +55,8 @@ public final class ButlerLeagueSeasonPotentialLineupEvidenceCli {
         System.out.println("Metric scope: " + report.metricScope());
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selection policy: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Selected scoring lane: " + report.scoringLane());
         System.out.println("Team-season policy: " + report.teamSeasonPolicyId());
         System.out.println("Team order: repository team-name order; never score-ranked.");
         System.out.println();
