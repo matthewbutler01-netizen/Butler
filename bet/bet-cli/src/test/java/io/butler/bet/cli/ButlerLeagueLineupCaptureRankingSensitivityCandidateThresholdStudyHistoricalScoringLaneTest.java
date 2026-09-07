@@ -17,6 +17,7 @@ import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
 import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCalibrationCorpusReadinessAnalyzer;
+import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer;
 import io.butler.bet.intelligence.LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer;
 import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,7 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
     @TempDir Path tempDir;
 
     @Test
-    void studiesStructurallyReadyProviderNativeCorpusWithoutSelectingThreshold() throws Exception {
+    void studiesAndAuditsStructurallyReadyProviderNativeCorpusWithoutSelectingThreshold() throws Exception {
         Database database = new Database(tempDir.resolve("provider-native-candidate-study.db"));
         database.initialize();
 
@@ -48,8 +49,9 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
         saveSeasonEvidence(database, "l1", 2025, List.of("a", "b"), 9, true);
         saveSeasonEvidence(database, "l2", 2026, List.of("c", "d", "e"), 10, false);
 
-        var report = new LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer(database)
+        var supportReport = new LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer(database)
             .analyze(2025, 2026);
+        var report = supportReport.sourceCandidateStudy();
         var readiness = report.sourceReadiness();
         var source = readiness.sourceCorpusAudit();
 
@@ -62,6 +64,9 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
         assertEquals(
             LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.StudyState.AVAILABLE,
             report.studyState());
+        assertEquals(
+            LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.ReportState.AVAILABLE,
+            supportReport.reportState());
         assertEquals(2, report.folds().size());
         assertEquals(2, source.leagueSeasons().size());
 
@@ -123,17 +128,56 @@ class ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyHistoric
                 .filter(outcome -> outcome.heldOutLeagueSeason().equals("l2:2026"))
                 .findFirst().orElseThrow().state());
 
-        String output = capture(() ->
+        assertEquals(
+            report.frequencyCandidates().stream().map(item -> item.candidate()).toList(),
+            supportReport.frequencyCandidates().stream().map(item -> item.candidate()).toList());
+        assertEquals(
+            report.magnitudeCandidates().stream().map(item -> item.candidate()).toList(),
+            supportReport.magnitudeCandidates().stream().map(item -> item.candidate()).toList());
+
+        var zeroFrequency = supportReport.frequencyCandidates().stream()
+            .filter(candidate -> candidate.candidate().equals(
+                new LeagueLineupCaptureRankingSensitivityCandidateThresholdStudyAnalyzer.FrequencyCandidate(0, 1)))
+            .findFirst().orElseThrow();
+        assertEquals(
+            LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.SupportState
+                .SINGLE_EVALUABLE_FOLD,
+            zeroFrequency.supportState());
+        assertEquals(2, zeroFrequency.counts().totalFolds());
+        assertEquals(1, zeroFrequency.counts().evaluableFolds());
+        assertEquals(1, zeroFrequency.foldDirections().size());
+        assertEquals(
+            LeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditAnalyzer.DirectionState
+                .EQUAL_TOTAL_ABSOLUTE_DISPLACEMENT,
+            zeroFrequency.foldDirections().get(0).directionState());
+        assertEquals(1L, zeroFrequency.foldDirections().get(0).meetsRuleTotalAbsoluteTemporalRankDisplacement());
+        assertEquals(1L, zeroFrequency.foldDirections().get(0).doesNotMeetRuleTotalAbsoluteTemporalRankDisplacement());
+
+        String studyOutput = capture(() ->
             ButlerLeagueLineupCaptureRankingSensitivityCandidateThresholdStudyCli.print(report));
-        assertTrue(output.contains("source scoring lane selector: " + HistoricalScoringLaneSelector.POLICY_ID));
-        assertTrue(output.contains("source scoring lane: " + HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE));
-        assertTrue(output.contains("source scoring policy: "
+        assertTrue(studyOutput.contains("source scoring lane selector: " + HistoricalScoringLaneSelector.POLICY_ID));
+        assertTrue(studyOutput.contains("source scoring lane: " + HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE));
+        assertTrue(studyOutput.contains("source scoring policy: "
             + HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID));
-        assertTrue(output.contains("Study state: AVAILABLE"));
-        assertTrue(output.contains("Held out: l1:2025"));
-        assertTrue(output.contains("Held out: l2:2026"));
-        assertTrue(output.contains("ordered by candidate value, never performance"));
-        assertTrue(output.contains("does not select a best/optimal/recommended/production threshold"));
+        assertTrue(studyOutput.contains("Study state: AVAILABLE"));
+        assertTrue(studyOutput.contains("Held out: l1:2025"));
+        assertTrue(studyOutput.contains("Held out: l2:2026"));
+        assertTrue(studyOutput.contains("ordered by candidate value, never performance"));
+        assertTrue(studyOutput.contains("does not select a best/optimal/recommended/production threshold"));
+
+        String supportOutput = capture(() ->
+            ButlerLeagueLineupCaptureRankingSensitivityCandidateCrossFoldSupportAuditCli.print(supportReport));
+        assertTrue(supportOutput.contains("source scoring lane selector: " + HistoricalScoringLaneSelector.POLICY_ID));
+        assertTrue(supportOutput.contains("source scoring lane: "
+            + HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE));
+        assertTrue(supportOutput.contains("source scoring policy: "
+            + HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID));
+        assertTrue(supportOutput.contains("Audit state: AVAILABLE"));
+        assertTrue(supportOutput.contains("support state: SINGLE_EVALUABLE_FOLD"));
+        assertTrue(supportOutput.contains("direction=EQUAL_TOTAL_ABSOLUTE_DISPLACEMENT"));
+        assertTrue(supportOutput.contains("Support states are evidence-breadth labels, not confidence"));
+        assertTrue(supportOutput.contains("does not normalize those totals into a scalar score"));
+        assertTrue(supportOutput.contains("select or break ties among candidates"));
     }
 
     private static void saveLeague(
