@@ -169,7 +169,7 @@ class LeagueSeasonLineupPointsGapEvidenceAnalyzerTest {
                 "l1",
                 "League",
                 2026,
-                List.of(nested))));
+                List.of(nested)));
 
         assertEquals("nested team evidence must match selected league-season scoring lane", error.getMessage());
     }
