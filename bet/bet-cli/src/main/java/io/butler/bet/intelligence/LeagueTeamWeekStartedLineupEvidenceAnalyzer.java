@@ -17,7 +17,7 @@ import java.util.Set;
 
 /**
  * Scores the exact ordered Sleeper starter snapshot for one team-week under the same governed,
- * dated evidence boundary used by potential-lineup scoring.
+ * league-season historical scoring lane used by potential-lineup scoring.
  *
  * <p>This artifact does not compare the started lineup with the potential lineup, rank managers,
  * or infer intent. Sleeper's literal {@code "0"} starter sentinel is preserved as an explicit
@@ -25,9 +25,9 @@ import java.util.Set;
  */
 public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "team-week-started-lineup-evidence-v1-exact-ordered-starters-zero-is-empty-fail-closed";
+        "team-week-started-lineup-evidence-v2-historical-scoring-lane-exact-ordered-starters-zero-is-empty-fail-closed";
     public static final String METRIC_SCOPE =
-        "RETROSPECTIVE_STARTED_LINEUP_USING_OBSERVED_PROVIDER_CONFIGURATION_NOT_PROVIDER_REPORTED_POINTS";
+        "RETROSPECTIVE_STARTED_LINEUP_USING_GOVERNED_HISTORICAL_SCORING_LANE";
 
     private final Database database;
 
@@ -37,14 +37,6 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
 
     public StartedLineupReport analyze(String leagueId, String teamId, int season, int week)
         throws SQLException {
-        var scoringLane = new HistoricalScoringLaneSelector(database).select(leagueId, season);
-        if (scoringLane.lane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE) {
-            throw new IllegalStateException(
-                "Started lineup unavailable: this artifact requires recalculated exact nflverse scoring "
-                    + "and does not consume provider-reported points; provider-native historical scoring "
-                    + "evidence is present for the requested league-season");
-        }
-
         var scoredRoster = new LeagueTeamWeekPotentialLineupAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
 
@@ -120,6 +112,11 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
                     "Started lineup unavailable: no governed scoring evidence for starter "
                         + providerStarterId);
             }
+            if (score.scoringLane() != scoredRoster.scoringLane()) {
+                throw new IllegalStateException(
+                    "Started lineup unavailable: starter scoring lane does not match league-season lane for "
+                        + providerStarterId);
+            }
             if (!eligibilityPolicy.isPlayerEligible(slot, score.providerFantasyPositions())) {
                 throw new IllegalStateException(
                     "Started lineup unavailable: starter " + providerStarterId
@@ -135,7 +132,9 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
             POLICY_ID,
             METRIC_SCOPE,
             scoredRoster.coveragePolicyId(),
-            CoveredProductionScoringPolicy.POLICY_ID,
+            scoredRoster.scoringLaneSelectionPolicyId(),
+            scoredRoster.scoringLane(),
+            scoredRoster.scoringPolicyId(),
             LineupSlotEligibilityPolicy.POLICY_ID,
             scoredRoster.leagueId(),
             scoredRoster.teamId(),
@@ -145,6 +144,9 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
             scoredRoster.rosterEvidenceAsOf(),
             scoredRoster.productionCoverageAsOf(),
             scoredRoster.productionSourceUri(),
+            scoredRoster.providerPointsAsOf(),
+            scoredRoster.providerPointsSourceSurface(),
+            scoredRoster.providerLeagueId(),
             List.copyOf(slots),
             filled,
             startingSlots.size(),
@@ -218,6 +220,8 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
         String policyId,
         String metricScope,
         String coveragePolicyId,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
         String scoringPolicyId,
         String eligibilityPolicyId,
         String leagueId,
@@ -228,6 +232,9 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
         LocalDate rosterEvidenceAsOf,
         LocalDate productionCoverageAsOf,
         URI productionSourceUri,
+        LocalDate providerPointsAsOf,
+        String providerPointsSourceSurface,
+        String providerLeagueId,
         List<StartedSlotEvidence> slots,
         int filledSlots,
         int requiredSlots,
@@ -240,8 +247,15 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
             if (!LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID.equals(coveragePolicyId)) {
                 throw new IllegalArgumentException("unexpected coveragePolicyId");
             }
-            if (!CoveredProductionScoringPolicy.POLICY_ID.equals(scoringPolicyId)) {
-                throw new IllegalArgumentException("unexpected scoringPolicyId");
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
+            String expectedScoringPolicy = scoringLane == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE
+                ? HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID
+                : CoveredProductionScoringPolicy.POLICY_ID;
+            if (!expectedScoringPolicy.equals(scoringPolicyId)) {
+                throw new IllegalArgumentException("scoring policy does not match selected lane");
             }
             if (!LineupSlotEligibilityPolicy.POLICY_ID.equals(eligibilityPolicyId)) {
                 throw new IllegalArgumentException("unexpected eligibilityPolicyId");
@@ -254,10 +268,24 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
             if (week <= 0) throw new IllegalArgumentException("week must be positive");
             Objects.requireNonNull(leagueConfigurationAsOf, "leagueConfigurationAsOf must not be null");
             Objects.requireNonNull(rosterEvidenceAsOf, "rosterEvidenceAsOf must not be null");
-            Objects.requireNonNull(productionCoverageAsOf, "productionCoverageAsOf must not be null");
-            Objects.requireNonNull(productionSourceUri, "productionSourceUri must not be null");
             slots = List.copyOf(Objects.requireNonNull(slots, "slots must not be null"));
             Objects.requireNonNull(totalStartedPoints, "totalStartedPoints must not be null");
+
+            if (scoringLane == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                Objects.requireNonNull(productionCoverageAsOf, "productionCoverageAsOf must not be null");
+                Objects.requireNonNull(productionSourceUri, "productionSourceUri must not be null");
+                if (providerPointsAsOf != null || providerPointsSourceSurface != null || providerLeagueId != null) {
+                    throw new IllegalArgumentException("nflverse report cannot contain provider scoring provenance");
+                }
+            } else {
+                Objects.requireNonNull(providerPointsAsOf, "providerPointsAsOf must not be null");
+                requireText(providerPointsSourceSurface, "providerPointsSourceSurface");
+                requireText(providerLeagueId, "providerLeagueId");
+                if (productionCoverageAsOf != null || productionSourceUri != null) {
+                    throw new IllegalArgumentException("provider-native report cannot contain nflverse provenance");
+                }
+            }
+
             if (requiredSlots != slots.size() || filledSlots < 0 || filledSlots > requiredSlots) {
                 throw new IllegalArgumentException("started slot counts must match slot evidence");
             }
@@ -268,7 +296,13 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
                 if (slot.ordinal() != ordinal) {
                     throw new IllegalArgumentException("started slot evidence must preserve ordinal order");
                 }
-                if (slot.state() == StartedSlotState.FILLED) observedFilled++;
+                if (slot.state() == StartedSlotState.FILLED) {
+                    observedFilled++;
+                    if (slot.scoreEvidence().scoringLane() != scoringLane) {
+                        throw new IllegalArgumentException(
+                            "filled started slot scoring lane must match report scoring lane");
+                    }
+                }
                 observedTotal = observedTotal.add(slot.fantasyPoints());
             }
             if (observedFilled != filledSlots) {
@@ -280,6 +314,54 @@ public final class LeagueTeamWeekStartedLineupEvidenceAnalyzer {
             if (observedTotal.compareTo(totalStartedPoints) != 0) {
                 throw new IllegalArgumentException("totalStartedPoints must equal started slot evidence total");
             }
+        }
+
+        /**
+         * Source-compatible nflverse constructor retained for callers that built the v1 report directly.
+         */
+        public StartedLineupReport(
+            String policyId,
+            String metricScope,
+            String coveragePolicyId,
+            String scoringPolicyId,
+            String eligibilityPolicyId,
+            String leagueId,
+            String teamId,
+            int season,
+            int week,
+            LocalDate leagueConfigurationAsOf,
+            LocalDate rosterEvidenceAsOf,
+            LocalDate productionCoverageAsOf,
+            URI productionSourceUri,
+            List<StartedSlotEvidence> slots,
+            int filledSlots,
+            int requiredSlots,
+            boolean complete,
+            BigDecimal totalStartedPoints) {
+            this(
+                policyId,
+                metricScope,
+                coveragePolicyId,
+                HistoricalScoringLaneSelector.POLICY_ID,
+                HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+                scoringPolicyId,
+                eligibilityPolicyId,
+                leagueId,
+                teamId,
+                season,
+                week,
+                leagueConfigurationAsOf,
+                rosterEvidenceAsOf,
+                productionCoverageAsOf,
+                productionSourceUri,
+                null,
+                null,
+                null,
+                slots,
+                filledSlots,
+                requiredSlots,
+                complete,
+                totalStartedPoints);
         }
     }
 }
