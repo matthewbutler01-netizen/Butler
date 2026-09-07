@@ -19,7 +19,7 @@ import java.util.Optional;
  */
 public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "team-season-potential-lineup-evidence-v1-observed-roster-weeks-complete-only-aggregate";
+        "team-season-potential-lineup-evidence-v2-single-historical-scoring-lane-complete-only-aggregate";
     public static final String WEEK_UNIVERSE =
         "OBSERVED_SLEEPER_TEAM_WEEK_ROSTER_EVIDENCE_ONLY";
     public static final String AVERAGE_POLICY = "BIGDECIMAL_DECIMAL128_OVER_QUALIFYING_COMPLETE_WEEKS";
@@ -31,10 +31,24 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
     }
 
     public SeasonEvidenceReport analyze(String leagueId, String teamId, int season) throws SQLException {
+        HistoricalScoringLaneSelector.Selection scoringLane =
+            new HistoricalScoringLaneSelector(database).select(leagueId, season);
+        return analyze(leagueId, teamId, season, scoringLane);
+    }
+
+    SeasonEvidenceReport analyze(
+        String leagueId,
+        String teamId,
+        int season,
+        HistoricalScoringLaneSelector.Selection scoringLane) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedTeamId = requireText(teamId, "teamId");
         if (season < 1999 || season > 2100) {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
+        }
+        Objects.requireNonNull(scoringLane, "scoringLane must not be null");
+        if (!normalizedLeagueId.equals(scoringLane.leagueId()) || season != scoringLane.season()) {
+            throw new IllegalArgumentException("scoring lane identity must match requested league-season");
         }
 
         var team = new TeamRepository(database).findById(normalizedTeamId)
@@ -58,7 +72,7 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
 
         for (var observedRoster : observedRosters) {
             var coverage = coverageAnalyzer.analyze(
-                normalizedLeagueId, normalizedTeamId, season, observedRoster.week());
+                normalizedLeagueId, normalizedTeamId, season, observedRoster.week(), scoringLane);
             if (!observedRoster.asOfDate().equals(coverage.rosterEvidenceAsOf())) {
                 weeks.add(WeekEvidence.blocked(
                     observedRoster.week(),
@@ -75,8 +89,7 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
 
             LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport potential;
             try {
-                potential = potentialAnalyzer.analyze(
-                    normalizedLeagueId, normalizedTeamId, season, observedRoster.week());
+                potential = potentialAnalyzer.analyze(coverage);
             } catch (IllegalStateException e) {
                 weeks.add(WeekEvidence.blocked(
                     observedRoster.week(),
@@ -106,6 +119,8 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
             WEEK_UNIVERSE,
             AVERAGE_POLICY,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            scoringLane.lane(),
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             normalizedLeagueId,
@@ -246,6 +261,8 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
         String metricScope,
         String weekUniverse,
         String averagePolicy,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
         String coveragePolicyId,
         String potentialLineupPolicyId,
         String leagueId,
@@ -260,6 +277,10 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
             }
             if (!WEEK_UNIVERSE.equals(weekUniverse)) throw new IllegalArgumentException("unexpected weekUniverse");
             if (!AVERAGE_POLICY.equals(averagePolicy)) throw new IllegalArgumentException("unexpected averagePolicy");
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
             if (!LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID.equals(coveragePolicyId)) {
                 throw new IllegalArgumentException("unexpected coveragePolicyId");
             }
@@ -282,14 +303,16 @@ public final class LeagueTeamSeasonPotentialLineupEvidenceAnalyzer {
                     throw new IllegalArgumentException("weeks must be unique and strictly ascending");
                 }
                 if (!leagueId.equals(week.coverage().leagueId()) || !teamId.equals(week.coverage().teamId())
-                    || season != week.coverage().season()) {
-                    throw new IllegalArgumentException("week coverage identity must match season report");
+                    || season != week.coverage().season() || scoringLane != week.coverage().scoringLane()) {
+                    throw new IllegalArgumentException("week coverage identity and scoring lane must match season report");
                 }
                 if (week.potentialLineup() != null
                     && (!leagueId.equals(week.potentialLineup().leagueId())
                         || !teamId.equals(week.potentialLineup().teamId())
-                        || season != week.potentialLineup().season())) {
-                    throw new IllegalArgumentException("week potential-lineup identity must match season report");
+                        || season != week.potentialLineup().season()
+                        || scoringLane != week.potentialLineup().scoringLane())) {
+                    throw new IllegalArgumentException(
+                        "week potential-lineup identity and scoring lane must match season report");
                 }
                 previousWeek = week.week();
             }
