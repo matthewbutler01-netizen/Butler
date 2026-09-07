@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -46,6 +47,8 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
         assertEquals(LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.METRIC_SCOPE, report.metricScope());
         assertEquals(LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID, report.potentialLineupPolicyId());
         assertEquals(LeagueTeamWeekStartedLineupEvidenceAnalyzer.POLICY_ID, report.startedLineupPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT, report.scoringLane());
         assertEquals(CoveredProductionScoringPolicy.POLICY_ID, report.scoringPolicyId());
         assertEquals(OptimalLegalLineupSolver.POLICY_ID, report.solverPolicyId());
         assertEquals(LineupSlotEligibilityPolicy.POLICY_ID, report.eligibilityPolicyId());
@@ -57,6 +60,9 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
         assertEquals(AS_OF, report.rosterEvidenceAsOf());
         assertEquals(AS_OF, report.productionCoverageAsOf());
         assertEquals(URI.create("https://example.test/week.csv"), report.productionSourceUri());
+        assertNull(report.providerPointsAsOf());
+        assertNull(report.providerPointsSourceSurface());
+        assertNull(report.providerLeagueId());
     }
 
     @Test
@@ -81,15 +87,36 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
     }
 
     @Test
-    void providerNativeLaneRemainsBlockedAtPointsGapBoundary() throws Exception {
+    void providerNativeLaneFlowsPersistedPointsThroughGapExactly() throws Exception {
         Fixture fixture = fixture(List.of("s1", "s2"));
         fixture.saveProviderPoints();
+
+        var report = fixture.analyzer().analyze("l1", "t1", 2026, 3);
+
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, report.scoringPolicyId());
+        assertEquals(new BigDecimal("10.0"), report.startedPoints());
+        assertEquals(new BigDecimal("16.0"), report.potentialPoints());
+        assertEquals(new BigDecimal("6.0"), report.pointsGap());
+        assertEquals(PROVIDER_AS_OF, report.providerPointsAsOf());
+        assertEquals(SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+            report.providerPointsSourceSurface());
+        assertEquals("provider-l1", report.providerLeagueId());
+        assertNull(report.productionCoverageAsOf());
+        assertNull(report.productionSourceUri());
+    }
+
+    @Test
+    void incompleteProviderNativeLaneNeverFallsBackToReadyNflverse() throws Exception {
+        Fixture fixture = fixture(List.of("s1", "s2"));
+        fixture.saveIncompleteProviderPoints();
 
         IllegalStateException error = assertThrows(IllegalStateException.class,
             () -> fixture.analyzer().analyze("l1", "t1", 2026, 3));
 
-        assertTrue(error.getMessage().contains("remains on exact nflverse scoring"));
-        assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
+        assertTrue(error.getMessage().contains("Missing provider-points identities"));
+        assertTrue(error.getMessage().contains("s3"));
     }
 
     private Fixture fixture(List<String> starters) throws Exception {
@@ -148,10 +175,19 @@ class LeagueTeamWeekLineupPointsGapEvidenceAnalyzerTest {
         }
 
         void saveProviderPoints() throws Exception {
-            List<ProviderPlayerWeekPointsEvidence> rows = List.of(
+            saveProviderPoints(List.of(
                 providerPoints("s1", new BigDecimal("4.0")),
                 providerPoints("s2", new BigDecimal("6.0")),
-                providerPoints("s3", new BigDecimal("12.0")));
+                providerPoints("s3", new BigDecimal("12.0"))));
+        }
+
+        void saveIncompleteProviderPoints() throws Exception {
+            saveProviderPoints(List.of(
+                providerPoints("s1", new BigDecimal("4.0")),
+                providerPoints("s2", new BigDecimal("6.0"))));
+        }
+
+        private void saveProviderPoints(List<ProviderPlayerWeekPointsEvidence> rows) throws Exception {
             new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
                 "l1", 2026, "sleeper", PROVIDER_AS_OF, rows);
         }

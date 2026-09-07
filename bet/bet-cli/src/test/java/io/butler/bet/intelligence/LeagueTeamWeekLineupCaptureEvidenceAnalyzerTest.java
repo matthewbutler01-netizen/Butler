@@ -17,6 +17,7 @@ import io.butler.bet.domain.PlayerWeekProduction;
 import io.butler.bet.domain.PlayerWeekProductionCoverage;
 import io.butler.bet.domain.Team;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
+import io.butler.bet.sleeper.SleeperProviderNativeSeasonScoringAudit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,6 +32,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeagueTeamWeekLineupCaptureEvidenceAnalyzerTest {
     @TempDir Path tempDir;
@@ -113,6 +115,42 @@ class LeagueTeamWeekLineupCaptureEvidenceAnalyzerTest {
             error.getMessage());
     }
 
+    @Test
+    void providerNativeGapRemainsBlockedAtLineupCaptureBoundary() {
+        var source = new LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.LineupPointsGapReport(
+            LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.POLICY_ID,
+            LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.METRIC_SCOPE,
+            LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
+            LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            LeagueTeamWeekStartedLineupEvidenceAnalyzer.POLICY_ID,
+            LeagueTeamWeekStartedLineupEvidenceAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID,
+            OptimalLegalLineupSolver.POLICY_ID,
+            LineupSlotEligibilityPolicy.POLICY_ID,
+            "l1",
+            "t1",
+            2026,
+            3,
+            AS_OF,
+            AS_OF,
+            null,
+            null,
+            PROVIDER_AS_OF,
+            SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+            "provider-l1",
+            2,
+            new BigDecimal("10.0"),
+            new BigDecimal("16.0"),
+            new BigDecimal("6.0"));
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> LeagueTeamWeekLineupCaptureEvidenceAnalyzer.fromSource(source));
+
+        assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
+    }
+
     private Fixture fixture(List<String> starters, ScoreMode scoreMode) throws Exception {
         Database database = new Database(tempDir.resolve("lineup-capture-" + scoreMode.name().toLowerCase() + ".db"));
         database.initialize();
@@ -180,6 +218,7 @@ class LeagueTeamWeekLineupCaptureEvidenceAnalyzerTest {
     }
 
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 5);
+    private static final LocalDate PROVIDER_AS_OF = LocalDate.of(2026, 9, 6);
 
     private enum ScoreMode {
         POSITIVE,

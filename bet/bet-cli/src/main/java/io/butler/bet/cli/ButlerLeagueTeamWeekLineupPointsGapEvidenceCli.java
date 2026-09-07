@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamWeekLineupPointsGapEvidenceAnalyzer;
 
 import java.math.BigDecimal;
@@ -56,8 +57,8 @@ public final class ButlerLeagueTeamWeekLineupPointsGapEvidenceCli {
         System.out.println("Team: " + report.teamId());
         System.out.println("Season/week: " + report.season() + "/" + report.week());
         System.out.println("Metric scope: " + report.metricScope());
-        System.out.println("Interpretation: potential points minus recalculated started points for two complete "
-            + "governed lineups under the same evidence boundary.");
+        System.out.println("Interpretation: potential points minus started points for two complete governed lineups "
+            + "under one league-season historical scoring lane and the same evidence boundary.");
         System.out.println();
         System.out.println("Source metric scopes:");
         System.out.println("  potential: " + report.potentialMetricScope());
@@ -67,6 +68,8 @@ public final class ButlerLeagueTeamWeekLineupPointsGapEvidenceCli {
         System.out.println("  gap calculation: " + report.policyId());
         System.out.println("  potential lineup: " + report.potentialLineupPolicyId());
         System.out.println("  started lineup: " + report.startedLineupPolicyId());
+        System.out.println("  scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("  scoring lane: " + report.scoringLane());
         System.out.println("  scoring: " + report.scoringPolicyId());
         System.out.println("  solver: " + report.solverPolicyId());
         System.out.println("  eligibility: " + report.eligibilityPolicyId());
@@ -74,11 +77,17 @@ public final class ButlerLeagueTeamWeekLineupPointsGapEvidenceCli {
         System.out.println("Evidence provenance:");
         System.out.println("  league configuration as-of: " + report.leagueConfigurationAsOf());
         System.out.println("  roster evidence as-of: " + report.rosterEvidenceAsOf());
-        System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
-        System.out.println("  production source: " + report.productionSourceUri());
+        if (report.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            System.out.println("  production coverage as-of: " + report.productionCoverageAsOf());
+            System.out.println("  production source: " + report.productionSourceUri());
+        } else {
+            System.out.println("  provider points as-of: " + report.providerPointsAsOf());
+            System.out.println("  provider points source surface: " + report.providerPointsSourceSurface());
+            System.out.println("  provider league id: " + report.providerLeagueId());
+        }
         System.out.println();
         System.out.println("Complete starting slots: " + report.startingSlots());
-        System.out.println("Recalculated started points: " + points(report.startedPoints()));
+        System.out.println("Started points: " + points(report.startedPoints()));
         System.out.println("Retrospective potential points: " + points(report.potentialPoints()));
         System.out.println("Potential-minus-started points gap: " + points(report.pointsGap()));
         System.out.println();

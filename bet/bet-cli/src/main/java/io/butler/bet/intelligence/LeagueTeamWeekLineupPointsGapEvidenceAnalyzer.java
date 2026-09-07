@@ -14,14 +14,15 @@ import java.util.Objects;
  * Calculates a descriptive retrospective points gap between one governed complete potential lineup
  * and one governed complete observed started lineup for the same team-week evidence boundary.
  *
- * <p>The gap is potential points minus recalculated started points. It is not a manager-efficiency
- * score and does not establish historical startability, intent, fault, rank, or recommendation.</p>
+ * <p>The gap is potential points minus started points from the single governed league-season
+ * historical scoring lane. It is not a manager-efficiency score and does not establish historical
+ * startability, intent, fault, rank, or recommendation.</p>
  */
 public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "team-week-lineup-points-gap-evidence-v1-complete-only-potential-minus-started-no-attribution";
+        "team-week-lineup-points-gap-evidence-v2-historical-scoring-lane-complete-only-potential-minus-started-no-attribution";
     public static final String METRIC_SCOPE =
-        "RETROSPECTIVE_RECALCULATED_POTENTIAL_MINUS_STARTED_POINTS_COMPLETE_GOVERNED_LINEUPS_ONLY_NOT_MANAGER_EFFICIENCY";
+        "RETROSPECTIVE_POTENTIAL_MINUS_STARTED_POINTS_GOVERNED_HISTORICAL_SCORING_LANE_COMPLETE_LINEUPS_ONLY_NOT_MANAGER_EFFICIENCY";
 
     private final Database database;
 
@@ -33,12 +34,6 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
         throws SQLException {
         var potential = new LeagueTeamWeekPotentialLineupAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
-        if (potential.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-            throw new IllegalStateException(
-                "Lineup points gap unavailable: this downstream artifact remains on exact nflverse scoring "
-                    + "and has not migrated to provider-native historical scoring");
-        }
-
         var started = new LeagueTeamWeekStartedLineupEvidenceAnalyzer(database)
             .analyze(leagueId, teamId, season, week);
 
@@ -75,6 +70,8 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
             potential.metricScope(),
             started.policyId(),
             started.metricScope(),
+            potential.scoringLaneSelectionPolicyId(),
+            potential.scoringLane(),
             potential.scoringPolicyId(),
             potential.solverPolicyId(),
             potential.eligibilityPolicyId(),
@@ -86,6 +83,9 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
             potential.rosterEvidenceAsOf(),
             potential.productionCoverageAsOf(),
             potential.productionSourceUri(),
+            potential.providerPointsAsOf(),
+            potential.providerPointsSourceSurface(),
+            potential.providerLeagueId(),
             potential.lineup().startingSlots(),
             startedPoints,
             potentialPoints,
@@ -103,16 +103,24 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
                 "Lineup points gap unavailable: potential and started reports target different team-weeks");
         }
         if (!potential.leagueConfigurationAsOf().equals(started.leagueConfigurationAsOf())
-            || !potential.rosterEvidenceAsOf().equals(started.rosterEvidenceAsOf())
-            || !potential.productionCoverageAsOf().equals(started.productionCoverageAsOf())
-            || !potential.productionSourceUri().equals(started.productionSourceUri())) {
+            || !potential.rosterEvidenceAsOf().equals(started.rosterEvidenceAsOf())) {
             throw new IllegalStateException(
-                "Lineup points gap unavailable: potential and started evidence provenance differs");
+                "Lineup points gap unavailable: potential and started base evidence provenance differs");
         }
-        if (!potential.scoringPolicyId().equals(started.scoringPolicyId())
+        if (!potential.scoringLaneSelectionPolicyId().equals(started.scoringLaneSelectionPolicyId())
+            || potential.scoringLane() != started.scoringLane()
+            || !potential.scoringPolicyId().equals(started.scoringPolicyId())
             || !potential.eligibilityPolicyId().equals(started.eligibilityPolicyId())) {
             throw new IllegalStateException(
-                "Lineup points gap unavailable: potential and started scoring/eligibility policies differ");
+                "Lineup points gap unavailable: potential and started scoring-lane/eligibility policies differ");
+        }
+        if (!Objects.equals(potential.productionCoverageAsOf(), started.productionCoverageAsOf())
+            || !Objects.equals(potential.productionSourceUri(), started.productionSourceUri())
+            || !Objects.equals(potential.providerPointsAsOf(), started.providerPointsAsOf())
+            || !Objects.equals(potential.providerPointsSourceSurface(), started.providerPointsSourceSurface())
+            || !Objects.equals(potential.providerLeagueId(), started.providerLeagueId())) {
+            throw new IllegalStateException(
+                "Lineup points gap unavailable: potential and started scoring provenance differs");
         }
     }
 
@@ -150,6 +158,8 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
         String potentialMetricScope,
         String startedLineupPolicyId,
         String startedMetricScope,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
         String scoringPolicyId,
         String solverPolicyId,
         String eligibilityPolicyId,
@@ -161,6 +171,9 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
         LocalDate rosterEvidenceAsOf,
         LocalDate productionCoverageAsOf,
         URI productionSourceUri,
+        LocalDate providerPointsAsOf,
+        String providerPointsSourceSurface,
+        String providerLeagueId,
         int startingSlots,
         BigDecimal startedPoints,
         BigDecimal potentialPoints,
@@ -181,8 +194,15 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
             if (!LeagueTeamWeekStartedLineupEvidenceAnalyzer.METRIC_SCOPE.equals(startedMetricScope)) {
                 throw new IllegalArgumentException("unexpected startedMetricScope");
             }
-            if (!CoveredProductionScoringPolicy.POLICY_ID.equals(scoringPolicyId)) {
-                throw new IllegalArgumentException("unexpected scoringPolicyId");
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
+            String expectedScoringPolicy = scoringLane == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE
+                ? HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID
+                : CoveredProductionScoringPolicy.POLICY_ID;
+            if (!expectedScoringPolicy.equals(scoringPolicyId)) {
+                throw new IllegalArgumentException("scoring policy does not match selected lane");
             }
             if (!OptimalLegalLineupSolver.POLICY_ID.equals(solverPolicyId)) {
                 throw new IllegalArgumentException("unexpected solverPolicyId");
@@ -198,8 +218,22 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
             if (week <= 0) throw new IllegalArgumentException("week must be positive");
             Objects.requireNonNull(leagueConfigurationAsOf, "leagueConfigurationAsOf must not be null");
             Objects.requireNonNull(rosterEvidenceAsOf, "rosterEvidenceAsOf must not be null");
-            Objects.requireNonNull(productionCoverageAsOf, "productionCoverageAsOf must not be null");
-            Objects.requireNonNull(productionSourceUri, "productionSourceUri must not be null");
+
+            if (scoringLane == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                Objects.requireNonNull(productionCoverageAsOf, "productionCoverageAsOf must not be null");
+                Objects.requireNonNull(productionSourceUri, "productionSourceUri must not be null");
+                if (providerPointsAsOf != null || providerPointsSourceSurface != null || providerLeagueId != null) {
+                    throw new IllegalArgumentException("nflverse report cannot contain provider scoring provenance");
+                }
+            } else {
+                Objects.requireNonNull(providerPointsAsOf, "providerPointsAsOf must not be null");
+                requireText(providerPointsSourceSurface, "providerPointsSourceSurface");
+                requireText(providerLeagueId, "providerLeagueId");
+                if (productionCoverageAsOf != null || productionSourceUri != null) {
+                    throw new IllegalArgumentException("provider-native report cannot contain nflverse provenance");
+                }
+            }
+
             if (startingSlots <= 0) throw new IllegalArgumentException("startingSlots must be positive");
             Objects.requireNonNull(startedPoints, "startedPoints must not be null");
             Objects.requireNonNull(potentialPoints, "potentialPoints must not be null");
@@ -210,6 +244,58 @@ public final class LeagueTeamWeekLineupPointsGapEvidenceAnalyzer {
             if (potentialPoints.subtract(startedPoints).compareTo(pointsGap) != 0) {
                 throw new IllegalArgumentException("pointsGap must equal potentialPoints minus startedPoints");
             }
+        }
+
+        /** Source-compatible nflverse constructor retained for callers that built the v1 report directly. */
+        public LineupPointsGapReport(
+            String policyId,
+            String metricScope,
+            String potentialLineupPolicyId,
+            String potentialMetricScope,
+            String startedLineupPolicyId,
+            String startedMetricScope,
+            String scoringPolicyId,
+            String solverPolicyId,
+            String eligibilityPolicyId,
+            String leagueId,
+            String teamId,
+            int season,
+            int week,
+            LocalDate leagueConfigurationAsOf,
+            LocalDate rosterEvidenceAsOf,
+            LocalDate productionCoverageAsOf,
+            URI productionSourceUri,
+            int startingSlots,
+            BigDecimal startedPoints,
+            BigDecimal potentialPoints,
+            BigDecimal pointsGap) {
+            this(
+                policyId,
+                metricScope,
+                potentialLineupPolicyId,
+                potentialMetricScope,
+                startedLineupPolicyId,
+                startedMetricScope,
+                HistoricalScoringLaneSelector.POLICY_ID,
+                HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+                scoringPolicyId,
+                solverPolicyId,
+                eligibilityPolicyId,
+                leagueId,
+                teamId,
+                season,
+                week,
+                leagueConfigurationAsOf,
+                rosterEvidenceAsOf,
+                productionCoverageAsOf,
+                productionSourceUri,
+                null,
+                null,
+                null,
+                startingSlots,
+                startedPoints,
+                potentialPoints,
+                pointsGap);
         }
     }
 }
