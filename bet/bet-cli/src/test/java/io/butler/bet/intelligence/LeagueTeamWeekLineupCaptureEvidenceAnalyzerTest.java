@@ -199,7 +199,7 @@ class LeagueTeamWeekLineupCaptureEvidenceAnalyzerTest {
             case POSITIVE -> PlayerWeekProduction.create(
                 playerId, 2026, 3,
                 0, quarterback ? positiveTouchdowns : 0, 0,
-                0, 0, 0,
+                0, 0,
                 0, 0, quarterback ? 0 : positiveTouchdowns,
                 0, "nflverse", AS_OF);
             case ZERO -> PlayerWeekProduction.create(
