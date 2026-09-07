@@ -65,6 +65,9 @@ class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzerTest {
         var report = fixture.analyzer().analyze("l1", 2026);
 
         assertEquals(LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.POLICY_ID, report.policyId());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT, report.scoringLane());
+        assertEquals(CoveredProductionScoringPolicy.POLICY_ID, report.scoringPolicyId());
         assertEquals(LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonUniverseState.AVAILABLE,
             report.commonUniverseState());
         assertEquals(List.of(1), report.commonComparableWeeks());
@@ -101,6 +104,7 @@ class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzerTest {
 
         assertEquals(
             List.of("policyId", "metricScope", "weekUniverse", "presentationScope",
+                "scoringLaneSelectionPolicyId", "scoringLane", "scoringPolicyId",
                 "teamSeasonPointsGapPolicyId", "leagueId", "leagueName", "season",
                 "commonUniverseState", "commonComparableWeeks", "teams"),
             Arrays.stream(LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.LeagueCommonUniverseReport.class

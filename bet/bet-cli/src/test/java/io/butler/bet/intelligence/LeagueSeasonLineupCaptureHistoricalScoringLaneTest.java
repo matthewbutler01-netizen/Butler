@@ -29,7 +29,6 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -93,24 +92,31 @@ class LeagueSeasonLineupCaptureHistoricalScoringLaneTest {
     }
 
     @Test
-    void commonUniverseReportCannotBeConstructedFromProviderNativeSource() throws Exception {
+    void providerNativeCommonUniverseCanBeBuiltButRankingReportCannot() throws Exception {
         Fixture fixture = fixture("report-firewall.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
             "s2", new BigDecimal("6.0"),
             "s3", new BigDecimal("12.0")));
-        var source = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer(fixture.database())
-            .analyze("l1", "t1", 2026);
+
+        var common = new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer(fixture.database())
+            .analyze("l1", 2026);
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, common.scoringLane());
+        assertEquals(
+            LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonUniverseState.UNAVAILABLE_INSUFFICIENT_TEAMS,
+            common.commonUniverseState());
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-            () -> new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.TeamCommonEvidence(
-                "t1", "Team One", source,
-                source.aggregate().observedWeeks(), source.aggregate().comparableCompleteWeeks(),
-                List.of(), 0, Optional.empty(), Optional.empty(), Optional.empty(),
-                LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonRateState.UNAVAILABLE_NO_COMMON_COMPARABLE_WEEKS,
-                Optional.empty()));
+            () -> new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.LeagueRankingReport(
+                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.POLICY_ID,
+                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.METRIC_SCOPE,
+                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.MINIMUM_COMMON_WEEKS,
+                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RANKING_POLICY,
+                common,
+                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RankingState.UNAVAILABLE_INSUFFICIENT_TEAMS,
+                List.of()));
 
-        assertTrue(error.getMessage().contains("cannot contain provider-native team source until this artifact migrates"));
+        assertTrue(error.getMessage().contains("cannot contain provider-native source until this artifact migrates"));
     }
 
     private Fixture fixture(String fileName) throws Exception {
