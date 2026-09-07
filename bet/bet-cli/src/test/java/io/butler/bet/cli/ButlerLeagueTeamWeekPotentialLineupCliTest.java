@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.CoveredProductionScoringPolicy;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupCoverageAnalyzer;
 import io.butler.bet.intelligence.LineupSlotEligibilityPolicy;
@@ -83,49 +84,37 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
     }
 
     @Test
-    void printsGovernedProvenancePlayerStatesAndSolverBoundary() {
+    void printsGovernedNflverseProvenancePlayerStatesAndSolverBoundary() {
         LocalDate asOf = LocalDate.of(2026, 9, 5);
         var observed = new LeagueTeamWeekPotentialLineupAnalyzer.PlayerScoreEvidence(
-            "s1", "p1", asOf, List.of("QB"),
+            "s1", "p1", asOf, List.of("QB"), HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.OBSERVED,
-            "prod-1", asOf, CoveredProductionScoringPolicy.POLICY_ID, new BigDecimal("18.5"));
+            "prod-1", asOf, null, CoveredProductionScoringPolicy.POLICY_ID, new BigDecimal("18.5"));
         var zero = new LeagueTeamWeekPotentialLineupAnalyzer.PlayerScoreEvidence(
-            "s2", "p2", asOf, List.of("WR"),
+            "s2", "p2", asOf, List.of("WR"), HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.IDENTITY_COVERED_ZERO,
-            null, asOf, null, BigDecimal.ZERO);
-        var lineup = new OptimalLegalLineupSolver.LineupResult(
-            OptimalLegalLineupSolver.POLICY_ID,
-            LineupSlotEligibilityPolicy.POLICY_ID,
-            2,
-            2,
-            new BigDecimal("18.5"),
-            List.of(
-                new OptimalLegalLineupSolver.Assignment(0, "QB", "p1", new BigDecimal("18.5")),
-                new OptimalLegalLineupSolver.Assignment(1, "FLEX", "p2", BigDecimal.ZERO)));
+            null, asOf, null, null, BigDecimal.ZERO);
+        var lineup = lineup(new BigDecimal("18.5"));
         var report = new LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport(
             LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             CoveredProductionScoringPolicy.POLICY_ID,
             OptimalLegalLineupSolver.POLICY_ID,
             LineupSlotEligibilityPolicy.POLICY_ID,
             "l1", "t1", 2026, 3,
             asOf, asOf, asOf,
             URI.create("https://example.test/stats_player_week_2026.csv"),
+            null, null, null,
             List.of(observed, zero), lineup);
 
-        PrintStream original = System.out;
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try {
-            System.setOut(new PrintStream(bytes));
-            ButlerLeagueTeamWeekPotentialLineupCli.print(report);
-        } finally {
-            System.setOut(original);
-        }
-
-        String output = bytes.toString();
+        String output = print(report);
         assertTrue(output.contains(LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE));
         assertTrue(output.contains("not reconstructed historical startability"));
+        assertTrue(output.contains("scoring lane selection: " + HistoricalScoringLaneSelector.POLICY_ID));
+        assertTrue(output.contains("selected scoring lane: NFLVERSE_EXACT"));
         assertTrue(output.contains("production source: https://example.test/stats_player_week_2026.csv"));
         assertTrue(output.contains("Sleeper s1 -> Butler p1"));
         assertTrue(output.contains("production state: OBSERVED"));
@@ -138,5 +127,68 @@ class ButlerLeagueTeamWeekPotentialLineupCliTest {
         assertTrue(output.contains("Complete legal lineup: true"));
         assertTrue(output.contains("Total potential points: 18.5"));
         assertTrue(output.contains("not a ranking, and not a recommendation"));
+    }
+
+    @Test
+    void printsProviderNativeProvenanceWithoutPretendingNflverseProductionExists() {
+        LocalDate asOf = LocalDate.of(2026, 9, 6);
+        var provider = new LeagueTeamWeekPotentialLineupAnalyzer.PlayerScoreEvidence(
+            "s1", "p1", asOf, List.of("QB"), HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.NOT_EVALUATED,
+            null, null, "evidence-1", HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID,
+            new BigDecimal("18.5000"));
+        var lineup = new OptimalLegalLineupSolver.LineupResult(
+            OptimalLegalLineupSolver.POLICY_ID,
+            LineupSlotEligibilityPolicy.POLICY_ID,
+            1,
+            1,
+            new BigDecimal("18.5000"),
+            List.of(new OptimalLegalLineupSolver.Assignment(0, "QB", "p1", new BigDecimal("18.5000"))));
+        var report = new LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport(
+            LeagueTeamWeekPotentialLineupAnalyzer.POLICY_ID,
+            LeagueTeamWeekPotentialLineupCoverageAnalyzer.POLICY_ID,
+            LeagueTeamWeekPotentialLineupCoverageAnalyzer.METRIC_SCOPE,
+            HistoricalScoringLaneSelector.POLICY_ID,
+            HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID,
+            OptimalLegalLineupSolver.POLICY_ID,
+            LineupSlotEligibilityPolicy.POLICY_ID,
+            "l1", "t1", 2026, 3,
+            asOf, asOf, null, null,
+            asOf, "matchup.players_points", "provider-league",
+            List.of(provider), lineup);
+
+        String output = print(report);
+        assertTrue(output.contains("selected scoring lane: SLEEPER_PROVIDER_NATIVE"));
+        assertTrue(output.contains("provider points as-of: 2026-09-06"));
+        assertTrue(output.contains("provider source surface: matchup.players_points"));
+        assertTrue(output.contains("historical provider league: provider-league"));
+        assertTrue(output.contains("provider points evidence id: evidence-1"));
+        assertFalse(output.contains("production source:"));
+        assertFalse(output.contains("identity-covered zero"));
+    }
+
+    private static OptimalLegalLineupSolver.LineupResult lineup(BigDecimal total) {
+        return new OptimalLegalLineupSolver.LineupResult(
+            OptimalLegalLineupSolver.POLICY_ID,
+            LineupSlotEligibilityPolicy.POLICY_ID,
+            2,
+            2,
+            total,
+            List.of(
+                new OptimalLegalLineupSolver.Assignment(0, "QB", "p1", total),
+                new OptimalLegalLineupSolver.Assignment(1, "FLEX", "p2", BigDecimal.ZERO)));
+    }
+
+    private static String print(LeagueTeamWeekPotentialLineupAnalyzer.PotentialLineupReport report) {
+        PrintStream original = System.out;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(bytes));
+            ButlerLeagueTeamWeekPotentialLineupCli.print(report);
+        } finally {
+            System.setOut(original);
+        }
+        return bytes.toString();
     }
 }
