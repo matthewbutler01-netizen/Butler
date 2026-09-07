@@ -182,7 +182,7 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
     }
 
     @Test
-    void providerNativeSeasonRemainsBlockedAtCaptureButFlowsThroughLeagueSeasonGap() throws Exception {
+    void providerNativeSeasonFlowsThroughCaptureAndLeagueSeasonGap() throws Exception {
         Fixture fixture = initializedFixture();
         fixture.saveConfiguration();
         fixture.saveEligibility();
@@ -193,9 +193,9 @@ class LeagueTeamSeasonLineupPointsGapEvidenceAnalyzerTest {
             "s3", new BigDecimal("12.0")));
 
         var source = fixture.analyzer().analyze("l1", "t1", 2026);
-        IllegalStateException captureError = assertThrows(IllegalStateException.class,
-            () -> LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.fromSource(source));
-        assertTrue(captureError.getMessage().contains("has not migrated to provider-native historical scoring"));
+        var capture = LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.fromSource(source);
+        assertEquals(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.CaptureRateState.AVAILABLE, capture.rateState());
+        assertEquals(new BigDecimal("0.625000"), capture.lineupCaptureRate().orElseThrow());
 
         var league = new LeagueSeasonLineupPointsGapEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
         assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, league.scoringLane());

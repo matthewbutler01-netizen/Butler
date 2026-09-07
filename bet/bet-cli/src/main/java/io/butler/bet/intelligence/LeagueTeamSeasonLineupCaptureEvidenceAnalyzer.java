@@ -9,13 +9,13 @@ import java.util.Optional;
 
 /**
  * Normalizes governed team-season lineup points-gap totals over comparable complete observed weeks
- * without hiding coverage or attributing the result to manager skill, fault, or intent.
+ * under one historical scoring lane without hiding coverage or attributing manager skill, fault, or intent.
  */
 public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "team-season-lineup-capture-evidence-v1-comparable-complete-total-ratio-no-attribution";
+        "team-season-lineup-capture-evidence-v2-historical-scoring-lane-comparable-complete-total-ratio-no-attribution";
     public static final String METRIC_SCOPE =
-        "RETROSPECTIVE_TEAM_SEASON_LINEUP_CAPTURE_RATE_OVER_COMPARABLE_COMPLETE_OBSERVED_ROSTER_WEEKS_NO_MANAGER_ATTRIBUTION";
+        "RETROSPECTIVE_TEAM_SEASON_LINEUP_CAPTURE_RATE_GOVERNED_HISTORICAL_SCORING_LANE_OVER_COMPARABLE_COMPLETE_OBSERVED_ROSTER_WEEKS_NO_MANAGER_ATTRIBUTION";
 
     private final Database database;
 
@@ -32,10 +32,6 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
     static SeasonLineupCaptureReport fromSource(
         LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.SeasonEvidenceReport source) {
         Objects.requireNonNull(source, "source must not be null");
-        if (source.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-            throw new IllegalStateException(
-                "Team-season lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
-        }
         CaptureRateState state = expectedState(source);
         Optional<BigDecimal> rate = state == CaptureRateState.AVAILABLE
             ? Optional.of(calculateRate(source))
@@ -50,18 +46,14 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
             return CaptureRateState.UNAVAILABLE_NO_COMPARABLE_WEEKS;
         }
         for (var week : source.weeks()) {
-            if (week.state() != LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE) {
-                continue;
-            }
+            if (week.state() != LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekState.COMPARABLE_COMPLETE) continue;
             if (week.pointsGap().startedPoints().compareTo(BigDecimal.ZERO) < 0
                 || week.pointsGap().potentialPoints().compareTo(BigDecimal.ZERO) < 0) {
                 return CaptureRateState.UNAVAILABLE_NEGATIVE_COMPARABLE_POINTS;
             }
         }
         BigDecimal potential = aggregate.comparableTotalPotentialPoints().orElseThrow();
-        if (potential.compareTo(BigDecimal.ZERO) == 0) {
-            return CaptureRateState.UNAVAILABLE_ZERO_TOTAL_POTENTIAL;
-        }
+        if (potential.compareTo(BigDecimal.ZERO) == 0) return CaptureRateState.UNAVAILABLE_ZERO_TOTAL_POTENTIAL;
         return CaptureRateState.AVAILABLE;
     }
 
@@ -99,9 +91,14 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (!METRIC_SCOPE.equals(metricScope)) throw new IllegalArgumentException("unexpected metricScope");
             Objects.requireNonNull(sourceSeasonPointsGap, "sourceSeasonPointsGap must not be null");
-            if (sourceSeasonPointsGap.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-                throw new IllegalArgumentException(
-                    "team-season lineup capture report cannot contain provider-native source until this artifact migrates");
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(sourceSeasonPointsGap.scoringLaneSelectionPolicyId())) {
+                throw new IllegalArgumentException("source season points-gap must use governed historical scoring lane selector");
+            }
+            String expectedPolicy = sourceSeasonPointsGap.scoringLane() == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE
+                ? HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID
+                : CoveredProductionScoringPolicy.POLICY_ID;
+            if (!expectedPolicy.equals(sourceSeasonPointsGap.scoringPolicyId())) {
+                throw new IllegalArgumentException("source season scoring policy must match selected historical scoring lane");
             }
             Objects.requireNonNull(rateState, "rateState must not be null");
             lineupCaptureRate = Objects.requireNonNull(lineupCaptureRate, "lineupCaptureRate must not be null");
@@ -114,8 +111,7 @@ public final class LeagueTeamSeasonLineupCaptureEvidenceAnalyzer {
                 BigDecimal actual = lineupCaptureRate.orElseThrow(
                     () -> new IllegalArgumentException("available season capture evidence requires lineupCaptureRate"));
                 BigDecimal expected = calculateRate(sourceSeasonPointsGap);
-                if (actual.scale() != LeagueTeamWeekLineupCaptureEvidenceAnalyzer.RATE_SCALE
-                    || !actual.equals(expected)) {
+                if (actual.scale() != LeagueTeamWeekLineupCaptureEvidenceAnalyzer.RATE_SCALE || !actual.equals(expected)) {
                     throw new IllegalArgumentException(
                         "lineupCaptureRate must equal comparable governed started total divided by potential total at v1 precision");
                 }
