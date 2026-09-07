@@ -11,13 +11,14 @@ import java.util.Objects;
 
 /**
  * Exposes each team's governed season lineup capture evidence in repository team-name order
- * without computing any cross-team aggregate, rank, tier, comparison score, or manager judgment.
+ * under one governed league-season historical scoring lane, without computing any cross-team
+ * aggregate, rank, tier, comparison score, or manager judgment.
  */
 public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "league-season-lineup-capture-evidence-v1-team-name-order-no-ranking-no-cross-team-aggregate";
+        "league-season-lineup-capture-evidence-v2-historical-scoring-lane-team-name-order-no-ranking-no-cross-team-aggregate";
     public static final String PRESENTATION_SCOPE =
-        "TEAM_BY_TEAM_LINEUP_CAPTURE_ONLY_REPOSITORY_TEAM_NAME_ORDER_SEPARATE_COVERAGE_DENOMINATORS_NO_CROSS_TEAM_AGGREGATE_OR_RANKING";
+        "TEAM_BY_TEAM_LINEUP_CAPTURE_ONLY_REPOSITORY_TEAM_NAME_ORDER_GOVERNED_HISTORICAL_SCORING_LANE_SEPARATE_COVERAGE_DENOMINATORS_NO_CROSS_TEAM_AGGREGATE_OR_RANKING";
 
     private final Database database;
 
@@ -31,21 +32,17 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
 
-        var scoringLane = new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
-        if (scoringLane.lane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
-            throw new IllegalStateException(
-                "League-season lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
-        }
+        HistoricalScoringLaneSelector.Selection scoringLane =
+            new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
 
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
         var teamAnalyzer = new LeagueTeamSeasonLineupCaptureEvidenceAnalyzer(database);
         List<TeamEvidence> teams = new ArrayList<>();
         for (var team : new TeamRepository(database).findByLeagueId(normalizedLeagueId)) {
-            teams.add(new TeamEvidence(
-                team.getId(),
-                team.getName(),
-                teamAnalyzer.analyze(normalizedLeagueId, team.getId(), season)));
+            var seasonEvidence = teamAnalyzer.analyze(normalizedLeagueId, team.getId(), season);
+            requireSameScoringLane(scoringLane, seasonEvidence);
+            teams.add(new TeamEvidence(team.getId(), team.getName(), seasonEvidence));
         }
 
         return new LeagueEvidenceReport(
@@ -53,11 +50,33 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
             LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.METRIC_SCOPE,
             LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WEEK_UNIVERSE,
             PRESENTATION_SCOPE,
+            scoringLane.policyId(),
+            scoringLane.lane(),
+            scoringLane.scoringPolicyId(),
             LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.POLICY_ID,
             normalizedLeagueId,
             league.getName(),
             season,
             List.copyOf(teams));
+    }
+
+    private static void requireSameScoringLane(
+        HistoricalScoringLaneSelector.Selection selected,
+        LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.SeasonLineupCaptureReport nested) {
+        var source = nested.sourceSeasonPointsGap();
+        if (!selected.policyId().equals(source.scoringLaneSelectionPolicyId())
+            || selected.lane() != source.scoringLane()
+            || !selected.scoringPolicyId().equals(source.scoringPolicyId())) {
+            throw new IllegalStateException(
+                "League-season lineup capture unavailable: nested team-season evidence moved to a different historical scoring lane");
+        }
+    }
+
+    private static String expectedScoringPolicy(HistoricalScoringLaneSelector.Lane lane) {
+        Objects.requireNonNull(lane, "scoringLane must not be null");
+        return lane == HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE
+            ? HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID
+            : CoveredProductionScoringPolicy.POLICY_ID;
     }
 
     private static String requireText(String value, String field) {
@@ -84,6 +103,9 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
         String metricScope,
         String weekUniverse,
         String presentationScope,
+        String scoringLaneSelectionPolicyId,
+        HistoricalScoringLaneSelector.Lane scoringLane,
+        String scoringPolicyId,
         String teamSeasonPolicyId,
         String leagueId,
         String leagueName,
@@ -100,6 +122,13 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
             if (!PRESENTATION_SCOPE.equals(presentationScope)) {
                 throw new IllegalArgumentException("unexpected presentationScope");
             }
+            if (!HistoricalScoringLaneSelector.POLICY_ID.equals(scoringLaneSelectionPolicyId)) {
+                throw new IllegalArgumentException("unexpected scoringLaneSelectionPolicyId");
+            }
+            Objects.requireNonNull(scoringLane, "scoringLane must not be null");
+            if (!expectedScoringPolicy(scoringLane).equals(scoringPolicyId)) {
+                throw new IllegalArgumentException("scoring policy does not match selected league-season lane");
+            }
             if (!LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.POLICY_ID.equals(teamSeasonPolicyId)) {
                 throw new IllegalArgumentException("unexpected teamSeasonPolicyId");
             }
@@ -115,15 +144,43 @@ public final class LeagueSeasonLineupCaptureEvidenceAnalyzer {
                 if (!leagueId.equals(source.leagueId()) || season != source.season()) {
                     throw new IllegalArgumentException("nested team capture evidence must match league and season");
                 }
-                if (source.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                if (!scoringLaneSelectionPolicyId.equals(source.scoringLaneSelectionPolicyId())
+                    || scoringLane != source.scoringLane()
+                    || !scoringPolicyId.equals(source.scoringPolicyId())) {
                     throw new IllegalArgumentException(
-                        "league-season lineup capture report cannot contain provider-native team source until this artifact migrates");
+                        "nested team capture evidence must match selected league-season scoring lane");
                 }
                 if (previousTeamName != null && previousTeamName.compareTo(team.teamName()) > 0) {
                     throw new IllegalArgumentException("teams must preserve repository team-name order");
                 }
                 previousTeamName = team.teamName();
             }
+        }
+
+        /** Source-compatible nflverse constructor retained for callers that built the v1 report directly. */
+        public LeagueEvidenceReport(
+            String policyId,
+            String metricScope,
+            String weekUniverse,
+            String presentationScope,
+            String teamSeasonPolicyId,
+            String leagueId,
+            String leagueName,
+            int season,
+            List<TeamEvidence> teams) {
+            this(
+                policyId,
+                metricScope,
+                weekUniverse,
+                presentationScope,
+                HistoricalScoringLaneSelector.POLICY_ID,
+                HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
+                CoveredProductionScoringPolicy.POLICY_ID,
+                teamSeasonPolicyId,
+                leagueId,
+                leagueName,
+                season,
+                teams);
         }
     }
 }

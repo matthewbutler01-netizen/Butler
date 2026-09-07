@@ -40,6 +40,12 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
 
+        var scoringLane = new HistoricalScoringLaneSelector(database).select(normalizedLeagueId, season);
+        if (scoringLane.lane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            throw new IllegalStateException(
+                "League common-universe lineup capture unavailable: this downstream artifact has not migrated to provider-native historical scoring");
+        }
+
         var league = new LeagueRepository(database).findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("League not found: " + normalizedLeagueId));
         var seasonAnalyzer = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer(database);
@@ -125,6 +131,10 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
                 throw new IllegalArgumentException("league common-universe sources must contain distinct teams");
             }
             var seasonSource = source.sourceSeasonPointsGap();
+            if (seasonSource.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                throw new IllegalArgumentException(
+                    "league common-universe report cannot contain provider-native team source until this artifact migrates");
+            }
             if (leagueId == null) {
                 leagueId = seasonSource.leagueId();
                 season = seasonSource.season();
@@ -298,6 +308,10 @@ public final class LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer {
             Objects.requireNonNull(sourceSeasonPointsGap, "sourceSeasonPointsGap must not be null");
             if (!teamId.equals(sourceSeasonPointsGap.teamId())) {
                 throw new IllegalArgumentException("teamId must match nested season points-gap evidence");
+            }
+            if (sourceSeasonPointsGap.scoringLane() != HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+                throw new IllegalArgumentException(
+                    "league common-universe report cannot contain provider-native team source until this artifact migrates");
             }
             if (observedWeeks != sourceSeasonPointsGap.aggregate().observedWeeks()
                 || individuallyComparableWeeks != sourceSeasonPointsGap.aggregate().comparableCompleteWeeks()) {

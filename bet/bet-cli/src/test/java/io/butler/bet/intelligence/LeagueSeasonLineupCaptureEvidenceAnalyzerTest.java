@@ -44,6 +44,9 @@ class LeagueSeasonLineupCaptureEvidenceAnalyzerTest {
         assertEquals(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.METRIC_SCOPE, report.metricScope());
         assertEquals(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WEEK_UNIVERSE, report.weekUniverse());
         assertEquals(LeagueSeasonLineupCaptureEvidenceAnalyzer.PRESENTATION_SCOPE, report.presentationScope());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT, report.scoringLane());
+        assertEquals(CoveredProductionScoringPolicy.POLICY_ID, report.scoringPolicyId());
         assertEquals(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.POLICY_ID, report.teamSeasonPolicyId());
         assertEquals(List.of("Alpha Team", "Beta Team"), report.teams().stream()
             .map(LeagueSeasonLineupCaptureEvidenceAnalyzer.TeamEvidence::teamName).toList());
@@ -61,7 +64,8 @@ class LeagueSeasonLineupCaptureEvidenceAnalyzerTest {
         assertEquals(new BigDecimal("0.625000"), beta.lineupCaptureRate().orElseThrow());
 
         assertEquals(
-            List.of("policyId", "metricScope", "weekUniverse", "presentationScope", "teamSeasonPolicyId",
+            List.of("policyId", "metricScope", "weekUniverse", "presentationScope",
+                "scoringLaneSelectionPolicyId", "scoringLane", "scoringPolicyId", "teamSeasonPolicyId",
                 "leagueId", "leagueName", "season", "teams"),
             Arrays.stream(LeagueSeasonLineupCaptureEvidenceAnalyzer.LeagueEvidenceReport.class.getRecordComponents())
                 .map(component -> component.getName()).toList());

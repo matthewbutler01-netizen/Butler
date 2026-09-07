@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueSeasonLineupCaptureEvidenceAnalyzer;
 
 import java.math.BigDecimal;
@@ -56,6 +57,9 @@ public final class ButlerLeagueSeasonLineupCaptureEvidenceCli {
         System.out.println("Week universe: " + report.weekUniverse());
         System.out.println("Presentation scope: " + report.presentationScope());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selector: " + report.scoringLaneSelectionPolicyId());
+        System.out.println("Scoring lane: " + report.scoringLane());
+        System.out.println("Scoring policy: " + report.scoringPolicyId());
         System.out.println("Team-season policy: " + report.teamSeasonPolicyId());
         System.out.println("Team order: repository team-name order; never capture-rate-ranked.");
         System.out.println();
@@ -107,18 +111,32 @@ public final class ButlerLeagueSeasonLineupCaptureEvidenceCli {
                         "  week " + week.week() + " POTENTIAL_INCOMPLETE | excluded from comparable totals");
                     case STARTED_INCOMPLETE -> System.out.println(
                         "  week " + week.week() + " STARTED_INCOMPLETE | excluded from comparable totals");
-                    case COMPARABLE_COMPLETE -> { }
+                    case COMPARABLE_COMPLETE -> printComparableWeekProvenance(week.pointsGap());
                 }
             }
             System.out.println();
         }
 
-        System.out.println("Boundary: teams remain in repository team-name order and are not ranked by lineup capture. "
-            + "Butler does not average team capture rates, combine team numerators/denominators, assign league capture "
-            + "scores, or compare managers. Each team's coverage denominator remains separate. Potential uses observed "
-            + "provider configuration and is not reconstructed historical startability. Lineup capture is descriptive "
-            + "evidence only, not manager efficiency, a manager grade, rank, tier, recommendation, intent, fault, or "
-            + "skill attribution.");
+        System.out.println("Boundary: descriptive team-by-team lineup capture evidence only under one governed "
+            + "league-season historical scoring lane. Teams remain in repository team-name order and are not ranked by "
+            + "lineup capture. Butler does not average team capture rates, combine team numerators/denominators, assign "
+            + "league capture scores, or compare managers. Each team's coverage denominator remains separate. Potential "
+            + "uses observed provider configuration and is not reconstructed historical startability. Lineup capture is "
+            + "descriptive evidence only, not manager efficiency, a manager grade, rank, tier, recommendation, intent, "
+            + "fault, or skill attribution.");
+    }
+
+    private static void printComparableWeekProvenance(
+        io.butler.bet.intelligence.LeagueTeamWeekLineupPointsGapEvidenceAnalyzer.LineupPointsGapReport gap) {
+        System.out.println("  week " + gap.week() + " COMPARABLE_COMPLETE");
+        if (gap.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            System.out.println("    production coverage as-of: " + gap.productionCoverageAsOf());
+            System.out.println("    production source: " + gap.productionSourceUri());
+        } else {
+            System.out.println("    provider points as-of: " + gap.providerPointsAsOf());
+            System.out.println("    provider points source surface: " + gap.providerPointsSourceSurface());
+            System.out.println("    provider league id: " + gap.providerLeagueId());
+        }
     }
 
     private static Database initializedDatabase() throws SQLException {

@@ -29,80 +29,88 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
+class LeagueSeasonLineupCaptureHistoricalScoringLaneTest {
     @TempDir Path tempDir;
 
     @Test
-    void readyProviderNativeSeasonProducesExactCaptureRate() throws Exception {
+    void readyProviderNativeLeagueSeasonPreservesExactTeamCaptureAndProvenance() throws Exception {
         Fixture fixture = fixture("ready.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
             "s2", new BigDecimal("6.0"),
             "s3", new BigDecimal("12.0")));
 
-        var report = new LeagueTeamSeasonLineupCaptureEvidenceAnalyzer(fixture.database())
-            .analyze("l1", "t1", 2026);
-        var source = report.sourceSeasonPointsGap();
+        var report = new LeagueSeasonLineupCaptureEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
 
-        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, source.scoringLaneSelectionPolicyId());
-        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, source.scoringLane());
-        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, source.scoringPolicyId());
-        assertEquals(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.CaptureRateState.AVAILABLE, report.rateState());
-        assertEquals(new BigDecimal("0.625000"), report.lineupCaptureRate().orElseThrow());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, report.scoringPolicyId());
+        assertEquals(1, report.teams().size());
+        var capture = report.teams().get(0).seasonEvidence();
+        var source = capture.sourceSeasonPointsGap();
+        assertEquals(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.CaptureRateState.AVAILABLE, capture.rateState());
+        assertEquals(new BigDecimal("0.625000"), capture.lineupCaptureRate().orElseThrow());
         assertEquals(new BigDecimal("10.0"), source.aggregate().comparableTotalStartedPoints().orElseThrow());
         assertEquals(new BigDecimal("16.0"), source.aggregate().comparableTotalPotentialPoints().orElseThrow());
         assertEquals(new BigDecimal("6.0"), source.aggregate().comparableTotalPointsGap().orElseThrow());
+        var gap = source.weeks().get(0).pointsGap();
+        assertEquals(PROVIDER_AS_OF, gap.providerPointsAsOf());
+        assertEquals(SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+            gap.providerPointsSourceSurface());
+        assertEquals("provider-l1", gap.providerLeagueId());
     }
 
     @Test
-    void blockedProviderNativeSeasonWithholdsRateAndNeverFallsBackToReadyNflverse() throws Exception {
+    void blockedProviderNativeLeagueSeasonNeverFallsBackToReadyNflverse() throws Exception {
         Fixture fixture = fixture("blocked.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
             "s2", new BigDecimal("6.0")));
         fixture.saveReadyNflverse();
 
-        var report = new LeagueTeamSeasonLineupCaptureEvidenceAnalyzer(fixture.database())
-            .analyze("l1", "t1", 2026);
-        var source = report.sourceSeasonPointsGap();
+        var report = new LeagueSeasonLineupCaptureEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
 
-        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, source.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID, report.scoringPolicyId());
+        var capture = report.teams().get(0).seasonEvidence();
+        var source = capture.sourceSeasonPointsGap();
         assertEquals(1, source.aggregate().blockedWeeks());
         assertEquals(0, source.aggregate().comparableCompleteWeeks());
+        assertTrue(source.aggregate().comparableTotalPointsGap().isEmpty());
         assertEquals(
             LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.CaptureRateState.UNAVAILABLE_NO_COMPARABLE_WEEKS,
-            report.rateState());
-        assertFalse(report.lineupCaptureRate().isPresent());
+            capture.rateState());
+        assertFalse(capture.lineupCaptureRate().isPresent());
         assertTrue(source.weeks().get(0).blockers().stream().anyMatch(
             blocker -> blocker.contains("Missing provider-points identities") && blocker.contains("s3")));
     }
 
     @Test
-    void providerNativeFlowsThroughLeagueSeasonCaptureButStopsAtCommonUniverse() throws Exception {
-        Fixture fixture = fixture("firewall.db");
+    void commonUniverseReportCannotBeConstructedFromProviderNativeSource() throws Exception {
+        Fixture fixture = fixture("report-firewall.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
             "s2", new BigDecimal("6.0"),
             "s3", new BigDecimal("12.0")));
-
-        var teamSeason = new LeagueTeamSeasonLineupCaptureEvidenceAnalyzer(fixture.database())
+        var source = new LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer(fixture.database())
             .analyze("l1", "t1", 2026);
-        assertEquals(new BigDecimal("0.625000"), teamSeason.lineupCaptureRate().orElseThrow());
 
-        var leagueSeason = new LeagueSeasonLineupCaptureEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
-        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, leagueSeason.scoringLane());
-        assertEquals(new BigDecimal("0.625000"),
-            leagueSeason.teams().get(0).seasonEvidence().lineupCaptureRate().orElseThrow());
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.TeamCommonEvidence(
+                "t1", "Team One", source,
+                source.aggregate().observedWeeks(), source.aggregate().comparableCompleteWeeks(),
+                List.of(), 0, Optional.empty(), Optional.empty(), Optional.empty(),
+                LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonRateState.UNAVAILABLE_NO_COMMON_COMPARABLE_WEEKS,
+                Optional.empty()));
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-            () -> new LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
-        assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
+        assertTrue(error.getMessage().contains("cannot contain provider-native team source until this artifact migrates"));
     }
 
     private Fixture fixture(String fileName) throws Exception {
