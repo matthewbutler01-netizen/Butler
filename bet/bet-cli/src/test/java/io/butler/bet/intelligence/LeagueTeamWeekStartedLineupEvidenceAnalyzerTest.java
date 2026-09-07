@@ -46,6 +46,9 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
         var report = fixture.analyzer().analyze("l1", "t1", 2026, 3);
 
         assertEquals(LeagueTeamWeekStartedLineupEvidenceAnalyzer.METRIC_SCOPE, report.metricScope());
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT, report.scoringLane());
+        assertEquals(CoveredProductionScoringPolicy.POLICY_ID, report.scoringPolicyId());
         assertEquals(2, report.requiredSlots());
         assertEquals(2, report.filledSlots());
         assertTrue(report.complete());
@@ -63,18 +66,52 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
             report.slots().get(1).scoreEvidence().productionState());
         assertEquals(COVERAGE_DATE, report.productionCoverageAsOf());
         assertEquals(URI.create("https://example.test/week.csv"), report.productionSourceUri());
+        assertEquals(null, report.providerPointsAsOf());
+        assertEquals(null, report.providerPointsSourceSurface());
+        assertEquals(null, report.providerLeagueId());
     }
 
     @Test
-    void providerNativeHistoricalEvidenceCannotMigrateStartedLineupArtifact() throws Exception {
+    void scoresExactOrderedStartersWithReadyProviderNativeEvidence() throws Exception {
         Fixture fixture = readyFixture(List.of("s1", "s2"));
         fixture.saveProviderPoints();
+
+        var report = fixture.analyzer().analyze("l1", "t1", 2026, 3);
+
+        assertEquals(HistoricalScoringLaneSelector.POLICY_ID, report.scoringLaneSelectionPolicyId());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE, report.scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID,
+            report.scoringPolicyId());
+        assertEquals(new BigDecimal("20.75"), report.totalStartedPoints());
+        assertEquals(new BigDecimal("12.5"), report.slots().get(0).fantasyPoints());
+        assertEquals(new BigDecimal("8.25"), report.slots().get(1).fantasyPoints());
+        assertEquals(LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.NOT_EVALUATED,
+            report.slots().get(0).scoreEvidence().productionState());
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            report.slots().get(0).scoreEvidence().scoringLane());
+        assertEquals(HistoricalScoringLaneSelector.PROVIDER_NATIVE_SCORING_POLICY_ID,
+            report.slots().get(0).scoreEvidence().scoringPolicyId());
+        assertTrue(report.slots().get(0).scoreEvidence().providerPointsEvidenceId() != null);
+        assertEquals(null, report.productionCoverageAsOf());
+        assertEquals(null, report.productionSourceUri());
+        assertEquals(PROVIDER_DATE, report.providerPointsAsOf());
+        assertEquals(SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+            report.providerPointsSourceSurface());
+        assertEquals(PROVIDER_LEAGUE_ID, report.providerLeagueId());
+    }
+
+    @Test
+    void blockedProviderNativeSeasonNeverFallsBackToReadyNflverseEvidence() throws Exception {
+        Fixture fixture = readyFixture(List.of("s1", "s2"));
+        fixture.saveProduction("p1", COVERAGE_DATE, 1);
+        fixture.saveIncompleteProviderPoints();
 
         IllegalStateException error = assertThrows(IllegalStateException.class,
             () -> fixture.analyzer().analyze("l1", "t1", 2026, 3));
 
-        assertTrue(error.getMessage().contains("requires recalculated exact nflverse scoring"));
-        assertTrue(error.getMessage().contains("does not consume provider-reported points"));
+        assertTrue(error.getMessage().contains("Potential lineup unavailable"));
+        assertTrue(error.getMessage().contains("Provider-native season audit"));
+        assertTrue(error.getMessage().contains("Missing provider-points identities: [s2]"));
     }
 
     @Test
@@ -179,15 +216,23 @@ class LeagueTeamWeekStartedLineupEvidenceAnalyzerTest {
         }
 
         void saveProviderPoints() throws Exception {
-            List<ProviderPlayerWeekPointsEvidence> rows = List.of(
-                ProviderPlayerWeekPointsEvidence.create(
-                    "l1", "t1", "1", PROVIDER_LEAGUE_ID, 2026, 3, "s1",
-                    new BigDecimal("12.5"), "sleeper",
-                    SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_DATE),
-                ProviderPlayerWeekPointsEvidence.create(
-                    "l1", "t1", "1", PROVIDER_LEAGUE_ID, 2026, 3, "s2",
-                    new BigDecimal("8.25"), "sleeper",
-                    SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE, PROVIDER_DATE));
+            replaceProviderPoints(List.of(
+                providerPoints("s1", new BigDecimal("12.5")),
+                providerPoints("s2", new BigDecimal("8.25"))));
+        }
+
+        void saveIncompleteProviderPoints() throws Exception {
+            replaceProviderPoints(List.of(providerPoints("s1", new BigDecimal("12.5"))));
+        }
+
+        private ProviderPlayerWeekPointsEvidence providerPoints(String providerPlayerId, BigDecimal points) {
+            return ProviderPlayerWeekPointsEvidence.create(
+                "l1", "t1", "1", PROVIDER_LEAGUE_ID, 2026, 3, providerPlayerId,
+                points, "sleeper", SleeperProviderNativeSeasonScoringAudit.EXPECTED_SOURCE_SURFACE,
+                PROVIDER_DATE);
+        }
+
+        private void replaceProviderPoints(List<ProviderPlayerWeekPointsEvidence> rows) throws Exception {
             new ProviderPlayerWeekPointsEvidenceRepository(database).replaceSeasonSnapshot(
                 "l1", 2026, "sleeper", PROVIDER_DATE, rows);
         }
