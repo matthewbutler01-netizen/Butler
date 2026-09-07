@@ -56,6 +56,9 @@ public final class ButlerLeagueSeasonLineupCaptureRankingEvidenceCli {
         System.out.println("Metric scope: " + report.metricScope());
         System.out.println("Policy: " + report.policyId());
         System.out.println("Source common-universe policy: " + source.policyId());
+        System.out.println("Source scoring lane selector: " + source.scoringLaneSelectionPolicyId());
+        System.out.println("Source scoring lane: " + source.scoringLane());
+        System.out.println("Source scoring policy: " + source.scoringPolicyId());
         System.out.println("Minimum common-week governance floor: " + report.minimumCommonWeeks());
         System.out.println("Ranking policy: " + report.rankingPolicy());
         System.out.println("Repository teams: " + source.teams().size());
