@@ -95,8 +95,8 @@ class SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzerTest {
     }
 
     @Test
-    void keepsReadyProviderEntryWhenDownstreamSourceEvidenceIsUnavailable() throws Exception {
-        Database database = new Database(tempDir.resolve("source-unavailable.db"));
+    void keepsReadyProviderEntryWhenCommonUniverseIsGovernedUnavailable() throws Exception {
+        Database database = new Database(tempDir.resolve("common-universe-unavailable.db"));
         database.initialize();
 
         saveLeague(database, "source-missing", "Source Missing", 2025, List.of("a", "b"));
@@ -108,14 +108,20 @@ class SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzerTest {
         var entry = report.entries().getFirst();
         assertEquals(HistoricalScoringLaneSelector.SelectionState.READY, entry.selection().state());
         assertEquals(
-            SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzer.EntryState.SOURCE_EVIDENCE_UNAVAILABLE,
+            SleeperProviderNativeLineupSensitivityCorpusAuditAnalyzer.EntryState.DOWNSTREAM_AUDITED,
             entry.state());
-        assertTrue(entry.downstreamAudit().isEmpty());
-        assertTrue(entry.detail().isPresent());
+        assertTrue(entry.downstreamAudit().isPresent());
+        assertEquals(
+            LeagueLineupCaptureRankingSensitivityCalibrationCorpusAuditAnalyzer.LeagueSeasonAuditState
+                .EXCLUDED_COMMON_UNIVERSE_UNAVAILABLE,
+            entry.downstreamAudit().orElseThrow().state());
+        assertTrue(entry.downstreamAudit().orElseThrow().cutoffs().isEmpty());
+        assertTrue(entry.detail().isEmpty());
         assertEquals(1, report.summary().fixedFrameLeagueSeasons());
         assertEquals(1, report.summary().providerNativeReadyLeagueSeasons());
-        assertEquals(1, report.summary().sourceEvidenceUnavailableLeagueSeasons());
-        assertEquals(0, report.summary().downstreamAuditedLeagueSeasons());
+        assertEquals(0, report.summary().sourceEvidenceUnavailableLeagueSeasons());
+        assertEquals(1, report.summary().downstreamAuditedLeagueSeasons());
+        assertEquals(0, report.summary().leagueSeasonsWithAvailableCutoffs());
     }
 
     private static void saveLeague(
