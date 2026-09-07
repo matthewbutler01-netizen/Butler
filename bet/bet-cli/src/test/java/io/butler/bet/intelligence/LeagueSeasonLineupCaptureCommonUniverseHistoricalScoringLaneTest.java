@@ -104,31 +104,30 @@ class LeagueSeasonLineupCaptureCommonUniverseHistoricalScoringLaneTest {
     }
 
     @Test
-    void rankingRemainsProviderNativeFirewallForRuntimeAndDirectSource() throws Exception {
-        Fixture fixture = fixture("ranking-firewall.db");
+    void rankingAcceptsProviderNativeSourceButPreservesFourWeekGovernanceFloor() throws Exception {
+        Fixture fixture = fixture("ranking-provider-native.db");
         fixture.saveProviderPoints(Map.of(
             "a1", new BigDecimal("4.0"), "a2", new BigDecimal("6.0"), "a3", new BigDecimal("12.0"),
             "b1", new BigDecimal("8.0"), "b2", new BigDecimal("6.0"), "b3", new BigDecimal("12.0")));
         var common = fixture.analyzer().analyze("l1", 2026);
 
-        IllegalStateException runtime = assertThrows(IllegalStateException.class,
-            () -> new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
-        assertTrue(runtime.getMessage().contains("has not migrated to provider-native historical scoring"));
+        var runtime = new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            runtime.sourceCommonUniverse().scoringLane());
+        assertEquals(
+            LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RankingState.UNAVAILABLE_BELOW_MINIMUM_COMMON_WEEKS,
+            runtime.rankingState());
+        assertTrue(runtime.rankedTeams().isEmpty());
 
-        IllegalStateException direct = assertThrows(IllegalStateException.class,
-            () -> LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.fromSource(common));
-        assertTrue(direct.getMessage().contains("has not migrated to provider-native historical scoring"));
+        var direct = LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.fromSource(common);
+        assertEquals(runtime.rankingState(), direct.rankingState());
+        assertEquals(runtime.rankedTeams(), direct.rankedTeams());
 
-        IllegalArgumentException report = assertThrows(IllegalArgumentException.class,
-            () -> new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.LeagueRankingReport(
-                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.POLICY_ID,
-                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.METRIC_SCOPE,
-                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.MINIMUM_COMMON_WEEKS,
-                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RANKING_POLICY,
-                common,
-                LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RankingState.UNAVAILABLE_BELOW_MINIMUM_COMMON_WEEKS,
-                List.of()));
-        assertTrue(report.getMessage().contains("cannot contain provider-native source until this artifact migrates"));
+        var reconstructed = new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.LeagueRankingReport(
+            runtime.policyId(), runtime.metricScope(), runtime.minimumCommonWeeks(), runtime.rankingPolicy(),
+            common, runtime.rankingState(), runtime.rankedTeams());
+        assertEquals(runtime.rankingState(), reconstructed.rankingState());
+        assertEquals(runtime.rankedTeams(), reconstructed.rankedTeams());
     }
 
     private Fixture fixture(String fileName) throws Exception {

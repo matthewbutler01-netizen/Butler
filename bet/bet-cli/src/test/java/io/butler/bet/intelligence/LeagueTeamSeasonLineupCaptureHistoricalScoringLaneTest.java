@@ -32,7 +32,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
@@ -84,8 +83,8 @@ class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
     }
 
     @Test
-    void providerNativeFlowsThroughCommonUniverseButStopsAtRanking() throws Exception {
-        Fixture fixture = fixture("firewall.db");
+    void providerNativeFlowsThroughCommonUniverseAndStopsOnlyAtInsufficientTeamRankingGate() throws Exception {
+        Fixture fixture = fixture("provider-native-ranking.db");
         fixture.saveProviderPoints(Map.of(
             "s1", new BigDecimal("4.0"),
             "s2", new BigDecimal("6.0"),
@@ -102,9 +101,12 @@ class LeagueTeamSeasonLineupCaptureHistoricalScoringLaneTest {
             LeagueSeasonLineupCaptureCommonUniverseEvidenceAnalyzer.CommonUniverseState.UNAVAILABLE_INSUFFICIENT_TEAMS,
             common.commonUniverseState());
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
-            () -> new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer(fixture.database()).analyze("l1", 2026));
-        assertTrue(error.getMessage().contains("has not migrated to provider-native historical scoring"));
+        var ranking = new LeagueSeasonLineupCaptureRankingEvidenceAnalyzer(fixture.database()).analyze("l1", 2026);
+        assertEquals(HistoricalScoringLaneSelector.Lane.SLEEPER_PROVIDER_NATIVE,
+            ranking.sourceCommonUniverse().scoringLane());
+        assertEquals(LeagueSeasonLineupCaptureRankingEvidenceAnalyzer.RankingState.UNAVAILABLE_INSUFFICIENT_TEAMS,
+            ranking.rankingState());
+        assertTrue(ranking.rankedTeams().isEmpty());
     }
 
     private Fixture fixture(String fileName) throws Exception {
