@@ -24,14 +24,14 @@ class LeagueRepositoryCompareAndSetTest {
             "l1", "stale-provider-id", "successor-2026", 2026));
         League unchanged = repository.findById("l1").orElseThrow();
         assertEquals("provider-2025", unchanged.getExternalId());
-        assertEquals(2025, unchanged.getSeason());
+        assertEquals(Integer.valueOf(2025), unchanged.getSeason());
         assertEquals("Best", unchanged.getName());
 
         assertTrue(repository.updateExternalIdAndSeasonIfCurrent(
             "l1", "provider-2025", "successor-2026", 2026));
         League updated = repository.findById("l1").orElseThrow();
         assertEquals("successor-2026", updated.getExternalId());
-        assertEquals(2026, updated.getSeason());
+        assertEquals(Integer.valueOf(2026), updated.getSeason());
         assertEquals("Best", updated.getName());
     }
 }
