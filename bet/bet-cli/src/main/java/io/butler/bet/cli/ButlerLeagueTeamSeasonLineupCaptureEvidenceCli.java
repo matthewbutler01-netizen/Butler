@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamSeasonLineupCaptureEvidenceAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer;
 
@@ -38,9 +39,7 @@ public final class ButlerLeagueTeamSeasonLineupCaptureEvidenceCli {
         String leagueId = requireText(args[2], "league-id");
         String teamId = requireText(args[3], "team-id");
         int season = parseInt(args[4], "season");
-        if (season < 1999 || season > 2100) {
-            throw new IllegalArgumentException("season must be between 1999 and 2100");
-        }
+        if (season < 1999 || season > 2100) throw new IllegalArgumentException("season must be between 1999 and 2100");
         return new Options(leagueId, teamId, season);
     }
 
@@ -58,22 +57,21 @@ public final class ButlerLeagueTeamSeasonLineupCaptureEvidenceCli {
         System.out.println("Season: " + source.season());
         System.out.println("Metric scope: " + report.metricScope());
         System.out.println("Policy: " + report.policyId());
+        System.out.println("Scoring lane selector: " + source.scoringLaneSelectionPolicyId());
+        System.out.println("Scoring lane: " + source.scoringLane());
+        System.out.println("Scoring policy: " + source.scoringPolicyId());
         System.out.println("Source points-gap policy: " + source.policyId());
         System.out.println("Week universe: " + source.weekUniverse());
         System.out.println("Source aggregate policy: " + source.aggregatePolicy());
         System.out.println();
         System.out.println("Observed week evidence:");
-        if (source.weeks().isEmpty()) {
-            System.out.println("  none");
-        }
+        if (source.weeks().isEmpty()) System.out.println("  none");
         for (var week : source.weeks()) {
             System.out.println("  Week " + week.week() + " | " + week.state()
                 + " | roster as-of " + week.enumeratedRosterEvidenceAsOf());
             switch (week.state()) {
                 case BLOCKED -> {
-                    for (String blocker : week.blockers()) {
-                        System.out.println("    blocker: " + blocker);
-                    }
+                    for (String blocker : week.blockers()) System.out.println("    blocker: " + blocker);
                     System.out.println("    capture eligibility: excluded because comparison is blocked");
                 }
                 case POTENTIAL_INCOMPLETE -> {
@@ -88,7 +86,7 @@ public final class ButlerLeagueTeamSeasonLineupCaptureEvidenceCli {
                     System.out.println("    potential points: "
                         + points(week.sourcePotentialWeek().potentialLineup().lineup().totalPoints()));
                     System.out.println("    started filled slots: " + started.filledSlots() + "/" + started.requiredSlots());
-                    System.out.println("    recalculated started points: " + points(started.totalStartedPoints()));
+                    System.out.println("    started points: " + points(started.totalStartedPoints()));
                     System.out.println("    capture eligibility: excluded because observed started lineup is incomplete");
                 }
                 case COMPARABLE_COMPLETE -> printComparableWeek(week);
@@ -126,20 +124,26 @@ public final class ButlerLeagueTeamSeasonLineupCaptureEvidenceCli {
             System.out.println("Lineup capture rate: unavailable (" + unavailableReason(report.rateState()) + ")");
         }
         System.out.println();
-        System.out.println("Boundary: descriptive lineup capture evidence only. The season rate is comparable total "
-            + "recalculated started points divided by comparable total retrospective potential points; it is not an "
-            + "average of weekly percentages. Coverage remains a separate explicit denominator, and blocked, incomplete, "
-            + "and unobserved weeks are not normalized away. Potential uses observed provider configuration and is not "
-            + "reconstructed historical startability. This is not manager efficiency, a manager grade, rank, tier, "
-            + "recommendation, intent, fault, or skill attribution.");
+        System.out.println("Boundary: descriptive lineup capture evidence only under one governed league-season historical "
+            + "scoring lane. The season rate is comparable total started points divided by comparable total retrospective "
+            + "potential points; it is not an average of weekly percentages. Coverage remains a separate explicit "
+            + "denominator, and blocked, incomplete, and unobserved weeks are not normalized away. Potential uses observed "
+            + "provider configuration and is not reconstructed historical startability. This is not manager efficiency, "
+            + "a manager grade, rank, tier, recommendation, intent, fault, or skill attribution.");
     }
 
     private static void printComparableWeek(LeagueTeamSeasonLineupPointsGapEvidenceAnalyzer.WeekEvidence week) {
         var gap = week.pointsGap();
         System.out.println("    league configuration as-of: " + gap.leagueConfigurationAsOf());
-        System.out.println("    production coverage as-of: " + gap.productionCoverageAsOf());
-        System.out.println("    production source: " + gap.productionSourceUri());
-        System.out.println("    recalculated started points: " + points(gap.startedPoints()));
+        if (gap.scoringLane() == HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT) {
+            System.out.println("    production coverage as-of: " + gap.productionCoverageAsOf());
+            System.out.println("    production source: " + gap.productionSourceUri());
+        } else {
+            System.out.println("    provider points as-of: " + gap.providerPointsAsOf());
+            System.out.println("    provider points source surface: " + gap.providerPointsSourceSurface());
+            System.out.println("    provider league id: " + gap.providerLeagueId());
+        }
+        System.out.println("    started points: " + points(gap.startedPoints()));
         System.out.println("    retrospective potential points: " + points(gap.potentialPoints()));
         System.out.println("    potential-minus-started points gap: " + points(gap.pointsGap()));
         System.out.println("    capture eligibility: included in governed season totals");
@@ -151,14 +155,10 @@ public final class ButlerLeagueTeamSeasonLineupCaptureEvidenceCli {
         return database;
     }
 
-    private static String points(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString();
-    }
+    private static String points(BigDecimal value) { return value.stripTrailingZeros().toPlainString(); }
 
     private static String percentage(BigDecimal rate) {
-        return rate.multiply(BigDecimal.valueOf(100))
-            .setScale(2, RoundingMode.HALF_UP)
-            .toPlainString() + "%";
+        return rate.multiply(BigDecimal.valueOf(100)).setScale(2, RoundingMode.HALF_UP).toPlainString() + "%";
     }
 
     private static String unavailableReason(LeagueTeamSeasonLineupCaptureEvidenceAnalyzer.CaptureRateState state) {
