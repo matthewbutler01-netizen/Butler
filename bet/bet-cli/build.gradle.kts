@@ -115,3 +115,10 @@ val sleeperProviderNativeLineupSensitivityCorpusAudit by tasks.registering(JavaE
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperProviderNativeLineupSensitivityCorpusAuditCli")
 }
+
+val sleeperProviderNativeLineupSensitivityConfigurationLineage by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-591 source-lineage diagnostic for zero-common-week provider-native lineup-sensitivity entries."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperProviderNativeLineupSensitivityConfigurationLineageCli")
+}
