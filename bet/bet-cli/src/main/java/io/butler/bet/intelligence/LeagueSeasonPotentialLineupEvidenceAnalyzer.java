@@ -15,7 +15,7 @@ import java.util.Objects;
  */
 public final class LeagueSeasonPotentialLineupEvidenceAnalyzer {
     public static final String POLICY_ID =
-        "league-season-potential-lineup-evidence-v2-single-historical-scoring-lane-team-name-order";
+        "league-season-potential-lineup-evidence-v2-single-historical-scoring-lane-team-name-order-no-ranking-no-cross-team-aggregate";
 
     private final Database database;
 
