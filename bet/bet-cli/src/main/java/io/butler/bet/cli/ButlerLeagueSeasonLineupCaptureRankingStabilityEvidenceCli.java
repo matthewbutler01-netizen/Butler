@@ -59,6 +59,9 @@ public final class ButlerLeagueSeasonLineupCaptureRankingStabilityEvidenceCli {
         System.out.println("Policy: " + report.policyId());
         System.out.println("Sensitivity policy: " + report.sensitivityPolicy());
         System.out.println("Baseline ranking policy: " + baseline.policyId());
+        System.out.println("Source scoring lane selector: " + source.scoringLaneSelectionPolicyId());
+        System.out.println("Source scoring lane: " + source.scoringLane());
+        System.out.println("Source scoring policy: " + source.scoringPolicyId());
         System.out.println("Baseline ranking state: " + baseline.rankingState());
         System.out.println("Minimum common-week floor for baseline rank: " + baseline.minimumCommonWeeks());
         System.out.println("Minimum common-week floor for leave-one-week-out stability: "
