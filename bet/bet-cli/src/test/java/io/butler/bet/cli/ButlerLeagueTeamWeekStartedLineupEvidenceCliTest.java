@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.CoveredProductionScoringPolicy;
+import io.butler.bet.intelligence.HistoricalScoringLaneSelector;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekPotentialLineupCoverageAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamWeekStartedLineupEvidenceAnalyzer;
@@ -54,9 +55,11 @@ class ButlerLeagueTeamWeekStartedLineupEvidenceCliTest {
             "p1",
             AS_OF,
             List.of("QB"),
+            HistoricalScoringLaneSelector.Lane.NFLVERSE_EXACT,
             LeagueTeamWeekPotentialLineupCoverageAnalyzer.ProductionState.IDENTITY_COVERED_ZERO,
             null,
             AS_OF,
+            null,
             null,
             BigDecimal.ZERO);
         var report = new LeagueTeamWeekStartedLineupEvidenceAnalyzer.StartedLineupReport(
