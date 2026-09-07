@@ -64,6 +64,9 @@ public final class ButlerLeagueSeasonLineupCaptureRankingSensitivityClassificati
         System.out.println("Policy: " + report.policyId());
         System.out.println("Classification policy: " + report.classificationPolicy());
         System.out.println("Source stability policy: " + stability.policyId());
+        System.out.println("Source scoring lane selector: " + common.scoringLaneSelectionPolicyId());
+        System.out.println("Source scoring lane: " + common.scoringLane());
+        System.out.println("Source scoring policy: " + common.scoringPolicyId());
         System.out.println("Source stability state: " + stability.stabilityState());
         System.out.println("Baseline ranking state: " + baseline.rankingState());
         System.out.println("Baseline common comparable weeks: " + common.commonComparableWeeks());
