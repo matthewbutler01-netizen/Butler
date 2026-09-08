@@ -5,22 +5,24 @@ import io.butler.bet.sleeper.SleeperLiveWaiverFinalRecommendationBundle;
 
 import java.nio.file.Path;
 
-/** One-command BF-618 through BF-620 final live waiver recommendation surface. */
+/** One-command BF-618 through BF-620 final recommendation, gated by BF-623 personalized identity proof. */
 public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
     private ButlerSleeperLiveWaiverFinalRecommendationBundleCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1
+                || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverFinalRecommendationBundle <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverFinalRecommendationBundle <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverFinalRecommendationBundle(database)
-                .run(args[0].trim(), args[1].trim()));
+                .run(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -29,7 +31,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
 
     static void print(SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport report) {
         System.out.println("Sleeper 2026 governed live waiver FINAL recommendation bundle (BF-618 through BF-620)");
-        System.out.println("Butler league / exact owner: " + report.leagueId() + " / " + report.sleeperOwnerId());
+        System.out.println("Butler league / BF-623 verified owner: " + report.leagueId() + " / " + report.sleeperOwnerId());
         System.out.println("Sleeper league / target roster: " + report.sleeperLeagueId() + " / " + report.rosterId());
         System.out.println("BF-603 market / BF-602 waiver snapshot: " + report.marketSnapshotId() + " / " + report.waiverSnapshotId());
         System.out.println("Final live provider season/status/leg: " + report.providerSeason() + "/"
@@ -83,7 +85,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
             }
         }
         System.out.println();
-        System.out.println("Boundary: this is a read-only Butler add/drop recommendation. It does not submit a Sleeper transaction, set a FAAB bid, claim confidence/probability, or use market attention/depth/injury as a hidden numerical tiebreaker.");
+        System.out.println("Boundary: this is a read-only Butler add/drop recommendation emitted only after BF-623 re-verifies the persisted requesting-user account+league+roster binding. It does not submit a Sleeper transaction, set a FAAB bid, claim confidence/probability, or use market attention/depth/injury as a hidden numerical tiebreaker.");
     }
 
     private static String player(SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer value) {
