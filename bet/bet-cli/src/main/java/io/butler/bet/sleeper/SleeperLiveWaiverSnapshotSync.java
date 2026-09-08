@@ -12,7 +12,6 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -130,14 +129,14 @@ public final class SleeperLiveWaiverSnapshotSync {
 
         return new SyncReport(
             POLICY_ID, ELIGIBILITY_POLICY_ID, snapshotId, normalizedLeagueId, proof.sleeperLeagueId(),
-            proof.observedAtUtc().toString(), lineupSlots, List.copyOf(eligiblePositions),
+            proof.observedAtUtc().toString(), lineupSlots, eligiblePositions.stream().toList(),
             counts.total(), proof.currentRosterPlayerIdentities(), counts.rostered(), rosteredAbsentActive.size(),
-            counts.freeAgents(), counts.eligibleFreeAgents(), Map.copyOf(reasons), eligibleExamples,
+            counts.freeAgents(), counts.eligibleFreeAgents(), reasons, eligibleExamples,
             canonicalPlayersBefore, canonicalPlayersAfter, repository.snapshotCountForLeague(normalizedLeagueId));
     }
 
     static Set<String> eligiblePositions(List<String> slots) {
-        Set<String> positions = new LinkedHashSet<>();
+        Set<String> positions = new TreeSet<>();
         for (String raw : slots) {
             if (raw == null || raw.isBlank()) continue;
             String slot = raw.trim().toUpperCase();
@@ -151,7 +150,7 @@ public final class SleeperLiveWaiverSnapshotSync {
                 default -> positions.add(slot);
             }
         }
-        return Set.copyOf(positions);
+        return java.util.Collections.unmodifiableSet(positions);
     }
 
     private static Eligibility eligibility(PlayerObservation player, boolean rostered, Set<String> eligiblePositions) {
@@ -273,8 +272,10 @@ public final class SleeperLiveWaiverSnapshotSync {
         Map<String, Integer> eligibilityReasons, List<String> eligibleExamples,
         int canonicalPlayersBefore, int canonicalPlayersAfter, int snapshotCountForLeague) {
         public SyncReport {
-            lineupSlots = List.copyOf(lineupSlots); eligiblePositions = List.copyOf(eligiblePositions);
-            eligibilityReasons = Map.copyOf(eligibilityReasons); eligibleExamples = List.copyOf(eligibleExamples);
+            lineupSlots = List.copyOf(lineupSlots);
+            eligiblePositions = eligiblePositions.stream().sorted().toList();
+            eligibilityReasons = java.util.Collections.unmodifiableMap(new TreeMap<>(eligibilityReasons));
+            eligibleExamples = List.copyOf(eligibleExamples);
         }
     }
 }
