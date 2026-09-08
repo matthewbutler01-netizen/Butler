@@ -9,10 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
 
     @Test
-    void actionableAndLatestEvidenceRendersCurrentExactPersistedPlayerIdentities() throws Exception {
+    void actionableAndLatestEvidenceRemainsCurrentWithRawAgeTelemetry() throws Exception {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED));
+            evidence,
+            telemetry(evidence, "audit", 999999L, 1000000L, 1000001L));
 
         var report = service.summarize(target());
 
@@ -26,29 +29,39 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             report.bf629State());
         assertEquals(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED,
             report.bf631State());
+        assertEquals(SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.EVIDENCE_AGE_REPORTED,
+            report.bf633State());
+        assertEquals(999999L, report.auditAgeSeconds());
+        assertEquals(1000000L, report.latestMarketAgeSeconds());
+        assertEquals(1000001L, report.latestWaiverAgeSeconds());
     }
 
     @Test
-    void staleLiveRosterStateIsRetainedOnlyAsDoNotActTraceability() throws Exception {
+    void staleLiveRosterStateRemainsDoNotActWithTelemetry() throws Exception {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.ADD_NO_LONGER_AVAILABLE),
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED));
+            evidence,
+            telemetry(evidence, "audit", 100L, 200L, 300L));
 
         var report = service.summarize(target());
 
         assertEquals(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT,
             report.state());
-        assertEquals("Jauan Jennings", report.addPlayer().displayName());
-        assertEquals("Isaiah Bond", report.dropPlayer().displayName());
         assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.ADD_NO_LONGER_AVAILABLE,
             report.bf629State());
+        assertEquals(100L, report.auditAgeSeconds());
     }
 
     @Test
-    void liveActionableButMarketLineageSupersededIsDoNotAct() throws Exception {
+    void supersededMarketLineageRemainsDoNotActAndTelemetryCannotOverride() throws Exception {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.MARKET_LINEAGE_SUPERSEDED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.MARKET_LINEAGE_SUPERSEDED));
+            evidence,
+            telemetry(evidence, "audit", 1L, 1L, 1L));
 
         var report = service.summarize(target());
 
@@ -59,10 +72,13 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
     }
 
     @Test
-    void liveActionableButWaiverLineageSupersededIsDoNotAct() throws Exception {
+    void supersededWaiverLineageRemainsDoNotActAndTelemetryCannotOverride() throws Exception {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.WAIVER_LINEAGE_SUPERSEDED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.WAIVER_LINEAGE_SUPERSEDED));
+            evidence,
+            telemetry(evidence, "audit", 1L, 1L, 1L));
 
         var report = service.summarize(target());
 
@@ -73,26 +89,14 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
     }
 
     @Test
-    void liveActionableButBothEvidenceLineagesSupersededIsDoNotAct() throws Exception {
-        var service = service(
-            actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.MARKET_AND_WAIVER_LINEAGE_SUPERSEDED));
-
-        var report = service.summarize(target());
-
-        assertEquals(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT,
-            report.state());
-    }
-
-    @Test
-    void emptyAuditHistoryIsAValidNoDecisionSummaryWhenBothGatesAgree() throws Exception {
+    void emptyAuditHistoryIsValidAndDoesNotInventAges() throws Exception {
         var actionability = new SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport(
             SleeperLiveWaiverRecommendationActionabilityRevalidation.POLICY_ID,
             "league", "owner", "sleeperLeague", 6,
             null, null, null, null, null, null, null, 0,
             SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_AUDITED_DECISION);
         var evidence = noAuditEvidence();
-        var service = service(actionability, evidence);
+        var service = service(actionability, evidence, noAuditTelemetry());
 
         var report = service.summarize(target());
 
@@ -100,20 +104,24 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             report.state());
         assertNull(report.addPlayer());
         assertNull(report.dropPlayer());
-        assertEquals(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.NO_AUDITED_DECISION,
-            report.bf631State());
+        assertNull(report.auditAgeSeconds());
+        assertNull(report.latestMarketAgeSeconds());
+        assertNull(report.latestWaiverAgeSeconds());
+        assertEquals(SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.NO_AUDITED_DECISION,
+            report.bf633State());
     }
 
     @Test
-    void auditedNoTransactionIsAValidNoActionSummaryWhenAuditIdentityReconciles() throws Exception {
+    void auditedNoTransactionRemainsValidWithReconciledTelemetry() throws Exception {
         var actionability = new SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport(
             SleeperLiveWaiverRecommendationActionabilityRevalidation.POLICY_ID,
             "league", "owner", "sleeperLeague", 6,
             "audit", "2026-09-08T09:53:19Z", "NO_GOVERNED_TRANSACTION",
             null, null, null, null, 0,
             SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_TRANSACTION_TO_REVALIDATE);
-        var service = service(actionability,
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED));
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var service = service(actionability, evidence, telemetry(evidence, "audit", 10L, 20L, 30L));
 
         var report = service.summarize(target());
 
@@ -121,15 +129,19 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             report.state());
         assertNull(report.addPlayer());
         assertNull(report.dropPlayer());
+        assertEquals(10L, report.auditAgeSeconds());
     }
 
     @Test
     void missingExactPersistedPlayerIdentityFailsClosed() {
         var revalidation = actionability(
             SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED);
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
         var service = new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> revalidation,
-            ignored -> evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED),
+            ignored -> evidence,
+            ignored -> telemetry(evidence, "audit", 10L, 20L, 30L),
             sleeperId -> "12503".equals(sleeperId)
                 ? new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "12503", "Isaiah Bond", "WR", "CLE")
@@ -149,8 +161,9 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             "audit", "2026-09-08T09:53:19Z", "RECOMMEND_ADD_DROP",
             "7049", "12503", null, 6, 12,
             SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED);
-        var service = service(mismatch,
-            evidence(SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED));
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var service = service(mismatch, evidence, telemetry(evidence, "audit", 10L, 20L, 30L));
 
         var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
 
@@ -168,7 +181,8 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            mismatch);
+            mismatch,
+            telemetry(mismatch, "audit", 10L, 20L, 30L));
 
         var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
 
@@ -177,28 +191,72 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
     }
 
     @Test
-    void mismatchedLatestAuditIdentityAcrossBf629AndBf631FailsClosed() {
-        var mismatch = new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport(
-            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.POLICY_ID,
-            "league", "owner", "sleeperLeague", 6,
-            "different-audit", "2026-09-08T09:53:19Z", "market", "waiver",
-            "market", "2026-09-08T08:10:17Z", "waiver", "waiver", "2026-09-08T08:10:00Z",
+    void mismatchedBf633TargetIdentityFailsClosed() {
+        var evidence = evidence(
             SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var mismatch = new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport(
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.POLICY_ID,
+            "otherLeague", "owner", "sleeperLeague", 6,
+            "2026-09-08T17:30:00Z", "audit", 10L,
+            "2026-09-08T08:10:17Z", 20L,
+            "2026-09-08T08:10:00Z", 30L,
+            evidence.state(),
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.EVIDENCE_AGE_REPORTED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
+            evidence,
             mismatch);
 
         var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
 
-        assertEquals("BF-632 BLOCKED: BF-629/BF-631 latest audit identity does not reconcile",
+        assertEquals("BF-634 BLOCKED: BF-633 telemetry does not reconcile to BF-623 target",
             error.getMessage());
     }
 
     @Test
-    void disagreementOnWhetherAuditExistsFailsClosed() {
+    void mismatchedBf633AuditIdentityFailsClosed() {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
         var service = service(
             actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
-            noAuditEvidence());
+            evidence,
+            telemetry(evidence, "different-audit", 10L, 20L, 30L));
+
+        var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
+
+        assertEquals("BF-634 BLOCKED: BF-633 latest audit identity does not reconcile to BF-629/BF-631",
+            error.getMessage());
+    }
+
+    @Test
+    void mismatchedBf633LineageStateFailsClosed() {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var telemetry = new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport(
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.POLICY_ID,
+            "league", "owner", "sleeperLeague", 6,
+            "2026-09-08T17:30:00Z", "audit", 10L,
+            "2026-09-08T08:10:17Z", 20L,
+            "2026-09-08T08:10:00Z", 30L,
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.MARKET_LINEAGE_SUPERSEDED,
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.EVIDENCE_AGE_REPORTED);
+        var service = service(
+            actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
+            evidence,
+            telemetry);
+
+        var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
+
+        assertEquals("BF-634 BLOCKED: BF-633 telemetry does not preserve the BF-631 evidence-lineage state",
+            error.getMessage());
+    }
+
+    @Test
+    void disagreementOnWhetherAuditExistsFailsClosedBeforeTelemetry() {
+        var service = service(
+            actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED),
+            noAuditEvidence(),
+            noAuditTelemetry());
 
         var error = assertThrows(IllegalStateException.class, () -> service.summarize(target()));
 
@@ -208,10 +266,12 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
 
     private static SleeperLiveWaiverLatestGovernedDecisionSummary service(
         SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport revalidation,
-        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport evidence) {
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport evidence,
+        SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport telemetry) {
         return new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> revalidation,
             ignored -> evidence,
+            ignored -> telemetry,
             sleeperId -> switch (sleeperId) {
                 case "7049" -> new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "7049", "Jauan Jennings", "WR", "MIN");
@@ -257,6 +317,36 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
             "league", "owner", "sleeperLeague", 6,
             null, null, null, null, null, null, null, null, null,
             SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.NO_AUDITED_DECISION);
+    }
+
+    private static SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport telemetry(
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport evidence,
+        String auditId,
+        long auditAge,
+        long marketAge,
+        long waiverAge) {
+        return new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport(
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.POLICY_ID,
+            "league", "owner", "sleeperLeague", 6,
+            "2026-09-08T17:30:00Z",
+            auditId,
+            auditAge,
+            "2026-09-08T08:10:17Z",
+            marketAge,
+            "2026-09-08T08:10:00Z",
+            waiverAge,
+            evidence.state(),
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.EVIDENCE_AGE_REPORTED);
+    }
+
+    private static SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport noAuditTelemetry() {
+        return new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport(
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.POLICY_ID,
+            "league", "owner", "sleeperLeague", 6,
+            "2026-09-08T17:30:00Z",
+            null, null, null, null, null, null,
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.NO_AUDITED_DECISION,
+            SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.NO_AUDITED_DECISION);
     }
 
     private static SleeperPersonalizedTargetService.VerifiedTarget target() {

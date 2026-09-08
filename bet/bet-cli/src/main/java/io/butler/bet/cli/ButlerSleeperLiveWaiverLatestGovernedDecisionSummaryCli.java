@@ -5,7 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 
 import java.nio.file.Path;
 
-/** BF-630/BF-632 compact read-only operator view of the latest governed waiver decision. */
+/** BF-630/BF-632/BF-634 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
@@ -28,7 +28,7 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     }
 
     static void print(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
-        System.out.println("BF-630/BF-632 - compact latest governed waiver decision");
+        System.out.println("BF-630/BF-632/BF-634 - compact latest governed waiver decision");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Target: " + report.leagueName() + " | " + value(report.teamName())
             + " | roster " + report.rosterId());
@@ -36,6 +36,15 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
         System.out.println("Decision status: " + report.state());
         System.out.println("BF-629 live actionability: " + report.bf629State());
         System.out.println("BF-631 evidence lineage: " + report.bf631State());
+        System.out.println("BF-633 age telemetry: " + report.bf633State());
+        System.out.println("Telemetry observed at UTC: " + value(report.telemetryObservedAtUtc()));
+        if (report.auditAgeSeconds() != null) {
+            System.out.println("Audit age seconds: " + report.auditAgeSeconds());
+            System.out.println("Latest BF-603 observed / age seconds: "
+                + value(report.latestMarketObservedAtUtc()) + " / " + value(report.latestMarketAgeSeconds()));
+            System.out.println("Latest BF-602 observed / age seconds: "
+                + value(report.latestWaiverObservedAtUtc()) + " / " + value(report.latestWaiverAgeSeconds()));
+        }
 
         if (report.addPlayer() != null && report.dropPlayer() != null) {
             System.out.println("ADD:  " + player(report.addPlayer()));
@@ -48,11 +57,11 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             System.out.println("Operator guard: STALE_DO_NOT_ACT - the audited move is retained only for traceability.");
         } else if (report.state()
             == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.CURRENT_AND_ACTIONABLE) {
-            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are both verified; this remains read-only status, not transaction execution.");
+            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are both verified. BF-633 age is displayed only and does not apply a freshness threshold; this remains read-only status, not transaction execution.");
         }
 
         System.out.println();
-        System.out.println("Boundary: BF-630/BF-632 only presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage freshness checks. It does not rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+        System.out.println("Boundary: BF-630/BF-632/BF-634 presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry. BF-633 age does not change decision status. This command does not rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
     }
 
     private static String player(SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay player) {
