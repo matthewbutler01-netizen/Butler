@@ -283,3 +283,10 @@ val sleeperLiveWaiverComparisonBundle by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli")
 }
+
+val sleeperLiveWaiverFinalRecommendationBundle by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-618 through BF-620 strict final live waiver add/drop recommendation with freshness verification."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli")
+}
