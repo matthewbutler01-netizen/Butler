@@ -16,13 +16,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCliTest {
 
     @Test
-    void parsesExactLeagueAndOwner() {
+    void parsesOnlyButlerLeagueBecauseOwnerComesFromVerifiedBinding() {
         var parsed = ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli.parse(
-            new String[] {" league-1 ", " owner-1 "});
+            new String[] {" league-1 "});
         assertEquals("league-1", parsed.leagueId());
-        assertEquals("owner-1", parsed.ownerId());
         assertThrows(IllegalArgumentException.class,
-            () -> ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli.parse(new String[] {"league-1"}));
+            () -> ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli.parse(
+                new String[] {"league-1", "owner-1"}));
     }
 
     @Test
@@ -46,6 +46,7 @@ class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCliTest {
         assertTrue(output.contains("Target-roster production hydration state: HYDRATED_VERIFIED"));
         assertTrue(output.contains("evidence gap"));
         assertTrue(output.contains("not zero production"));
+        assertTrue(output.contains("BF-623 verified target Sleeper owner: owner-1"));
         String lower = output.toLowerCase();
         assertFalse(lower.contains("recommended add:"));
         assertFalse(lower.contains("recommended drop:"));
