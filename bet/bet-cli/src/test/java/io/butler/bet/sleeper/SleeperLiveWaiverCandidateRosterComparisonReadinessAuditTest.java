@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SleeperLiveWaiverCandidateRosterComparisonReadinessAuditTest {
 
     @Test
-    void exactAlignedFramesAuthorizeComparisonMethodologyAndRetainMissingRosterProduction() {
+    void exactAlignedFramesAuthorizeComparisonMethodologyAndRetainMissingRosterProduction() throws Exception {
         var report = subject(candidateFrame("market-1"), rosterFrame("market-1"))
             .audit("league-1", "owner-1");
 
