@@ -5,7 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverFinalRecommendationBundle;
 
 import java.nio.file.Path;
 
-/** One-command BF-618 through BF-620 final recommendation, gated by BF-623 personalized identity proof. */
+/** BF-618 through BF-620 final recommendation plus BF-624 cross-position selection, gated by BF-623 identity proof. */
 public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
     private ButlerSleeperLiveWaiverFinalRecommendationBundleCli() {}
 
@@ -30,7 +30,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
     }
 
     static void print(SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport report) {
-        System.out.println("Sleeper 2026 governed live waiver FINAL recommendation bundle (BF-618 through BF-620)");
+        System.out.println("Sleeper 2026 governed live waiver FINAL recommendation bundle (BF-618 through BF-620 + BF-624)");
         System.out.println("Butler league / BF-623 verified owner: " + report.leagueId() + " / " + report.sleeperOwnerId());
         System.out.println("Sleeper league / target roster: " + report.sleeperLeagueId() + " / " + report.rosterId());
         System.out.println("BF-603 market / BF-602 waiver snapshot: " + report.marketSnapshotId() + " / " + report.waiverSnapshotId());
@@ -46,13 +46,14 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
         System.out.println("Add rule: " + report.methodology().addWinnerRule());
         System.out.println("Evidence rule: " + report.methodology().evidenceRule());
         System.out.println("Cross-position rule: " + report.methodology().crossPositionRule());
+        System.out.println("BF-624 policy: " + SleeperLiveWaiverFinalRecommendationBundle.BF624_POLICY_ID);
         System.out.println("Newcomer rule: " + report.methodology().newcomerRule());
         System.out.println("Drop rule: " + report.methodology().dropRule());
         System.out.println("Protected-target rule: " + report.methodology().protectedTargetRule());
         System.out.println("BF-618 state: " + report.methodology().state());
         System.out.println();
 
-        System.out.println("BF-619 — exact add/drop selection");
+        System.out.println("BF-619/BF-624 — exact add/drop selection");
         System.out.println("Selection state: " + report.selection().state());
         System.out.println("Direct governed comparisons evaluated: " + report.selection().directComparisons().size());
         if (report.selection().selectedAdd() != null) {
@@ -70,10 +71,14 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
                 + " (Sleeper " + report.recommendedAdd().sleeperPlayerId() + ")"
                 + " / DROP " + report.recommendedDrop().displayName()
                 + " (Sleeper " + report.recommendedDrop().sleeperPlayerId() + ")");
-            System.out.println("Reason: the add is the unique historical finalist directionally supported over every other historical finalist under the frozen BF-614 evidence method, and the drop is the unique weakest production-backed exact-position BENCH/RESERVE comparator already directionally supported for replacement by BF-615.");
+            if (report.methodology().historicalFinalistPositions().size() > 1) {
+                System.out.println("Reason: BF-624 produced the unique complete add/drop transaction whose governed supported-subtotal-per-game improvement is strictly greater on every compatible common evidence source. No position preference or hidden market/depth/injury tiebreaker was used.");
+            } else {
+                System.out.println("Reason: the add is the unique historical finalist directionally supported over every other same-position historical finalist under the frozen BF-614 evidence method, and the drop is the unique weakest production-backed exact-position BENCH/RESERVE comparator already directionally supported for replacement by BF-615.");
+            }
         } else {
             System.out.println("BUTLER RECOMMENDATION: NO GOVERNED TRANSACTION YET");
-            System.out.println("Reason: the frozen final method did not produce one unique evidence-supported add/drop pair. Butler will not manufacture a tiebreaker.");
+            System.out.println("Reason: the governed final method did not produce one unique evidence-supported add/drop pair. Cross-position ties or incompatible evidence remain unresolved; Butler will not manufacture a tiebreaker.");
         }
 
         System.out.println("Newcomer-review alternatives remain nonnumeric and are NOT ranked against the recommendation:");
@@ -85,7 +90,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
             }
         }
         System.out.println();
-        System.out.println("Boundary: this is a read-only Butler add/drop recommendation emitted only after BF-623 re-verifies the persisted requesting-user account+league+roster binding. It does not submit a Sleeper transaction, set a FAAB bid, claim confidence/probability, or use market attention/depth/injury as a hidden numerical tiebreaker.");
+        System.out.println("Boundary: this is a read-only Butler add/drop recommendation emitted only after BF-623 re-verifies the persisted requesting-user account+league+roster binding. It does not submit a Sleeper transaction, set a FAAB bid, claim confidence/probability, or use position preference, market attention, depth, injury, names, or deterministic IDs as hidden football-value tiebreakers.");
     }
 
     private static String player(SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer value) {

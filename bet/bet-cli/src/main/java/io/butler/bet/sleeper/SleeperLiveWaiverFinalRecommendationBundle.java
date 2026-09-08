@@ -18,14 +18,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** BF-618 through BF-620 strict read-only final live waiver selection and recommendation bundle. */
+/** BF-618 through BF-620 final recommendation plus BF-624 governed cross-position transaction selection. */
 public final class SleeperLiveWaiverFinalRecommendationBundle {
     public static final String BF618_POLICY_ID =
-        "sleeper-live-waiver-final-selection-method-v1-bf617-strict-direct-dominance-no-scalar-rank";
+        "sleeper-live-waiver-final-selection-method-v2-bf624-cross-position-transaction-improvement";
     public static final String BF619_POLICY_ID =
-        "sleeper-live-waiver-final-add-drop-selection-v1-unique-historical-add-unique-supported-drop";
+        "sleeper-live-waiver-final-add-drop-selection-v2-bf624-cross-position-transaction-improvement";
     public static final String BF620_POLICY_ID =
         "sleeper-live-waiver-final-recommendation-v1-live-bf610-and-bf602-membership-reverified-read-only";
+    public static final String BF624_POLICY_ID =
+        "sleeper-live-waiver-cross-position-transaction-improvement-v1-compatible-source-schema-strict-delta-dominance";
     private static final int PRODUCTION_SEASON = 2025;
 
     private final Database database;
@@ -105,9 +107,9 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             historical.size(),
             bundle.shortlist().newcomerShortlistCount(),
             List.copyOf(positions),
-            "HISTORICAL_FINALISTS_DIRECT_ALL_OPPONENTS_DOMINANCE",
+            "HISTORICAL_FINALISTS_DIRECT_ALL_OPPONENTS_DOMINANCE_WITHIN_POSITION",
             "LATEST_2025_COMMON_SOURCE_SUPPORTED_SUBTOTAL_PER_GAME_SCHEMA_EQUALITY",
-            "NO_CROSS_POSITION_FINAL_WINNER",
+            "BF624_COMPLETE_TRANSACTION_DELTA_STRICT_ALL_COMPATIBLE_COMMON_SOURCE_DOMINANCE",
             "NEWCOMERS_NONNUMERIC_NOT_ELIGIBLE_FOR_FINAL_WINNER",
             "DROP_ONLY_FROM_SELECTED_ADD_BF615_CANDIDATE_SUPPORTED_BENCH_RESERVE_COMPARATORS",
             "PROTECTED_MISSING_PRODUCTION_TARGET_NEVER_DROPPABLE",
@@ -122,8 +124,11 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
         Set<String> positions = new TreeSet<>();
         historical.forEach(value -> positions.add(requireText(value.candidate().position(), "historical finalist position").toUpperCase()));
         if (positions.size() != 1) {
-            return selection(bundle, SelectionState.MULTI_POSITION_HISTORICAL_FINALISTS_UNRESOLVED,
-                null, null, finalistIds(historical), List.of());
+            var crossPosition = new SleeperLiveWaiverCrossPositionTransactionSelector(productionSource)
+                .select(bundle, historical);
+            return selection(
+                bundle, crossPosition.state(), crossPosition.selectedAdd(), crossPosition.selectedDrop(),
+                finalistIds(historical), crossPosition.directComparisons());
         }
 
         List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> addWinners = new ArrayList<>();
@@ -446,7 +451,10 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
         MULTI_POSITION_HISTORICAL_FINALISTS_UNRESOLVED,
         NO_UNIQUE_HISTORICAL_ADD,
         NO_GOVERNED_DROP_FOR_SELECTED_ADD,
-        NO_UNIQUE_GOVERNED_DROP
+        NO_UNIQUE_GOVERNED_DROP,
+        CROSS_POSITION_NO_ACTIONABLE_TRANSACTION,
+        CROSS_POSITION_TRANSACTION_EVIDENCE_INCOMPATIBLE,
+        CROSS_POSITION_TRANSACTION_IMPROVEMENT_UNRESOLVED
     }
 
     public enum RecommendationState { RECOMMEND_ADD_DROP, NO_GOVERNED_TRANSACTION }
