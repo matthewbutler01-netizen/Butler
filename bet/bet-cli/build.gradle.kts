@@ -305,6 +305,13 @@ val sleeperLiveWaiverRecommendationAuditHistory by tasks.registering(JavaExec::c
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditHistoryCli")
 }
 
+val sleeperLiveWaiverRecommendationActionabilityRevalidation by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-629 live roster actionability revalidation of the latest BF-628 integrity-verified governed recommendation audit."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationActionabilityRevalidationCli")
+}
+
 val sleeperPersonalTargetDiscovery by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-621 exact requesting-user Sleeper account, current league, and roster discovery."
