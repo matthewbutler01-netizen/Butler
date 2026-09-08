@@ -8,10 +8,10 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Objects;
 
-/** BF-630 compact presentation tightened by BF-632 currentness, BF-634 age telemetry, and BF-635 warning policy. */
+/** BF-630 compact presentation tightened by BF-632 currentness, BF-634 age telemetry, BF-635 warning policy, and BF-638 transaction lifecycle clarity. */
 public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     public static final String POLICY_ID =
-        "sleeper-live-waiver-latest-governed-decision-summary-v4-bf623-bf628-bf629-bf631-bf633-bf635-six-hour-warning-only";
+        "sleeper-live-waiver-latest-governed-decision-summary-v5-bf623-bf628-bf629-bf631-bf633-bf635-bf638-transaction-lifecycle";
     public static final long REFRESH_WARNING_THRESHOLD_SECONDS = 6L * 60L * 60L;
 
     private final RevalidationSource revalidationSource;
@@ -72,13 +72,23 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         PlayerDisplay add = requirePlayer(addId, "add");
         PlayerDisplay drop = requirePlayer(dropId, "drop");
 
-        boolean liveActionable = revalidation.state()
-            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
         boolean latestEvidence = evidenceLineage.state()
             == SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED;
+        boolean liveActionable = revalidation.state()
+            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
+        boolean transactionComplete = revalidation.state()
+            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_COMPLETE;
+        boolean transactionPending = revalidation.state()
+            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_PENDING;
 
         SummaryState state;
-        if (!liveActionable || !latestEvidence) {
+        if (!latestEvidence) {
+            state = SummaryState.STALE_DO_NOT_ACT;
+        } else if (transactionComplete) {
+            state = SummaryState.TRANSACTION_ALREADY_COMPLETE;
+        } else if (transactionPending) {
+            state = SummaryState.TRANSACTION_PENDING_DO_NOT_DUPLICATE;
+        } else if (!liveActionable) {
             state = SummaryState.STALE_DO_NOT_ACT;
         } else if (refreshWarningTriggered(evidenceAge)) {
             state = SummaryState.CURRENT_REFRESH_RECOMMENDED;
@@ -299,6 +309,8 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     public enum SummaryState {
         NO_AUDITED_DECISION,
         NO_TRANSACTION_TO_ACT_ON,
+        TRANSACTION_ALREADY_COMPLETE,
+        TRANSACTION_PENDING_DO_NOT_DUPLICATE,
         CURRENT_AND_ACTIONABLE,
         CURRENT_REFRESH_RECOMMENDED,
         STALE_DO_NOT_ACT
@@ -341,7 +353,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         Long latestWaiverAgeSeconds,
         SummaryState state) {
         public SummaryReport {
-            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630/BF-632/BF-634/BF-635 policyId");
+            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630/BF-632/BF-634/BF-635/BF-638 policyId");
             Objects.requireNonNull(bf629State, "bf629State must not be null");
             Objects.requireNonNull(bf631State, "bf631State must not be null");
             Objects.requireNonNull(bf633State, "bf633State must not be null");
