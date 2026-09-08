@@ -8,10 +8,11 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Objects;
 
-/** BF-630 compact presentation tightened by BF-632 currentness and BF-634 raw BF-633 age telemetry. */
+/** BF-630 compact presentation tightened by BF-632 currentness, BF-634 age telemetry, and BF-635 warning policy. */
 public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     public static final String POLICY_ID =
-        "sleeper-live-waiver-latest-governed-decision-summary-v3-bf623-bf628-bf629-bf631-bf633-read-only-no-age-threshold";
+        "sleeper-live-waiver-latest-governed-decision-summary-v4-bf623-bf628-bf629-bf631-bf633-bf635-six-hour-warning-only";
+    public static final long REFRESH_WARNING_THRESHOLD_SECONDS = 6L * 60L * 60L;
 
     private final RevalidationSource revalidationSource;
     private final EvidenceLineageSource evidenceLineageSource;
@@ -75,10 +76,22 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
             == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
         boolean latestEvidence = evidenceLineage.state()
             == SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED;
-        SummaryState state = liveActionable && latestEvidence
-            ? SummaryState.CURRENT_AND_ACTIONABLE
-            : SummaryState.STALE_DO_NOT_ACT;
+
+        SummaryState state;
+        if (!liveActionable || !latestEvidence) {
+            state = SummaryState.STALE_DO_NOT_ACT;
+        } else if (refreshWarningTriggered(evidenceAge)) {
+            state = SummaryState.CURRENT_REFRESH_RECOMMENDED;
+        } else {
+            state = SummaryState.CURRENT_AND_ACTIONABLE;
+        }
         return report(target, revalidation, evidenceLineage, evidenceAge, state, add, drop);
+    }
+
+    private static boolean refreshWarningTriggered(
+        SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport evidenceAge) {
+        return evidenceAge.latestMarketAgeSeconds() > REFRESH_WARNING_THRESHOLD_SECONDS
+            || evidenceAge.latestWaiverAgeSeconds() > REFRESH_WARNING_THRESHOLD_SECONDS;
     }
 
     private PlayerDisplay requirePlayer(String sleeperId, String role) throws SQLException {
@@ -287,6 +300,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         NO_AUDITED_DECISION,
         NO_TRANSACTION_TO_ACT_ON,
         CURRENT_AND_ACTIONABLE,
+        CURRENT_REFRESH_RECOMMENDED,
         STALE_DO_NOT_ACT
     }
 
@@ -327,7 +341,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         Long latestWaiverAgeSeconds,
         SummaryState state) {
         public SummaryReport {
-            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630/BF-632/BF-634 policyId");
+            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630/BF-632/BF-634/BF-635 policyId");
             Objects.requireNonNull(bf629State, "bf629State must not be null");
             Objects.requireNonNull(bf631State, "bf631State must not be null");
             Objects.requireNonNull(bf633State, "bf633State must not be null");

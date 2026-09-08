@@ -5,7 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 
 import java.nio.file.Path;
 
-/** BF-630/BF-632/BF-634 compact read-only operator view of the latest governed waiver decision. */
+/** BF-630/BF-632/BF-634/BF-635 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
@@ -28,7 +28,7 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     }
 
     static void print(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
-        System.out.println("BF-630/BF-632/BF-634 - compact latest governed waiver decision");
+        System.out.println("BF-630/BF-632/BF-634/BF-635 - compact latest governed waiver decision");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Target: " + report.leagueName() + " | " + value(report.teamName())
             + " | roster " + report.rosterId());
@@ -37,6 +37,8 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
         System.out.println("BF-629 live actionability: " + report.bf629State());
         System.out.println("BF-631 evidence lineage: " + report.bf631State());
         System.out.println("BF-633 age telemetry: " + report.bf633State());
+        System.out.println("BF-635 refresh-warning threshold seconds: "
+            + SleeperLiveWaiverLatestGovernedDecisionSummary.REFRESH_WARNING_THRESHOLD_SECONDS);
         System.out.println("Telemetry observed at UTC: " + value(report.telemetryObservedAtUtc()));
         if (report.auditAgeSeconds() != null) {
             System.out.println("Audit age seconds: " + report.auditAgeSeconds());
@@ -54,14 +56,28 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
         }
 
         if (report.state() == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT) {
-            System.out.println("Operator guard: STALE_DO_NOT_ACT - the audited move is retained only for traceability.");
+            System.out.println("Operator guard: STALE_DO_NOT_ACT - a hard BF-629/BF-631 safety gate failed; the audited move is retained only for traceability.");
+        } else if (report.state()
+            == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.CURRENT_REFRESH_RECOMMENDED) {
+            System.out.println("Refresh trigger: " + refreshTrigger(report));
+            System.out.println("Operator guard: CURRENT_REFRESH_RECOMMENDED - BF-629 live roster actionability and BF-631 latest evidence lineage are verified, but persisted BF-603/BF-602 evidence exceeds the approved 6-hour warning threshold. Refresh is recommended before acting; this warning does not hard-block the transaction and no refresh is executed automatically.");
         } else if (report.state()
             == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.CURRENT_AND_ACTIONABLE) {
-            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are both verified. BF-633 age is displayed only and does not apply a freshness threshold; this remains read-only status, not transaction execution.");
+            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are verified, and BF-603/BF-602 evidence ages are at or below the approved 6-hour warning threshold; this remains read-only status, not transaction execution.");
         }
 
         System.out.println();
-        System.out.println("Boundary: BF-630/BF-632/BF-634 presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry. BF-633 age does not change decision status. This command does not rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+        System.out.println("Boundary: BF-630/BF-632/BF-634/BF-635 presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry and the approved 6-hour warning-only freshness policy. Age alone can recommend refresh but cannot produce STALE_DO_NOT_ACT. This command does not refresh evidence, rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+    }
+
+    private static String refreshTrigger(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
+        long threshold = SleeperLiveWaiverLatestGovernedDecisionSummary.REFRESH_WARNING_THRESHOLD_SECONDS;
+        boolean market = report.latestMarketAgeSeconds() != null && report.latestMarketAgeSeconds() > threshold;
+        boolean waiver = report.latestWaiverAgeSeconds() != null && report.latestWaiverAgeSeconds() > threshold;
+        if (market && waiver) return "BF-603 market and BF-602 waiver evidence exceed 21600 seconds";
+        if (market) return "BF-603 market evidence exceeds 21600 seconds";
+        if (waiver) return "BF-602 waiver evidence exceeds 21600 seconds";
+        return "none";
     }
 
     private static String player(SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay player) {
