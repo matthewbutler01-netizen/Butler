@@ -1,5 +1,7 @@
 package io.butler.bet.sleeper;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.butler.bet.data.Database;
 
 import java.io.IOException;
@@ -12,22 +14,33 @@ import java.util.Objects;
 /** BF-629 read-only live actionability revalidation of the latest BF-628-verified recommendation audit. */
 public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
     public static final String POLICY_ID =
-        "sleeper-live-waiver-recommendation-actionability-v1-bf623-bf628-live-roster-read-only";
+        "sleeper-live-waiver-recommendation-actionability-v2-bf623-bf628-live-roster-and-transaction-read-only";
 
     private final HistorySource historySource;
     private final RosterSource rosterSource;
+    private final TransactionSource transactionSource;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public SleeperLiveWaiverRecommendationActionabilityRevalidation(Database database) {
         this(
             target -> new SleeperLiveWaiverRecommendationAuditHistory(database).inspect(target),
-            leagueId -> new SleeperApiGateway().fetchRosters(leagueId));
+            leagueId -> new SleeperApiGateway().fetchRosters(leagueId),
+            (leagueId, round) -> new SleeperClient().getLeagueTransactions(leagueId, round));
     }
 
     SleeperLiveWaiverRecommendationActionabilityRevalidation(
         HistorySource historySource,
         RosterSource rosterSource) {
+        this(historySource, rosterSource, (leagueId, round) -> "[]");
+    }
+
+    SleeperLiveWaiverRecommendationActionabilityRevalidation(
+        HistorySource historySource,
+        RosterSource rosterSource,
+        TransactionSource transactionSource) {
         this.historySource = Objects.requireNonNull(historySource, "historySource must not be null");
         this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
+        this.transactionSource = Objects.requireNonNull(transactionSource, "transactionSource must not be null");
     }
 
     public RevalidationReport revalidate(SleeperPersonalizedTargetService.VerifiedTarget target)
@@ -50,6 +63,16 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         String dropId = requireText(latest.dropSleeperPlayerId(), "latest dropSleeperPlayerId");
         if (addId.equals(dropId)) {
             throw new IllegalStateException("BF-629 BLOCKED: audited add and drop player ids are identical");
+        }
+
+        TransactionMatch transactionMatch = exactAuditedTransaction(target, latest, addId, dropId);
+        if (transactionMatch == TransactionMatch.COMPLETE) {
+            return report(target, latest, ActionabilityState.AUDITED_TRANSACTION_COMPLETE,
+                addId, dropId, null, null, 0);
+        }
+        if (transactionMatch == TransactionMatch.PENDING) {
+            return report(target, latest, ActionabilityState.AUDITED_TRANSACTION_PENDING,
+                addId, dropId, null, null, 0);
         }
 
         List<SleeperJsonParser.SleeperRoster> rosters = rosterSource.fetch(target.sleeperLeagueId());
@@ -94,6 +117,63 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         else state = ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
 
         return report(target, latest, state, addId, dropId, addRosterId, dropRosterId, rosters.size());
+    }
+
+    private TransactionMatch exactAuditedTransaction(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverRecommendationAuditHistory.HistoryEntry latest,
+        String addId,
+        String dropId) throws IOException, InterruptedException {
+        Integer providerLeg = latest.providerLeg();
+        if (providerLeg == null) return TransactionMatch.NONE;
+        if (providerLeg < 1 || providerLeg > 18) {
+            throw new IllegalStateException("BF-629 BLOCKED: audited provider leg is outside Sleeper transaction rounds: "
+                + providerLeg);
+        }
+
+        String payload = transactionSource.fetch(target.sleeperLeagueId(), providerLeg);
+        if (payload == null || payload.isBlank()) {
+            throw new IllegalStateException("BF-629 BLOCKED: Sleeper transaction payload is blank");
+        }
+        JsonNode root = mapper.readTree(payload);
+        if (root == null || !root.isArray()) {
+            throw new IllegalStateException("BF-629 BLOCKED: Sleeper transaction payload must be an array");
+        }
+
+        boolean pending = false;
+        for (JsonNode transaction : root) {
+            if (transaction == null || !transaction.isObject()) {
+                throw new IllegalStateException("BF-629 BLOCKED: Sleeper transaction row must be an object");
+            }
+            String type = text(transaction.get("type"));
+            if (!"free_agent".equals(type) && !"waiver".equals(type)) continue;
+            if (!exactPlayerRosterMap(transaction.get("adds"), addId, target.rosterId())) continue;
+            if (!exactPlayerRosterMap(transaction.get("drops"), dropId, target.rosterId())) continue;
+            if (!exactRosterIdsIfPresent(transaction.get("roster_ids"), target.rosterId())) continue;
+
+            String status = text(transaction.get("status"));
+            if ("complete".equals(status)) return TransactionMatch.COMPLETE;
+            if ("pending".equals(status)) pending = true;
+        }
+        return pending ? TransactionMatch.PENDING : TransactionMatch.NONE;
+    }
+
+    private static boolean exactPlayerRosterMap(JsonNode node, String playerId, int rosterId) {
+        if (node == null || !node.isObject() || node.size() != 1 || !node.has(playerId)) return false;
+        JsonNode roster = node.get(playerId);
+        return roster != null && roster.canConvertToInt() && roster.intValue() == rosterId;
+    }
+
+    private static boolean exactRosterIdsIfPresent(JsonNode node, int rosterId) {
+        if (node == null || node.isNull()) return true;
+        return node.isArray()
+            && node.size() == 1
+            && node.get(0).canConvertToInt()
+            && node.get(0).intValue() == rosterId;
+    }
+
+    private static String text(JsonNode node) {
+        return node == null || node.isNull() ? null : node.asText(null);
     }
 
     private static RevalidationReport report(
@@ -164,10 +244,19 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
             throws IOException, InterruptedException;
     }
 
+    @FunctionalInterface
+    interface TransactionSource {
+        String fetch(String sleeperLeagueId, int round) throws IOException, InterruptedException;
+    }
+
+    private enum TransactionMatch { NONE, PENDING, COMPLETE }
+
     public enum ActionabilityState {
         NO_AUDITED_DECISION,
         NO_TRANSACTION_TO_REVALIDATE,
         LIVE_ACTIONABLE_VERIFIED,
+        AUDITED_TRANSACTION_PENDING,
+        AUDITED_TRANSACTION_COMPLETE,
         ADD_NO_LONGER_AVAILABLE,
         DROP_NO_LONGER_ON_TARGET_ROSTER,
         ADD_AND_DROP_NO_LONGER_ACTIONABLE

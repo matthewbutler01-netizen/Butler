@@ -28,6 +28,79 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
     }
 
     @Test
+    void completedExactAuditedTransactionOverridesLaggingPreTransactionRosterSurface() throws Exception {
+        var service = service(recommendationHistory(), List.of(
+            roster(2, "other", "300"),
+            roster(6, "owner", "12503", "900")), """
+            [{
+              "transaction_id":"1403115767272087552",
+              "type":"free_agent",
+              "status":"complete",
+              "roster_ids":[6],
+              "adds":{"7049":6},
+              "drops":{"12503":6}
+            }]
+            """);
+
+        var report = service.revalidate(target());
+
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_COMPLETE,
+            report.state());
+        assertEquals(0, report.currentRosterCount());
+        assertEquals("7049", report.addSleeperPlayerId());
+        assertEquals("12503", report.dropSleeperPlayerId());
+    }
+
+    @Test
+    void pendingExactAuditedTransactionFailsClosedAgainstDuplicateSubmission() throws Exception {
+        var service = service(recommendationHistory(), List.of(
+            roster(6, "owner", "12503")), transaction("pending", 6, "7049", "12503"));
+
+        var report = service.revalidate(target());
+
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_PENDING,
+            report.state());
+        assertEquals(0, report.currentRosterCount());
+    }
+
+    @Test
+    void failedExactTransactionDoesNotOverrideCurrentRosterActionability() throws Exception {
+        var service = service(recommendationHistory(), List.of(
+            roster(2, "other", "300"),
+            roster(6, "owner", "12503", "900")), transaction("failed", 6, "7049", "12503"));
+
+        var report = service.revalidate(target());
+
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED,
+            report.state());
+        assertEquals(2, report.currentRosterCount());
+    }
+
+    @Test
+    void unrelatedCompletedTransactionDoesNotOverrideCurrentRosterActionability() throws Exception {
+        var service = service(recommendationHistory(), List.of(
+            roster(2, "other", "300"),
+            roster(6, "owner", "12503", "900")), transaction("complete", 6, "999", "888"));
+
+        var report = service.revalidate(target());
+
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED,
+            report.state());
+    }
+
+    @Test
+    void exactPlayersMappedToWrongRosterDoNotOverrideCurrentRosterActionability() throws Exception {
+        var service = service(recommendationHistory(), List.of(
+            roster(2, "other", "300"),
+            roster(6, "owner", "12503", "900")), transaction("complete", 2, "7049", "12503"));
+
+        var report = service.revalidate(target());
+
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED,
+            report.state());
+    }
+
+    @Test
     void addAlreadyRosteredMakesRecordedMoveStaleWithoutReplacementRecommendation() throws Exception {
         var service = service(recommendationHistory(), List.of(
             roster(2, "other", "7049"),
@@ -120,6 +193,26 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
         return new SleeperLiveWaiverRecommendationActionabilityRevalidation(
             ignored -> history,
             ignored -> rosters);
+    }
+
+    private static SleeperLiveWaiverRecommendationActionabilityRevalidation service(
+        SleeperLiveWaiverRecommendationAuditHistory.HistoryReport history,
+        List<SleeperJsonParser.SleeperRoster> rosters,
+        String transactions) {
+        return new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+            ignored -> history,
+            ignored -> rosters,
+            (leagueId, round) -> {
+                assertEquals("league-sleeper", leagueId);
+                assertEquals(1, round);
+                return transactions;
+            });
+    }
+
+    private static String transaction(String status, int rosterId, String addId, String dropId) {
+        return "[{\"transaction_id\":\"tx-1\",\"type\":\"free_agent\",\"status\":\"" + status
+            + "\",\"roster_ids\":[" + rosterId + "],\"adds\":{\"" + addId + "\":" + rosterId
+            + "},\"drops\":{\"" + dropId + "\":" + rosterId + "}}]";
     }
 
     private static SleeperPersonalizedTargetService.VerifiedTarget target() {
