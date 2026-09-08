@@ -73,10 +73,16 @@ public final class LiveWaiverSnapshotRepository {
                     }
                     statement.executeBatch();
                 }
+                Counts transactionCounts = counts(connection, snapshot.id());
+                if (transactionCounts.total() != snapshot.activeIdentityCount()
+                    || transactionCounts.rostered() != snapshot.activeRosteredIdentityCount()
+                    || transactionCounts.freeAgents() != snapshot.freeAgentIdentityCount()
+                    || transactionCounts.eligibleFreeAgents() != snapshot.leagueEligibleFreeAgentCount()) {
+                    throw new SQLException("BF-602 transactional snapshot reconciliation failed");
+                }
                 connection.commit();
-            } catch (Exception e) {
+            } catch (SQLException | RuntimeException e) {
                 connection.rollback();
-                if (e instanceof SQLException sql) throw sql;
                 throw e;
             }
         }
@@ -86,18 +92,22 @@ public final class LiveWaiverSnapshotRepository {
         String normalized = requireText(snapshotId, "snapshotId");
         try (Connection connection = database.openConnection()) {
             ensureTables(connection);
-            try (var statement = connection.prepareStatement("""
-                SELECT COUNT(*) AS total,
-                    COALESCE(SUM(rostered),0) AS rostered,
-                    COALESCE(SUM(free_agent),0) AS free_agents,
-                    COALESCE(SUM(league_eligible),0) AS eligible
-                FROM live_waiver_snapshot_entries WHERE snapshot_id = ?
-                """)) {
-                statement.setString(1, normalized);
-                try (var rs = statement.executeQuery()) {
-                    if (!rs.next()) return new Counts(0, 0, 0, 0);
-                    return new Counts(rs.getInt("total"), rs.getInt("rostered"), rs.getInt("free_agents"), rs.getInt("eligible"));
-                }
+            return counts(connection, normalized);
+        }
+    }
+
+    private static Counts counts(Connection connection, String snapshotId) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+            SELECT COUNT(*) AS total,
+                COALESCE(SUM(rostered),0) AS rostered,
+                COALESCE(SUM(free_agent),0) AS free_agents,
+                COALESCE(SUM(league_eligible),0) AS eligible
+            FROM live_waiver_snapshot_entries WHERE snapshot_id = ?
+            """)) {
+            statement.setString(1, snapshotId);
+            try (var rs = statement.executeQuery()) {
+                if (!rs.next()) return new Counts(0, 0, 0, 0);
+                return new Counts(rs.getInt("total"), rs.getInt("rostered"), rs.getInt("free_agents"), rs.getInt("eligible"));
             }
         }
     }
