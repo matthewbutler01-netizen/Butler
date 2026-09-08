@@ -5,22 +5,23 @@ import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterProductionComparabilit
 
 import java.nio.file.Path;
 
-/** BF-611 operator surface for read-only target-roster 2025 production comparability. */
+/** BF-611 operator surface, gated by BF-623 exact personalized target verification. */
 public final class ButlerSleeperLiveWaiverTargetRosterProductionComparabilityAuditCli {
     private ButlerSleeperLiveWaiverTargetRosterProductionComparabilityAuditCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverTargetRosterProductionComparabilityAudit <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverTargetRosterProductionComparabilityAudit <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverTargetRosterProductionComparabilityAudit(database)
-                .audit(args[0].trim(), args[1].trim()));
+                .audit(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -37,7 +38,7 @@ public final class ButlerSleeperLiveWaiverTargetRosterProductionComparabilityAud
         System.out.println("Sleeper league: " + report.sleeperLeagueId());
         System.out.println("Provider season/status/leg: " + report.providerSeason() + "/"
             + report.providerStatus() + "/" + value(report.providerLeg()));
-        System.out.println("Exact target Sleeper owner: " + report.sleeperOwnerId());
+        System.out.println("BF-623 verified target Sleeper owner: " + report.sleeperOwnerId());
         System.out.println("Provider owner display/team name: " + value(report.ownerDisplayName())
             + " / " + value(report.ownerTeamName()));
         System.out.println("Exact target roster id: " + report.rosterId());
@@ -79,7 +80,7 @@ public final class ButlerSleeperLiveWaiverTargetRosterProductionComparabilityAud
 
         System.out.println("Target-roster production comparability state: AUDITED_READ_ONLY");
         System.out.println();
-        System.out.println("Boundary: BF-611 measures governed 2025 production evidence coverage for the exact BF-610 target roster so candidate and roster evidence can later be compared symmetrically. Missing 2025 production is an evidence gap, not a negative player grade. BF-611 does not score roster needs, rank players, pair add/drop candidates, recommend a transaction, provide FAAB guidance, or emit value/confidence/probability claims.");
+        System.out.println("Boundary: BF-611 measures governed 2025 production evidence coverage only after BF-623 verifies the persisted requesting-user account+league+roster binding. Missing 2025 production is an evidence gap, not a negative player grade. BF-611 does not score roster needs, rank players, pair add/drop candidates, recommend a transaction, provide FAAB guidance, or emit value/confidence/probability claims.");
     }
 
     private static String value(Object value) {

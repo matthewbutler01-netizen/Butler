@@ -5,22 +5,23 @@ import io.butler.bet.sleeper.SleeperLiveWaiverCandidateRosterComparisonReadiness
 
 import java.nio.file.Path;
 
-/** BF-613 operator surface for candidate-vs-roster comparison readiness. */
+/** BF-613 operator surface, gated by BF-623 exact personalized target verification. */
 public final class ButlerSleeperLiveWaiverCandidateRosterComparisonReadinessAuditCli {
     private ButlerSleeperLiveWaiverCandidateRosterComparisonReadinessAuditCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverCandidateRosterComparisonReadinessAudit <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverCandidateRosterComparisonReadinessAudit <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverCandidateRosterComparisonReadinessAudit(database)
-                .audit(args[0].trim(), args[1].trim()));
+                .audit(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -36,7 +37,7 @@ public final class ButlerSleeperLiveWaiverCandidateRosterComparisonReadinessAudi
         System.out.println("Sleeper league / target roster: " + report.sleeperLeagueId() + " / " + report.rosterId());
         System.out.println("Provider season/status/leg: " + report.providerSeason() + "/"
             + report.providerStatus() + "/" + value(report.providerLeg()));
-        System.out.println("Exact target Sleeper owner: " + report.sleeperOwnerId());
+        System.out.println("BF-623 verified target Sleeper owner: " + report.sleeperOwnerId());
         System.out.println("BF-609 candidates total / reviewable: "
             + report.candidateCount() + "/" + report.reviewableCandidateCount());
         System.out.println("BF-609 blocked CURRENT_TEAM_UNKNOWN / DEPTH_EVIDENCE_MISSING: "
@@ -71,7 +72,7 @@ public final class ButlerSleeperLiveWaiverCandidateRosterComparisonReadinessAudi
 
         System.out.println("Comparison-readiness state: " + report.state());
         System.out.println();
-        System.out.println("Boundary: BF-613 authorizes only the design of a governed candidate-vs-roster comparison methodology. READY_FOR_COMPARISON_METHODOLOGY does not mean any waiver candidate is better than any roster player. BF-613 does not score players or roster needs, select winners, rank waiver candidates, pair adds/drops, recommend transactions, provide FAAB guidance, or emit value/confidence/probability/manager-evaluation claims.");
+        System.out.println("Boundary: BF-613 authorizes only the design of a governed candidate-vs-roster comparison methodology after BF-623 verifies the persisted requesting-user account+league+roster binding. READY_FOR_COMPARISON_METHODOLOGY does not mean any waiver candidate is better than any roster player. BF-613 does not score players or roster needs, select winners, rank waiver candidates, pair adds/drops, recommend transactions, provide FAAB guidance, or emit value/confidence/probability/manager-evaluation claims.");
     }
 
     private static String value(Object value) {

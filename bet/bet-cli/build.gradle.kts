@@ -290,3 +290,17 @@ val sleeperLiveWaiverFinalRecommendationBundle by tasks.registering(JavaExec::cl
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli")
 }
+
+val sleeperPersonalTargetDiscovery by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-621 exact requesting-user Sleeper account, current league, and roster discovery."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperPersonalTargetDiscoveryCli")
+}
+
+val sleeperPersonalTargetBind by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "BF-622 guarded persistence of the exact requesting-user Sleeper account+league+roster target."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperPersonalTargetBindCli")
+}

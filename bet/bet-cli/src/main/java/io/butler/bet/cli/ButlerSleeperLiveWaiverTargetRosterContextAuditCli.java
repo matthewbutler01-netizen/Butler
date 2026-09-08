@@ -5,22 +5,24 @@ import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 
 import java.nio.file.Path;
 
-/** BF-610 operator surface for exact live target-roster waiver decision context. */
+/** BF-610 operator surface, gated by BF-623 exact personalized target verification. */
 public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
     private ButlerSleeperLiveWaiverTargetRosterContextAuditCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1
+                || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverTargetRosterContextAudit <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverTargetRosterContextAudit <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverTargetRosterContextAudit(database)
-                .audit(args[0].trim(), args[1].trim()));
+                .audit(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -36,7 +38,7 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
         System.out.println("Sleeper league: " + report.sleeperLeagueId());
         System.out.println("Provider season/status/leg: " + report.providerSeason() + "/"
             + report.providerStatus() + "/" + value(report.providerLeg()));
-        System.out.println("Exact target Sleeper owner: " + report.sleeperOwnerId());
+        System.out.println("BF-623 verified target Sleeper owner: " + report.sleeperOwnerId());
         System.out.println("Provider owner display/team name: " + value(report.ownerDisplayName())
             + " / " + value(report.ownerTeamName()));
         System.out.println("Exact target roster id: " + report.rosterId());
@@ -68,7 +70,7 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
 
         System.out.println("Target-roster context state: READY_CONTEXT_ONLY");
         System.out.println();
-        System.out.println("Boundary: BF-610 proves exact live target-roster context against the roster-stable BF-603/BF-602 waiver frame. It does not score roster needs, identify a player to drop, rank waiver candidates, recommend an add/drop transaction, provide FAAB guidance, or emit confidence/probability/player-value claims.");
+        System.out.println("Boundary: BF-610 proves exact live target-roster context only after BF-623 verifies the persisted requesting-user account+league+roster binding. It does not score roster needs, identify a player to drop, rank waiver candidates, recommend an add/drop transaction, provide FAAB guidance, or emit confidence/probability/player-value claims.");
     }
 
     private static String value(Object value) {
