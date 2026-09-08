@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,6 +57,31 @@ public final class GovernedRecommendationAuditRepository {
         try (Connection connection = database.openConnection()) {
             ensureTable(connection);
             return findByLineageKey(connection, normalized);
+        }
+    }
+
+    /** BF-628 read-only history access. An absent audit table is a valid empty-history state. */
+    public List<AuditRecord> findAllForLeague(String leagueId) throws SQLException {
+        String normalized = requireText(leagueId, "leagueId");
+        try (Connection connection = database.openConnection()) {
+            if (!auditTableExists(connection)) return List.of();
+            try (var statement = connection.prepareStatement("""
+                SELECT id, lineage_key, capture_policy_id, league_id, sleeper_owner_id,
+                    sleeper_league_id, roster_id, season, provider_status, provider_leg,
+                    market_snapshot_id, waiver_snapshot_id, bf618_policy_id, bf619_policy_id,
+                    bf620_policy_id, bf624_policy_id, selection_state, recommendation_state,
+                    add_sleeper_player_id, drop_sleeper_player_id, captured_at_utc
+                FROM governed_recommendation_audits
+                WHERE league_id = ?
+                ORDER BY captured_at_utc ASC, rowid ASC
+                """)) {
+                statement.setString(1, normalized);
+                try (var rs = statement.executeQuery()) {
+                    List<AuditRecord> records = new ArrayList<>();
+                    while (rs.next()) records.add(map(rs));
+                    return List.copyOf(records);
+                }
+            }
         }
     }
 
@@ -160,6 +187,15 @@ public final class GovernedRecommendationAuditRepository {
             && left.recommendationState().equals(right.recommendationState())
             && Objects.equals(left.addSleeperPlayerId(), right.addSleeperPlayerId())
             && Objects.equals(left.dropSleeperPlayerId(), right.dropSleeperPlayerId());
+    }
+
+    private static boolean auditTableExists(Connection connection) throws SQLException {
+        try (var statement = connection.prepareStatement(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='governed_recommendation_audits'")) {
+            try (var rs = statement.executeQuery()) {
+                return rs.next();
+            }
+        }
     }
 
     private static void ensureTable(Connection connection) throws SQLException {
