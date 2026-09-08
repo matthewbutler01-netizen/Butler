@@ -6,22 +6,24 @@ import io.butler.bet.sleeper.SleeperLiveWaiverComparisonExecutionBundle;
 import java.nio.file.Path;
 import java.util.EnumMap;
 
-/** One-command BF-615 through BF-617 operator surface. */
+/** One-command BF-615 through BF-617 operator surface, gated by BF-623 personalized identity proof. */
 public final class ButlerSleeperLiveWaiverComparisonBundleCli {
     private ButlerSleeperLiveWaiverComparisonBundleCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1
+                || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverComparisonBundle <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverComparisonBundle <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverComparisonExecutionBundle(database)
-                .run(args[0].trim(), args[1].trim()));
+                .run(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -35,7 +37,7 @@ public final class ButlerSleeperLiveWaiverComparisonBundleCli {
         var readiness = report.decisionReadiness();
 
         System.out.println("Sleeper 2026 governed live waiver comparison bundle (BF-615 through BF-617)");
-        System.out.println("Butler league / exact owner: " + comparisons.leagueId() + " / " + comparisons.sleeperOwnerId());
+        System.out.println("Butler league / BF-623 verified owner: " + comparisons.leagueId() + " / " + comparisons.sleeperOwnerId());
         System.out.println("Sleeper league / target roster: " + comparisons.sleeperLeagueId() + " / " + comparisons.rosterId());
         System.out.println("BF-603 market / BF-602 waiver snapshot: " + comparisons.marketSnapshotId()
             + " / " + comparisons.waiverSnapshotId());
@@ -97,7 +99,7 @@ public final class ButlerSleeperLiveWaiverComparisonBundleCli {
             + readiness.shortlistCount() + "/" + readiness.historicalShortlistCount() + "/" + readiness.newcomerShortlistCount());
         System.out.println("BF-617 state: " + readiness.state());
         System.out.println();
-        System.out.println("Boundary: BF-615–617 executes the frozen comparison methodology and constructs the evidence shortlist/readiness surface. It does not rank the shortlist, select a winner, identify a final drop, recommend an add/drop transaction, provide FAAB guidance, or emit confidence/probability/player-value/manager-evaluation claims. Market attention, team/status, injury, and depth remain descriptive only.");
+        System.out.println("Boundary: BF-615–617 executes the frozen comparison methodology only after BF-623 verifies the persisted requesting-user account+league+roster binding. It does not rank the shortlist, select a winner, identify a final drop, recommend an add/drop transaction, provide FAAB guidance, or emit confidence/probability/player-value/manager-evaluation claims. Market attention, team/status, injury, and depth remain descriptive only.");
     }
 
     private static String value(Object value) {
