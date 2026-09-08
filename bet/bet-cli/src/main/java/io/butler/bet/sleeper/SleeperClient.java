@@ -79,6 +79,22 @@ public final class SleeperClient {
         return get("players/nfl?active=true");
     }
 
+    /** Returns Sleeper's read-only trending add/drop frame for a bounded recent observation window. */
+    public String getNflTrendingPlayers(String type, int lookbackHours, int limit) throws IOException, InterruptedException {
+        String normalizedType = type == null ? "" : type.trim().toLowerCase();
+        if (!"add".equals(normalizedType) && !"drop".equals(normalizedType)) {
+            throw new IllegalArgumentException("trending type must be add or drop");
+        }
+        if (lookbackHours <= 0 || lookbackHours > 168) {
+            throw new IllegalArgumentException("lookbackHours must be between 1 and 168");
+        }
+        if (limit <= 0 || limit > 1000) {
+            throw new IllegalArgumentException("limit must be between 1 and 1000");
+        }
+        return get("players/nfl/trending/" + normalizedType
+            + "?lookback_hours=" + lookbackHours + "&limit=" + limit);
+    }
+
     private String get(String relativePath) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(baseUri.resolve(relativePath))
                 .timeout(Duration.ofSeconds(30))
