@@ -2,12 +2,13 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
+import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionNextDecisionPlan;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
 import io.butler.bet.sleeper.SleeperLiveWaiverRecommendationManualRefreshPlan;
 
 import java.nio.file.Path;
 
-/** BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639 compact read-only operator view of the latest governed waiver decision. */
+/** BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639/BF-640 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
@@ -38,7 +39,7 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     static void print(
         SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report,
         SleeperLiveWaiverPostTransactionRosterConvergence.ConvergenceReport convergence) {
-        System.out.println("BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639 - compact latest governed waiver decision");
+        System.out.println("BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639/BF-640 - compact latest governed waiver decision");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Target: " + report.leagueName() + " | " + value(report.teamName())
             + " | roster " + report.rosterId());
@@ -84,9 +85,12 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
 
         printConvergence(convergence);
         printRefreshPlan(SleeperLiveWaiverRecommendationManualRefreshPlan.plan(report));
+        if (convergence != null) {
+            printNextDecisionPlan(SleeperLiveWaiverPostTransactionNextDecisionPlan.plan(report, convergence));
+        }
 
         System.out.println();
-        System.out.println("Boundary: BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639 presents the BF-623/BF-628 audited result after BF-629 transaction-aware live actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry, the approved 6-hour warning-only freshness policy, BF-636 manual refresh instructions when needed, BF-638 explicit completed/pending transaction lifecycle states, and BF-639 read-only post-transaction roster convergence. BF-629/BF-637 may use exact pending/complete Sleeper transaction evidence only to block duplicate action; BF-638 only classifies that read-only result; BF-639 only checks whether the completed add/drop has reached the live roster surface. Butler never submits, cancels, or replaces a transaction here. BF-636 does not execute any refresh step. This command does not refresh evidence, rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+        System.out.println("Boundary: BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639/BF-640 presents the BF-623/BF-628 audited result after BF-629 transaction-aware live actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry, the approved 6-hour warning-only freshness policy, BF-636 manual refresh instructions when needed, BF-638 explicit completed/pending transaction lifecycle states, BF-639 read-only post-transaction roster convergence, and BF-640 manual next-decision instructions only after convergence. BF-629/BF-637 may use exact pending/complete Sleeper transaction evidence only to block duplicate action; BF-638 only classifies that read-only result; BF-639 only checks whether the completed add/drop has reached the live roster surface; BF-640 executes none of its listed steps. Butler never submits, cancels, or replaces a transaction here. This command does not refresh evidence, rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
     }
 
     private static void printConvergence(
@@ -117,6 +121,23 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
         System.out.println("Plan policy: " + plan.policyId());
         System.out.println("Plan state: " + plan.state());
         System.out.println("Operator instruction: run these commands manually, in order, one at a time. BF-636 executes none of them.");
+        for (var step : plan.steps()) {
+            System.out.println("  " + step.order() + ". " + step.bf() + " | " + step.mode() + " | " + step.taskName());
+            System.out.println("     " + step.command());
+            System.out.println("     Purpose: " + step.purpose());
+        }
+    }
+
+    private static void printNextDecisionPlan(
+        SleeperLiveWaiverPostTransactionNextDecisionPlan.PlanReport plan) {
+        if (plan.state() != SleeperLiveWaiverPostTransactionNextDecisionPlan.PlanState.NEXT_DECISION_PLAN_READY) {
+            return;
+        }
+        System.out.println();
+        System.out.println("BF-640 - governed MANUAL next-decision plan");
+        System.out.println("Plan policy: " + plan.policyId());
+        System.out.println("Plan state: " + plan.state());
+        System.out.println("Operator instruction: the prior audited transaction is closed and BF-639 roster convergence is verified. Run these commands manually, in order, one at a time, and inspect each result before running the next. BF-640 executes none of them.");
         for (var step : plan.steps()) {
             System.out.println("  " + step.order() + ". " + step.bf() + " | " + step.mode() + " | " + step.taskName());
             System.out.println("     " + step.command());
