@@ -2,10 +2,11 @@ package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
+import io.butler.bet.sleeper.SleeperLiveWaiverRecommendationManualRefreshPlan;
 
 import java.nio.file.Path;
 
-/** BF-630/BF-632/BF-634/BF-635 compact read-only operator view of the latest governed waiver decision. */
+/** BF-630/BF-632/BF-634/BF-635/BF-636 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
@@ -28,7 +29,7 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     }
 
     static void print(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
-        System.out.println("BF-630/BF-632/BF-634/BF-635 - compact latest governed waiver decision");
+        System.out.println("BF-630/BF-632/BF-634/BF-635/BF-636 - compact latest governed waiver decision");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Target: " + report.leagueName() + " | " + value(report.teamName())
             + " | roster " + report.rosterId());
@@ -66,8 +67,26 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are verified, and BF-603/BF-602 evidence ages are at or below the approved 6-hour warning threshold; this remains read-only status, not transaction execution.");
         }
 
+        printRefreshPlan(SleeperLiveWaiverRecommendationManualRefreshPlan.plan(report));
+
         System.out.println();
-        System.out.println("Boundary: BF-630/BF-632/BF-634/BF-635 presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry and the approved 6-hour warning-only freshness policy. Age alone can recommend refresh but cannot produce STALE_DO_NOT_ACT. This command does not refresh evidence, rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+        System.out.println("Boundary: BF-630/BF-632/BF-634/BF-635/BF-636 presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage checks, with BF-633 raw age telemetry, the approved 6-hour warning-only freshness policy, and BF-636 manual refresh instructions when needed. BF-636 does not execute any refresh step. This command does not refresh evidence, rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
+    }
+
+    private static void printRefreshPlan(SleeperLiveWaiverRecommendationManualRefreshPlan.PlanReport plan) {
+        if (plan.state() != SleeperLiveWaiverRecommendationManualRefreshPlan.PlanState.MANUAL_REFRESH_PLAN_READY) {
+            return;
+        }
+        System.out.println();
+        System.out.println("BF-636 - governed MANUAL refresh plan");
+        System.out.println("Plan policy: " + plan.policyId());
+        System.out.println("Plan state: " + plan.state());
+        System.out.println("Operator instruction: run these commands manually, in order, one at a time. BF-636 executes none of them.");
+        for (var step : plan.steps()) {
+            System.out.println("  " + step.order() + ". " + step.bf() + " | " + step.mode() + " | " + step.taskName());
+            System.out.println("     " + step.command());
+            System.out.println("     Purpose: " + step.purpose());
+        }
     }
 
     private static String refreshTrigger(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
