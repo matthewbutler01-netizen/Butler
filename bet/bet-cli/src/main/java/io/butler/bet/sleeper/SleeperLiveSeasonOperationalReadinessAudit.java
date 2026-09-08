@@ -22,7 +22,7 @@ import java.util.TreeSet;
 /** Read-only BF-595 audit of minimum 2026 live-season Sleeper operational evidence. */
 public final class SleeperLiveSeasonOperationalReadinessAudit {
     public static final String POLICY_ID =
-        "sleeper-live-season-operational-readiness-v1-2026-exact-identities-read-only-fail-closed";
+        "sleeper-live-season-operational-readiness-v2-2026-in-season-populated-rosters-fail-closed";
     public static final int TARGET_SEASON = 2026;
     private static final int UNMAPPED_EXAMPLE_LIMIT = 20;
 
@@ -97,6 +97,9 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
         }
         if (providerLeague.status() == null || providerLeague.status().isBlank()) {
             rosterBlockers.add("Provider league status is missing");
+        } else if (!"in_season".equals(providerLeague.status())) {
+            rosterBlockers.add("Provider league status is " + providerLeague.status()
+                + "; live operational readiness requires in_season");
         }
         if (providerLeague.rosterPositions().isEmpty()) {
             rosterBlockers.add("Provider roster_positions are missing");
@@ -121,6 +124,12 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
         if (!persistedWithoutProviderRoster.isEmpty()) {
             rosterBlockers.add("Persisted Butler team roster ids absent from provider: " + persistedWithoutProviderRoster);
         }
+        long rostersWithoutPlayers = providerRosters.stream()
+            .filter(roster -> roster.playerIds().isEmpty())
+            .count();
+        if (rostersWithoutPlayers > 0) {
+            rosterBlockers.add(rostersWithoutPlayers + " provider roster(s) contain no current player identities");
+        }
         if (!unmappedPlayerIds.isEmpty()) {
             rosterBlockers.add(unmappedPlayerIds.size() + " current roster player identity/identities have no exact Butler mapping");
         }
@@ -136,6 +145,12 @@ public final class SleeperLiveSeasonOperationalReadinessAudit {
             .count();
         if (rostersWithoutStarterSurface > 0) {
             lineupBlockers.add(rostersWithoutStarterSurface + " provider roster(s) have no starters field");
+        }
+        long rostersWithoutStarters = providerRosters.stream()
+            .filter(roster -> roster.starterIds().isEmpty())
+            .count();
+        if (rostersWithoutStarters > 0) {
+            lineupBlockers.add(rostersWithoutStarters + " provider roster(s) contain no starter identities");
         }
 
         List<String> tradeBlockers = new ArrayList<>(rosterBlockers);
