@@ -25,8 +25,11 @@ class ButlerSleeperLiveWaiverPregameEvidenceDossierCliTest {
             "p1", "Example", "WR", 20, 3, 17, "BOTH", "SOURCE_PRESENT",
             "CHI", "Active", "Questionable", "2026-09-06", null, "WR", 2);
         var week = new LiveWaiverCurrentWeekStatRepository.Entry(
-            "p1", "Example", "WR", 20, 3, 17, "BOTH", "SOURCE_ABSENT", null,
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            "p1", "Example", "WR", 20, 3, 17, "BOTH", "SOURCE_ABSENT",
+            null,
+            null, null, null, null, null,
+            null, null, null,
+            null, null, null, null, null);
         var candidate = new SleeperLiveWaiverPregameEvidenceDossier.CandidateDossier(
             market, "b1", List.of(production), availability, week,
             "CURRENT_TEAM_KNOWN", "PROVIDER_STATUS_KNOWN", "INJURY_FLAG_PRESENT",
