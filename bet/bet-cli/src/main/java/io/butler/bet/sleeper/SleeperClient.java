@@ -74,6 +74,11 @@ public final class SleeperClient {
         return get("players/nfl");
     }
 
+    /** Returns Sleeper's broad active NFL player identity map for live waiver/free-agent inventory. */
+    public String getNflActivePlayers() throws IOException, InterruptedException {
+        return get("players/nfl?active=true");
+    }
+
     private String get(String relativePath) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(baseUri.resolve(relativePath))
                 .timeout(Duration.ofSeconds(30))
