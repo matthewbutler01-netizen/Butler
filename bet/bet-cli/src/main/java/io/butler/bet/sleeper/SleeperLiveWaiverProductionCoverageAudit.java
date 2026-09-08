@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +85,7 @@ public final class SleeperLiveWaiverProductionCoverageAudit {
                 unmapped,
                 mappedNoProduction,
                 mappedWithProduction,
-                Map.copyOf(sourceCoverage),
+                Collections.unmodifiableMap(new LinkedHashMap<>(sourceCoverage)),
                 List.copyOf(candidates));
         }
     }
