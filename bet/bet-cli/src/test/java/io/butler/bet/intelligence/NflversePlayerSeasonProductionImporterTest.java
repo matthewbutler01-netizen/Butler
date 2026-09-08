@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,6 +55,49 @@ class NflversePlayerSeasonProductionImporterTest {
 
         assertFalse(result.persisted());
         assertEquals(1, result.matchedPlayers());
+        assertEquals(0, result.snapshotsWritten());
+        assertTrue(new PlayerSeasonProductionRepository(database).findLatest("p1", 2025, "nflverse").isEmpty());
+    }
+
+    @Test
+    void targetedImportNeverWritesOutsideExactSleeperFrame() throws Exception {
+        Database database = initialized();
+        PlayerRepository players = new PlayerRepository(database);
+        players.save(new Player("p1", "1001", "Target Runner", "RB", "STL"));
+        players.save(new Player("p2", "1002", "Outside Receiver", "WR", "KC"));
+        var importer = new NflversePlayerSeasonProductionImporter(database);
+        String stats = statsCsv("00-0000001", 17, 0, 0, 0, 800, 6, 20, 150, 1, 0, 0, 0)
+            + statsCsv("00-0000002", 17, 0, 0, 0, 0, 0, 80, 1100, 9, 0, 0, 0).substring(statsCsv("00-0000002", 17, 0, 0, 0, 0, 0, 80, 1100, 9, 0, 0, 0).indexOf('\n') + 1);
+        String ids = "gsis_id,sleeper_id\n00-0000001,1001\n00-0000002,1002\n";
+
+        var result = importer.importCsvForSleeperIds(
+            2025, stats, ids, LocalDate.of(2026, 1, 10), Set.of("1001"));
+
+        assertEquals(1, result.eligiblePlayers());
+        assertEquals(1, result.providerRowsMapped());
+        assertEquals(1, result.matchedPlayers());
+        assertEquals(1, result.snapshotsWritten());
+        PlayerSeasonProductionRepository production = new PlayerSeasonProductionRepository(database);
+        assertTrue(production.findLatest("p1", 2025, "nflverse").isPresent());
+        assertTrue(production.findLatest("p2", 2025, "nflverse").isEmpty());
+    }
+
+    @Test
+    void targetedImportLeavesExactTargetWithoutProviderRowExplicitlyUnmatched() throws Exception {
+        Database database = initialized();
+        new PlayerRepository(database).save(new Player("p1", "1001", "No 2025 Row", "RB", "STL"));
+        var importer = new NflversePlayerSeasonProductionImporter(database);
+
+        var result = importer.importCsvForSleeperIds(
+            2025,
+            statsCsv("00-0000002", 17, 0, 0, 0, 700, 5, 10, 90, 0, 0, 0, 0),
+            "gsis_id,sleeper_id\n00-0000002,1002\n",
+            LocalDate.of(2026, 1, 10),
+            Set.of("1001"));
+
+        assertEquals(1, result.eligiblePlayers());
+        assertEquals(0, result.matchedPlayers());
+        assertEquals(1, result.unmatchedPlayers());
         assertEquals(0, result.snapshotsWritten());
         assertTrue(new PlayerSeasonProductionRepository(database).findLatest("p1", 2025, "nflverse").isEmpty());
     }
