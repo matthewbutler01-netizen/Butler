@@ -172,6 +172,13 @@ val sleeperLiveWaiverTargetRosterContextAudit by tasks.registering(JavaExec::cla
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAuditCli")
 }
 
+val sleeperLiveWaiverTargetRosterProductionComparabilityAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-611 governed 2025 production comparability audit for the exact BF-610 target roster."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionComparabilityAuditCli")
+}
+
 val sleeperCurrentSeasonHydrationEligibilityAudit by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-599 audit of whether the linked 2026 Sleeper league is safe to bootstrap into Butler current roster/player state."
