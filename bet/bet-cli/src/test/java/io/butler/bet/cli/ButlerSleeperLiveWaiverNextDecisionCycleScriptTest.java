@@ -55,6 +55,26 @@ class ButlerSleeperLiveWaiverNextDecisionCycleScriptTest {
     }
 
     @Test
+    void nativeStderrIsNonTerminatingOnlyAroundGradleAndStrictHandlingIsRestored() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("$ErrorActionPreference = \"Stop\""));
+        assertTrue(script.contains("$previousErrorActionPreference = $ErrorActionPreference"));
+        assertTrue(script.contains("$ErrorActionPreference = \"Continue\""));
+        assertTrue(script.contains("$lines = & $gradle @gradleArgs 2>&1"));
+        assertTrue(script.contains("$exitCode = $LASTEXITCODE"));
+        assertTrue(script.contains("$ErrorActionPreference = $previousErrorActionPreference"));
+
+        int save = script.indexOf("$previousErrorActionPreference = $ErrorActionPreference");
+        int relax = script.indexOf("$ErrorActionPreference = \"Continue\"", save);
+        int invoke = script.indexOf("$lines = & $gradle @gradleArgs 2>&1", relax);
+        int exit = script.indexOf("$exitCode = $LASTEXITCODE", invoke);
+        int restore = script.indexOf("$ErrorActionPreference = $previousErrorActionPreference", exit);
+        assertTrue(save >= 0 && relax > save && invoke > relax && exit > invoke && restore > exit,
+            "BF-642 must relax native stderr handling only around Gradle, capture LASTEXITCODE, then restore strict handling");
+    }
+
+    @Test
     void everyNativeGradleFailureStopsTheCycleBeforeLaterStages() throws Exception {
         String script = script();
 
