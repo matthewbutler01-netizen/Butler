@@ -1,10 +1,13 @@
 package io.butler.bet.data;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /** Atomic persistence for immutable BF-602 live waiver identity snapshots. */
 public final class LiveWaiverSnapshotRepository {
@@ -96,6 +99,60 @@ public final class LiveWaiverSnapshotRepository {
         }
     }
 
+    public Optional<Snapshot> latestForLeague(String leagueId) throws SQLException {
+        String normalized = requireText(leagueId, "leagueId");
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (var statement = connection.prepareStatement("""
+                SELECT id, league_id, sleeper_league_id, season, provider_status, provider_leg,
+                    source, proof_policy_id, eligibility_policy_id, observed_at_utc,
+                    current_roster_identity_count, active_identity_count, active_rostered_identity_count,
+                    rostered_absent_active_count, free_agent_identity_count, league_eligible_free_agent_count
+                FROM live_waiver_snapshots
+                WHERE league_id = ?
+                ORDER BY observed_at_utc DESC, rowid DESC
+                LIMIT 1
+                """)) {
+                statement.setString(1, normalized);
+                try (var rs = statement.executeQuery()) {
+                    return rs.next() ? Optional.of(mapSnapshot(rs)) : Optional.empty();
+                }
+            }
+        }
+    }
+
+    public List<Entry> entries(String snapshotId) throws SQLException {
+        String normalized = requireText(snapshotId, "snapshotId");
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (var statement = connection.prepareStatement("""
+                SELECT sleeper_player_id, display_name, position, fantasy_positions, nfl_team,
+                    provider_status, rostered, free_agent, league_eligible, eligibility_reason
+                FROM live_waiver_snapshot_entries
+                WHERE snapshot_id = ?
+                ORDER BY sleeper_player_id
+                """)) {
+                statement.setString(1, normalized);
+                try (var rs = statement.executeQuery()) {
+                    List<Entry> result = new ArrayList<>();
+                    while (rs.next()) result.add(mapEntry(rs));
+                    return List.copyOf(result);
+                }
+            }
+        }
+    }
+
+    public int snapshotCountForLeague(String leagueId) throws SQLException {
+        String normalized = requireText(leagueId, "leagueId");
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (var statement = connection.prepareStatement("SELECT COUNT(*) FROM live_waiver_snapshots WHERE league_id = ?")) {
+                statement.setString(1, normalized);
+                try (var rs = statement.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
+            }
+        }
+    }
+
     private static Counts counts(Connection connection, String snapshotId) throws SQLException {
         try (var statement = connection.prepareStatement("""
             SELECT COUNT(*) AS total,
@@ -112,15 +169,48 @@ public final class LiveWaiverSnapshotRepository {
         }
     }
 
-    public int snapshotCountForLeague(String leagueId) throws SQLException {
-        String normalized = requireText(leagueId, "leagueId");
-        try (Connection connection = database.openConnection()) {
-            ensureTables(connection);
-            try (var statement = connection.prepareStatement("SELECT COUNT(*) FROM live_waiver_snapshots WHERE league_id = ?")) {
-                statement.setString(1, normalized);
-                try (var rs = statement.executeQuery()) { return rs.next() ? rs.getInt(1) : 0; }
-            }
+    private static Snapshot mapSnapshot(ResultSet rs) throws SQLException {
+        Object providerLeg = rs.getObject("provider_leg");
+        return new Snapshot(
+            rs.getString("id"),
+            rs.getString("league_id"),
+            rs.getString("sleeper_league_id"),
+            rs.getInt("season"),
+            rs.getString("provider_status"),
+            providerLeg == null ? null : rs.getInt("provider_leg"),
+            rs.getString("source"),
+            rs.getString("proof_policy_id"),
+            rs.getString("eligibility_policy_id"),
+            Instant.parse(rs.getString("observed_at_utc")),
+            rs.getInt("current_roster_identity_count"),
+            rs.getInt("active_identity_count"),
+            rs.getInt("active_rostered_identity_count"),
+            rs.getInt("rostered_absent_active_count"),
+            rs.getInt("free_agent_identity_count"),
+            rs.getInt("league_eligible_free_agent_count"));
+    }
+
+    private static Entry mapEntry(ResultSet rs) throws SQLException {
+        return new Entry(
+            rs.getString("sleeper_player_id"),
+            rs.getString("display_name"),
+            rs.getString("position"),
+            fantasyPositions(rs.getString("fantasy_positions")),
+            rs.getString("nfl_team"),
+            rs.getString("provider_status"),
+            rs.getInt("rostered") == 1,
+            rs.getInt("free_agent") == 1,
+            rs.getInt("league_eligible") == 1,
+            rs.getString("eligibility_reason"));
+    }
+
+    private static List<String> fantasyPositions(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        List<String> result = new ArrayList<>();
+        for (String part : value.split(",")) {
+            if (!part.isBlank()) result.add(part.trim());
         }
+        return List.copyOf(result);
     }
 
     private static void ensureTables(Connection connection) throws SQLException {
