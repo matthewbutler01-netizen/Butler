@@ -5,7 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 
 import java.nio.file.Path;
 
-/** BF-630 compact read-only operator view of the latest governed waiver decision. */
+/** BF-630/BF-632 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
@@ -28,13 +28,14 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     }
 
     static void print(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
-        System.out.println("BF-630 - compact latest governed waiver decision");
+        System.out.println("BF-630/BF-632 - compact latest governed waiver decision");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Target: " + report.leagueName() + " | " + value(report.teamName())
             + " | roster " + report.rosterId());
         System.out.println("Audit: " + value(report.auditId()) + " | captured=" + value(report.capturedAtUtc()));
         System.out.println("Decision status: " + report.state());
         System.out.println("BF-629 live actionability: " + report.bf629State());
+        System.out.println("BF-631 evidence lineage: " + report.bf631State());
 
         if (report.addPlayer() != null && report.dropPlayer() != null) {
             System.out.println("ADD:  " + player(report.addPlayer()));
@@ -47,11 +48,11 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             System.out.println("Operator guard: STALE_DO_NOT_ACT - the audited move is retained only for traceability.");
         } else if (report.state()
             == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.CURRENT_AND_ACTIONABLE) {
-            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - this is a read-only status, not transaction execution.");
+            System.out.println("Operator guard: CURRENT_AND_ACTIONABLE - BF-629 live roster actionability and BF-631 latest evidence lineage are both verified; this remains read-only status, not transaction execution.");
         }
 
         System.out.println();
-        System.out.println("Boundary: BF-630 only presents the BF-623/BF-628/BF-629 governed result. It does not rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, or write audit history.");
+        System.out.println("Boundary: BF-630/BF-632 only presents the BF-623/BF-628 audited result after BF-629 live roster actionability and BF-631 evidence-lineage freshness checks. It does not rerank players, create a replacement recommendation, set FAAB, submit a Sleeper transaction, mutate the league, write audit history, or write waiver/market snapshots.");
     }
 
     private static String player(SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay player) {
