@@ -9,6 +9,7 @@ import java.io.PrintStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerSleeperLiveWaiverFinalRecommendationEvidenceCliTest {
@@ -43,7 +44,8 @@ class ButlerSleeperLiveWaiverFinalRecommendationEvidenceCliTest {
         }
 
         String output = bytes.toString();
-        assertTrue(output.contains("BF-625 — governed cross-position transaction evidence"));
+        assertTrue(output.contains("BF-625 - governed cross-position transaction evidence"));
+        assertFalse(output.contains("—"));
         assertTrue(output.contains("Evidence state: RECONCILED"));
         assertTrue(output.contains("[SELECTED] RB | ADD Selected Add (Sleeper A) / DROP Selected Drop (Sleeper D1)"));
         assertTrue(output.contains("transaction-improvement=6.0000 supported-points/game"));
