@@ -266,8 +266,11 @@ public final class GovernedRecommendationAuditRepository {
             if (!recommendation && !noTransaction) {
                 throw new IllegalArgumentException("unsupported recommendationState: " + recommendationState);
             }
-            if (recommendation != (addSleeperPlayerId != null && dropSleeperPlayerId != null)) {
-                throw new IllegalArgumentException("recommendation add/drop payload does not match state");
+            if (recommendation && (addSleeperPlayerId == null || dropSleeperPlayerId == null)) {
+                throw new IllegalArgumentException("RECOMMEND_ADD_DROP requires both add and drop ids");
+            }
+            if (noTransaction && (addSleeperPlayerId != null || dropSleeperPlayerId != null)) {
+                throw new IllegalArgumentException("NO_GOVERNED_TRANSACTION must not carry add/drop ids");
             }
         }
 
