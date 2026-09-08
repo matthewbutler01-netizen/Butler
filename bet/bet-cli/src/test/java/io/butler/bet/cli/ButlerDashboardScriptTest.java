@@ -52,18 +52,53 @@ class ButlerDashboardScriptTest {
     }
 
     @Test
-    void rendersCoreGovernedDecisionAndSafetyFields() throws Exception {
+    void rendersHumanReadableRecommendationBeforeTechnicalCodes() throws Exception {
         String script = script();
 
-        assertTrue(script.contains("Current governed recommendation"));
-        assertTrue(script.contains("ADD"));
-        assertTrue(script.contains("DROP"));
-        assertTrue(script.contains("BF-629 live actionability"));
-        assertTrue(script.contains("BF-631 evidence lineage"));
-        assertTrue(script.contains("BF-633 age telemetry"));
-        assertTrue(script.contains("BF-635 warning threshold"));
-        assertTrue(script.contains("Immutable audit"));
-        assertTrue(script.contains("READ-ONLY FOUNDATION"));
+        assertTrue(script.contains("Current Butler recommendation"));
+        assertTrue(script.contains("Ready to act"));
+        assertTrue(script.contains("What to do"));
+        assertTrue(script.contains("player-name"));
+        assertTrue(script.contains("player-meta"));
+        assertTrue(script.contains("Sleeper ID"));
+        assertTrue(script.contains("Butler verified the decision"));
+        assertTrue(script.contains("Live roster check passed"));
+        assertTrue(script.contains("Evidence lineage verified"));
+        assertTrue(script.contains("Warning boundary:"));
+        assertTrue(script.contains("Technical details"));
+        assertTrue(script.contains("Decision state:"));
+        assertTrue(script.contains("Audit ID:"));
+        assertTrue(script.contains("READ ONLY."));
+    }
+
+    @Test
+    void formatsEvidenceAgeWithoutChangingSixHourPolicy() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("function Format-Age"));
+        assertTrue(script.contains("sec ago"));
+        assertTrue(script.contains("min ago"));
+        assertTrue(script.contains("hr ago"));
+        assertTrue(script.contains("hr $minutes min ago"));
+        assertTrue(script.contains("$threshold = 21600L"));
+        assertTrue(script.contains("$thresholdHours = [math]::Round($threshold / 3600, 1)"));
+        assertTrue(script.contains("BF-635 refresh-warning threshold seconds:"));
+    }
+
+    @Test
+    void keepsExactRawGovernanceDataAvailableForAuditability() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("BF-629:"));
+        assertTrue(script.contains("BF-631:"));
+        assertTrue(script.contains("BF-633:"));
+        assertTrue(script.contains("Captured UTC:"));
+        assertTrue(script.contains("Telemetry UTC:"));
+        assertTrue(script.contains("BF-603 observed:"));
+        assertTrue(script.contains("BF-603 age:"));
+        assertTrue(script.contains("BF-602 observed:"));
+        assertTrue(script.contains("BF-602 age:"));
+        assertTrue(script.contains("raw-guard"));
     }
 
     @Test
@@ -89,6 +124,6 @@ class ButlerDashboardScriptTest {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-643 test could not locate scripts/butler-dashboard.ps1");
+        throw new IllegalStateException("BF-643/BF-644 test could not locate scripts/butler-dashboard.ps1");
     }
 }
