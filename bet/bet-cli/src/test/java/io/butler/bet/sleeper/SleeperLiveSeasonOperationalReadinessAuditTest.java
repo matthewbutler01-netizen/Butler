@@ -106,6 +106,104 @@ class SleeperLiveSeasonOperationalReadinessAuditTest {
             .anyMatch(value -> value.contains("no starters field")));
     }
 
+    @Test
+    void blocksDraftingLeagueWithEmptyRosterAndStarterIdentities() throws Exception {
+        Database database = initialized();
+        new TeamRepository(database).save(new Team("t1", "1", "l1", "One"));
+        new TeamRepository(database).save(new Team("t2", "2", "l1", "Two"));
+
+        var audit = new SleeperLiveSeasonOperationalReadinessAudit(
+            database,
+            source(
+                leagueJson(2, "drafting"),
+                """
+                    [
+                      {"roster_id":1,"owner_id":"u1","players":[],"starters":[]},
+                      {"roster_id":2,"owner_id":"u2","players":[],"starters":[]}
+                    ]
+                    """,
+                "[{\"user_id\":\"u1\"},{\"user_id\":\"u2\"}]"),
+            Clock.fixed(Instant.parse("2026-09-08T00:00:00Z"), ZoneOffset.UTC));
+
+        var report = audit.audit("l1");
+
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.currentRosterContext().state());
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.lineupContextPrerequisites().state());
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.tradeContextPrerequisites().state());
+        assertTrue(report.currentRosterContext().blockers().stream()
+            .anyMatch(value -> value.contains("status is drafting")));
+        assertTrue(report.currentRosterContext().blockers().stream()
+            .anyMatch(value -> value.contains("2 provider roster(s) contain no current player identities")));
+        assertTrue(report.lineupContextPrerequisites().blockers().stream()
+            .anyMatch(value -> value.contains("2 provider roster(s) contain no starter identities")));
+    }
+
+    @Test
+    void blocksRosterAndTradeWhenAnyInSeasonRosterHasNoPlayers() throws Exception {
+        Database database = initialized();
+        new TeamRepository(database).save(new Team("t1", "1", "l1", "One"));
+        new TeamRepository(database).save(new Team("t2", "2", "l1", "Two"));
+        new PlayerRepository(database).save(new Player("p-int-1", "p1", "Player One", "QB", "NE"));
+
+        var audit = new SleeperLiveSeasonOperationalReadinessAudit(
+            database,
+            source(
+                leagueJson(2),
+                """
+                    [
+                      {"roster_id":1,"owner_id":"u1","players":["p1"],"starters":["p1"]},
+                      {"roster_id":2,"owner_id":"u2","players":[],"starters":[]}
+                    ]
+                    """,
+                "[{\"user_id\":\"u1\"},{\"user_id\":\"u2\"}]"),
+            Clock.fixed(Instant.parse("2026-09-08T00:00:00Z"), ZoneOffset.UTC));
+
+        var report = audit.audit("l1");
+
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.currentRosterContext().state());
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.tradeContextPrerequisites().state());
+        assertTrue(report.currentRosterContext().blockers().stream()
+            .anyMatch(value -> value.contains("1 provider roster(s) contain no current player identities")));
+    }
+
+    @Test
+    void blocksOnlyLineupWhenPlayersExistButAStarterListIsEmpty() throws Exception {
+        Database database = initialized();
+        new TeamRepository(database).save(new Team("t1", "1", "l1", "One"));
+        new TeamRepository(database).save(new Team("t2", "2", "l1", "Two"));
+        new PlayerRepository(database).save(new Player("p-int-1", "p1", "Player One", "QB", "NE"));
+        new PlayerRepository(database).save(new Player("p-int-2", "p2", "Player Two", "RB", "SEA"));
+
+        var audit = new SleeperLiveSeasonOperationalReadinessAudit(
+            database,
+            source(
+                leagueJson(2),
+                """
+                    [
+                      {"roster_id":1,"owner_id":"u1","players":["p1"],"starters":["p1"]},
+                      {"roster_id":2,"owner_id":"u2","players":["p2"],"starters":[]}
+                    ]
+                    """,
+                "[{\"user_id\":\"u1\"},{\"user_id\":\"u2\"}]"),
+            Clock.fixed(Instant.parse("2026-09-08T00:00:00Z"), ZoneOffset.UTC));
+
+        var report = audit.audit("l1");
+
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.READY,
+            report.currentRosterContext().state());
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.BLOCKED,
+            report.lineupContextPrerequisites().state());
+        assertEquals(SleeperLiveSeasonOperationalReadinessAudit.CapabilityState.READY,
+            report.tradeContextPrerequisites().state());
+        assertTrue(report.lineupContextPrerequisites().blockers().stream()
+            .anyMatch(value -> value.contains("1 provider roster(s) contain no starter identities")));
+    }
+
     private Database initialized() throws Exception {
         Database database = new Database(tempDir.resolve("bf595.db"));
         database.initialize();
@@ -114,18 +212,22 @@ class SleeperLiveSeasonOperationalReadinessAuditTest {
     }
 
     private static String leagueJson(int totalRosters) {
+        return leagueJson(totalRosters, "in_season");
+    }
+
+    private static String leagueJson(int totalRosters, String status) {
         return """
             {
               "league_id":"provider-1",
               "name":"League",
               "season":"2026",
-              "status":"in_season",
+              "status":"%s",
               "total_rosters":%d,
               "settings":{"leg":1},
               "roster_positions":["QB","RB","WR","BN"],
               "scoring_settings":{"pass_yd":0.04,"rec":1.0}
             }
-            """.formatted(totalRosters);
+            """.formatted(status, totalRosters);
     }
 
     private static SleeperLiveSeasonOperationalReadinessAudit.Source source(
