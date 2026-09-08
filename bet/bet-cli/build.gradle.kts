@@ -123,6 +123,13 @@ val sleeperLiveWaiverMarketAttentionSync by tasks.registering(JavaExec::class) {
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli")
 }
 
+val sleeperLiveWaiverProductionCoverageAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-604 audit of exact canonical and governed 2025 production coverage for BF-603 market-active waiver candidates."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverProductionCoverageAuditCli")
+}
+
 val sleeperCurrentSeasonHydrationEligibilityAudit by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-599 audit of whether the linked 2026 Sleeper league is safe to bootstrap into Butler current roster/player state."
