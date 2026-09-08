@@ -32,7 +32,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
                         .explain(recommendation));
                 } catch (Exception evidenceError) {
                     System.out.println();
-                    System.out.println("BF-625 — governed cross-position transaction evidence");
+                    System.out.println("BF-625 - governed cross-position transaction evidence");
                     System.out.println("Evidence state: UNAVAILABLE_RECONCILIATION_FAILED");
                     System.out.println("Reason: " + evidenceError.getMessage());
                     System.out.println("Boundary: BF-625 explainability failure does not mutate or replace the already-governed BF-620 recommendation.");
@@ -53,7 +53,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
             + report.providerStatus() + "/" + value(report.providerLeg()));
         System.out.println();
 
-        System.out.println("BF-618 — final selection methodology");
+        System.out.println("BF-618 - final selection methodology");
         System.out.println("Policy: " + report.methodology().policyId());
         System.out.println("Historical / newcomer finalists: " + report.methodology().historicalFinalists()
             + "/" + report.methodology().newcomerFinalists());
@@ -68,7 +68,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
         System.out.println("BF-618 state: " + report.methodology().state());
         System.out.println();
 
-        System.out.println("BF-619/BF-624 — exact add/drop selection");
+        System.out.println("BF-619/BF-624 - exact add/drop selection");
         System.out.println("Selection state: " + report.selection().state());
         System.out.println("Direct governed comparisons evaluated: " + report.selection().directComparisons().size());
         if (report.selection().selectedAdd() != null) {
@@ -79,7 +79,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
         }
         System.out.println();
 
-        System.out.println("BF-620 — final live freshness + recommendation");
+        System.out.println("BF-620 - final live freshness + recommendation");
         System.out.println("Recommendation state: " + report.state());
         if (report.state() == SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.RECOMMEND_ADD_DROP) {
             System.out.println("BUTLER RECOMMENDATION: ADD " + report.recommendedAdd().displayName()
@@ -110,7 +110,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
 
     static void printEvidence(SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport evidence) {
         System.out.println();
-        System.out.println("BF-625 — governed cross-position transaction evidence");
+        System.out.println("BF-625 - governed cross-position transaction evidence");
         System.out.println("Policy: " + evidence.policyId());
         System.out.println("Market / waiver snapshot: " + evidence.marketSnapshotId() + " / " + evidence.waiverSnapshotId());
         System.out.println("Reconciled selection state: " + evidence.selectionState());
