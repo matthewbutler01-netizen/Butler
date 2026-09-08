@@ -54,6 +54,11 @@ public final class SleeperClient {
         return get("stats/nfl/regular/" + season + "/" + week);
     }
 
+    /** Returns Sleeper's documented current NFL season/week state. */
+    public String getNflState() throws IOException, InterruptedException {
+        return get("state/nfl");
+    }
+
     public String getLeagueUsers(String leagueId) throws IOException, InterruptedException {
         return get("league/" + encodePath(leagueId) + "/users");
     }
