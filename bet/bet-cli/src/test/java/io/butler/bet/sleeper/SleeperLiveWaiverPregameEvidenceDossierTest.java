@@ -156,7 +156,7 @@ class SleeperLiveWaiverPregameEvidenceDossierTest {
         String id, String name, String position, int adds, int drops, String membership) {
         return new LiveWaiverCurrentWeekStatRepository.Entry(
             id, name, position, adds, drops, adds - drops, membership, "SOURCE_ABSENT", null,
-            null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private static LiveWaiverSnapshotRepository.Entry waiverEntry(
