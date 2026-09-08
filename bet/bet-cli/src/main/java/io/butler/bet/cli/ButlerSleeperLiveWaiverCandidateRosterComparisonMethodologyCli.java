@@ -5,22 +5,23 @@ import io.butler.bet.sleeper.SleeperLiveWaiverCandidateRosterComparisonMethodolo
 
 import java.nio.file.Path;
 
-/** BF-614 operator surface for the frozen no-selection candidate-vs-roster methodology. */
+/** BF-614 operator surface, gated by BF-623 exact personalized target verification. */
 public final class ButlerSleeperLiveWaiverCandidateRosterComparisonMethodologyCli {
     private ButlerSleeperLiveWaiverCandidateRosterComparisonMethodologyCli() {}
 
     public static void main(String[] args) {
         try {
-            if (args == null || args.length != 2
-                || args[0] == null || args[0].isBlank()
-                || args[1] == null || args[1].isBlank()) {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
-                    "Usage: sleeperLiveWaiverCandidateRosterComparisonMethodologyAudit <butler-league-id> <sleeper-owner-id>");
+                    "Usage: sleeperLiveWaiverCandidateRosterComparisonMethodologyAudit <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
             }
+            String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverCandidateRosterComparisonMethodology(database)
-                .audit(args[0].trim(), args[1].trim()));
+                .audit(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -36,7 +37,7 @@ public final class ButlerSleeperLiveWaiverCandidateRosterComparisonMethodologyCl
         System.out.println("Sleeper league / target roster: " + report.sleeperLeagueId() + " / " + report.rosterId());
         System.out.println("Provider season/status/leg: " + report.providerSeason() + "/"
             + report.providerStatus() + "/" + value(report.providerLeg()));
-        System.out.println("Exact target Sleeper owner: " + report.sleeperOwnerId());
+        System.out.println("BF-623 verified target Sleeper owner: " + report.sleeperOwnerId());
         System.out.println("BF-613 candidates total / reviewable: "
             + report.candidateCount() + "/" + report.reviewableCandidateCount());
         System.out.println("Reviewable prior-production PRESENT / MISSING: "
@@ -80,7 +81,7 @@ public final class ButlerSleeperLiveWaiverCandidateRosterComparisonMethodologyCl
         }
         System.out.println("Comparison methodology state: " + report.state());
         System.out.println();
-        System.out.println("Boundary: BF-614 freezes the rules BF-615 must execute. It does not rank waiver candidates, choose a winner, identify a player to drop, pair an add/drop transaction, provide FAAB guidance, or emit player-value, confidence, probability, or manager-evaluation claims. The supported scoring subtotal is not full fantasy points when league scoring contains unsupported dimensions.");
+        System.out.println("Boundary: BF-614 freezes the rules BF-615 must execute only after BF-623 verifies the persisted requesting-user account+league+roster binding. It does not rank waiver candidates, choose a winner, identify a player to drop, pair an add/drop transaction, provide FAAB guidance, or emit player-value, confidence, probability, or manager-evaluation claims. The supported scoring subtotal is not full fantasy points when league scoring contains unsupported dimensions.");
     }
 
     private static String value(Object value) {
