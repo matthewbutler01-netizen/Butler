@@ -165,6 +165,13 @@ val sleeperLiveWaiverPregameEvidenceReadinessAudit by tasks.registering(JavaExec
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverPregameEvidenceReadinessAuditCli")
 }
 
+val sleeperLiveWaiverTargetRosterContextAudit by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-610 exact live target-roster context against the roster-stable BF-603/BF-602 waiver frame."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAuditCli")
+}
+
 val sleeperCurrentSeasonHydrationEligibilityAudit by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-599 audit of whether the linked 2026 Sleeper league is safe to bootstrap into Butler current roster/player state."
@@ -202,7 +209,7 @@ val sleeperSeasonProviderPointsEvidenceSync by tasks.registering(JavaExec::class
 
 val sleeperSeasonProviderPointsCalibration by tasks.registering(JavaExec::class) {
     group = "application"
-    description = "Read-only BF-562 calibration of persisted Sleeper players_points against Butler exact nflverse weekly scoring."
+    description = "Read-only BF-562 calibration of persisted Sleeper provider points against Butler exact nflverse weekly scoring."
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperSeasonProviderPointsCalibrationCli")
 }
