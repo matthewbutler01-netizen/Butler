@@ -276,3 +276,10 @@ val sleeperHistoricalEffectiveLineupConfigurationSync by tasks.registering(JavaE
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperHistoricalEffectiveLineupConfigurationSyncCli")
 }
+
+val sleeperLiveWaiverComparisonBundle by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-615 through BF-617 governed live waiver comparison execution, shortlist, and final-decision readiness bundle."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli")
+}
