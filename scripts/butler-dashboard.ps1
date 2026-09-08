@@ -71,12 +71,13 @@ function ConvertTo-AgeView {
 }
 
 function Format-Age {
-    param([AllowNull()][long]$Seconds)
+    param([AllowNull()][object]$Seconds)
     if ($null -eq $Seconds) { return "Unavailable" }
-    if ($Seconds -lt 60) { return "$Seconds sec ago" }
-    if ($Seconds -lt 3600) { return "$([math]::Floor($Seconds / 60)) min ago" }
-    $hours = [math]::Floor($Seconds / 3600)
-    $minutes = [math]::Floor(($Seconds % 3600) / 60)
+    $value = [long]$Seconds
+    if ($value -lt 60) { return "$value sec ago" }
+    if ($value -lt 3600) { return "$([math]::Floor($value / 60)) min ago" }
+    $hours = [math]::Floor($value / 3600)
+    $minutes = [math]::Floor(($value % 3600) / 60)
     if ($minutes -eq 0) { return "$hours hr ago" }
     return "$hours hr $minutes min ago"
 }
@@ -99,31 +100,63 @@ function Get-StatePresentation {
     param([AllowNull()][string]$State)
     switch ($State) {
         "CURRENT_AND_ACTIONABLE" {
-            return [pscustomobject]@{ Class = "good"; Headline = "Ready to act"; Copy = "Butler verified this move against the live roster and the latest governed evidence." }
+            return [pscustomobject]@{
+                Class = "good"; Headline = "Ready to act";
+                Copy = "Butler verified this move against the live roster and the latest governed evidence.";
+                ActionTitle = "What to do";
+                ActionCopy = "Make this add/drop manually in Sleeper if you choose to act. Butler verifies and records the recommendation, but this dashboard never submits the transaction for you."
+            }
         }
         "TRANSACTION_ALREADY_COMPLETE" {
-            return [pscustomobject]@{ Class = "done"; Headline = "Move completed"; Copy = "Sleeper shows the exact governed transaction as complete. Do not submit it again." }
+            return [pscustomobject]@{
+                Class = "done"; Headline = "Move completed";
+                Copy = "Sleeper shows the exact governed transaction as complete. Do not submit it again.";
+                ActionTitle = "No action needed";
+                ActionCopy = "This governed move is closed. Butler will keep it for audit history and will not tell you to resubmit it."
+            }
         }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" {
-            return [pscustomobject]@{ Class = "warn"; Headline = "Move pending"; Copy = "Sleeper is already processing this exact transaction. Do not submit a duplicate." }
+            return [pscustomobject]@{
+                Class = "warn"; Headline = "Move pending";
+                Copy = "Sleeper is already processing this exact transaction. Do not submit a duplicate.";
+                ActionTitle = "Wait for Sleeper";
+                ActionCopy = "Do not submit this add/drop again while the exact transaction is pending. Refresh status after Sleeper processes it."
+            }
         }
         "CURRENT_REFRESH_RECOMMENDED" {
-            return [pscustomobject]@{ Class = "warn"; Headline = "Refresh recommended"; Copy = "The move is still live-actionable, but Butler's persisted waiver evidence is older than the approved six-hour warning threshold." }
+            return [pscustomobject]@{
+                Class = "warn"; Headline = "Refresh recommended";
+                Copy = "The move is still live-actionable, but Butler's persisted waiver evidence is older than the approved six-hour warning threshold.";
+                ActionTitle = "Consider refreshing first";
+                ActionCopy = "The six-hour policy is warning-only, not a hard block. A governed evidence refresh is recommended before acting."
+            }
         }
         "STALE_DO_NOT_ACT" {
-            return [pscustomobject]@{ Class = "danger"; Headline = "Do not act"; Copy = "A hard safety gate failed. Keep this decision only for traceability until Butler produces a new governed result." }
+            return [pscustomobject]@{
+                Class = "danger"; Headline = "Do not act";
+                Copy = "A hard safety gate failed. Keep this decision only for traceability until Butler produces a new governed result.";
+                ActionTitle = "Stop here";
+                ActionCopy = "Do not make this move from the displayed audit. Butler must produce a new governed state before action."
+            }
         }
         default {
-            return [pscustomobject]@{ Class = "danger"; Headline = "No actionable move"; Copy = "Butler does not currently have a governed transaction that is safe to act on." }
+            return [pscustomobject]@{
+                Class = "danger"; Headline = "No actionable move";
+                Copy = "Butler does not currently have a governed transaction that is safe to act on.";
+                ActionTitle = "No move to make";
+                ActionCopy = "There is no currently governed add/drop action on this screen."
+            }
         }
     }
 }
 
 function Get-VerificationCopy {
     param([AllowNull()][string]$Bf629, [AllowNull()][string]$Bf631)
+    $rosterOk = $Bf629 -eq "LIVE_ACTIONABLE_VERIFIED" -or $Bf629 -eq "AUDITED_TRANSACTION_COMPLETE" -or $Bf629 -eq "AUDITED_TRANSACTION_PENDING"
+    $lineageOk = $Bf631 -eq "LATEST_EVIDENCE_LINEAGE_VERIFIED"
     $roster = if ($Bf629 -eq "LIVE_ACTIONABLE_VERIFIED") { "Live roster check passed" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_COMPLETE") { "Completed transaction verified" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_PENDING") { "Pending transaction verified" } else { "Live roster safety gate not green" }
-    $lineage = if ($Bf631 -eq "LATEST_EVIDENCE_LINEAGE_VERIFIED") { "Evidence lineage verified" } else { "Evidence lineage not current" }
-    return [pscustomobject]@{ Roster = $roster; Lineage = $lineage }
+    $lineage = if ($lineageOk) { "Evidence lineage verified" } else { "Evidence lineage not current" }
+    return [pscustomobject]@{ Roster = $roster; RosterOk = $rosterOk; Lineage = $lineage; LineageOk = $lineageOk }
 }
 
 function Invoke-ButlerReadOnlySummary {
@@ -170,6 +203,10 @@ function ConvertTo-DashboardHtml {
     $audit = ConvertTo-AuditView $auditRaw
     $presentation = Get-StatePresentation $state
     $verification = Get-VerificationCopy -Bf629 $bf629 -Bf631 $bf631
+    $rosterIcon = if ($verification.RosterOk) { "&#10003;" } else { "&#9888;" }
+    $rosterClass = if ($verification.RosterOk) { "check" } else { "alert" }
+    $lineageIcon = if ($verification.LineageOk) { "&#10003;" } else { "&#9888;" }
+    $lineageClass = if ($verification.LineageOk) { "check" } else { "alert" }
 
     $threshold = 21600L
     $parsedThreshold = 0L
@@ -193,7 +230,7 @@ function ConvertTo-DashboardHtml {
 .statusrow{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#8ea0c7}.status{font-weight:800;padding:9px 13px;border-radius:999px;font-size:13px;white-space:nowrap}.good{background:#123d2c;color:#8ff0b9}.done{background:#1c315c;color:#a9c6ff}.warn{background:#4b3713;color:#ffd98b}.danger{background:#4c2028;color:#ffb0bc}
 .headline{font-size:28px;margin:6px 0 4px}.lede{color:#cbd4eb;margin:0;max-width:720px}.moves{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}.move{border:1px solid #33436f;border-radius:16px;padding:20px;background:#0d1630}.move.add{border-color:#286a4c}.move.drop{border-color:#74414b}.move h2{font-size:12px;letter-spacing:.14em;margin:0 0 10px}.player-name{font-size:25px;font-weight:800;line-height:1.15}.player-meta{margin-top:8px;color:#aebada;font-size:14px}.player-id{margin-top:5px;color:#7485aa;font-size:12px}
 .next{margin-top:18px;padding:18px;border-radius:16px;background:#0a142c;border:1px solid #2e467e}.next strong{display:block;font-size:16px;margin-bottom:5px}.next p{margin:0;color:#cbd4eb}
-.verify-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.verify{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.check{font-weight:800;color:#8ff0b9}.verify small{display:block;color:#8797bd;margin-top:5px}.fresh-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.fresh{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.fresh strong{display:block;color:#9eabd0;font-size:13px}.fresh .age{font-size:22px;font-weight:800;margin-top:5px}.fresh .limit{font-size:12px;color:#8797bd;margin-top:4px}
+.verify-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.verify{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.check{font-weight:800;color:#8ff0b9}.alert{font-weight:800;color:#ffd98b}.verify small{display:block;color:#8797bd;margin-top:5px}.fresh-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.fresh{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.fresh strong{display:block;color:#9eabd0;font-size:13px}.fresh .age{font-size:22px;font-weight:800;margin-top:5px}.fresh .limit{font-size:12px;color:#8797bd;margin-top:4px}
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage strong{font-size:17px}.lineage span{color:#97a7ca;font-size:13px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 @media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage span{display:block;margin-top:6px}}
@@ -232,8 +269,8 @@ details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cu
     </div>
 
     <div class="next">
-      <strong>What to do</strong>
-      <p>Make this add/drop manually in Sleeper if you choose to act. Butler verifies and records the recommendation, but this dashboard never submits the transaction for you.</p>
+      <strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong>
+      <p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p>
     </div>
   </section>
 
@@ -241,8 +278,8 @@ details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cu
     <div class="eyebrow">Safety checks</div>
     <h2>Butler verified the decision</h2>
     <div class="verify-grid">
-      <div class="verify"><div class="check">&#10003; $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div>
-      <div class="verify"><div class="check">&#10003; $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div>
+      <div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div>
+      <div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div>
     </div>
 
     <div class="fresh-grid">
