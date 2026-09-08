@@ -31,24 +31,39 @@ function Invoke-ButlerGradleStep {
     Write-Host "============================================================"
 
     $gradleArgs = @($Task, "--args=$LeagueId")
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 can promote native stderr redirected with 2>&1 into
+        # NativeCommandError records when ErrorActionPreference is Stop. Gradle/JDK
+        # warnings are valid stderr even when Gradle exits 0, so native invocation is
+        # temporarily non-terminating and the real gate remains LASTEXITCODE.
+        $ErrorActionPreference = "Continue"
 
-    if ($CaptureOutput) {
-        $lines = & $gradle @gradleArgs 2>&1
-        $exitCode = $LASTEXITCODE
-        $lines | ForEach-Object { Write-Host $_ }
-        if ($exitCode -ne 0) {
-            throw "BF-641 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed."
+        if ($CaptureOutput) {
+            $lines = & $gradle @gradleArgs 2>&1
+            $exitCode = $LASTEXITCODE
         }
-        Write-Host "BF-641 PASS: $Label"
-        return $lines
+        else {
+            & $gradle @gradleArgs
+            $exitCode = $LASTEXITCODE
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
     }
 
-    & $gradle @gradleArgs
-    $exitCode = $LASTEXITCODE
+    if ($CaptureOutput) {
+        $lines | ForEach-Object { Write-Host $_ }
+    }
+
     if ($exitCode -ne 0) {
         throw "BF-641 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed."
     }
+
     Write-Host "BF-641 PASS: $Label"
+    if ($CaptureOutput) {
+        return $lines
+    }
 }
 
 Push-Location $repoRoot
