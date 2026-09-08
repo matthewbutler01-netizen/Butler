@@ -5,7 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterProductionHydration;
 
 import java.nio.file.Path;
 
-/** BF-612 operator surface for guarded missing-only target-roster 2025 production hydration. */
+/** BF-612 operator surface, gated by BF-623 exact personalized target verification. */
 public final class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli {
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
@@ -16,8 +16,10 @@ public final class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli {
             Parsed parsed = parse(args);
             Database database = new Database(DATABASE_PATH);
             database.initialize();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, parsed.leagueId());
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverTargetRosterProductionHydration(database, DATABASE_PATH)
-                .hydrate(parsed.leagueId(), parsed.ownerId()));
+                .hydrate(parsed.leagueId(), target.sleeperUserId()));
         } catch (SleeperLiveWaiverTargetRosterProductionHydration.HydrationRollbackException e) {
             System.err.println("Error: " + e.getMessage());
             System.err.println("Rollback restored: " + e.restored());
@@ -30,20 +32,19 @@ public final class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli {
     }
 
     static Parsed parse(String[] args) {
-        if (args == null || args.length != 2
-            || args[0] == null || args[0].isBlank()
-            || args[1] == null || args[1].isBlank()) {
+        if (args == null || args.length != 1
+            || args[0] == null || args[0].isBlank()) {
             throw new IllegalArgumentException(
-                "Usage: sleeperLiveWaiverTargetRosterProductionHydration <butler-league-id> <sleeper-owner-id>");
+                "Usage: sleeperLiveWaiverTargetRosterProductionHydration <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
         }
-        return new Parsed(args[0].trim(), args[1].trim());
+        return new Parsed(args[0].trim());
     }
 
     static void print(SleeperLiveWaiverTargetRosterProductionHydration.HydrationReport report) {
         System.out.println("Sleeper 2026 guarded target-roster production hydration");
         System.out.println("Policy: " + report.policyId());
         System.out.println("Butler league: " + report.leagueId());
-        System.out.println("Exact target Sleeper owner: " + report.sleeperOwnerId());
+        System.out.println("BF-623 verified target Sleeper owner: " + report.sleeperOwnerId());
         System.out.println("BF-603 market snapshot: " + report.marketSnapshotId());
         System.out.println("Referenced BF-602 waiver snapshot: " + report.waiverSnapshotId());
         System.out.println("Sleeper league / roster id: " + report.sleeperLeagueId() + " / " + report.rosterId());
@@ -68,8 +69,8 @@ public final class ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli {
         System.out.println("BF-611 post PRESENT / MISSING: " + report.postPresent() + "/" + report.postMissing());
         System.out.println("Target-roster production hydration state: " + report.state());
         System.out.println();
-        System.out.println("Boundary: BF-612 hydrates only exact BF-611 target-roster identities that lacked governed 2025 NFL production. An exact unmatched identity remains an explicit evidence gap, not zero production or a negative player grade. BF-612 does not score roster needs, rank players, pair add/drop candidates, recommend transactions, provide FAAB guidance, or emit value/confidence/probability claims.");
+        System.out.println("Boundary: BF-612 hydrates only exact BF-611 target-roster identities after BF-623 verifies the persisted requesting-user account+league+roster binding. An exact unmatched identity remains an explicit evidence gap, not zero production or a negative player grade. BF-612 does not score roster needs, rank players, pair add/drop candidates, recommend transactions, provide FAAB guidance, or emit value/confidence/probability claims.");
     }
 
-    record Parsed(String leagueId, String ownerId) {}
+    record Parsed(String leagueId) {}
 }
