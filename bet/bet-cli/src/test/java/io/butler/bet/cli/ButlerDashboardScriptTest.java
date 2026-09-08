@@ -72,6 +72,20 @@ class ButlerDashboardScriptTest {
     }
 
     @Test
+    void lifecycleInstructionsCannotPresentBlockedStatesAsPermissionToAct() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("ActionTitle = \"No action needed\""));
+        assertTrue(script.contains("ActionTitle = \"Wait for Sleeper\""));
+        assertTrue(script.contains("ActionTitle = \"Consider refreshing first\""));
+        assertTrue(script.contains("ActionTitle = \"Stop here\""));
+        assertTrue(script.contains("Do not submit this add/drop again"));
+        assertTrue(script.contains("Do not make this move from the displayed audit"));
+        assertTrue(script.contains("$rosterIcon = if ($verification.RosterOk)"));
+        assertTrue(script.contains("$lineageIcon = if ($verification.LineageOk)"));
+    }
+
+    @Test
     void formatsEvidenceAgeWithoutChangingSixHourPolicy() throws Exception {
         String script = script();
 
