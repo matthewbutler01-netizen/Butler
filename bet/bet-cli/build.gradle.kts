@@ -346,3 +346,10 @@ val sleeperPersonalTargetBind by tasks.registering(JavaExec::class) {
     classpath = sourceSets["main"].runtimeClasspath
     mainClass.set("io.butler.bet.cli.ButlerSleeperPersonalTargetBindCli")
 }
+
+val sleeperPersonalizedCurrentRosterSummary by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-645 exact current Sleeper roster presentation behind the BF-623 personalized target gate."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperPersonalizedCurrentRosterSummaryCli")
+}
