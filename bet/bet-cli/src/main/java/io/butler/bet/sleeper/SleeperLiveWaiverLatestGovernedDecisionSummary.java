@@ -8,12 +8,13 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Objects;
 
-/** BF-630 compact read-only presentation of the latest governed waiver decision and BF-629 actionability. */
+/** BF-630 compact read-only presentation tightened by BF-632 to require BF-629 and BF-631 currentness. */
 public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     public static final String POLICY_ID =
-        "sleeper-live-waiver-latest-governed-decision-summary-v1-bf623-bf628-bf629-read-only";
+        "sleeper-live-waiver-latest-governed-decision-summary-v2-bf623-bf628-bf629-bf631-read-only";
 
     private final RevalidationSource revalidationSource;
+    private final EvidenceLineageSource evidenceLineageSource;
     private final PlayerLookup playerLookup;
 
     public SleeperLiveWaiverLatestGovernedDecisionSummary(Database database) {
@@ -21,6 +22,8 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         PlayerRepository players = new PlayerRepository(database);
         this.revalidationSource = target ->
             new SleeperLiveWaiverRecommendationActionabilityRevalidation(database).revalidate(target);
+        this.evidenceLineageSource = target ->
+            new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation(database).revalidate(target);
         this.playerLookup = sleeperId -> players.findByExternalId(sleeperId)
             .map(SleeperLiveWaiverLatestGovernedDecisionSummary::display)
             .orElse(null);
@@ -28,8 +31,10 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
 
     SleeperLiveWaiverLatestGovernedDecisionSummary(
         RevalidationSource revalidationSource,
+        EvidenceLineageSource evidenceLineageSource,
         PlayerLookup playerLookup) {
         this.revalidationSource = Objects.requireNonNull(revalidationSource, "revalidationSource must not be null");
+        this.evidenceLineageSource = Objects.requireNonNull(evidenceLineageSource, "evidenceLineageSource must not be null");
         this.playerLookup = Objects.requireNonNull(playerLookup, "playerLookup must not be null");
     }
 
@@ -38,14 +43,17 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         validateVerifiedTarget(target);
         var revalidation = revalidationSource.revalidate(target);
         validateRevalidation(target, revalidation);
+        var evidenceLineage = evidenceLineageSource.revalidate(target);
+        validateEvidenceLineage(target, evidenceLineage);
+        validateCrossGateAudit(revalidation, evidenceLineage);
 
         if (revalidation.state()
             == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_AUDITED_DECISION) {
-            return report(target, revalidation, SummaryState.NO_AUDITED_DECISION, null, null);
+            return report(target, revalidation, evidenceLineage, SummaryState.NO_AUDITED_DECISION, null, null);
         }
         if (revalidation.state()
             == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_TRANSACTION_TO_REVALIDATE) {
-            return report(target, revalidation, SummaryState.NO_TRANSACTION_TO_ACT_ON, null, null);
+            return report(target, revalidation, evidenceLineage, SummaryState.NO_TRANSACTION_TO_ACT_ON, null, null);
         }
 
         String addId = requireText(revalidation.addSleeperPlayerId(), "addSleeperPlayerId");
@@ -53,11 +61,14 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         PlayerDisplay add = requirePlayer(addId, "add");
         PlayerDisplay drop = requirePlayer(dropId, "drop");
 
-        SummaryState state = revalidation.state()
-            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED
+        boolean liveActionable = revalidation.state()
+            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
+        boolean latestEvidence = evidenceLineage.state()
+            == SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED;
+        SummaryState state = liveActionable && latestEvidence
             ? SummaryState.CURRENT_AND_ACTIONABLE
             : SummaryState.STALE_DO_NOT_ACT;
-        return report(target, revalidation, state, add, drop);
+        return report(target, revalidation, evidenceLineage, state, add, drop);
     }
 
     private PlayerDisplay requirePlayer(String sleeperId, String role) throws SQLException {
@@ -76,6 +87,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     private static SummaryReport report(
         SleeperPersonalizedTargetService.VerifiedTarget target,
         SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport revalidation,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport evidenceLineage,
         SummaryState state,
         PlayerDisplay add,
         PlayerDisplay drop) {
@@ -93,6 +105,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
             add,
             drop,
             revalidation.state(),
+            evidenceLineage.state(),
             state);
     }
 
@@ -117,6 +130,42 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         }
     }
 
+    private static void validateEvidenceLineage(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport report) {
+        Objects.requireNonNull(report, "BF-631 report must not be null");
+        if (!SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.POLICY_ID.equals(report.policyId())
+            || !target.butlerLeagueId().equals(report.leagueId())
+            || !target.sleeperUserId().equals(report.sleeperOwnerId())
+            || !target.sleeperLeagueId().equals(report.sleeperLeagueId())
+            || target.rosterId() != report.rosterId()) {
+            throw new IllegalStateException("BF-632 BLOCKED: BF-631 evidence lineage does not reconcile to BF-623 target");
+        }
+        if (report.state()
+            != SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.NO_AUDITED_DECISION) {
+            requireText(report.auditId(), "BF-631 auditId");
+            requireText(report.capturedAtUtc(), "BF-631 capturedAtUtc");
+            requireText(report.auditedMarketSnapshotId(), "BF-631 auditedMarketSnapshotId");
+            requireText(report.auditedWaiverSnapshotId(), "BF-631 auditedWaiverSnapshotId");
+        }
+    }
+
+    private static void validateCrossGateAudit(
+        SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport actionability,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport evidenceLineage) {
+        boolean actionabilityNoAudit = actionability.state()
+            == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_AUDITED_DECISION;
+        boolean evidenceNoAudit = evidenceLineage.state()
+            == SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.NO_AUDITED_DECISION;
+        if (actionabilityNoAudit != evidenceNoAudit) {
+            throw new IllegalStateException("BF-632 BLOCKED: BF-629/BF-631 disagree on whether an audited decision exists");
+        }
+        if (!Objects.equals(actionability.auditId(), evidenceLineage.auditId())
+            || !Objects.equals(actionability.capturedAtUtc(), evidenceLineage.capturedAtUtc())) {
+            throw new IllegalStateException("BF-632 BLOCKED: BF-629/BF-631 latest audit identity does not reconcile");
+        }
+    }
+
     private static PlayerDisplay display(Player player) {
         return new PlayerDisplay(
             player.getExternalId(),
@@ -137,6 +186,12 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         SleeperLiveWaiverRecommendationActionabilityRevalidation.RevalidationReport revalidate(
             SleeperPersonalizedTargetService.VerifiedTarget target)
             throws SQLException, IOException, InterruptedException;
+    }
+
+    @FunctionalInterface
+    interface EvidenceLineageSource {
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport revalidate(
+            SleeperPersonalizedTargetService.VerifiedTarget target) throws SQLException;
     }
 
     @FunctionalInterface
@@ -178,10 +233,12 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         PlayerDisplay addPlayer,
         PlayerDisplay dropPlayer,
         SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState bf629State,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState bf631State,
         SummaryState state) {
         public SummaryReport {
-            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630 policyId");
+            if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-630/BF-632 policyId");
             Objects.requireNonNull(bf629State, "bf629State must not be null");
+            Objects.requireNonNull(bf631State, "bf631State must not be null");
             Objects.requireNonNull(state, "state must not be null");
         }
     }
