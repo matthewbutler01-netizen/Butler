@@ -865,7 +865,7 @@ function Get-SharedCss {
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 .position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.roster-card .current-marker{margin-top:10px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
-.refresh-plan-note{margin-top:14px;padding:14px 16px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.refresh-steps{display:grid;gap:10px;margin-top:16px}.refresh-step{padding:15px 16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.refresh-step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.refresh-step-num{font-size:18px;font-weight:900}.refresh-step-bf{color:#a9c6ff;font-weight:800}.refresh-mode{display:inline-block;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:900}.refresh-mode.read{background:#1c315c;color:#a9c6ff}.refresh-mode.write{background:#4b3713;color:#ffd98b}.refresh-task{margin-top:7px;font-weight:800}.refresh-command{margin-top:9px;padding:11px 12px;border-radius:10px;background:#080f20;border:1px solid #26345c;color:#c7d9ff;font-family:Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.refresh-copy{display:flex;align-items:center;gap:9px;margin-top:8px}.copy-refresh-command{border:1px solid #315dca;border-radius:9px;background:#17254a;color:#c7d9ff;padding:7px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}.copy-refresh-command:hover{background:#203d79}.copy-refresh-status{color:#8ff0b9;font-size:11px;font-weight:800}.refresh-purpose{margin-top:8px;color:#aebada;font-size:12px}
+.refresh-plan-note{margin-top:14px;padding:14px 16px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.refresh-steps{display:grid;gap:10px;margin-top:16px}.refresh-step{padding:15px 16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.refresh-step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.refresh-step-num{font-size:18px;font-weight:900}.refresh-step-bf{color:#a9c6ff;font-weight:800}.refresh-mode{display:inline-block;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:900}.refresh-mode.read{background:#1c315c;color:#a9c6ff}.refresh-mode.write{background:#4b3713;color:#ffd98b}.refresh-task{margin-top:7px;font-weight:800}.refresh-copy-hint{margin-top:8px;color:#94a2c5;font-size:11px}.refresh-command-copy{display:block;width:100%;min-height:52px;margin-top:6px;padding:11px 12px;border-radius:10px;background:#080f20;border:1px solid #26345c;color:#c7d9ff;font-family:Consolas,monospace;font-size:12px;line-height:1.35;resize:vertical;overflow-wrap:anywhere}.refresh-command-copy:focus{outline:2px solid #315dca;outline-offset:1px}.refresh-purpose{margin-top:8px;color:#aebada;font-size:12px}
 .board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.pair-context{margin-top:12px;padding:12px;border:1px solid #334a82;border-radius:12px;background:#101e3d;color:#c7d9ff;font-size:12px}.pair-context strong{display:block;color:#fff;margin-bottom:4px}.pair-context .pair-meta{color:#aebada;margin-top:3px}.pair-context .actions{margin-top:10px}.pair-context .button{padding:8px 11px;font-size:12px}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
 @media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.candidate-badges{justify-content:flex-start;margin-top:10px}.lane{margin-top:0}}
 '@
@@ -929,13 +929,12 @@ function ConvertTo-DashboardHtml {
         $refreshCards = ""
         foreach ($step in $refreshPlan.Steps) {
             $modeClass = if ($step.Mode -ceq "READ_ONLY") { "read" } else { "write" }
-            $commandPayload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes([string]$step.Command))
             $refreshCards += @"
 <article class="refresh-step">
   <div class="refresh-step-head"><span class="refresh-step-num">$(ConvertTo-HtmlText $step.Order)</span><span class="refresh-step-bf">$(ConvertTo-HtmlText $step.Bf)</span><span class="refresh-mode $modeClass">$(ConvertTo-HtmlText $step.Mode)</span></div>
   <div class="refresh-task">$(ConvertTo-HtmlText $step.TaskName)</div>
-  <div class="refresh-command">$(ConvertTo-HtmlText $step.Command)</div>
-  <div class="refresh-copy"><button type="button" class="copy-refresh-command" data-refresh-command-b64="$commandPayload">Copy command</button><span class="copy-refresh-status" aria-live="polite"></span></div>
+  <div class="refresh-copy-hint">Copy safely: focus the read-only field, then Press Ctrl+A, then Ctrl+C.</div>
+  <textarea class="refresh-command-copy" rows="2" readonly>$(ConvertTo-HtmlText $step.Command)</textarea>
   <div class="refresh-purpose">$(ConvertTo-HtmlText $step.Purpose)</div>
 </article>
 "@
@@ -949,32 +948,6 @@ function ConvertTo-DashboardHtml {
   <div class="refresh-steps">$refreshCards</div>
   <details><summary>Technical details</summary><div class="tech"><div>BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)</div><div>BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)</div><div>Governed step count: $($refreshPlan.Steps.Count)</div><div>Source: existing compact governed decision summary</div></div><div class="raw-guard">$(ConvertTo-HtmlText $refreshPlan.Instruction)</div></details>
 </section>
-<script>
-(function(){
-  document.addEventListener("click", function(event){
-    var button = event.target.closest(".copy-refresh-command");
-    if (!button) { return; }
-    var status = button.parentElement.querySelector(".copy-refresh-status");
-    var encoded = button.getAttribute("data-refresh-command-b64");
-    var command = "";
-    try {
-      command = atob(encoded);
-    } catch (error) {
-      if (status) { status.textContent = "Copy failed"; }
-      return;
-    }
-    if (!navigator.clipboard || !navigator.clipboard.writeText) {
-      if (status) { status.textContent = "Copy failed"; }
-      return;
-    }
-    navigator.clipboard.writeText(command).then(function(){
-      if (status) { status.textContent = "Copied"; }
-    }, function(){
-      if (status) { status.textContent = "Copy failed"; }
-    });
-  });
-})();
-</script>
 "@
     }
 
