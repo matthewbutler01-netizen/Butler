@@ -52,11 +52,11 @@ class ButlerDashboardBf661ScriptTest {
     private static String script() throws IOException {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         for (int depth = 0; depth < 7 && current != null; depth++) {
-  Path candidate = current.resolve("scripts/butler-dashboard.ps1");
-  if (Files.isRegularFile(candidate)) {
-      return Files.readString(candidate, StandardCharsets.US_ASCII);
-  }
-  current = current.getParent();
+            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
+            if (Files.isRegularFile(candidate)) {
+                return Files.readString(candidate, StandardCharsets.US_ASCII);
+            }
+            current = current.getParent();
         }
         throw new IOException("BF-661 test could not locate scripts/butler-dashboard.ps1");
     }

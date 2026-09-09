@@ -856,54 +856,54 @@ function Get-GovernedExplanationView {
     }
 
     $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"
-if ([string]::IsNullOrWhiteSpace($decisionState)) {
-    throw "BF-661 BLOCKED: current governed decision state is missing"
-}
-$isNoTransaction = $decisionState -ceq "NO_TRANSACTION_TO_ACT_ON"
-$transactionStates = @(
-    "CURRENT_AND_ACTIONABLE",
-    "CURRENT_REFRESH_RECOMMENDED",
-    "TRANSACTION_ALREADY_COMPLETE",
-    "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
-    "STALE_DO_NOT_ACT"
-)
-$isTransaction = $transactionStates -ccontains $decisionState
-if (-not $isNoTransaction -and -not $isTransaction) {
-    throw "BF-661 BLOCKED: unsupported current governed decision state $decisionState"
-}
+    if ([string]::IsNullOrWhiteSpace($decisionState)) {
+        throw "BF-661 BLOCKED: current governed decision state is missing"
+    }
+    $isNoTransaction = $decisionState -ceq "NO_TRANSACTION_TO_ACT_ON"
+    $transactionStates = @(
+        "CURRENT_AND_ACTIONABLE",
+        "CURRENT_REFRESH_RECOMMENDED",
+        "TRANSACTION_ALREADY_COMPLETE",
+        "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+        "STALE_DO_NOT_ACT"
+    )
+    $isTransaction = $transactionStates -ccontains $decisionState
+    if (-not $isNoTransaction -and -not $isTransaction) {
+        throw "BF-661 BLOCKED: unsupported current governed decision state $decisionState"
+    }
 
-$add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
-$drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
-$hasAddId = -not [string]::IsNullOrWhiteSpace([string]$add.SleeperId)
-$hasDropId = -not [string]::IsNullOrWhiteSpace([string]$drop.SleeperId)
-if ($isNoTransaction) {
-    if ($hasAddId -or $hasDropId) {
-        throw "BF-661 BLOCKED: NO_TRANSACTION_TO_ACT_ON must not contain audited ADD/DROP Sleeper ids"
+    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+    $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+    $hasAddId = -not [string]::IsNullOrWhiteSpace([string]$add.SleeperId)
+    $hasDropId = -not [string]::IsNullOrWhiteSpace([string]$drop.SleeperId)
+    if ($isNoTransaction) {
+        if ($hasAddId -or $hasDropId) {
+            throw "BF-661 BLOCKED: NO_TRANSACTION_TO_ACT_ON must not contain audited ADD/DROP Sleeper ids"
+        }
     }
-}
-elseif (-not $hasAddId -or -not $hasDropId) {
-    throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
-}
+    elseif (-not $hasAddId -or -not $hasDropId) {
+        throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+    }
 
-$lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
-$lookupAddId = "none"
-$lookupDropId = "none"
-if ($isNoTransaction) {
-    if ([string]$lookupIdsRaw -cne "none / none") {
-        throw "BF-661 BLOCKED: BF-653 no-transaction audited ADD/DROP ids must be absent"
+    $lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+    $lookupAddId = "none"
+    $lookupDropId = "none"
+    if ($isNoTransaction) {
+        if ([string]$lookupIdsRaw -cne "none / none") {
+            throw "BF-661 BLOCKED: BF-653 no-transaction audited ADD/DROP ids must be absent"
+        }
     }
-}
-else {
-    $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
-    if (-not $lookupIds.Success) {
-        throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
+    else {
+        $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
+        if (-not $lookupIds.Success) {
+            throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
+        }
+        $lookupAddId = $lookupIds.Groups['add'].Value.Trim()
+        $lookupDropId = $lookupIds.Groups['drop'].Value.Trim()
+        if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
+            throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
+        }
     }
-    $lookupAddId = $lookupIds.Groups['add'].Value.Trim()
-    $lookupDropId = $lookupIds.Groups['drop'].Value.Trim()
-    if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
-        throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
-    }
-}
 
     if ($lookupState -ceq "EXPLANATION_NOT_CAPTURED") {
         return [pscustomobject]@{
@@ -1192,24 +1192,24 @@ function ConvertTo-DashboardHtml {
     }
 
     $movesSection = ""
-$transactionStates = @(
-    "CURRENT_AND_ACTIONABLE",
-    "CURRENT_REFRESH_RECOMMENDED",
-    "TRANSACTION_ALREADY_COMPLETE",
-    "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
-    "STALE_DO_NOT_ACT"
-)
-if ($transactionStates -ccontains $state) {
-    $movesSection = @"
+    $transactionStates = @(
+        "CURRENT_AND_ACTIONABLE",
+        "CURRENT_REFRESH_RECOMMENDED",
+        "TRANSACTION_ALREADY_COMPLETE",
+        "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+        "STALE_DO_NOT_ACT"
+    )
+    if ($transactionStates -ccontains $state) {
+        $movesSection = @"
 <div class="moves">
   <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
   <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
 </div>
 "@
-}
-elseif ($state -cne "NO_TRANSACTION_TO_ACT_ON" -and $state -cne "NO_AUDITED_DECISION") {
-    throw "BF-661 BLOCKED: unsupported dashboard decision state $state"
-}
+    }
+    elseif ($state -cne "NO_TRANSACTION_TO_ACT_ON" -and $state -cne "NO_AUDITED_DECISION") {
+        throw "BF-661 BLOCKED: unsupported dashboard decision state $state"
+    }
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
