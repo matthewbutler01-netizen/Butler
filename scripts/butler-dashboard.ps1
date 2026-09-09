@@ -921,6 +921,58 @@ function Get-GovernedExplanationView {
     }
 }
 
+function Get-GovernedExplanationCaptureView {
+    param([Parameter(Mandatory = $true)]$Explanation)
+
+    if ($Explanation.Ready) {
+        return [pscustomobject]@{
+            Active = $false
+            AuditId = $Explanation.AuditId
+            State = $Explanation.State
+            TaskName = "none"
+            Command = "none"
+        }
+    }
+    if ($Explanation.State -cne "EXPLANATION_NOT_CAPTURED") {
+        throw "BF-658 BLOCKED: unsupported BF-653 explanation state for capture command"
+    }
+    if ([string]::IsNullOrWhiteSpace($Explanation.AuditId) -or $Explanation.AuditId -ceq "none") {
+        return [pscustomobject]@{
+            Active = $false
+            AuditId = "none"
+            State = $Explanation.State
+            TaskName = "none"
+            Command = "none"
+        }
+    }
+
+    $uuidPattern = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    if ($LeagueId -notmatch $uuidPattern) {
+        throw "BF-658 BLOCKED: current Butler league id is malformed for governed explanation capture"
+    }
+    if ($Explanation.AuditId -notmatch $uuidPattern) {
+        throw "BF-658 BLOCKED: current BF-627 audit id is malformed for governed explanation capture"
+    }
+    $marketLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
+    $waiverLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none"
+    if ($marketLineageMissing -or $waiverLineageMissing) {
+        throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
+    }
+    if ($Explanation.AddSleeperId -notmatch '^[0-9]+$' -or $Explanation.DropSleeperId -notmatch '^[0-9]+$') {
+        throw "BF-658 BLOCKED: reconciled ADD/DROP exact Sleeper ids are unavailable for governed explanation capture"
+    }
+
+    $taskName = "sleeperLiveWaiverGovernedExplanationCapture"
+    $command = '.\gradlew.bat :bet:bet-cli:' + $taskName + ' --args="' + $LeagueId + ' ' + $Explanation.AuditId + '"'
+    return [pscustomobject]@{
+        Active = $true
+        AuditId = $Explanation.AuditId
+        State = $Explanation.State
+        TaskName = $taskName
+        Command = $command
+    }
+}
+
 function Resolve-WaiverCandidateById {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
@@ -1067,6 +1119,7 @@ function ConvertTo-DashboardHtml {
     }
 
     $explanation = Get-GovernedExplanationView -Summary $Summary
+    $explanationCapture = Get-GovernedExplanationCaptureView -Explanation $explanation
     if ($explanation.Ready) {
         $whySection = @"
 <section class="panel">
@@ -1079,12 +1132,26 @@ function ConvertTo-DashboardHtml {
 "@
     }
     else {
+        $capturePrompt = ""
+        if ($explanationCapture.Active) {
+            $capturePrompt = @"
+  <div class="refresh-plan-note"><strong>MANUAL ONLY.</strong> Capture the governed explanation for this exact audit only if you want Butler to persist the existing governed reason. BF-653 is the only writer; this dashboard does not execute BF-653 capture.</div>
+  <article class="refresh-step" style="margin-top:14px">
+    <div class="refresh-step-head"><span class="refresh-step-bf">BF-653</span><span class="refresh-mode write">BUTLER_WRITE</span></div>
+    <div class="refresh-task">$(ConvertTo-HtmlText $explanationCapture.TaskName)</div>
+    <div class="refresh-copy-hint">Copy safely: focus the read-only field, then Press Ctrl+A, then Ctrl+C.</div>
+    <textarea class="refresh-command-copy" rows="2" readonly>$(ConvertTo-HtmlText $explanationCapture.Command)</textarea>
+    <div class="refresh-purpose">The command targets only current BF-627 audit $(ConvertTo-HtmlText $explanationCapture.AuditId). BF-653 re-reconciles exact target, lineage, and ADD/DROP identities before any append-only explanation write.</div>
+  </article>
+"@
+        }
         $whySection = @"
 <section class="panel">
   <div class="eyebrow">Governed explanation</div>
   <h2>Why this move?</h2>
   <p class="lede">No persisted BF-653 explanation is available for this exact audit.</p>
   <div class="subtle" style="margin-top:10px">Butler will not invent or recompute an explanation from this dashboard.</div>
+  $capturePrompt
 </section>
 "@
     }
@@ -1106,7 +1173,7 @@ $whySection
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 refresh or BF-640 next-decision manual instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 refresh, BF-640 next-decision, or BF-658 explanation-capture manual instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit or explanation, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
 </main></body></html>
 "@
 }
