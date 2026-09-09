@@ -250,6 +250,70 @@ function Get-WaiverLanePresentation {
     return [pscustomobject]@{ Label=$Lane; Class="neutral" }
 }
 
+function Get-WaiverTargetView {
+    param([Parameter(Mandatory = $true)][string]$Bundle)
+
+    $gate = Get-LineValue -Text $Bundle -Label "Binding gate state:"
+    $leagueRaw = Get-LineValue -Text $Bundle -Label "Bound Sleeper league:"
+    $rosterRaw = Get-LineValue -Text $Bundle -Label "Bound roster / role:"
+    $displayRaw = Get-LineValue -Text $Bundle -Label "Bound display/team:"
+    $comparisonRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+
+    if ($gate -cne "BOUND_TARGET_LIVE_VERIFIED") {
+        throw "BF-648 BLOCKED: BF-623 binding gate is not BOUND_TARGET_LIVE_VERIFIED"
+    }
+    if ([string]::IsNullOrWhiteSpace($leagueRaw) -or [string]::IsNullOrWhiteSpace($rosterRaw) -or [string]::IsNullOrWhiteSpace($displayRaw) -or [string]::IsNullOrWhiteSpace($comparisonRaw)) {
+        throw "BF-648 BLOCKED: BF-623 verified identity or raw comparison target is missing"
+    }
+
+    $leagueMatch = [regex]::Match($leagueRaw, '^(?<id>[0-9]+)\s+\|\s+(?<name>.+)$')
+    $rosterMatch = [regex]::Match($rosterRaw, '^(?<id>[0-9]+)\s+/\s+(?<role>[A-Z_]+)$')
+    $displayMatch = [regex]::Match($displayRaw, '^(?<display>.*?)\s+/\s+(?<team>.*)$')
+    $comparisonMatch = [regex]::Match($comparisonRaw, '^(?<league>[0-9]+)\s+/\s+(?<roster>[0-9]+)$')
+    if (-not $leagueMatch.Success -or -not $rosterMatch.Success -or -not $displayMatch.Success -or -not $comparisonMatch.Success) {
+        throw "BF-648 BLOCKED: unable to parse BF-623 verified identity or raw comparison target"
+    }
+
+    $sleeperLeagueId = $leagueMatch.Groups['id'].Value.Trim()
+    $leagueName = $leagueMatch.Groups['name'].Value.Trim()
+    $rosterId = $rosterMatch.Groups['id'].Value.Trim()
+    $role = $rosterMatch.Groups['role'].Value.Trim()
+    $displayName = $displayMatch.Groups['display'].Value.Trim()
+    $teamName = $displayMatch.Groups['team'].Value.Trim()
+    $comparisonLeagueId = $comparisonMatch.Groups['league'].Value.Trim()
+    $comparisonRosterId = $comparisonMatch.Groups['roster'].Value.Trim()
+
+    if ($role -cne "OWNER") {
+        throw "BF-648 BLOCKED: BF-623 target role is not exact OWNER"
+    }
+    if ($sleeperLeagueId -cne $comparisonLeagueId -or $rosterId -cne $comparisonRosterId) {
+        throw "BF-648 BLOCKED: BF-623 verified league/roster identity disagrees with BF-616 raw comparison target"
+    }
+    if ([string]::IsNullOrWhiteSpace($leagueName) -or $leagueName -ceq "none") {
+        throw "BF-648 BLOCKED: BF-623 verified league name is unavailable"
+    }
+
+    $identityName = $teamName
+    if ([string]::IsNullOrWhiteSpace($identityName) -or $identityName -ceq "none") {
+        $identityName = $displayName
+    }
+    if ([string]::IsNullOrWhiteSpace($identityName) -or $identityName -ceq "none") {
+        throw "BF-648 BLOCKED: BF-623 verified team/display identity is unavailable"
+    }
+
+    return [pscustomobject]@{
+        Human = "$leagueName | $identityName | roster $rosterId"
+        SleeperLeagueId = $sleeperLeagueId
+        RosterId = $rosterId
+        LeagueName = $leagueName
+        DisplayName = $displayName
+        TeamName = $teamName
+        Role = $role
+        Gate = $gate
+        RawComparison = $comparisonRaw
+    }
+}
+
 function Resolve-WaiverCandidateById {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
@@ -412,7 +476,7 @@ function ConvertTo-WaiverHtml {
         throw "BF-646 BLOCKED: parsed BF-616 shortlist count $($candidates.Count) does not match BF-617 authorized total $($counts.Total)"
     }
 
-    $targetRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    $target = Get-WaiverTargetView -Bundle $Bundle
     $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
     $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
     $bf615 = Get-LineValue -Text $Bundle -Label "BF-615 state:"
@@ -423,7 +487,7 @@ function ConvertTo-WaiverHtml {
     }
 
     $css = Get-SharedCss
-    $header = Get-HeaderHtml -Target $targetRaw -Active "waivers"
+    $header = Get-HeaderHtml -Target $target.Human -Active "waivers"
     $cards = ""
 
     foreach ($candidate in $candidates) {
@@ -467,7 +531,7 @@ $header
   </div>
   <div class="board-grid">$cards</div>
   <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric.</div>
-  <details><summary>Technical details</summary><div class="tech"><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
 <section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist only. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a winner, identify a drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
 </main></body></html>
@@ -479,7 +543,7 @@ function ConvertTo-WaiverCandidateDetailHtml {
         [Parameter(Mandatory = $true)][string]$Bundle,
         [Parameter(Mandatory = $true)]$Candidate
     )
-    $targetRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    $target = Get-WaiverTargetView -Bundle $Bundle
     $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
     $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
     $bf616 = Get-LineValue -Text $Bundle -Label "BF-616 state:"
@@ -497,7 +561,7 @@ function ConvertTo-WaiverCandidateDetailHtml {
         "Historical directional traceability comes only from Butler's frozen governed comparison method. Comparator sets below are evidence lineage, not a new score or ranking."
     }
     $css = Get-SharedCss
-    $header = Get-HeaderHtml -Target $targetRaw -Active "waivers"
+    $header = Get-HeaderHtml -Target $target.Human -Active "waivers"
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Waiver Candidate</title><style>$css</style></head><body><main class="shell">
@@ -514,7 +578,7 @@ $header
   </div>
   <div class="market"><strong>Market attention:</strong> add $(ConvertTo-HtmlText $Candidate.MarketAdd) / drop $(ConvertTo-HtmlText $Candidate.MarketDrop) / net $(ConvertTo-HtmlText $Candidate.MarketNet)</div>
   <div class="next"><strong>Governed interpretation</strong><p>$(ConvertTo-HtmlText $laneCopy)</p></div>
-  <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
+  <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
   <div class="actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>
 </section>
 <section class="panel boundary"><span class="lock">READ ONLY · EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
@@ -549,7 +613,7 @@ Push-Location $repoRoot
 try {
     $listener.Start()
     $url = "http://127.0.0.1:$Port/"
-    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647 Butler Dashboard"
+    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647/BF-648 Butler Dashboard"
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"

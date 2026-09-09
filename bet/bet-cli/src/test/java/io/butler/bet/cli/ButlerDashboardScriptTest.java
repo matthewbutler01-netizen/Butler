@@ -176,6 +176,28 @@ class ButlerDashboardScriptTest {
     }
 
     @Test
+    void waiverTargetIdentityUsesExistingBf623FieldsAndReconcilesRawIds() throws Exception {
+        String script = script();
+        assertTrue(script.contains("function Get-WaiverTargetView"));
+        assertTrue(script.contains("Binding gate state:"));
+        assertTrue(script.contains("Bound Sleeper league:"));
+        assertTrue(script.contains("Bound roster / role:"));
+        assertTrue(script.contains("Bound display/team:"));
+        assertTrue(script.contains("Sleeper league / target roster:"));
+        assertTrue(script.contains("$gate -cne \"BOUND_TARGET_LIVE_VERIFIED\""));
+        assertTrue(script.contains("$role -cne \"OWNER\""));
+        assertTrue(script.contains("verified league/roster identity disagrees with BF-616 raw comparison target"));
+        assertTrue(script.contains("Human = \"$leagueName | $identityName | roster $rosterId\""));
+        assertTrue(script.contains("$identityName = $displayName"));
+        assertTrue(script.contains("Get-HeaderHtml -Target $target.Human -Active \"waivers\""));
+        assertTrue(script.contains("Raw Sleeper league / roster:"));
+        assertTrue(script.contains("Raw comparison identity:"));
+        assertTrue(script.contains("BF-623 target gate:"));
+        assertTrue(script.contains("BF-623 role:"));
+        assertTrue(script.contains("BF-648 BLOCKED"));
+    }
+
+    @Test
     void navigationIncludesReadOnlyWaiverBoardAndCandidateRoutes() throws Exception {
         String script = script();
         assertTrue(script.contains("href=\"/waivers\">Waiver Board"));
@@ -220,6 +242,6 @@ class ButlerDashboardScriptTest {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646/BF-647 test could not locate scripts/butler-dashboard.ps1");
+        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646/BF-647/BF-648 test could not locate scripts/butler-dashboard.ps1");
     }
 }
