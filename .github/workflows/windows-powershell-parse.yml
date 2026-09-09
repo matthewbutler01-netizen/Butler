@@ -1,6 +1,11 @@
 name: Windows PowerShell Parse
 
 on:
+  push:
+    branches:
+      - bf-661-dashboard-no-transaction-explanation
+    paths:
+      - '.github/workflows/windows-powershell-parse.yml'
   pull_request:
     branches:
       - main
@@ -56,14 +61,12 @@ jobs:
           moves_end_marker = '    return @"\n<!doctype html><html lang="en"><head><meta charset="utf-8"'
           moves_end = text.index(moves_end_marker, moves_start)
           moves_block = text[moves_start:moves_end]
-          expected_prefix = '$transactionStates = @(\n'
-          if not moves_block.startswith(expected_prefix):
+          if not moves_block.startswith('$transactionStates = @(\n'):
               raise SystemExit('BF-661 FORMAT BLOCKED: moves block start drifted')
 
-          lines = moves_block.splitlines(keepends=True)
           formatted_lines = []
           inside_here_string = False
-          for line in lines:
+          for line in moves_block.splitlines(keepends=True):
               raw = line.rstrip('\r\n')
               if raw.endswith('$movesSection = @"'):
                   formatted_lines.append('    ' + line)
@@ -82,14 +85,6 @@ jobs:
 
           java = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java')
           java_text = java.read_text(encoding='ascii')
-          old = '''        for (int depth = 0; depth < 7 && current != null; depth++) {
-            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
-            if (Files.isRegularFile(candidate)) {
-                return Files.readString(candidate, StandardCharsets.US_ASCII);
-            }
-            current = current.getParent();
-        }
-          '''
           malformed = '''        for (int depth = 0; depth < 7 && current != null; depth++) {
           Path candidate = current.resolve("scripts/butler-dashboard.ps1");
           if (Files.isRegularFile(candidate)) {
@@ -98,10 +93,17 @@ jobs:
           current = current.getParent();
         }
           '''
+          clean = '''        for (int depth = 0; depth < 7 && current != null; depth++) {
+            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
+            if (Files.isRegularFile(candidate)) {
+                return Files.readString(candidate, StandardCharsets.US_ASCII);
+            }
+            current = current.getParent();
+        }
+          '''
           if malformed not in java_text:
               raise SystemExit('BF-661 FORMAT BLOCKED: Java indentation anchor drifted')
-          java_text = java_text.replace(malformed, old, 1)
-          java.write_text(java_text, encoding='ascii', newline='\n')
+          java.write_text(java_text.replace(malformed, clean, 1), encoding='ascii', newline='\n')
 
       - name: Parse dashboard with Windows PowerShell 5.1
         shell: powershell
