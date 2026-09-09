@@ -58,6 +58,66 @@ class SleeperLiveWaiverGovernedExplanationCaptureTest {
     }
 
     @Test
+    void postTransactionBf610RosterDriftUsesGuardedReplayAndCapturesExactAuditCompanion() throws Exception {
+        Database database = database();
+        var audits = new GovernedRecommendationAuditRepository(database);
+        var explanations = new GovernedRecommendationExplanationRepository(database);
+        var audit = persistAudit(audits, "audit-post-tx", "market-post-tx", "waiver-post-tx", "3214", "12493");
+        var replayRecommendation = recommendation("market-post-tx", "waiver-post-tx", "3214", "12493", List.of("TE"));
+        int[] replayCalls = {0};
+        var capture = new SleeperLiveWaiverGovernedExplanationCapture(
+            audits,
+            explanations,
+            (leagueId, ownerId) -> { throw new IllegalStateException(
+                "BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added=[3214] removed=[12493]; refresh BF-602/BF-603 and downstream live evidence before target-roster review"); },
+            ignored -> { throw new AssertionError("normal BF-625 source must not run after BF-659 replay"); },
+            Clock.fixed(Instant.parse("2026-09-09T11:30:00Z"), ZoneOffset.UTC),
+            (verifiedTarget, exactAudit) -> {
+                replayCalls[0]++;
+                assertEquals(audit, exactAudit);
+                return new SleeperLiveWaiverGovernedExplanationCapture.PostTransactionReplay(replayRecommendation, null);
+            });
+
+        var result = capture.capture(target(), audit.id());
+
+        assertEquals(1, replayCalls[0]);
+        assertEquals(GovernedRecommendationExplanationRepository.CaptureState.CAPTURED_VERIFIED, result.captureState());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_SAME_POSITION, result.explanationType());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.SAME_POSITION_REASON, result.explanationText());
+        assertEquals("3214", result.addSleeperPlayerId());
+        assertEquals("12493", result.dropSleeperPlayerId());
+        assertEquals(audit, audits.findAllForLeague("butler-hardcore").stream()
+            .filter(value -> value.id().equals(audit.id())).findFirst().orElseThrow());
+    }
+
+    @Test
+    void unrelatedLiveRecommendationFailureNeverTriggersPostTransactionReplay() throws Exception {
+        Database database = database();
+        var audits = new GovernedRecommendationAuditRepository(database);
+        var explanations = new GovernedRecommendationExplanationRepository(database);
+        var audit = persistAudit(audits, "audit-no-replay", "market-no-replay", "waiver-no-replay", "3214", "12493");
+        int[] replayCalls = {0};
+        var capture = new SleeperLiveWaiverGovernedExplanationCapture(
+            audits,
+            explanations,
+            (leagueId, ownerId) -> { throw new IllegalStateException("BF-620 BLOCKED: unrelated freshness failure"); },
+            ignored -> { throw new AssertionError("BF-625 must not run"); },
+            Clock.fixed(Instant.parse("2026-09-09T11:30:00Z"), ZoneOffset.UTC),
+            (verifiedTarget, exactAudit) -> {
+                replayCalls[0]++;
+                return new SleeperLiveWaiverGovernedExplanationCapture.PostTransactionReplay(
+                    recommendation("market-no-replay", "waiver-no-replay", "3214", "12493", List.of("TE")), null);
+            });
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> capture.capture(target(), audit.id()));
+
+        assertEquals("BF-620 BLOCKED: unrelated freshness failure", error.getMessage());
+        assertEquals(0, replayCalls[0]);
+        assertTrue(explanations.findByAuditId(audit.id()).isEmpty());
+    }
+
+    @Test
     void conflictingCompanionPayloadForSameAuditIsRejected() throws Exception {
         Database database = database();
         var audits = new GovernedRecommendationAuditRepository(database);
