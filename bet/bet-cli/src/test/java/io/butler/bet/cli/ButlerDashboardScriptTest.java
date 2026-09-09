@@ -136,7 +136,7 @@ class ButlerDashboardScriptTest {
     @Test
     void waiverBoardKeepsDescriptiveEvidenceNonnumericAndNonRanking() throws Exception {
         String script = script();
-        assertTrue(script.contains("Newcomer review lane · nonnumeric"));
+        assertTrue(script.contains("Newcomer review lane &middot; nonnumeric"));
         assertTrue(script.contains("Newcomers remain nonnumeric"));
         assertTrue(script.contains("Market attention is descriptive only"));
         assertTrue(script.contains("Status, injury, depth, and market attention are descriptive only"));
@@ -173,7 +173,7 @@ class ButlerDashboardScriptTest {
         assertTrue(script.contains("Newcomer review remains explicitly nonnumeric"));
         assertTrue(script.contains("does not fabricate a production score or rank this player"));
         assertTrue(script.contains("Back to Waiver Board"));
-        assertTrue(script.contains("READ ONLY · EXACT ID ONLY."));
+        assertTrue(script.contains("READ ONLY &middot; EXACT ID ONLY."));
     }
 
     @Test
