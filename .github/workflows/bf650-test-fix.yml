@@ -1,0 +1,24 @@
+name: BF-650 Test Fix
+on:
+  push:
+    branches: [bf-650-powershell51-ascii-dashboard]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bf-650-powershell51-ascii-dashboard
+          persist-credentials: true
+      - name: Update legacy dashboard source assertion
+        run: python -c "from pathlib import Path; p=Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java'); s=p.read_text(encoding='utf-8').replace('Starter ·','Starter -'); p.write_text(s,encoding='utf-8')"
+      - name: Commit test update
+        run: |
+          if git diff --quiet -- bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java
+          git commit -m "BF-650: update ASCII-safe roster label test"
+          git push origin HEAD:bf-650-powershell51-ascii-dashboard
