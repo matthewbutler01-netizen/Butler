@@ -1,0 +1,93 @@
+name: BF-650 Apply
+
+on:
+  push:
+    branches:
+      - bf-650-powershell51-ascii-dashboard
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out BF-650 branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bf-650-powershell51-ascii-dashboard
+          persist-credentials: true
+
+      - name: Make dashboard source ASCII-only
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dashboard = Path('scripts/butler-dashboard.ps1')
+          text = dashboard.read_text(encoding='utf-8')
+          text = text.replace('Starter · $($Player.LineupSlot)', 'Starter - $($Player.LineupSlot)')
+          text = text.replace(' · ', ' &middot; ')
+          if any(ord(ch) > 127 for ch in text):
+              bad = sorted({ch for ch in text if ord(ch) > 127})
+              raise SystemExit(f'BF-650 BLOCKED: dashboard still contains non-ASCII characters: {bad!r}')
+          dashboard.write_text(text, encoding='ascii')
+
+          test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf650AsciiTest.java')
+          test.write_text(r'''package io.butler.bet.cli;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ButlerDashboardBf650AsciiTest {
+
+    @Test
+    void dashboardSourceRemainsAsciiOnlyForWindowsPowerShell51() throws Exception {
+        Path path = locateScript();
+        byte[] bytes = Files.readAllBytes(path);
+        for (int i = 0; i < bytes.length; i++) {
+            int value = bytes[i] & 0xff;
+            assertTrue(value <= 0x7f, "BF-650 non-ASCII byte at offset " + i + ": " + value);
+        }
+
+        String script = new String(bytes, StandardCharsets.US_ASCII);
+        assertFalse(script.contains("\u00b7"));
+        assertTrue(script.contains("Starter - $($Player.LineupSlot)"));
+        assertTrue(script.contains("Already-audited current ADD &middot; this marker is not a board rank."));
+        assertTrue(script.contains("Newcomer review lane &middot; nonnumeric"));
+        assertTrue(script.contains("READ ONLY &middot; NOT A RANKING."));
+        assertTrue(script.contains("READ ONLY &middot; EXACT ID ONLY."));
+    }
+
+    private static Path locateScript() throws IOException {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (int depth = 0; depth < 7 && current != null; depth++) {
+            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
+            if (Files.isRegularFile(candidate)) return candidate;
+            current = current.getParent();
+        }
+        throw new IOException("BF-650 test could not locate scripts/butler-dashboard.ps1");
+    }
+}
+''', encoding='ascii')
+          PY
+
+      - name: Commit BF-650 changes when needed
+        shell: bash
+        run: |
+          if git diff --quiet -- scripts/butler-dashboard.ps1 bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf650AsciiTest.java; then
+            echo "BF-650 changes already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1 bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf650AsciiTest.java
+          git commit -m "BF-650: make dashboard source ASCII-only"
+          git push origin HEAD:bf-650-powershell51-ascii-dashboard
