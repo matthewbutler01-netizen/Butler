@@ -1,0 +1,53 @@
+name: BF-662 Patch Dashboard
+
+on:
+  push:
+    branches:
+      - bf-662-no-transaction-safety-copy
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bf-662-no-transaction-safety-copy
+          fetch-depth: 0
+
+      - name: Apply exact BF-662 dashboard patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("scripts/butler-dashboard.ps1")
+          text = path.read_text(encoding="ascii")
+
+          old_ok = '    $rosterOk = $Bf629 -eq "LIVE_ACTIONABLE_VERIFIED" -or $Bf629 -eq "AUDITED_TRANSACTION_COMPLETE" -or $Bf629 -eq "AUDITED_TRANSACTION_PENDING"'
+          new_ok = '    $rosterOk = $Bf629 -eq "LIVE_ACTIONABLE_VERIFIED" -or $Bf629 -eq "AUDITED_TRANSACTION_COMPLETE" -or $Bf629 -eq "AUDITED_TRANSACTION_PENDING" -or $Bf629 -eq "NO_TRANSACTION_TO_REVALIDATE"'
+
+          old_copy = '    $roster = if ($Bf629 -eq "LIVE_ACTIONABLE_VERIFIED") { "Live roster check passed" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_COMPLETE") { "Completed transaction verified" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_PENDING") { "Pending transaction verified" } else { "Live roster safety gate not green" }'
+          new_copy = '    $roster = if ($Bf629 -eq "LIVE_ACTIONABLE_VERIFIED") { "Live roster check passed" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_COMPLETE") { "Completed transaction verified" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_PENDING") { "Pending transaction verified" } elseif ($Bf629 -eq "NO_TRANSACTION_TO_REVALIDATE") { "No transaction to revalidate" } else { "Live roster safety gate not green" }'
+
+          if text.count(old_ok) != 1:
+              raise SystemExit("BF-662 patch blocked: expected rosterOk source exactly once")
+          if text.count(old_copy) != 1:
+              raise SystemExit("BF-662 patch blocked: expected roster copy source exactly once")
+
+          text = text.replace(old_ok, new_ok, 1).replace(old_copy, new_copy, 1)
+          text.encode("ascii")
+          path.write_text(text, encoding="ascii", newline="")
+
+      - name: Remove temporary patch workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/bf662-patch-dashboard.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1 .github/workflows/bf662-patch-dashboard.yml
+          git diff --cached --check
+          git commit -m "BF-662: treat no-transaction revalidation as satisfied"
+          git push origin HEAD:bf-662-no-transaction-safety-copy
