@@ -103,6 +103,7 @@ function Get-StatePresentation {
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { return [pscustomobject]@{ Class="warn"; Headline="Move pending"; Copy="Sleeper is already processing this exact transaction. Do not submit a duplicate."; ActionTitle="Wait for Sleeper"; ActionCopy="Do not submit this add/drop again while the exact transaction is pending. Refresh status after Sleeper processes it." } }
         "CURRENT_REFRESH_RECOMMENDED" { return [pscustomobject]@{ Class="warn"; Headline="Refresh recommended"; Copy="The move is still live-actionable, but Butler's persisted waiver evidence is older than the approved six-hour warning threshold."; ActionTitle="Consider refreshing first"; ActionCopy="The six-hour policy is warning-only, not a hard block. A governed evidence refresh is recommended before acting." } }
         "STALE_DO_NOT_ACT" { return [pscustomobject]@{ Class="danger"; Headline="Do not act"; Copy="A hard safety gate failed. Keep this decision only for traceability until Butler produces a new governed result."; ActionTitle="Stop here"; ActionCopy="Do not make this move from the displayed audit. Butler must produce a new governed state before action." } }
+        "NO_TRANSACTION_TO_ACT_ON" { return [pscustomobject]@{ Class="done"; Headline="No governed transaction"; Copy="Butler's governed evaluation did not authorize an add/drop transaction for this audit."; ActionTitle="No move to make"; ActionCopy="Keep the audited no-transaction decision for traceability. There is no ADD/DROP transaction to submit from this audit." } }
         default { return [pscustomobject]@{ Class="danger"; Headline="No actionable move"; Copy="Butler does not currently have a governed transaction that is safe to act on."; ActionTitle="No move to make"; ActionCopy="There is no currently governed add/drop action on this screen." } }
     }
 }
@@ -854,12 +855,45 @@ function Get-GovernedExplanationView {
         throw "BF-654 BLOCKED: BF-653 BF-603/BF-602 lineage disagrees with current BF-631 audit lineage"
     }
 
-    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
-    $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
-    if ([string]::IsNullOrWhiteSpace($add.SleeperId) -or [string]::IsNullOrWhiteSpace($drop.SleeperId)) {
-        throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+    $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"
+if ([string]::IsNullOrWhiteSpace($decisionState)) {
+    throw "BF-661 BLOCKED: current governed decision state is missing"
+}
+$isNoTransaction = $decisionState -ceq "NO_TRANSACTION_TO_ACT_ON"
+$transactionStates = @(
+    "CURRENT_AND_ACTIONABLE",
+    "CURRENT_REFRESH_RECOMMENDED",
+    "TRANSACTION_ALREADY_COMPLETE",
+    "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+    "STALE_DO_NOT_ACT"
+)
+$isTransaction = $transactionStates -ccontains $decisionState
+if (-not $isNoTransaction -and -not $isTransaction) {
+    throw "BF-661 BLOCKED: unsupported current governed decision state $decisionState"
+}
+
+$add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+$drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+$hasAddId = -not [string]::IsNullOrWhiteSpace([string]$add.SleeperId)
+$hasDropId = -not [string]::IsNullOrWhiteSpace([string]$drop.SleeperId)
+if ($isNoTransaction) {
+    if ($hasAddId -or $hasDropId) {
+        throw "BF-661 BLOCKED: NO_TRANSACTION_TO_ACT_ON must not contain audited ADD/DROP Sleeper ids"
     }
-    $lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+}
+elseif (-not $hasAddId -or -not $hasDropId) {
+    throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+}
+
+$lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+$lookupAddId = "none"
+$lookupDropId = "none"
+if ($isNoTransaction) {
+    if ([string]$lookupIdsRaw -cne "none / none") {
+        throw "BF-661 BLOCKED: BF-653 no-transaction audited ADD/DROP ids must be absent"
+    }
+}
+else {
     $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
     if (-not $lookupIds.Success) {
         throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
@@ -869,6 +903,7 @@ function Get-GovernedExplanationView {
     if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
         throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
     }
+}
 
     if ($lookupState -ceq "EXPLANATION_NOT_CAPTURED") {
         return [pscustomobject]@{
@@ -1156,15 +1191,32 @@ function ConvertTo-DashboardHtml {
 "@
     }
 
+    $movesSection = ""
+$transactionStates = @(
+    "CURRENT_AND_ACTIONABLE",
+    "CURRENT_REFRESH_RECOMMENDED",
+    "TRANSACTION_ALREADY_COMPLETE",
+    "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+    "STALE_DO_NOT_ACT"
+)
+if ($transactionStates -ccontains $state) {
+    $movesSection = @"
+<div class="moves">
+  <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
+  <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
+</div>
+"@
+}
+elseif ($state -cne "NO_TRANSACTION_TO_ACT_ON" -and $state -cne "NO_AUDITED_DECISION") {
+    throw "BF-661 BLOCKED: unsupported dashboard decision state $state"
+}
+
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
 $header
 <section class="panel">
   <div class="statusrow"><div><div class="eyebrow">Current Butler recommendation</div><h2 class="headline">$(ConvertTo-HtmlText $presentation.Headline)</h2><p class="lede">$(ConvertTo-HtmlText $presentation.Copy)</p></div><div class="status $($presentation.Class)">$(ConvertTo-HtmlText $presentation.Headline)</div></div>
-  <div class="moves">
-    <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
-    <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
-  </div>
+$movesSection
   <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
 </section>
 $refreshPlanSection
