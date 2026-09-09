@@ -1,0 +1,38 @@
+name: BF-654 Apply
+
+on:
+  push:
+    branches:
+      - bf-654-dashboard-why-this-move
+    paths:
+      - .github/workflows/bf654-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bf-654-dashboard-why-this-move
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Apply BF-654 patch
+        run: python .github/bf654_patch.py
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+      - name: Compile BF-654 regression test
+        run: ./gradlew :bet:bet-cli:compileTestJava
+      - name: Run BF-654 regression test
+        run: ./gradlew :bet:bet-cli:test --tests io.butler.bet.cli.ButlerDashboardBf654ScriptTest
+      - name: Commit BF-654 dashboard wiring
+        run: |
+          git config user.name "Matt"
+          git config user.email "323053860+matthewbutler01-netizen@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1
+          git commit -m "BF-654: render persisted governed explanation"
+          git push origin HEAD:bf-654-dashboard-why-this-move
