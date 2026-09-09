@@ -1,11 +1,6 @@
 name: Windows PowerShell Parse
 
 on:
-  push:
-    branches:
-      - bf-661-dashboard-no-transaction-explanation
-    paths:
-      - '.github/workflows/windows-powershell-parse.yml'
   pull_request:
     branches:
       - main
@@ -13,6 +8,7 @@ on:
       - 'scripts/butler-dashboard.ps1'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java'
       - '.github/workflows/windows-powershell-parse.yml'
+      - '.github/bf661-format.py'
 
 concurrency:
   group: windows-powershell-parse-${{ github.event.pull_request.number || github.ref }}
@@ -22,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  format-and-verify:
+  parse:
     runs-on: windows-latest
     steps:
       - name: Check out BF-661 branch
@@ -38,74 +34,11 @@ jobs:
           java-version: '25'
           cache: gradle
 
-      - name: Format BF-661 inserted source only
-        shell: python
-        run: |
-          from pathlib import Path
+      - name: Format BF-661 inserted source
+        shell: powershell
+        run: python .github/bf661-format.py
 
-          dashboard = Path('scripts/butler-dashboard.ps1')
-          text = dashboard.read_text(encoding='ascii')
-
-          start_marker = '    $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"\n'
-          end_marker = '    if ($lookupState -ceq "EXPLANATION_NOT_CAPTURED") {\n'
-          start = text.index(start_marker) + len(start_marker)
-          end = text.index(end_marker, start)
-          block = text[start:end]
-          if not block.startswith('if ([string]::IsNullOrWhiteSpace($decisionState)) {\n'):
-              raise SystemExit('BF-661 FORMAT BLOCKED: explanation block start drifted')
-          formatted = ''.join(('    ' + line if line.strip() else line) for line in block.splitlines(keepends=True))
-          text = text[:start] + formatted + text[end:]
-
-          moves_anchor = '    $movesSection = ""\n'
-          moves_start = text.index(moves_anchor) + len(moves_anchor)
-          moves_end_marker = '    return @"\n<!doctype html><html lang="en"><head><meta charset="utf-8"'
-          moves_end = text.index(moves_end_marker, moves_start)
-          moves_block = text[moves_start:moves_end]
-          if not moves_block.startswith('$transactionStates = @(\n'):
-              raise SystemExit('BF-661 FORMAT BLOCKED: moves block start drifted')
-
-          formatted_lines = []
-          inside_here_string = False
-          for line in moves_block.splitlines(keepends=True):
-              raw = line.rstrip('\r\n')
-              if raw.endswith('$movesSection = @"'):
-                  formatted_lines.append('    ' + line)
-                  inside_here_string = True
-                  continue
-              if inside_here_string:
-                  formatted_lines.append(line)
-                  if raw == '"@':
-                      inside_here_string = False
-                  continue
-              formatted_lines.append(('    ' + line) if line.strip() else line)
-          if inside_here_string:
-              raise SystemExit('BF-661 FORMAT BLOCKED: unterminated moves here-string')
-          text = text[:moves_start] + ''.join(formatted_lines) + text[moves_end:]
-          dashboard.write_text(text, encoding='ascii', newline='\n')
-
-          java = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java')
-          java_text = java.read_text(encoding='ascii')
-          malformed = '''        for (int depth = 0; depth < 7 && current != null; depth++) {
-          Path candidate = current.resolve("scripts/butler-dashboard.ps1");
-          if (Files.isRegularFile(candidate)) {
-              return Files.readString(candidate, StandardCharsets.US_ASCII);
-          }
-          current = current.getParent();
-        }
-          '''
-          clean = '''        for (int depth = 0; depth < 7 && current != null; depth++) {
-            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
-            if (Files.isRegularFile(candidate)) {
-                return Files.readString(candidate, StandardCharsets.US_ASCII);
-            }
-            current = current.getParent();
-        }
-          '''
-          if malformed not in java_text:
-              raise SystemExit('BF-661 FORMAT BLOCKED: Java indentation anchor drifted')
-          java.write_text(java_text.replace(malformed, clean, 1), encoding='ascii', newline='\n')
-
-      - name: Parse dashboard with Windows PowerShell 5.1
+      - name: Parse Butler dashboard with Windows PowerShell 5.1
         shell: powershell
         run: |
           $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
@@ -122,20 +55,21 @@ jobs:
         run: |
           $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path '.\scripts\butler-dashboard.ps1').Path)
           if (@($bytes | Where-Object { $_ -gt 127 }).Count -gt 0) {
-              throw 'BF-661 FORMAT BLOCKED: dashboard is no longer ASCII-only'
+              throw 'BF-661 BLOCKED: dashboard is no longer ASCII-only'
           }
 
       - name: Run focused BF-661 regression
         shell: powershell
         run: .\gradlew.bat --dependency-verification=strict :bet:bet-cli:test --tests io.butler.bet.cli.ButlerDashboardBf661ScriptTest
 
-      - name: Commit formatting and restore workflow
+      - name: Commit clean BF-661 diff and restore workflow
         shell: powershell
         run: |
           git config user.name "Butler BF-661 verification"
           git config user.email "actions@users.noreply.github.com"
           git fetch origin main
           git checkout origin/main -- .github/workflows/windows-powershell-parse.yml
+          git rm .github/bf661-format.py
           git add scripts/butler-dashboard.ps1 bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java .github/workflows/windows-powershell-parse.yml
           git commit -m "BF-661: clean dashboard source formatting"
           git push origin HEAD:bf-661-dashboard-no-transaction-explanation
