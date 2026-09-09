@@ -61,7 +61,8 @@ final class SleeperLiveWaiverPostTransactionRecommendationReplay {
         List<LiveWaiverSnapshotRepository.Entry> snapshotEntries =
             new LiveWaiverSnapshotRepository(database).entries(audit.waiverSnapshotId());
         FrozenSnapshotFrame frozen = frozenSnapshotFrame(snapshotEntries, headers);
-        ImportedFrame imported = importedFrame(target, frozen.rosteredIds());
+validateFrozenPair(frozen, audit);
+ImportedFrame imported = importedFrame(target, frozen.rosteredIds());
         LiveFrame live = liveFrame(target, audit, frozen, imported);
         ReplayRoster replayRoster = replayRoster(target, audit, imported, live);
 
@@ -196,6 +197,19 @@ final class SleeperLiveWaiverPostTransactionRecommendationReplay {
             throw blocked("audited BF-602 rostered entry count does not reconcile");
         }
         return new FrozenSnapshotFrame(Map.copyOf(byId), Set.copyOf(rostered));
+    }
+
+    private static void validateFrozenPair(
+        FrozenSnapshotFrame frozen,
+        GovernedRecommendationAuditRepository.AuditRecord audit) {
+        var add = frozen.bySleeperId().get(audit.addSleeperPlayerId());
+        var drop = frozen.bySleeperId().get(audit.dropSleeperPlayerId());
+        if (add == null || !add.freeAgent() || add.rostered() || !add.leagueEligible()) {
+            throw blocked("audited add was not an exact league-eligible free agent in BF-602 frame");
+        }
+        if (drop == null || !drop.rostered() || drop.freeAgent()) {
+            throw blocked("audited drop was not rostered in BF-602 frame");
+        }
     }
 
     private ImportedFrame importedFrame(
