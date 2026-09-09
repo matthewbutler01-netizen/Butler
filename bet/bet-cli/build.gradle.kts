@@ -298,6 +298,20 @@ val sleeperLiveWaiverRecommendationAuditCapture by tasks.registering(JavaExec::c
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli")
 }
 
+val sleeperLiveWaiverGovernedExplanationCapture by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "BF-653 explicitly persists an immutable explanation companion for one existing BF-627 governed waiver audit after exact reconciliation."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverGovernedExplanationCaptureCli")
+}
+
+val sleeperLiveWaiverGovernedExplanationLookup by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-653 lookup of the persisted governed explanation companion for one exact BF-627 audit id."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverGovernedExplanationLookupCli")
+}
+
 val sleeperLiveWaiverRecommendationAuditHistory by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-628 inspection and integrity verification of BF-627 immutable governed recommendation audit history."
