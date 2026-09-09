@@ -110,9 +110,9 @@ function Get-StatePresentation {
 
 function Get-VerificationCopy {
     param([AllowNull()][string]$Bf629, [AllowNull()][string]$Bf631)
-    $rosterOk = $Bf629 -eq "LIVE_ACTIONABLE_VERIFIED" -or $Bf629 -eq "AUDITED_TRANSACTION_COMPLETE" -or $Bf629 -eq "AUDITED_TRANSACTION_PENDING"
+    $rosterOk = $Bf629 -eq "LIVE_ACTIONABLE_VERIFIED" -or $Bf629 -eq "AUDITED_TRANSACTION_COMPLETE" -or $Bf629 -eq "AUDITED_TRANSACTION_PENDING" -or $Bf629 -eq "NO_TRANSACTION_TO_REVALIDATE"
     $lineageOk = $Bf631 -eq "LATEST_EVIDENCE_LINEAGE_VERIFIED"
-    $roster = if ($Bf629 -eq "LIVE_ACTIONABLE_VERIFIED") { "Live roster check passed" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_COMPLETE") { "Completed transaction verified" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_PENDING") { "Pending transaction verified" } else { "Live roster safety gate not green" }
+    $roster = if ($Bf629 -eq "LIVE_ACTIONABLE_VERIFIED") { "Live roster check passed" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_COMPLETE") { "Completed transaction verified" } elseif ($Bf629 -eq "AUDITED_TRANSACTION_PENDING") { "Pending transaction verified" } elseif ($Bf629 -eq "NO_TRANSACTION_TO_REVALIDATE") { "No transaction to revalidate" } else { "Live roster safety gate not green" }
     $lineage = if ($lineageOk) { "Evidence lineage verified" } else { "Evidence lineage not current" }
     return [pscustomobject]@{ Roster=$roster; RosterOk=$rosterOk; Lineage=$lineage; LineageOk=$lineageOk }
 }
