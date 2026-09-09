@@ -250,6 +250,25 @@ function Get-WaiverLanePresentation {
     return [pscustomobject]@{ Label=$Lane; Class="neutral" }
 }
 
+function Resolve-WaiverCandidateById {
+    param(
+        [Parameter(Mandatory = $true)][string]$Bundle,
+        [Parameter(Mandatory = $true)][string]$SleeperId
+    )
+    if ($SleeperId -notmatch '^[0-9]+$') { return $null }
+    $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
+    $counts = Get-WaiverAuthorizedCounts -Bundle $Bundle
+    if ($candidates.Count -ne $counts.Total) {
+        throw "BF-647 BLOCKED: parsed BF-616 shortlist count $($candidates.Count) does not match BF-617 authorized total $($counts.Total)"
+    }
+    $matches = @($candidates | Where-Object { $_.SleeperId -ceq $SleeperId })
+    if ($matches.Count -gt 1) {
+        throw "BF-647 BLOCKED: duplicate exact Sleeper id $SleeperId appeared in the governed BF-616 shortlist"
+    }
+    if ($matches.Count -eq 0) { return $null }
+    return $matches[0]
+}
+
 function Get-SharedCss {
     return @'
 :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#f7f8fb;background:#0b1020;line-height:1.45}
@@ -424,6 +443,7 @@ function ConvertTo-WaiverHtml {
     <div><strong>BF-616 lane</strong>$(ConvertTo-HtmlText $candidate.Lane)</div>
   </div>
   <div class="market"><strong>Market attention:</strong> add $(ConvertTo-HtmlText $candidate.MarketAdd) / drop $(ConvertTo-HtmlText $candidate.MarketDrop) / net $(ConvertTo-HtmlText $candidate.MarketNet)</div>
+  <div class="actions" style="margin-top:12px"><a class="button" href="/waivers/candidate/$(ConvertTo-HtmlText $candidate.SleeperId)">View governed details</a></div>
 </article>
 "@
     }
@@ -450,6 +470,54 @@ $header
   <details><summary>Technical details</summary><div class="tech"><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
 <section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist only. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a winner, identify a drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+</main></body></html>
+"@
+}
+
+function ConvertTo-WaiverCandidateDetailHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$Bundle,
+        [Parameter(Mandatory = $true)]$Candidate
+    )
+    $targetRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
+    $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
+    $bf616 = Get-LineValue -Text $Bundle -Label "BF-616 state:"
+    $bf617 = Get-LineValue -Text $Bundle -Label "BF-617 state:"
+    if ([string]::IsNullOrWhiteSpace($lineage) -or [string]::IsNullOrWhiteSpace($bf616) -or [string]::IsNullOrWhiteSpace($bf617)) {
+        throw "BF-647 BLOCKED: governed BF-616/BF-617 lineage or state is missing"
+    }
+
+    $lane = Get-WaiverLanePresentation -Lane $Candidate.Lane
+    $injuryText = if ($Candidate.Injury -eq "none") { "None reported" } else { $Candidate.Injury }
+    $depthText = if ($Candidate.Depth -eq "none/none") { "Not available" } else { $Candidate.Depth }
+    $laneCopy = if ($Candidate.Lane -match 'NEWCOMER') {
+        "Newcomer review remains explicitly nonnumeric. Butler does not fabricate a production score or rank this player against historical candidates."
+    } else {
+        "Historical directional traceability comes only from Butler's frozen governed comparison method. Comparator sets below are evidence lineage, not a new score or ranking."
+    }
+    $css = Get-SharedCss
+    $header = Get-HeaderHtml -Target $targetRaw -Active "waivers"
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Waiver Candidate</title><style>$css</style></head><body><main class="shell">
+$header
+<section class="panel">
+  <div class="eyebrow">Governed candidate detail</div>
+  <div class="statusrow"><div><h1 class="headline">$(ConvertTo-HtmlText $Candidate.Name)</h1><p class="lede">$(ConvertTo-HtmlText $Candidate.Position) &middot; NFL $(ConvertTo-HtmlText $Candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $Candidate.SleeperId)</p></div><span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span></div>
+  <div class="board-note"><span class="not-rank">NOT A RANKING.</span> This page inspects one exact BF-616 authorized candidate. It does not change Butler's current recommendation.</div>
+  <div class="candidate-facts">
+    <div><strong>Status</strong>$(ConvertTo-HtmlText $Candidate.Status)</div>
+    <div><strong>Injury</strong>$(ConvertTo-HtmlText $injuryText)</div>
+    <div><strong>Depth</strong>$(ConvertTo-HtmlText $depthText)</div>
+    <div><strong>BF-616 lane</strong>$(ConvertTo-HtmlText $Candidate.Lane)</div>
+  </div>
+  <div class="market"><strong>Market attention:</strong> add $(ConvertTo-HtmlText $Candidate.MarketAdd) / drop $(ConvertTo-HtmlText $Candidate.MarketDrop) / net $(ConvertTo-HtmlText $Candidate.MarketNet)</div>
+  <div class="next"><strong>Governed interpretation</strong><p>$(ConvertTo-HtmlText $laneCopy)</p></div>
+  <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
+  <div class="actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>
+</section>
+<section class="panel boundary"><span class="lock">READ ONLY · EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -481,10 +549,11 @@ Push-Location $repoRoot
 try {
     $listener.Start()
     $url = "http://127.0.0.1:$Port/"
-    Write-Host "BF-643/BF-644/BF-645/BF-646 Butler Dashboard"
+    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647 Butler Dashboard"
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
+    Write-Host "Candidate detail: http://127.0.0.1:$Port/waivers/candidate/<exact-sleeper-id>"
     Write-Host "Bind: 127.0.0.1 only"
     Write-Host "Boundary: read-only governed presentation; no BF-641 run and no Sleeper write."
     Write-Host "Press Ctrl+C to stop the dashboard."
@@ -516,7 +585,9 @@ try {
                 continue
             }
 
-            if ($path -ne "/" -and $path -ne "/index.html" -and $path -ne "/team" -and $path -ne "/waivers") {
+            $candidateMatch = [regex]::Match($path, '^/waivers/candidate/(?<id>[0-9]+)$')
+            $knownStaticPath = $path -eq "/" -or $path -eq "/index.html" -or $path -eq "/team" -or $path -eq "/waivers"
+            if (-not $knownStaticPath -and -not $candidateMatch.Success) {
                 Send-HttpResponse -Stream $stream -StatusCode 404 -StatusText "Not Found" -ContentType "text/plain; charset=utf-8" -Body "Not found"
                 continue
             }
@@ -529,6 +600,17 @@ try {
                 elseif ($path -eq "/waivers") {
                     $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
                     $html = ConvertTo-WaiverHtml -Bundle $waiverBundle
+                }
+                elseif ($candidateMatch.Success) {
+                    $candidateId = $candidateMatch.Groups['id'].Value
+                    $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
+                    $candidate = Resolve-WaiverCandidateById -Bundle $waiverBundle -SleeperId $candidateId
+                    if ($null -eq $candidate) {
+                        $notFoundHtml = "<!doctype html><html><body><h1>Candidate not authorized</h1><p>Candidate is not in the current BF-616 authorized shortlist.</p><p><a href=`"/waivers`">Back to Waiver Board</a></p></body></html>"
+                        Send-HttpResponse -Stream $stream -StatusCode 404 -StatusText "Not Found" -ContentType "text/html; charset=utf-8" -Body $notFoundHtml
+                        continue
+                    }
+                    $html = ConvertTo-WaiverCandidateDetailHtml -Bundle $waiverBundle -Candidate $candidate
                 }
                 else {
                     $summary = Invoke-ButlerReadOnlySummary
