@@ -150,12 +150,41 @@ class ButlerDashboardScriptTest {
     }
 
     @Test
-    void navigationIncludesReadOnlyWaiverBoardRoute() throws Exception {
+    void waiverCandidateDetailResolvesExactAuthorizedSleeperIdOnly() throws Exception {
+        String script = script();
+        assertTrue(script.contains("function Resolve-WaiverCandidateById"));
+        assertTrue(script.contains("$SleeperId -notmatch '^[0-9]+$'"));
+        assertTrue(script.contains("Where-Object { $_.SleeperId -ceq $SleeperId }"));
+        assertTrue(script.contains("duplicate exact Sleeper id"));
+        assertTrue(script.contains("^/waivers/candidate/(?<id>[0-9]+)$"));
+        assertTrue(script.contains("Candidate is not in the current BF-616 authorized shortlist"));
+        assertFalse(script.contains("Resolve-WaiverCandidateByName"));
+        assertFalse(script.contains("candidate.Name -eq"));
+    }
+
+    @Test
+    void waiverCandidateDetailPreservesComparatorTraceabilityAndNewcomerNonnumericSemantics() throws Exception {
+        String script = script();
+        assertTrue(script.contains("function ConvertTo-WaiverCandidateDetailHtml"));
+        assertTrue(script.contains("Candidate-supported comparators:"));
+        assertTrue(script.contains("Eligible comparators:"));
+        assertTrue(script.contains("Historical directional traceability comes only from Butler's frozen governed comparison method"));
+        assertTrue(script.contains("Newcomer review remains explicitly nonnumeric"));
+        assertTrue(script.contains("does not fabricate a production score or rank this player"));
+        assertTrue(script.contains("Back to Waiver Board"));
+        assertTrue(script.contains("READ ONLY · EXACT ID ONLY."));
+    }
+
+    @Test
+    void navigationIncludesReadOnlyWaiverBoardAndCandidateRoutes() throws Exception {
         String script = script();
         assertTrue(script.contains("href=\"/waivers\">Waiver Board"));
         assertTrue(script.contains("$path -eq \"/waivers\""));
         assertTrue(script.contains("ConvertTo-WaiverHtml -Bundle $waiverBundle"));
         assertTrue(script.contains("Waiver Board: http://127.0.0.1:$Port/waivers"));
+        assertTrue(script.contains("View governed details"));
+        assertTrue(script.contains("ConvertTo-WaiverCandidateDetailHtml -Bundle $waiverBundle -Candidate $candidate"));
+        assertTrue(script.contains("Candidate detail: http://127.0.0.1:$Port/waivers/candidate/<exact-sleeper-id>"));
     }
 
     @Test
@@ -191,6 +220,6 @@ class ButlerDashboardScriptTest {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646 test could not locate scripts/butler-dashboard.ps1");
+        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646/BF-647 test could not locate scripts/butler-dashboard.ps1");
     }
 }
