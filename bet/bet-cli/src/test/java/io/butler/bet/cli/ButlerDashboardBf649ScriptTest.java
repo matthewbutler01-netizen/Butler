@@ -53,7 +53,7 @@ class ButlerDashboardBf649ScriptTest {
         String script = read("scripts/butler-dashboard.ps1");
 
         assertTrue(script.contains("Current governed ADD"));
-        assertTrue(script.contains("Already-audited current ADD · this marker is not a board rank."));
+        assertTrue(script.contains("Already-audited current ADD &middot; this marker is not a board rank."));
         assertTrue(script.contains("it does not alter BF-616 order or rank the board"));
         assertTrue(script.contains("$current.Active -and $candidate.SleeperId -ceq $current.SleeperId"));
         assertTrue(script.contains("$current.Active -and $Candidate.SleeperId -ceq $current.SleeperId"));
@@ -62,7 +62,7 @@ class ButlerDashboardBf649ScriptTest {
         assertTrue(script.contains("Audited BF-603 / BF-602:"));
         assertTrue(script.contains("Bundle BF-603 / BF-602:"));
         assertTrue(script.contains("Newcomers remain nonnumeric"));
-        assertTrue(script.contains("READ ONLY · NOT A RANKING."));
+        assertTrue(script.contains("READ ONLY &middot; NOT A RANKING."));
     }
 
     @Test

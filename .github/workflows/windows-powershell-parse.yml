@@ -42,3 +42,15 @@ jobs:
               exit 1
           }
           Write-Host 'Windows PowerShell 5.1 parser accepted scripts/butler-dashboard.ps1'
+
+      - name: Enforce ASCII-only dashboard source
+        shell: powershell
+        run: |
+          $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
+          $bytes = [System.IO.File]::ReadAllBytes($path)
+          $bad = @($bytes | Where-Object { $_ -gt 127 })
+          if ($bad.Count -gt 0) {
+              Write-Error ("BF-650 BLOCKED: dashboard contains {0} non-ASCII byte(s); Windows PowerShell 5.1 may mojibake UTF-8-without-BOM literals" -f $bad.Count)
+              exit 1
+          }
+          Write-Host 'BF-650 ASCII-only dashboard source gate passed'

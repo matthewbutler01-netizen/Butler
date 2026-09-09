@@ -187,7 +187,7 @@ function Get-RosterStatusLabel {
     switch ($Player.RosterSlot) {
         "STARTER" {
             if ([string]::IsNullOrWhiteSpace($Player.LineupSlot)) { return "Starter" }
-            return "Starter · $($Player.LineupSlot)"
+            return "Starter - $($Player.LineupSlot)"
         }
         "RESERVE" { return "Reserve" }
         "TAXI" { return "Taxi" }
@@ -648,7 +648,7 @@ function ConvertTo-WaiverHtml {
         $isCurrent = $current.Active -and $candidate.SleeperId -ceq $current.SleeperId
         $cardClass = if ($isCurrent) { "current-governed" } else { "" }
         $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed ADD</span>' } else { "" }
-        $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current ADD · this marker is not a board rank.</div>' } else { "" }
+        $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current ADD &middot; this marker is not a board rank.</div>' } else { "" }
         $cards += @"
 <article class="candidate-card $cardClass">
   <div class="candidate-top">
@@ -682,13 +682,13 @@ $header
   <div class="board-stats">
     <div class="board-stat"><strong>$($counts.Total)</strong><span>Authorized shortlist</span></div>
     <div class="board-stat"><strong>$($counts.Historical)</strong><span>Historical directional lane</span></div>
-    <div class="board-stat"><strong>$($counts.Newcomer)</strong><span>Newcomer review lane · nonnumeric</span></div>
+    <div class="board-stat"><strong>$($counts.Newcomer)</strong><span>Newcomer review lane &middot; nonnumeric</span></div>
   </div>
   <div class="board-grid">$cards</div>
   <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> identifies the already-audited current add only; it does not alter BF-616 order or rank the board.</div>
   <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist and, when exact BF-623/BF-631/BF-603/BF-602 reconciliation passes, identifies Butler's already-audited current ADD. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a new winner, identify a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY &middot; NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist and, when exact BF-623/BF-631/BF-603/BF-602 reconciliation passes, identifies Butler's already-audited current ADD. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a new winner, identify a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -744,7 +744,7 @@ $header
   <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
   <div class="actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY · EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. A Current governed ADD marker, when present, comes only from the existing audited recommendation after exact target and evidence-lineage reconciliation. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY &middot; EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. A Current governed ADD marker, when present, comes only from the existing audited recommendation after exact target and evidence-lineage reconciliation. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
