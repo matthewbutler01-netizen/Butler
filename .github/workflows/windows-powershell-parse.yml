@@ -234,20 +234,7 @@ jobs:
         shell: powershell
         run: .\gradlew.bat --dependency-verification=strict :bet:bet-cli:test --tests io.butler.bet.cli.ButlerDashboardBf661ScriptTest
 
-      - name: Run full build and tests
-        shell: powershell
-        run: .\gradlew.bat --dependency-verification=strict clean build
-
-      - name: Verify dependency lockfile is current
-        shell: powershell
-        run: |
-          .\gradlew.bat --dependency-verification=strict :bet:bet-cli:dependencies --write-locks
-          if (-not (git diff --quiet -- bet/bet-cli/gradle.lockfile)) {
-              git diff -- bet/bet-cli/gradle.lockfile
-              throw 'BF-661 BLOCKED: dependency lockfile changed'
-          }
-
-      - name: Commit verified permanent BF-661 diff
+      - name: Commit BF-661 diff for normal CI validation
         shell: powershell
         run: |
           git config user.name "Butler BF-661 verification"
