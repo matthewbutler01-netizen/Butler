@@ -719,6 +719,93 @@ function Get-GovernedManualRefreshPlanView {
     }
 }
 
+function Get-GovernedNextDecisionPlanView {
+    param([Parameter(Mandatory = $true)][string]$Summary)
+
+    $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"
+    if ([string]::IsNullOrWhiteSpace($decisionState)) {
+        throw "BF-657 BLOCKED: current governed decision state is missing"
+    }
+    if ($decisionState -cne "TRANSACTION_ALREADY_COMPLETE") {
+        return [pscustomobject]@{
+            Active = $false
+            Policy = "none"
+            State = "NOT_REQUIRED"
+            Instruction = "none"
+            Steps = @()
+        }
+    }
+
+    $convergenceState = Get-LineValue -Text $Summary -Label "BF-639 post-transaction roster convergence:"
+    if ($convergenceState -cne "POST_TRANSACTION_ROSTER_CONVERGED") {
+        return [pscustomobject]@{
+            Active = $false
+            Policy = "none"
+            State = "NOT_REQUIRED"
+            Instruction = "none"
+            Steps = @()
+        }
+    }
+
+    $refreshMarkers = [regex]::Matches($Summary, '(?m)^BF-636 - governed MANUAL refresh plan\r?$')
+    if ($refreshMarkers.Count -ne 0) {
+        throw "BF-657 BLOCKED: BF-636 stale refresh plan must not coexist with BF-640 completed next-decision plan"
+    }
+
+    $planMarkers = [regex]::Matches($Summary, '(?m)^BF-640 - governed MANUAL next-decision plan\r?$')
+    if ($planMarkers.Count -ne 1) {
+        throw "BF-657 BLOCKED: completed/converged lifecycle requires exactly one BF-640 governed manual next-decision plan"
+    }
+    $planText = $Summary.Substring($planMarkers[0].Index)
+    $policy = Get-LineValue -Text $planText -Label "Plan policy:"
+    $planState = Get-LineValue -Text $planText -Label "Plan state:"
+    $instruction = Get-LineValue -Text $planText -Label "Operator instruction:"
+    if ([string]::IsNullOrWhiteSpace($policy)) {
+        throw "BF-657 BLOCKED: BF-640 plan policy is missing"
+    }
+    if ($planState -cne "NEXT_DECISION_PLAN_READY") {
+        throw "BF-657 BLOCKED: completed/converged lifecycle requires BF-640 NEXT_DECISION_PLAN_READY"
+    }
+    if ([string]::IsNullOrWhiteSpace($instruction)) {
+        throw "BF-657 BLOCKED: BF-640 operator instruction is missing"
+    }
+
+    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)$'
+    $stepMatches = [regex]::Matches($planText, $stepPattern)
+    if ($stepMatches.Count -ne 9) {
+        throw "BF-657 BLOCKED: BF-640 ready plan must contain exactly nine rendered steps"
+    }
+
+    $steps = @()
+    for ($index = 0; $index -lt $stepMatches.Count; $index++) {
+        $match = $stepMatches[$index]
+        $order = [int]$match.Groups['order'].Value
+        if ($order -ne ($index + 1)) {
+            throw "BF-657 BLOCKED: BF-640 step order is malformed or non-contiguous"
+        }
+        $mode = $match.Groups['mode'].Value.Trim()
+        if ($mode -cne "BUTLER_WRITE" -and $mode -cne "READ_ONLY") {
+            throw "BF-657 BLOCKED: BF-640 step mode is unsupported: $mode"
+        }
+        $steps += [pscustomobject]@{
+            Order = $order
+            Bf = $match.Groups['bf'].Value.Trim()
+            Mode = $match.Groups['mode'].Value.Trim()
+            TaskName = $match.Groups['task'].Value.Trim()
+            Command = $match.Groups['command'].Value.Trim()
+            Purpose = $match.Groups['purpose'].Value.Trim()
+        }
+    }
+
+    return [pscustomobject]@{
+        Active = $true
+        Policy = $policy
+        State = $planState
+        Instruction = $instruction
+        Steps = @($steps)
+    }
+}
+
 function Get-GovernedExplanationView {
     param([Parameter(Mandatory = $true)][string]$Summary)
 
@@ -951,6 +1038,34 @@ function ConvertTo-DashboardHtml {
 "@
     }
 
+    $nextDecisionPlan = Get-GovernedNextDecisionPlanView -Summary $Summary
+    $nextDecisionPlanSection = ""
+    if ($nextDecisionPlan.Active) {
+        $nextDecisionCards = ""
+        foreach ($step in $nextDecisionPlan.Steps) {
+            $modeClass = if ($step.Mode -ceq "READ_ONLY") { "read" } else { "write" }
+            $nextDecisionCards += @"
+<article class="refresh-step">
+  <div class="refresh-step-head"><span class="refresh-step-num">$(ConvertTo-HtmlText $step.Order)</span><span class="refresh-step-bf">$(ConvertTo-HtmlText $step.Bf)</span><span class="refresh-mode $modeClass">$(ConvertTo-HtmlText $step.Mode)</span></div>
+  <div class="refresh-task">$(ConvertTo-HtmlText $step.TaskName)</div>
+  <div class="refresh-copy-hint">Copy safely: focus the read-only field, then Press Ctrl+A, then Ctrl+C.</div>
+  <textarea class="refresh-command-copy" rows="2" readonly>$(ConvertTo-HtmlText $step.Command)</textarea>
+  <div class="refresh-purpose">$(ConvertTo-HtmlText $step.Purpose)</div>
+</article>
+"@
+        }
+        $nextDecisionPlanSection = @"
+<section class="panel">
+  <div class="eyebrow">Governed manual next-decision plan</div>
+  <h2>Start Butler's next decision safely</h2>
+  <p class="lede">The prior audited transaction is closed and roster convergence is verified. Run these manually, one at a time, and inspect each result before continuing.</p>
+  <div class="refresh-plan-note"><strong>MANUAL ONLY.</strong> BF-640 executes none of these commands, and this dashboard does not run them for you. `BUTLER_WRITE` means the listed CLI task persists governed Butler data; `READ_ONLY` means it only projects/revalidates governed state.</div>
+  <div class="refresh-steps">$nextDecisionCards</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-640 plan state: $(ConvertTo-HtmlText $nextDecisionPlan.State)</div><div>BF-640 plan policy: $(ConvertTo-HtmlText $nextDecisionPlan.Policy)</div><div>Governed step count: $($nextDecisionPlan.Steps.Count)</div><div>Source: existing compact governed decision summary</div></div><div class="raw-guard">$(ConvertTo-HtmlText $nextDecisionPlan.Instruction)</div></details>
+</section>
+"@
+    }
+
     $explanation = Get-GovernedExplanationView -Summary $Summary
     if ($explanation.Ready) {
         $whySection = @"
@@ -986,11 +1101,12 @@ $header
   <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
 </section>
 $refreshPlanSection
+$nextDecisionPlanSection
 $whySection
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 manual refresh instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 refresh or BF-640 next-decision manual instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
 </main></body></html>
 "@
 }
