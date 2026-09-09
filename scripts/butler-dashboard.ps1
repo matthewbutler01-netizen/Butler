@@ -552,6 +552,79 @@ function Get-CurrentGovernedDropView {
     }
 }
 
+
+function Get-CurrentGovernedTransactionPairView {
+    param(
+        [Parameter(Mandatory = $true)][string]$Bundle,
+        [Parameter(Mandatory = $true)][string]$RosterContext,
+        [Parameter(Mandatory = $true)][string]$Summary
+    )
+
+    $addCurrent = Get-CurrentGovernedAddView -Bundle $Bundle -Summary $Summary
+    $dropCurrent = Get-CurrentGovernedDropView -RosterContext $RosterContext -Summary $Summary
+    if ($addCurrent.Active -ne $dropCurrent.Active) {
+        throw "BF-652 BLOCKED: current ADD/DROP lifecycle disagreement"
+    }
+
+    if (-not $addCurrent.Active) {
+        return [pscustomobject]@{
+            Active = $false
+            Add = $null
+            Drop = $null
+            AddSleeperId = "none"
+            DropSleeperId = "none"
+            AddCurrent = $addCurrent
+            DropCurrent = $dropCurrent
+            Target = $addCurrent.Target
+        }
+    }
+
+    foreach ($field in @("SleeperLeagueId", "RosterId", "LeagueName", "DisplayName", "TeamName", "Role")) {
+        if ([string]$addCurrent.Target.$field -cne [string]$dropCurrent.Target.$field) {
+            throw "BF-652 BLOCKED: BF-616 and BF-610 BF-623 target identity disagreement"
+        }
+    }
+    if ($addCurrent.AuditId -cne $dropCurrent.AuditId -or $addCurrent.Bf629 -cne $dropCurrent.Bf629 -or $addCurrent.Bf631 -cne $dropCurrent.Bf631) {
+        throw "BF-652 BLOCKED: current ADD/DROP audit or safety-gate disagreement"
+    }
+
+    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+    $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+    if ($add.SleeperId -cne $addCurrent.SleeperId) {
+        throw "BF-652 BLOCKED: paired ADD does not match BF-649 current audited ADD identity"
+    }
+    if ($drop.SleeperId -cne $dropCurrent.SleeperId) {
+        throw "BF-652 BLOCKED: paired DROP does not match BF-651 current audited DROP identity"
+    }
+
+    $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
+    $counts = Get-WaiverAuthorizedCounts -Bundle $Bundle
+    if ($candidates.Count -ne $counts.Total) {
+        throw "BF-652 BLOCKED: BF-616 parsed shortlist does not reconcile to BF-617 authorized total"
+    }
+    $addMatches = @($candidates | Where-Object { $_.SleeperId -ceq $add.SleeperId })
+    if ($addMatches.Count -ne 1) {
+        throw "BF-652 BLOCKED: paired ADD must resolve exactly once in BF-616 shortlist; found $($addMatches.Count)"
+    }
+
+    $players = @(Get-RosterPlayers -RosterContext $RosterContext)
+    $dropMatches = @($players | Where-Object { $_.SleeperId -ceq $drop.SleeperId })
+    if ($dropMatches.Count -ne 1) {
+        throw "BF-652 BLOCKED: paired DROP must resolve exactly once in BF-610 target roster; found $($dropMatches.Count)"
+    }
+
+    return [pscustomobject]@{
+        Active = $true
+        Add = $addMatches[0]
+        Drop = $dropMatches[0]
+        AddSleeperId = $add.SleeperId
+        DropSleeperId = $drop.SleeperId
+        AddCurrent = $addCurrent
+        DropCurrent = $dropCurrent
+        Target = $addCurrent.Target
+    }
+}
+
 function Resolve-WaiverCandidateById {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
@@ -583,7 +656,7 @@ function Get-SharedCss {
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 .position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.roster-card .current-marker{margin-top:10px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
-.board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
+.board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.pair-context{margin-top:12px;padding:12px;border:1px solid #334a82;border-radius:12px;background:#101e3d;color:#c7d9ff;font-size:12px}.pair-context strong{display:block;color:#fff;margin-bottom:4px}.pair-context .pair-meta{color:#aebada;margin-top:3px}.pair-context .actions{margin-top:10px}.pair-context .button{padding:8px 11px;font-size:12px}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
 @media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.candidate-badges{justify-content:flex-start;margin-top:10px}.lane{margin-top:0}}
 '@
 }
@@ -663,10 +736,12 @@ $header
 function ConvertTo-TeamHtml {
     param(
         [Parameter(Mandatory = $true)][string]$RosterContext,
-        [Parameter(Mandatory = $true)][string]$Summary
+        [Parameter(Mandatory = $true)][string]$Summary,
+        [Parameter(Mandatory = $true)][string]$Bundle
     )
     $players = @(Get-RosterPlayers -RosterContext $RosterContext)
-    $current = Get-CurrentGovernedDropView -RosterContext $RosterContext -Summary $Summary
+    $pair = Get-CurrentGovernedTransactionPairView -Bundle $Bundle -RosterContext $RosterContext -Summary $Summary
+    $current = $pair.DropCurrent
     $counts = Get-LineValue -Text $RosterContext -Label "Target roster players starter/bench/reserve/taxi:"
     $slots = Get-LineValue -Text $RosterContext -Label "Live starting slots:"
     $css = Get-SharedCss
@@ -685,7 +760,7 @@ function ConvertTo-TeamHtml {
             $isCurrent = $current.Active -and $player.SleeperId -ceq $current.SleeperId
             $cardClass = if ($isCurrent) { "current-governed" } else { "" }
             $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed DROP</span>' } else { "" }
-            $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div>' } else { "" }
+            $currentCopy = if ($isCurrent) { "<div class=`"current-copy`">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div><div class=`"pair-context`"><strong>Paired audited ADD</strong><div>$(ConvertTo-HtmlText $pair.Add.Name)</div><div class=`"pair-meta`">$(ConvertTo-HtmlText $pair.Add.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Add.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Add.SleeperId)</div><div class=`"current-copy`">Butler's already-audited current transaction &middot; not a roster rank or lineup recommendation.</div><div class=`"actions`"><a class=`"button`" href=`"/waivers/candidate/$(ConvertTo-HtmlText $pair.Add.SleeperId)`">View paired ADD</a></div></div>" } else { "" }
             $cards += "<article class=`"roster-card $cardClass`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div>$currentBadge$currentCopy<div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
         }
         $plural = if ($group.Count -ne 1) { "s" } else { "" }
@@ -700,7 +775,7 @@ function ConvertTo-TeamHtml {
             $isCurrent = $current.Active -and $player.SleeperId -ceq $current.SleeperId
             $cardClass = if ($isCurrent) { "current-governed" } else { "" }
             $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed DROP</span>' } else { "" }
-            $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div>' } else { "" }
+            $currentCopy = if ($isCurrent) { "<div class=`"current-copy`">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div><div class=`"pair-context`"><strong>Paired audited ADD</strong><div>$(ConvertTo-HtmlText $pair.Add.Name)</div><div class=`"pair-meta`">$(ConvertTo-HtmlText $pair.Add.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Add.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Add.SleeperId)</div><div class=`"current-copy`">Butler's already-audited current transaction &middot; not a roster rank or lineup recommendation.</div><div class=`"actions`"><a class=`"button`" href=`"/waivers/candidate/$(ConvertTo-HtmlText $pair.Add.SleeperId)`">View paired ADD</a></div></div>" } else { "" }
             $cards += "<article class=`"roster-card $cardClass`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div>$currentBadge$currentCopy<div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
         }
         $sections += "<section class=`"position-section`"><div class=`"position-head`"><h2>Other / unmapped position</h2><span class=`"position-count`">$($other.Count)</span></div><div class=`"roster-grid`">$cards</div></section>"
@@ -709,8 +784,8 @@ function ConvertTo-TeamHtml {
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - My Team</title><style>$css</style></head><body><main class="shell">
 $header
-<section class="panel"><div class="eyebrow">My Team</div><h1 class="headline">Your exact governed roster</h1><p class="lede">This is BF-610's BF-623-verified target roster, grouped only for display. Position groups and roster labels are not rankings or lineup advice.</p><div class="roster-note">Roster counts: $(ConvertTo-HtmlText $counts)</div><div class="roster-note">Live starting slots: $(ConvertTo-HtmlText $slots)</div>$sections<details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $current.Target.Human)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $current.Target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $current.Target.Role)</div><div>BF-610 raw Sleeper league / roster: $(ConvertTo-HtmlText $current.ContextLeagueId) / $(ConvertTo-HtmlText $current.ContextRosterId)</div><div>BF-610 context state: $(ConvertTo-HtmlText $current.ContextState)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current DROP Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div></div></details></section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> My Team shows exact governed roster context only. If shown, <strong>Current governed DROP</strong> identifies the already-audited current drop only; it is not a roster rank or lineup recommendation. This page does not score roster needs, optimize a lineup, rank your players, select a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+<section class="panel"><div class="eyebrow">My Team</div><h1 class="headline">Your exact governed roster</h1><p class="lede">This is BF-610's BF-623-verified target roster, grouped only for display. Position groups and roster labels are not rankings or lineup advice.</p><div class="roster-note">Roster counts: $(ConvertTo-HtmlText $counts)</div><div class="roster-note">Live starting slots: $(ConvertTo-HtmlText $slots)</div>$sections<details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $current.Target.Human)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $current.Target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $current.Target.Role)</div><div>BF-610 raw Sleeper league / roster: $(ConvertTo-HtmlText $current.ContextLeagueId) / $(ConvertTo-HtmlText $current.ContextRosterId)</div><div>BF-610 context state: $(ConvertTo-HtmlText $current.ContextState)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current DROP Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>Paired ADD Sleeper ID: $(ConvertTo-HtmlText $pair.AddSleeperId)</div><div>Paired DROP Sleeper ID: $(ConvertTo-HtmlText $pair.DropSleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div></div></details></section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> My Team shows exact governed roster context only. If shown, <strong>Current governed DROP</strong> identifies the already-audited current drop only, and <strong>Paired audited ADD</strong> identifies only its exact audited counterpart. Neither is a roster rank or lineup recommendation. This page does not score roster needs, optimize a lineup, rank your players, select a new drop or a new add, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -718,7 +793,8 @@ $header
 function ConvertTo-WaiverHtml {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
-        [Parameter(Mandatory = $true)][string]$Summary
+        [Parameter(Mandatory = $true)][string]$Summary,
+        [Parameter(Mandatory = $true)][string]$RosterContext
     )
 
     $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
@@ -727,8 +803,9 @@ function ConvertTo-WaiverHtml {
         throw "BF-646 BLOCKED: parsed BF-616 shortlist count $($candidates.Count) does not match BF-617 authorized total $($counts.Total)"
     }
 
-    $current = Get-CurrentGovernedAddView -Bundle $Bundle -Summary $Summary
-    $target = $current.Target
+    $pair = Get-CurrentGovernedTransactionPairView -Bundle $Bundle -RosterContext $RosterContext -Summary $Summary
+    $current = $pair.AddCurrent
+    $target = $pair.Target
     $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
     $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
     $bf615 = Get-LineValue -Text $Bundle -Label "BF-615 state:"
@@ -749,7 +826,7 @@ function ConvertTo-WaiverHtml {
         $isCurrent = $current.Active -and $candidate.SleeperId -ceq $current.SleeperId
         $cardClass = if ($isCurrent) { "current-governed" } else { "" }
         $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed ADD</span>' } else { "" }
-        $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current ADD &middot; this marker is not a board rank.</div>' } else { "" }
+        $currentCopy = if ($isCurrent) { "<div class=`"current-copy`">Already-audited current ADD &middot; this marker is not a board rank.</div><div class=`"pair-context`"><strong>Paired audited DROP</strong><div>$(ConvertTo-HtmlText $pair.Drop.Name)</div><div class=`"pair-meta`">$(ConvertTo-HtmlText $pair.Drop.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Drop.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Drop.SleeperId)</div><div class=`"current-copy`">Butler's already-audited current transaction &middot; not a board rank or new selection.</div><div class=`"actions`"><a class=`"button`" href=`"/team`">View paired DROP</a></div></div>" } else { "" }
         $cards += @"
 <article class="candidate-card $cardClass">
   <div class="candidate-top">
@@ -786,10 +863,10 @@ $header
     <div class="board-stat"><strong>$($counts.Newcomer)</strong><span>Newcomer review lane &middot; nonnumeric</span></div>
   </div>
   <div class="board-grid">$cards</div>
-  <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> identifies the already-audited current add only; it does not alter BF-616 order or rank the board.</div>
-  <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
+  <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> identifies the already-audited current add and <strong>Paired audited DROP</strong> identifies only its exact audited counterpart. The paired context is traceability only; it does not alter BF-616 order or rank the board.</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>Paired ADD Sleeper ID: $(ConvertTo-HtmlText $pair.AddSleeperId)</div><div>Paired DROP Sleeper ID: $(ConvertTo-HtmlText $pair.DropSleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY &middot; NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist and, when exact BF-623/BF-631/BF-603/BF-602 reconciliation passes, identifies Butler's already-audited current ADD. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a new winner, identify a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY &middot; NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist and, when exact BF-623/BF-631/BF-603/BF-602 reconciliation passes, identifies Butler's already-audited current ADD and its exact paired audited DROP. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a new winner, identify a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction. Paired context is traceability only and does not make a new selection.</section>
 </main></body></html>
 "@
 }
@@ -877,7 +954,7 @@ Push-Location $repoRoot
 try {
     $listener.Start()
     $url = "http://127.0.0.1:$Port/"
-    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647/BF-648/BF-649 Butler Dashboard"
+    Write-Host "BF-643 through BF-652 Butler Dashboard"
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
@@ -924,12 +1001,14 @@ try {
                 if ($path -eq "/team") {
                     $summary = Invoke-ButlerReadOnlySummary
                     $rosterContext = Invoke-ButlerReadOnlyRosterContext
-                    $html = ConvertTo-TeamHtml -RosterContext $rosterContext -Summary $summary
+                    $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
+                    $html = ConvertTo-TeamHtml -RosterContext $rosterContext -Summary $summary -Bundle $waiverBundle
                 }
                 elseif ($path -eq "/waivers") {
                     $summary = Invoke-ButlerReadOnlySummary
                     $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
-                    $html = ConvertTo-WaiverHtml -Bundle $waiverBundle -Summary $summary
+                    $rosterContext = Invoke-ButlerReadOnlyRosterContext
+                    $html = ConvertTo-WaiverHtml -Bundle $waiverBundle -Summary $summary -RosterContext $rosterContext
                 }
                 elseif ($candidateMatch.Success) {
                     $candidateId = $candidateMatch.Groups['id'].Value
