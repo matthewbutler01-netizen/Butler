@@ -1,0 +1,492 @@
+name: BF-660 Temporary Implementation
+
+on:
+  push:
+    branches:
+      - bf-660-capture-explanation-with-audit
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bf-660-capture-explanation-with-audit
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Revert BF-659 and implement BF-660
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git revert --no-edit 40267f2118dc23c8bcec150d57326711ef32a1c1
+          python <<'PY'
+          from pathlib import Path
+
+          # BF-620: expose one exact execution containing the recommendation and the BF-615 bundle used to derive it.
+          path = Path('bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverFinalRecommendationBundle.java')
+          text = path.read_text()
+          start = text.index('    public RecommendationReport run(String leagueId, String sleeperOwnerId)')
+          end = text.index('    private MethodologyReport methodology(', start)
+          replacement = '''    public RecommendationReport run(String leagueId, String sleeperOwnerId)
+              throws SQLException, IOException, InterruptedException {
+              return execute(leagueId, sleeperOwnerId).recommendation();
+          }
+
+          /** BF-660 retains the exact BF-615 bundle used by this BF-620 recommendation for audit-time explanation capture. */
+          RecommendationExecution execute(String leagueId, String sleeperOwnerId)
+              throws SQLException, IOException, InterruptedException {
+              String normalizedLeagueId = requireText(leagueId, "leagueId");
+              String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
+
+              SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle =
+                  bundleSource.run(normalizedLeagueId, normalizedOwnerId);
+              validateBundle(bundle, normalizedLeagueId, normalizedOwnerId);
+
+              MethodologyReport methodology = methodology(bundle);
+              SelectionReport selection = select(bundle);
+
+              SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness =
+                  freshnessSource.audit(normalizedLeagueId, normalizedOwnerId);
+              validateFreshness(bundle, freshness, normalizedLeagueId, normalizedOwnerId);
+
+              RecommendationReport recommendation;
+              if (selection.state() != SelectionState.UNIQUE_ADD_DROP_SELECTED) {
+                  recommendation = new RecommendationReport(
+                      BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
+                      bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
+                      bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
+                      methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
+                      null, null, newcomerAlternatives(bundle),
+                      RecommendationState.NO_GOVERNED_TRANSACTION);
+              } else {
+                  var add = Objects.requireNonNull(selection.selectedAdd());
+                  var drop = Objects.requireNonNull(selection.selectedDrop());
+                  validateSelectedPairAgainstLiveAndSnapshot(bundle, freshness, add, drop);
+                  recommendation = new RecommendationReport(
+                      BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
+                      bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
+                      bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
+                      methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
+                      add, drop, newcomerAlternatives(bundle),
+                      RecommendationState.RECOMMEND_ADD_DROP);
+              }
+              return new RecommendationExecution(recommendation, bundle);
+          }
+
+          '''
+          text = text[:start] + replacement + text[end:]
+          marker = '    @FunctionalInterface\n    interface BundleSource {'
+          if marker not in text:
+              raise SystemExit('BF-620 functional-interface marker missing')
+          record = '''    record RecommendationExecution(
+              RecommendationReport recommendation,
+              SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
+              RecommendationExecution {
+                  Objects.requireNonNull(recommendation, "recommendation must not be null");
+                  Objects.requireNonNull(bundle, "bundle must not be null");
+              }
+          }
+
+          '''
+          text = text.replace(marker, record + marker, 1)
+          path.write_text(text)
+
+          # BF-653: centralize the immutable companion write so BF-627 can call it with the already-computed recommendation.
+          path = Path('bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverGovernedExplanationCapture.java')
+          text = path.read_text()
+          start = text.index('        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation =')
+          end = text.index('    private GovernedRecommendationAuditRepository.AuditRecord exactAudit', start)
+          replacement = '''        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation =
+              recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
+          return captureCompanion(explanationRepository, audit, recommendation, evidenceSource, clock);
+      }
+
+      /** BF-660 writes a BF-653 companion from the exact recommendation already captured by BF-627. */
+      static CaptureReport captureCompanion(
+          GovernedRecommendationExplanationRepository explanationRepository,
+          GovernedRecommendationAuditRepository.AuditRecord audit,
+          SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
+          EvidenceSource evidenceSource,
+          Clock clock)
+          throws SQLException, IOException, InterruptedException {
+          Objects.requireNonNull(explanationRepository, "explanationRepository must not be null");
+          Objects.requireNonNull(clock, "clock must not be null");
+          reconcileAudit(audit, recommendation);
+          ExplanationPayload payload = explanationPayload(recommendation, evidenceSource);
+
+          var desired = new GovernedRecommendationExplanationRepository.ExplanationRecord(
+              null,
+              audit.id(),
+              POLICY_ID,
+              payload.type(),
+              payload.text(),
+              payload.evidencePolicyId(),
+              payload.evidenceTrace(),
+              clock.instant());
+          var persisted = explanationRepository.capture(desired);
+          var readback = explanationRepository.findByAuditId(audit.id())
+              .orElseThrow(() -> new IllegalStateException("BF-653 BLOCKED: explanation missing after capture"));
+          if (!persisted.record().id().equals(readback.id())) {
+              throw new IllegalStateException("BF-653 BLOCKED: explanation readback id does not match capture result");
+          }
+
+          return new CaptureReport(
+              POLICY_ID,
+              persisted.state(),
+              readback.id(),
+              readback.auditId(),
+              readback.capturedAtUtc().toString(),
+              readback.explanationType(),
+              readback.explanationText(),
+              readback.evidencePolicyId(),
+              readback.evidenceTrace(),
+              audit.marketSnapshotId(),
+              audit.waiverSnapshotId(),
+              audit.addSleeperPlayerId(),
+              audit.dropSleeperPlayerId());
+      }
+
+'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text)
+
+          # BF-627: capture the audit and BF-653 companion from one exact governed decision frame.
+          path = Path('bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverRecommendationAuditCapture.java')
+          text = path.read_text()
+          text = text.replace(
+              'import io.butler.bet.data.GovernedRecommendationAuditRepository;\n',
+              'import io.butler.bet.data.GovernedRecommendationAuditRepository;\nimport io.butler.bet.data.GovernedRecommendationExplanationRepository;\nimport io.butler.bet.data.PlayerSeasonProductionRepository;\n', 1)
+          field_old = '''    private final RecommendationSource recommendationSource;
+              private final GovernedRecommendationAuditRepository repository;
+              private final Clock clock;
+          '''
+          field_new = '''    private final DecisionSource decisionSource;
+              private final GovernedRecommendationAuditRepository repository;
+              private final GovernedRecommendationExplanationRepository explanationRepository;
+              private final Clock clock;
+          '''
+          if field_old not in text:
+              raise SystemExit('BF-627 fields marker missing')
+          text = text.replace(field_old, field_new, 1)
+
+          ctor_start = text.index('    public SleeperLiveWaiverRecommendationAuditCapture(Database database) {')
+          capture_start = text.index('    public CaptureReport capture(', ctor_start)
+          ctor_new = '''    public SleeperLiveWaiverRecommendationAuditCapture(Database database) {
+              this(
+                  productionDecisionSource(database),
+                  new GovernedRecommendationAuditRepository(database),
+                  new GovernedRecommendationExplanationRepository(database),
+                  Clock.systemUTC());
+          }
+
+          SleeperLiveWaiverRecommendationAuditCapture(
+              DecisionSource decisionSource,
+              GovernedRecommendationAuditRepository repository,
+              GovernedRecommendationExplanationRepository explanationRepository,
+              Clock clock) {
+              this.decisionSource = Objects.requireNonNull(decisionSource, "decisionSource must not be null");
+              this.repository = Objects.requireNonNull(repository, "repository must not be null");
+              this.explanationRepository = Objects.requireNonNull(explanationRepository, "explanationRepository must not be null");
+              this.clock = Objects.requireNonNull(clock, "clock must not be null");
+          }
+
+          private static DecisionSource productionDecisionSource(Database database) {
+              Objects.requireNonNull(database, "database must not be null");
+              return (leagueId, ownerId) -> {
+                  SleeperLiveWaiverFinalRecommendationBundle finalBundle =
+                      new SleeperLiveWaiverFinalRecommendationBundle(database);
+                  var execution = finalBundle.execute(leagueId, ownerId);
+                  var recommendation = execution.recommendation();
+                  SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport evidence = null;
+                  if (recommendation.state()
+                          == SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.RECOMMEND_ADD_DROP
+                      && recommendation.methodology().historicalFinalistPositions().size() > 1) {
+                      PlayerSeasonProductionRepository productionRepository =
+                          new PlayerSeasonProductionRepository(database);
+                      evidence = new SleeperLiveWaiverCrossPositionTransactionEvidence(
+                          (ignoredLeague, ignoredOwner) -> execution.bundle(),
+                          productionRepository::findByPlayerId)
+                          .explain(recommendation);
+                  }
+                  return new DecisionFrame(recommendation, evidence);
+              };
+          }
+
+'''
+          text = text[:ctor_start] + ctor_new + text[capture_start:]
+          old = '''        var recommendation = recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
+              reconcile(target, recommendation);
+          '''
+          new = '''        DecisionFrame decision = decisionSource.run(target.butlerLeagueId(), target.sleeperUserId());
+              var recommendation = decision.recommendation();
+              reconcile(target, recommendation);
+          '''
+          if old not in text:
+              raise SystemExit('BF-627 recommendation source marker missing')
+          text = text.replace(old, new, 1)
+          anchor = '''        if (!persisted.record().id().equals(readback.id())) {
+                  throw new IllegalStateException("BF-627 BLOCKED: audit readback id does not match capture result");
+              }
+
+          '''
+          insert = '''        if (!persisted.record().id().equals(readback.id())) {
+                  throw new IllegalStateException("BF-627 BLOCKED: audit readback id does not match capture result");
+              }
+
+              SleeperLiveWaiverGovernedExplanationCapture.EvidenceSource evidenceSource = ignored -> {
+                  if (decision.crossPositionEvidence() == null) {
+                      throw new IllegalStateException(
+                          "BF-660 BLOCKED: exact cross-position BF-625 evidence is missing from BF-627 decision frame");
+                  }
+                  return decision.crossPositionEvidence();
+              };
+              var explanation = SleeperLiveWaiverGovernedExplanationCapture.captureCompanion(
+                  explanationRepository, readback, recommendation, evidenceSource, clock);
+
+          '''
+          if anchor not in text:
+              raise SystemExit('BF-627 readback marker missing')
+          text = text.replace(anchor, insert, 1)
+          old_return_tail = '''            readback.addSleeperPlayerId(),
+                  readback.dropSleeperPlayerId(),
+                  repository.countForLeague(readback.leagueId()));
+          '''
+          new_return_tail = '''            readback.addSleeperPlayerId(),
+                  readback.dropSleeperPlayerId(),
+                  repository.countForLeague(readback.leagueId()),
+                  explanation.captureState(),
+                  explanation.explanationId(),
+                  explanation.explanationType(),
+                  explanation.explanationText(),
+                  explanation.evidencePolicyId(),
+                  explanation.evidenceTrace());
+          '''
+          if old_return_tail not in text:
+              raise SystemExit('BF-627 return marker missing')
+          text = text.replace(old_return_tail, new_return_tail, 1)
+
+          iface_start = text.index('    @FunctionalInterface\n    interface RecommendationSource')
+          report_start = text.index('    public record CaptureReport(', iface_start)
+          iface_new = '''    @FunctionalInterface
+              interface DecisionSource {
+                  DecisionFrame run(String leagueId, String ownerId)
+                      throws SQLException, IOException, InterruptedException;
+              }
+
+              record DecisionFrame(
+                  SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
+                  SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport crossPositionEvidence) {
+                  DecisionFrame {
+                      Objects.requireNonNull(recommendation, "recommendation must not be null");
+                  }
+              }
+
+          '''
+          text = text[:iface_start] + iface_new + text[report_start:]
+          old_report_tail = '''        String addSleeperPlayerId,
+                  String dropSleeperPlayerId,
+                  int retainedAuditRecordsForLeague) {
+          '''
+          new_report_tail = '''        String addSleeperPlayerId,
+                  String dropSleeperPlayerId,
+                  int retainedAuditRecordsForLeague,
+                  GovernedRecommendationExplanationRepository.CaptureState explanationCaptureState,
+                  String explanationId,
+                  String explanationType,
+                  String explanationText,
+                  String explanationEvidencePolicyId,
+                  String explanationEvidenceTrace) {
+          '''
+          if old_report_tail not in text:
+              raise SystemExit('BF-627 report marker missing')
+          text = text.replace(old_report_tail, new_report_tail, 1)
+          text = text.replace(
+              '            Objects.requireNonNull(captureState, "captureState must not be null");\n',
+              '            Objects.requireNonNull(captureState, "captureState must not be null");\n            Objects.requireNonNull(explanationCaptureState, "explanationCaptureState must not be null");\n            Objects.requireNonNull(explanationId, "explanationId must not be null");\n            Objects.requireNonNull(explanationType, "explanationType must not be null");\n            Objects.requireNonNull(explanationText, "explanationText must not be null");\n', 1)
+          path.write_text(text)
+
+          # CLI: show the governed package, not just the audit row.
+          path = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperLiveWaiverRecommendationAuditCaptureCli.java')
+          text = path.read_text()
+          marker = '        System.out.println("Immutable audit records retained for league: " + report.retainedAuditRecordsForLeague());\n'
+          addition = marker + '''        System.out.println("BF-653 explanation capture state: " + report.explanationCaptureState());
+              System.out.println("Explanation id / type: " + report.explanationId() + " / " + report.explanationType());
+              System.out.println("Explanation: " + report.explanationText());
+              System.out.println("Explanation evidence policy: " + value(report.explanationEvidencePolicyId()));
+              System.out.println("Explanation evidence trace: " + value(report.explanationEvidenceTrace()));
+          '''
+          if marker not in text:
+              raise SystemExit('BF-627 CLI marker missing')
+          text = text.replace(marker, addition, 1)
+          text = text.replace(
+              'Boundary: BF-627 writes only an immutable Butler audit record after BF-623 live identity verification and BF-620 lineage reconciliation. It does not submit a Sleeper transaction, set FAAB, mutate the Sleeper league, or change the governed recommendation methodology.',
+              'Boundary: BF-627 writes an immutable Butler audit plus its BF-653 explanation companion from the same exact governed recommendation frame after BF-623 live identity verification and BF-620 lineage reconciliation. It does not submit a Sleeper transaction, set FAAB, mutate the Sleeper league, refresh evidence, rerank players, or change the governed recommendation methodology.')
+          path.write_text(text)
+
+          # BF-627 tests: wire real explanation repository and assert audit-time companion behavior.
+          path = Path('bet/bet-cli/src/test/java/io/butler/bet/sleeper/SleeperLiveWaiverRecommendationAuditCaptureTest.java')
+          text = path.read_text()
+          text = text.replace(
+              'import io.butler.bet.data.GovernedRecommendationAuditRepository;\n',
+              'import io.butler.bet.data.GovernedRecommendationAuditRepository;\nimport io.butler.bet.data.GovernedRecommendationExplanationRepository;\n', 1)
+          text = text.replace('import java.util.List;\n', 'import java.util.List;\nimport java.util.Map;\nimport java.util.concurrent.atomic.AtomicInteger;\n', 1)
+          text = text.replace(
+              '        var repository = new GovernedRecommendationAuditRepository(database);\n',
+              '        var repository = new GovernedRecommendationAuditRepository(database);\n        var explanations = new GovernedRecommendationExplanationRepository(database);\n')
+          text = text.replace('service(repository, recommendation)', 'service(repository, explanations, recommendation)')
+          text = text.replace('service(repository, noTransaction(', 'service(repository, explanations, noTransaction(')
+          text = text.replace('service(repository, wrongOwner)', 'service(repository, explanations, wrongOwner)')
+          text = text.replace('service(repository, mismatch)', 'service(repository, explanations, mismatch)')
+          text = text.replace(
+              '''        var service = new SleeperLiveWaiverRecommendationAuditCapture(
+                  (leagueId, ownerId) -> current.get(),
+                  repository,
+                  Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+          ''',
+              '''        var service = new SleeperLiveWaiverRecommendationAuditCapture(
+                  (leagueId, ownerId) -> new SleeperLiveWaiverRecommendationAuditCapture.DecisionFrame(current.get(), null),
+                  repository,
+                  explanations,
+                  Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+          ''')
+          first_assert = '        assertEquals(1, repository.countForLeague("butler-hardcore"));\n'
+          text = text.replace(first_assert, first_assert + '''        assertEquals(GovernedRecommendationExplanationRepository.CaptureState.CAPTURED_VERIFIED, first.explanationCaptureState());
+              assertEquals(GovernedRecommendationExplanationRepository.CaptureState.ALREADY_CAPTURED_EXACT, second.explanationCaptureState());
+              assertEquals(first.explanationId(), second.explanationId());
+              assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_SAME_POSITION, first.explanationType());
+              assertEquals(SleeperLiveWaiverGovernedExplanationCapture.SAME_POSITION_REASON, first.explanationText());
+              assertTrue(explanations.findByAuditId(first.auditId()).isPresent());
+          ''', 1)
+          no_tx_assert = '        assertEquals(1, repository.countForLeague("butler-hardcore"));\n'
+          pos = text.find(no_tx_assert, text.find('void noGovernedTransactionIsPersistedWithoutInventingAddDrop'))
+          if pos < 0:
+              raise SystemExit('BF-627 no-transaction assertion marker missing')
+          insert_at = pos + len(no_tx_assert)
+          text = text[:insert_at] + '''        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_NO_TRANSACTION, result.explanationType());
+              assertEquals(SleeperLiveWaiverGovernedExplanationCapture.NO_TRANSACTION_REASON, result.explanationText());
+          ''' + text[insert_at:]
+
+          helper_old = '''    private SleeperLiveWaiverRecommendationAuditCapture service(
+              GovernedRecommendationAuditRepository repository,
+              SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation) {
+              return new SleeperLiveWaiverRecommendationAuditCapture(
+                  (leagueId, ownerId) -> recommendation,
+                  repository,
+                  Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+          }
+          '''
+          helper_new = '''    private SleeperLiveWaiverRecommendationAuditCapture service(
+              GovernedRecommendationAuditRepository repository,
+              GovernedRecommendationExplanationRepository explanations,
+              SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation) {
+              return new SleeperLiveWaiverRecommendationAuditCapture(
+                  (leagueId, ownerId) -> new SleeperLiveWaiverRecommendationAuditCapture.DecisionFrame(recommendation, null),
+                  repository,
+                  explanations,
+                  Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+          }
+          '''
+          if helper_old not in text:
+              raise SystemExit('BF-627 test helper marker missing')
+          text = text.replace(helper_old, helper_new, 1)
+
+          test_marker = '    private SleeperLiveWaiverRecommendationAuditCapture service(\n'
+          extra_tests = '''    @Test
+              void bf660UsesOneExactDecisionEvaluationAndPersistsCrossPositionEvidence() throws Exception {
+                  Database database = database();
+                  var repository = new GovernedRecommendationAuditRepository(database);
+                  var explanations = new GovernedRecommendationExplanationRepository(database);
+                  var recommendation = crossPositionRecommendation("market-x", "waiver-x", "7049", "12503");
+                  var evidence = crossPositionEvidence(recommendation);
+                  AtomicInteger evaluations = new AtomicInteger();
+                  var service = new SleeperLiveWaiverRecommendationAuditCapture(
+                      (leagueId, ownerId) -> {
+                          evaluations.incrementAndGet();
+                          return new SleeperLiveWaiverRecommendationAuditCapture.DecisionFrame(recommendation, evidence);
+                      },
+                      repository,
+                      explanations,
+                      Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+
+                  var result = service.capture(target());
+
+                  assertEquals(1, evaluations.get());
+                  assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_CROSS_POSITION, result.explanationType());
+                  assertEquals(SleeperLiveWaiverCrossPositionTransactionEvidence.POLICY_ID, result.explanationEvidencePolicyId());
+                  assertTrue(result.explanationEvidenceTrace().contains("ADD=7049"));
+                  assertTrue(result.explanationEvidenceTrace().contains("DROP=12503"));
+              }
+
+          '''
+          if test_marker not in text:
+              raise SystemExit('BF-627 test insertion marker missing')
+          text = text.replace(test_marker, extra_tests + test_marker, 1)
+
+          helper_marker = '    private static SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport noTransaction(\n'
+          helpers = '''    private static SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport crossPositionRecommendation(
+              String market, String waiver, String addId, String dropId) {
+              var base = recommendation(market, waiver, addId, dropId);
+              var methodology = new SleeperLiveWaiverFinalRecommendationBundle.MethodologyReport(
+                  SleeperLiveWaiverFinalRecommendationBundle.BF618_POLICY_ID,
+                  market,
+                  2,
+                  0,
+                  List.of("RB", "WR"),
+                  base.methodology().addWinnerRule(),
+                  base.methodology().evidenceRule(),
+                  base.methodology().crossPositionRule(),
+                  base.methodology().newcomerRule(),
+                  base.methodology().dropRule(),
+                  base.methodology().protectedTargetRule(),
+                  base.methodology().state());
+              return new SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport(
+                  base.policyId(), base.leagueId(), base.sleeperOwnerId(), base.marketSnapshotId(), base.waiverSnapshotId(),
+                  base.sleeperLeagueId(), base.rosterId(), methodology, base.selection(), base.providerSeason(),
+                  base.providerStatus(), base.providerLeg(), base.recommendedAdd(), base.recommendedDrop(),
+                  base.newcomerReviewAlternatives(), base.state());
+          }
+
+          private static SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport crossPositionEvidence(
+              SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation) {
+              var option = new SleeperLiveWaiverCrossPositionTransactionEvidence.TransactionEvidence(
+                  recommendation.recommendedAdd(),
+                  recommendation.recommendedDrop(),
+                  Map.of("nflverse", 1.25),
+                  Map.of("nflverse", List.of("rec", "rec_yd")),
+                  true);
+              return new SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport(
+                  SleeperLiveWaiverCrossPositionTransactionEvidence.POLICY_ID,
+                  recommendation.leagueId(),
+                  recommendation.sleeperOwnerId(),
+                  recommendation.marketSnapshotId(),
+                  recommendation.waiverSnapshotId(),
+                  recommendation.selection().state(),
+                  List.of(option),
+                  SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceState.RECONCILED);
+          }
+
+          '''
+          if helper_marker not in text:
+              raise SystemExit('BF-627 cross-position helper marker missing')
+          text = text.replace(helper_marker, helpers + helper_marker, 1)
+          path.write_text(text)
+          PY
+
+          ./gradlew :bet:bet-cli:test --tests io.butler.bet.sleeper.SleeperLiveWaiverRecommendationAuditCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverGovernedExplanationCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverFinalRecommendationBundleTest
+          git add bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverFinalRecommendationBundle.java \
+                  bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverGovernedExplanationCapture.java \
+                  bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverRecommendationAuditCapture.java \
+                  bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperLiveWaiverRecommendationAuditCaptureCli.java \
+                  bet/bet-cli/src/test/java/io/butler/bet/sleeper/SleeperLiveWaiverRecommendationAuditCaptureTest.java \
+                  bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperLiveWaiverPostTransactionRecommendationReplay.java
+          git commit -m "BF-660 capture explanation with governed audit"
+          git push origin HEAD:bf-660-capture-explanation-with-audit
