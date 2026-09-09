@@ -30,6 +30,13 @@ class ButlerDashboardBf649ScriptTest {
         assertTrue(script.contains("function Get-CurrentGovernedAddView"));
         assertTrue(script.contains("function Get-Bf623TargetView"));
         assertTrue(script.contains("summary BF-623 target identity disagrees with waiver BF-623 target identity"));
+        assertFalse(script.contains("\n        -or $bundleTarget."));
+        assertTrue(script.contains("if ($bundleTarget.SleeperLeagueId -cne $summaryTarget.SleeperLeagueId)"));
+        assertTrue(script.contains("if ($bundleTarget.RosterId -cne $summaryTarget.RosterId)"));
+        assertTrue(script.contains("if ($bundleTarget.LeagueName -cne $summaryTarget.LeagueName)"));
+        assertTrue(script.contains("if ($bundleTarget.DisplayName -cne $summaryTarget.DisplayName)"));
+        assertTrue(script.contains("if ($bundleTarget.TeamName -cne $summaryTarget.TeamName)"));
+        assertTrue(script.contains("if ($bundleTarget.Role -cne $summaryTarget.Role)"));
         assertTrue(script.contains("$state -ceq \"CURRENT_AND_ACTIONABLE\" -or $state -ceq \"CURRENT_REFRESH_RECOMMENDED\""));
         assertTrue(script.contains("$bf629 -cne \"LIVE_ACTIONABLE_VERIFIED\""));
         assertTrue(script.contains("$bf631 -cne \"LATEST_EVIDENCE_LINEAGE_VERIFIED\""));
