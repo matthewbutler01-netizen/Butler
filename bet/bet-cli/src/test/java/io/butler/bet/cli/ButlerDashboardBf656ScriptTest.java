@@ -13,23 +13,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerDashboardBf656ScriptTest {
 
     @Test
-    void eachRefreshStepCopiesOnlyItsExactGovernedCommand() throws Exception {
+    void eachRefreshStepExposesItsExactGovernedCommandInReadOnlyNativeField() throws Exception {
         String script = script();
         assertTrue(script.contains("$step.Command"));
-        assertTrue(script.contains("[Convert]::ToBase64String"));
-        assertTrue(script.contains("data-refresh-command-b64"));
-        assertTrue(script.contains("Copy command"));
-        assertTrue(script.contains("navigator.clipboard.writeText(command)"));
-        assertTrue(script.contains("atob(encoded)"));
+        assertTrue(script.contains("<textarea class=\"refresh-command-copy\""));
+        assertTrue(script.contains("readonly"));
+        assertTrue(script.contains("$(ConvertTo-HtmlText $step.Command)"));
+        assertTrue(script.contains("Press Ctrl+A, then Ctrl+C"));
     }
 
     @Test
-    void copyControlReportsLocalClipboardOutcomeOnly() throws Exception {
+    void copySafetyDoesNotRelaxNoJavascriptDashboardContract() throws Exception {
         String script = script();
-        assertTrue(script.contains("Copied"));
-        assertTrue(script.contains("Copy failed"));
-        assertTrue(script.contains("copy-refresh-status"));
-        assertTrue(script.contains("type=\"button\""));
+        assertFalse(script.contains("<script"));
+        assertFalse(script.contains("navigator.clipboard"));
+        assertFalse(script.contains("data-refresh-command-b64"));
+        assertFalse(script.contains("onclick="));
+        assertFalse(script.contains("javascript:"));
+        assertTrue(script.contains("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"));
     }
 
     @Test
