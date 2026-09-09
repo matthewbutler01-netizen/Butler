@@ -1,0 +1,102 @@
+name: BF-660 Temporary Isolated-Cast Runner
+
+on:
+  push:
+    branches:
+      - bf-660-capture-explanation-with-audit
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bf-660-capture-explanation-with-audit
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Apply BF-660 and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git revert --no-edit 40267f2118dc23c8bcec150d57326711ef32a1c1
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('.github/bf660_patch.py')
+          s = p.read_text()
+
+          old = """fields_start = text.index('    private final RecommendationSource recommendationSource;')
+          ctor_start = text.index('    public SleeperLiveWaiverRecommendationAuditCapture(Database database) {', fields_start)
+          fields = '''    private final DecisionSource decisionSource;
+              private final GovernedRecommendationAuditRepository repository;
+              private final GovernedRecommendationExplanationRepository explanationRepository;
+              private final Clock clock;
+
+          '''
+          text = text[:fields_start] + fields + text[ctor_start:]
+
+          capture_start = text.index('    public CaptureReport capture(', ctor_start)
+          """
+          new = """fields_start = text.index('    private final RecommendationSource recommendationSource;')
+          old_ctor_start = text.index('    public SleeperLiveWaiverRecommendationAuditCapture(Database database) {', fields_start)
+          fields = '''    private final DecisionSource decisionSource;
+              private final GovernedRecommendationAuditRepository repository;
+              private final GovernedRecommendationExplanationRepository explanationRepository;
+              private final Clock clock;
+
+          '''
+          text = text[:fields_start] + fields + text[old_ctor_start:]
+
+          ctor_start = text.index('    public SleeperLiveWaiverRecommendationAuditCapture(Database database) {', fields_start)
+          capture_start = text.index('    public CaptureReport capture(', ctor_start)
+          """
+          if old not in s:
+              raise SystemExit('stale-index marker missing')
+          s = s.replace(old, new, 1)
+
+          production_old = '            (leagueId, ownerId) -> new DecisionFrame(recommendationSource.run(leagueId, ownerId), null),'
+          production_new = '            (DecisionSource) (leagueId, ownerId) -> new DecisionFrame(recommendationSource.run(leagueId, ownerId), null),'
+          if production_old not in s:
+              raise SystemExit('production compatibility lambda marker missing')
+          s = s.replace(production_old, production_new, 1)
+
+          def replace_inside(label, begin_marker, old_value, new_value):
+              global s
+              begin = s.index(begin_marker)
+              end = s.index("'''", begin + len(begin_marker))
+              block = s[begin:end]
+              if block.count(old_value) != 1:
+                  raise SystemExit(f'{label}: expected one lambda in replacement block, got {block.count(old_value)}')
+              block = block.replace(old_value, new_value, 1)
+              s = s[:begin] + block + s[end:]
+
+          replace_inside(
+              'direct-test cast',
+              "new_direct = '''",
+              '            (leagueId, ownerId) -> current.get(),',
+              '            (SleeperLiveWaiverRecommendationAuditCapture.RecommendationSource) (leagueId, ownerId) -> current.get(),')
+          replace_inside(
+              'helper-test cast',
+              "helper = '''",
+              '            (leagueId, ownerId) -> recommendation,',
+              '            (SleeperLiveWaiverRecommendationAuditCapture.RecommendationSource) (leagueId, ownerId) -> recommendation,')
+
+          p.write_text(s)
+          PY
+          python .github/bf660_patch.py
+          chmod +x gradlew
+          ./gradlew :bet:bet-cli:test --tests io.butler.bet.sleeper.SleeperLiveWaiverRecommendationAuditCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverGovernedExplanationCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverFinalRecommendationBundleTest
+          git add -A bet/bet-cli/src/main/java/io/butler/bet/sleeper \
+                     bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperLiveWaiverRecommendationAuditCaptureCli.java \
+                     bet/bet-cli/src/test/java/io/butler/bet/sleeper
+          git commit -m "BF-660 capture explanation with governed audit"
+          git push origin HEAD:bf-660-capture-explanation-with-audit
