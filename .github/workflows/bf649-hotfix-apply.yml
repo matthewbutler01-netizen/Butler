@@ -20,8 +20,9 @@ jobs:
           persist-credentials: true
 
       - name: Apply exact PowerShell 5.1-safe reconciliation
-        shell: python {0}
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           dashboard = Path('scripts/butler-dashboard.ps1')
@@ -72,6 +73,7 @@ jobs:
           test.write_text(test_text.replace(anchor, addition, 1), encoding='utf-8')
 
           Path('.github/workflows/bf649-hotfix-apply.yml').unlink()
+          PY
 
       - name: Commit hotfix
         shell: bash
