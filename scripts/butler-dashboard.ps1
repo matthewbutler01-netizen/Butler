@@ -460,6 +460,98 @@ function Get-CurrentGovernedAddView {
     }
 }
 
+
+function Get-CurrentGovernedDropView {
+    param(
+        [Parameter(Mandatory = $true)][string]$RosterContext,
+        [Parameter(Mandatory = $true)][string]$Summary
+    )
+
+    $rosterTarget = Get-Bf623TargetView -Text $RosterContext -BoundaryName "BF-651"
+    $state = Get-LineValue -Text $Summary -Label "Decision status:"
+    if ([string]::IsNullOrWhiteSpace($state)) {
+        throw "BF-651 BLOCKED: current governed decision state is missing"
+    }
+
+    $audit = ConvertTo-AuditView (Get-LineValue -Text $Summary -Label "Audit:")
+    $bf629 = Get-LineValue -Text $Summary -Label "BF-629 live actionability:"
+    $bf631 = Get-LineValue -Text $Summary -Label "BF-631 evidence lineage:"
+    $active = $state -ceq "CURRENT_AND_ACTIONABLE" -or $state -ceq "CURRENT_REFRESH_RECOMMENDED"
+
+    if (-not $active) {
+        return [pscustomobject]@{
+            Active = $false
+            SleeperId = "none"
+            State = $state
+            AuditId = $audit.Id
+            AuditCaptured = $audit.Captured
+            Bf629 = $bf629
+            Bf631 = $bf631
+            Target = $rosterTarget
+            ContextLeagueId = Get-LineValue -Text $RosterContext -Label "Sleeper league:"
+            ContextRosterId = Get-LineValue -Text $RosterContext -Label "Exact target roster id:"
+            ContextState = Get-LineValue -Text $RosterContext -Label "Target-roster context state:"
+        }
+    }
+
+    $summaryTarget = Get-Bf623TargetView -Text $Summary -BoundaryName "BF-651"
+    foreach ($field in @("SleeperLeagueId", "RosterId", "LeagueName", "DisplayName", "TeamName", "Role")) {
+        if ([string]$rosterTarget.$field -cne [string]$summaryTarget.$field) {
+            throw "BF-651 BLOCKED: summary BF-623 target identity disagrees with BF-610 BF-623 target identity"
+        }
+    }
+
+    $contextLeagueId = Get-LineValue -Text $RosterContext -Label "Sleeper league:"
+    $contextRosterId = Get-LineValue -Text $RosterContext -Label "Exact target roster id:"
+    $contextState = Get-LineValue -Text $RosterContext -Label "Target-roster context state:"
+    if ([string]::IsNullOrWhiteSpace($contextLeagueId) -or $contextLeagueId -notmatch '^[0-9]+$') {
+        throw "BF-651 BLOCKED: BF-610 raw Sleeper league identity is missing or malformed"
+    }
+    if ([string]::IsNullOrWhiteSpace($contextRosterId) -or $contextRosterId -notmatch '^[0-9]+$') {
+        throw "BF-651 BLOCKED: BF-610 exact target roster identity is missing or malformed"
+    }
+    if ($contextState -cne "READY_CONTEXT_ONLY") {
+        throw "BF-651 BLOCKED: BF-610 target-roster context state is not READY_CONTEXT_ONLY"
+    }
+    if ($rosterTarget.SleeperLeagueId -cne $contextLeagueId -or $rosterTarget.RosterId -cne $contextRosterId) {
+        throw "BF-651 BLOCKED: BF-610 BF-623 target identity disagrees with BF-610 raw roster context"
+    }
+    if ($bf629 -cne "LIVE_ACTIONABLE_VERIFIED") {
+        throw "BF-651 BLOCKED: current decision state does not preserve BF-629 LIVE_ACTIONABLE_VERIFIED"
+    }
+    if ($bf631 -cne "LATEST_EVIDENCE_LINEAGE_VERIFIED") {
+        throw "BF-651 BLOCKED: current decision state does not preserve BF-631 LATEST_EVIDENCE_LINEAGE_VERIFIED"
+    }
+    if ([string]::IsNullOrWhiteSpace($audit.Id) -or $audit.Id -ceq "none") {
+        throw "BF-651 BLOCKED: current audited recommendation identity is missing"
+    }
+
+    $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+    if ([string]::IsNullOrWhiteSpace($drop.SleeperId) -or $drop.SleeperId -notmatch '^[0-9]+$') {
+        throw "BF-651 BLOCKED: current audited DROP exact Sleeper id is missing or malformed"
+    }
+
+    $players = @(Get-RosterPlayers -RosterContext $RosterContext)
+    $matches = @($players | Where-Object { $_.SleeperId -ceq $drop.SleeperId })
+    if ($matches.Count -ne 1) {
+        throw "BF-651 BLOCKED: current audited DROP Sleeper id $($drop.SleeperId) must resolve exactly once in BF-610 target roster; found $($matches.Count)"
+    }
+
+    return [pscustomobject]@{
+        Active = $true
+        SleeperId = $drop.SleeperId
+        State = $state
+        AuditId = $audit.Id
+        AuditCaptured = $audit.Captured
+        Bf629 = $bf629
+        Bf631 = $bf631
+        Target = $rosterTarget
+        ContextLeagueId = $contextLeagueId
+        ContextRosterId = $contextRosterId
+        ContextState = $contextState
+    }
+}
+
 function Resolve-WaiverCandidateById {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
@@ -490,7 +582,7 @@ function Get-SharedCss {
 .next{margin-top:18px;padding:18px;border-radius:16px;background:#0a142c;border:1px solid #2e467e}.next strong{display:block;font-size:16px;margin-bottom:5px}.next p{margin:0;color:#cbd4eb}.verify-grid,.fresh-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fresh-grid{margin-top:12px}.verify,.fresh{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.check{font-weight:800;color:#8ff0b9}.alert{font-weight:800;color:#ffd98b}.verify small{display:block;color:#8797bd;margin-top:5px}.fresh strong{display:block;color:#9eabd0;font-size:13px}.fresh .age{font-size:22px;font-weight:800;margin-top:5px}.fresh .limit{font-size:12px;color:#8797bd;margin-top:4px}
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
-.position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
+.position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.roster-card .current-marker{margin-top:10px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
 .board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
 @media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.candidate-badges{justify-content:flex-start;margin-top:10px}.lane{margin-top:0}}
 '@
@@ -569,15 +661,16 @@ $header
 }
 
 function ConvertTo-TeamHtml {
-    param([Parameter(Mandatory = $true)][string]$RosterContext)
-    $players = Get-RosterPlayers -RosterContext $RosterContext
-    $owner = Get-LineValue -Text $RosterContext -Label "Provider owner display/team name:"
-    $rosterId = Get-LineValue -Text $RosterContext -Label "Exact target roster id:"
+    param(
+        [Parameter(Mandatory = $true)][string]$RosterContext,
+        [Parameter(Mandatory = $true)][string]$Summary
+    )
+    $players = @(Get-RosterPlayers -RosterContext $RosterContext)
+    $current = Get-CurrentGovernedDropView -RosterContext $RosterContext -Summary $Summary
     $counts = Get-LineValue -Text $RosterContext -Label "Target roster players starter/bench/reserve/taxi:"
     $slots = Get-LineValue -Text $RosterContext -Label "Live starting slots:"
-    $target = "$owner | roster $rosterId"
     $css = Get-SharedCss
-    $header = Get-HeaderHtml -Target $target -Active "team"
+    $header = Get-HeaderHtml -Target $current.Target.Human -Active "team"
     $sections = ""
     $positions = @("QB", "RB", "WR", "TE")
     $knownIds = @{}
@@ -589,7 +682,11 @@ function ConvertTo-TeamHtml {
         $cards = ""
         foreach ($player in $group) {
             $slotLabel = Get-RosterStatusLabel -Player $player
-            $cards += "<article class=`"roster-card`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div><div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
+            $isCurrent = $current.Active -and $player.SleeperId -ceq $current.SleeperId
+            $cardClass = if ($isCurrent) { "current-governed" } else { "" }
+            $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed DROP</span>' } else { "" }
+            $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div>' } else { "" }
+            $cards += "<article class=`"roster-card $cardClass`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div>$currentBadge$currentCopy<div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
         }
         $plural = if ($group.Count -ne 1) { "s" } else { "" }
         $sections += "<section class=`"position-section`"><div class=`"position-head`"><h2>$position</h2><span class=`"position-count`">$($group.Count) player$plural</span></div><div class=`"roster-grid`">$cards</div></section>"
@@ -600,7 +697,11 @@ function ConvertTo-TeamHtml {
         $cards = ""
         foreach ($player in $other) {
             $slotLabel = Get-RosterStatusLabel -Player $player
-            $cards += "<article class=`"roster-card`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div><div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
+            $isCurrent = $current.Active -and $player.SleeperId -ceq $current.SleeperId
+            $cardClass = if ($isCurrent) { "current-governed" } else { "" }
+            $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed DROP</span>' } else { "" }
+            $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current DROP &middot; this marker is not a roster rank or lineup recommendation.</div>' } else { "" }
+            $cards += "<article class=`"roster-card $cardClass`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div>$currentBadge$currentCopy<div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
         }
         $sections += "<section class=`"position-section`"><div class=`"position-head`"><h2>Other / unmapped position</h2><span class=`"position-count`">$($other.Count)</span></div><div class=`"roster-grid`">$cards</div></section>"
     }
@@ -608,8 +709,8 @@ function ConvertTo-TeamHtml {
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - My Team</title><style>$css</style></head><body><main class="shell">
 $header
-<section class="panel"><div class="eyebrow">My Team</div><h1 class="headline">Your exact governed roster</h1><p class="lede">This is BF-610's BF-623-verified target roster, grouped only for display. Position groups and roster labels are not rankings or lineup advice.</p><div class="roster-note">Roster counts: $(ConvertTo-HtmlText $counts)</div><div class="roster-note">Live starting slots: $(ConvertTo-HtmlText $slots)</div>$sections</section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> My Team shows exact governed roster context only. It does not score roster needs, optimize a lineup, rank your players, recommend a drop, set FAAB, or submit a Sleeper transaction.</section>
+<section class="panel"><div class="eyebrow">My Team</div><h1 class="headline">Your exact governed roster</h1><p class="lede">This is BF-610's BF-623-verified target roster, grouped only for display. Position groups and roster labels are not rankings or lineup advice.</p><div class="roster-note">Roster counts: $(ConvertTo-HtmlText $counts)</div><div class="roster-note">Live starting slots: $(ConvertTo-HtmlText $slots)</div>$sections<details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $current.Target.Human)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $current.Target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $current.Target.Role)</div><div>BF-610 raw Sleeper league / roster: $(ConvertTo-HtmlText $current.ContextLeagueId) / $(ConvertTo-HtmlText $current.ContextRosterId)</div><div>BF-610 context state: $(ConvertTo-HtmlText $current.ContextState)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current DROP Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div></div></details></section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> My Team shows exact governed roster context only. If shown, <strong>Current governed DROP</strong> identifies the already-audited current drop only; it is not a roster rank or lineup recommendation. This page does not score roster needs, optimize a lineup, rank your players, select a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -821,8 +922,9 @@ try {
 
             try {
                 if ($path -eq "/team") {
+                    $summary = Invoke-ButlerReadOnlySummary
                     $rosterContext = Invoke-ButlerReadOnlyRosterContext
-                    $html = ConvertTo-TeamHtml -RosterContext $rosterContext
+                    $html = ConvertTo-TeamHtml -RosterContext $rosterContext -Summary $summary
                 }
                 elseif ($path -eq "/waivers") {
                     $summary = Invoke-ButlerReadOnlySummary
