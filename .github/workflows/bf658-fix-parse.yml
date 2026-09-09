@@ -20,22 +20,21 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
+
           path = Path('scripts/butler-dashboard.ps1')
           text = path.read_text(encoding='ascii')
-          old = '''    if ([string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
-              -or [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none") {
-                  throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
-              }
-          '''
-          new = '''    $marketLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
+          pattern = re.compile(
+              r'    if \(\[string\]::IsNullOrWhiteSpace\(\$Explanation\.MarketSnapshotId\) -or \$Explanation\.MarketSnapshotId -ceq "none"\n'
+              r'\s+-or \[string\]::IsNullOrWhiteSpace\(\$Explanation\.WaiverSnapshotId\) -or \$Explanation\.WaiverSnapshotId -ceq "none"\) \{'
+          )
+          replacement = '''    $marketLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
               $waiverLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none"
-              if ($marketLineageMissing -or $waiverLineageMissing) {
-                  throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
-              }
-          '''
-          if old not in text:
-              raise SystemExit('BF-658 multiline condition not found')
-          path.write_text(text.replace(old, new, 1), encoding='ascii', newline='\n')
+              if ($marketLineageMissing -or $waiverLineageMissing) {'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'BF-658 multiline condition replacement count was {count}')
+          path.write_text(text, encoding='ascii', newline='\n')
       - name: Commit fix
         shell: bash
         run: |
