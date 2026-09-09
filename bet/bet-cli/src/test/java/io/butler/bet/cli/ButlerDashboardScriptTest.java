@@ -109,7 +109,7 @@ class ButlerDashboardScriptTest {
     void myTeamGroupsForDisplayAndPreservesRosterStatus() throws Exception {
         String script = script();
         assertTrue(script.contains("$positions = @(\"QB\", \"RB\", \"WR\", \"TE\")"));
-        assertTrue(script.contains("Starter ·"));
+        assertTrue(script.contains("Starter -"));
         assertTrue(script.contains("Reserve"));
         assertTrue(script.contains("Taxi"));
         assertTrue(script.contains("Bench"));
