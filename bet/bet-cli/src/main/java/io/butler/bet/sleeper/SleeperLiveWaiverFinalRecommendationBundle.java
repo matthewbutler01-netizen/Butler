@@ -60,6 +60,12 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
 
     public RecommendationReport run(String leagueId, String sleeperOwnerId)
         throws SQLException, IOException, InterruptedException {
+        return execute(leagueId, sleeperOwnerId).recommendation();
+    }
+
+    /** BF-660 retains the exact BF-615 bundle used by this BF-620 recommendation for audit-time explanation capture. */
+    RecommendationExecution execute(String leagueId, String sleeperOwnerId)
+        throws SQLException, IOException, InterruptedException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
 
@@ -74,60 +80,28 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             freshnessSource.audit(normalizedLeagueId, normalizedOwnerId);
         validateFreshness(bundle, freshness, normalizedLeagueId, normalizedOwnerId);
 
+        RecommendationReport recommendation;
         if (selection.state() != SelectionState.UNIQUE_ADD_DROP_SELECTED) {
-            return new RecommendationReport(
+            recommendation = new RecommendationReport(
                 BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
                 bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
                 bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
                 methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
                 null, null, newcomerAlternatives(bundle),
                 RecommendationState.NO_GOVERNED_TRANSACTION);
-        }
-
-        var add = Objects.requireNonNull(selection.selectedAdd());
-        var drop = Objects.requireNonNull(selection.selectedDrop());
-        validateSelectedPairAgainstLiveAndSnapshot(bundle, freshness, add, drop);
-
-        return new RecommendationReport(
-            BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
-            bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
-            bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
-            methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
-            add, drop, newcomerAlternatives(bundle),
-            RecommendationState.RECOMMEND_ADD_DROP);
-    }
-
-    /** BF-659 replays the frozen final method against an explicitly reconstructed pre-transaction roster frame. */
-    RecommendationReport replay(
-        String leagueId,
-        String sleeperOwnerId,
-        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
-        ReplayFreshnessFrame freshness) throws SQLException {
-        String normalizedLeagueId = requireText(leagueId, "leagueId");
-        String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
-        validateBundle(bundle, normalizedLeagueId, normalizedOwnerId);
-        validateReplayFreshness(bundle, freshness, normalizedLeagueId, normalizedOwnerId);
-
-        MethodologyReport methodology = methodology(bundle);
-        SelectionReport selection = select(bundle);
-        if (selection.state() != SelectionState.UNIQUE_ADD_DROP_SELECTED) {
-            return new RecommendationReport(
+        } else {
+            var add = Objects.requireNonNull(selection.selectedAdd());
+            var drop = Objects.requireNonNull(selection.selectedDrop());
+            validateSelectedPairAgainstLiveAndSnapshot(bundle, freshness, add, drop);
+            recommendation = new RecommendationReport(
                 BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
                 bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
                 bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
                 methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
-                null, null, newcomerAlternatives(bundle), RecommendationState.NO_GOVERNED_TRANSACTION);
+                add, drop, newcomerAlternatives(bundle),
+                RecommendationState.RECOMMEND_ADD_DROP);
         }
-
-        var add = Objects.requireNonNull(selection.selectedAdd());
-        var drop = Objects.requireNonNull(selection.selectedDrop());
-        validateSelectedPairAgainstReplayAndSnapshot(bundle, freshness, add, drop);
-        return new RecommendationReport(
-            BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
-            bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
-            bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
-            methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
-            add, drop, newcomerAlternatives(bundle), RecommendationState.RECOMMEND_ADD_DROP);
+        return new RecommendationExecution(recommendation, bundle);
     }
 
     private MethodologyReport methodology(SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
@@ -380,71 +354,6 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
         }
     }
 
-    private void validateSelectedPairAgainstReplayAndSnapshot(
-        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
-        ReplayFreshnessFrame freshness,
-        SelectedPlayer add,
-        SelectedPlayer drop) throws SQLException {
-        boolean dropReplay = freshness.targetPlayers().stream().anyMatch(value ->
-            value.sleeperPlayerId().equals(drop.sleeperPlayerId())
-                && SleeperLiveWaiverCandidateRosterComparisonMethodology.eligibleReplacementSlot(value.rosterSlot()));
-        if (!dropReplay) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected drop is not on reconstructed target BENCH/RESERVE roster");
-        }
-        if (freshness.targetPlayers().stream().anyMatch(value -> value.sleeperPlayerId().equals(add.sleeperPlayerId()))) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected add appears on reconstructed pre-transaction target roster");
-        }
-
-        List<LiveWaiverSnapshotRepository.Entry> entries = snapshotEntriesSource.load(bundle.comparisons().waiverSnapshotId());
-        Map<String, LiveWaiverSnapshotRepository.Entry> byId = new LinkedHashMap<>();
-        for (var entry : entries) {
-            if (byId.putIfAbsent(entry.sleeperPlayerId(), entry) != null) {
-                throw new IllegalStateException("BF-659 BLOCKED: duplicate BF-602 snapshot identity " + entry.sleeperPlayerId());
-            }
-        }
-        var addSnapshot = byId.get(add.sleeperPlayerId());
-        var dropSnapshot = byId.get(drop.sleeperPlayerId());
-        if (addSnapshot == null || !addSnapshot.freeAgent() || addSnapshot.rostered() || !addSnapshot.leagueEligible()) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected add was not an exact league-eligible free agent in audited BF-602 snapshot");
-        }
-        if (dropSnapshot == null || !dropSnapshot.rostered() || dropSnapshot.freeAgent()) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected drop was not rostered in audited BF-602 snapshot");
-        }
-        boolean historicalShortlist = bundle.shortlist().shortlist().stream().anyMatch(value ->
-            value.lane() == SleeperLiveWaiverComparisonExecutionBundle.ShortlistLane.HISTORICAL_DIRECTIONAL
-                && value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId()));
-        if (!historicalShortlist) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected add is absent from replayed BF-616 historical shortlist");
-        }
-        boolean backedPair = bundle.comparisons().pairs().stream().anyMatch(value ->
-            value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId())
-                && value.roster().sleeperPlayerId().equals(drop.sleeperPlayerId())
-                && value.state() == SleeperLiveWaiverComparisonExecutionBundle.PairState.CANDIDATE_DIRECTIONALLY_SUPPORTED);
-        if (!backedPair) {
-            throw new IllegalStateException("BF-659 BLOCKED: selected add/drop lacks replayed BF-615 candidate-supported pair evidence");
-        }
-    }
-
-    private static void validateReplayFreshness(
-        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
-        ReplayFreshnessFrame freshness,
-        String leagueId,
-        String ownerId) {
-        Objects.requireNonNull(freshness, "BF-659 replay freshness must not be null");
-        if (!bundle.comparisons().marketSnapshotId().equals(freshness.marketSnapshotId())
-            || !bundle.comparisons().waiverSnapshotId().equals(freshness.waiverSnapshotId())
-            || !bundle.comparisons().sleeperLeagueId().equals(freshness.sleeperLeagueId())
-            || bundle.comparisons().rosterId() != freshness.rosterId()) {
-            throw new IllegalStateException("BF-659 BLOCKED: reconstructed freshness lineage differs from BF-615-617 replay frame");
-        }
-        if (freshness.providerSeason() != 2026 || !"in_season".equals(freshness.providerStatus())) {
-            throw new IllegalStateException("BF-659 BLOCKED: reconstructed freshness frame is not in-season 2026");
-        }
-        if (freshness.targetPlayers().isEmpty()) {
-            throw new IllegalStateException("BF-659 BLOCKED: reconstructed target roster is empty");
-        }
-    }
-
     private static List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> historicalFinalists(
         SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
         return bundle.shortlist().shortlist().stream()
@@ -511,6 +420,15 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
         return value.trim();
     }
 
+    record RecommendationExecution(
+        RecommendationReport recommendation,
+        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
+        RecommendationExecution {
+            Objects.requireNonNull(recommendation, "recommendation must not be null");
+            Objects.requireNonNull(bundle, "bundle must not be null");
+        }
+    }
+
     @FunctionalInterface
     interface BundleSource {
         SleeperLiveWaiverComparisonExecutionBundle.BundleReport run(String leagueId, String ownerId)
@@ -531,32 +449,6 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
     @FunctionalInterface
     interface SnapshotEntriesSource {
         List<LiveWaiverSnapshotRepository.Entry> load(String snapshotId) throws SQLException;
-    }
-
-    record ReplayTargetPlayer(String sleeperPlayerId, String rosterSlot) {
-    ReplayTargetPlayer {
-        sleeperPlayerId = requireText(sleeperPlayerId, "replay Sleeper player id");
-        rosterSlot = requireText(rosterSlot, "replay roster slot");
-    }
-}
-
-    record ReplayFreshnessFrame(
-        String marketSnapshotId,
-        String waiverSnapshotId,
-        String sleeperLeagueId,
-        int rosterId,
-        int providerSeason,
-        String providerStatus,
-        Integer providerLeg,
-        List<ReplayTargetPlayer> targetPlayers) {
-        ReplayFreshnessFrame {
-            marketSnapshotId = requireText(marketSnapshotId, "replay market snapshot id");
-            waiverSnapshotId = requireText(waiverSnapshotId, "replay waiver snapshot id");
-            sleeperLeagueId = requireText(sleeperLeagueId, "replay Sleeper league id");
-            providerStatus = requireText(providerStatus, "replay provider status");
-            if (rosterId <= 0) throw new IllegalArgumentException("replay roster id must be positive");
-            targetPlayers = List.copyOf(Objects.requireNonNull(targetPlayers, "replay target players must not be null"));
-        }
     }
 
     public enum MethodologyState { FINAL_SELECTION_METHOD_FROZEN }
