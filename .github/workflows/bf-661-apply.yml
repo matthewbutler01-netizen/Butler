@@ -1,9 +1,9 @@
 name: BF-661 Apply and Verify
 
 on:
-  push:
+  pull_request:
     branches:
-      - bf-661-dashboard-no-transaction-explanation
+      - main
     paths:
       - '.github/workflows/bf-661-apply.yml'
 
