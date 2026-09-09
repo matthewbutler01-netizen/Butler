@@ -151,6 +151,29 @@ function Invoke-ButlerReadOnlyWaiverBoard {
     return Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverComparisonBundle" -BoundaryName "BF-646"
 }
 
+function Invoke-ButlerReadOnlyExplanationLookup {
+    param([Parameter(Mandatory = $true)][string]$AuditId)
+    if ([string]::IsNullOrWhiteSpace($AuditId)) {
+        throw "BF-654 BLOCKED: current BF-627 audit id is missing"
+    }
+    $previousPreference = $ErrorActionPreference
+    $lines = $null
+    $exitCode = $null
+    try {
+        $ErrorActionPreference = "Continue"
+        $lines = & $gradle ":bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup" "--args=$LeagueId $AuditId" 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    $text = ($lines | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        throw "BF-654 BLOCKED: BF-653 governed explanation lookup failed with Gradle exit code $exitCode.`n$text"
+    }
+    return $text
+}
+
 function ConvertTo-RosterPlayerView {
     param([Parameter(Mandatory = $true)][string]$Line)
     $pattern = '^\s{2}(?<id>\S+)\s+\|\s+rosterSlot=(?<slot>\S+)(?:\s+starterOrdinal=(?<ordinal>\d+)\s+lineupSlot=(?<lineup>\S+))?\s+\|\s+mapping=(?<mapping>\S+)\s+\|\s+name=(?<name>.*?)\s+\|\s+pos=(?<pos>.*?)\s+\|\s+nflTeam=(?<team>.*?)\s+\|\s+butlerPlayer=(?<butler>.*)$'
@@ -625,6 +648,121 @@ function Get-CurrentGovernedTransactionPairView {
     }
 }
 
+function Get-GovernedExplanationView {
+    param([Parameter(Mandatory = $true)][string]$Summary)
+
+    $audit = ConvertTo-AuditView (Get-LineValue -Text $Summary -Label "Audit:")
+    if ([string]::IsNullOrWhiteSpace($audit.Id) -or $audit.Id -ceq "none") {
+        return [pscustomobject]@{
+            Ready = $false
+            State = "EXPLANATION_NOT_CAPTURED"
+            AuditId = "none"
+            ExplanationId = "none"
+            ExplanationType = "none"
+            ExplanationText = "none"
+            MarketSnapshotId = "none"
+            WaiverSnapshotId = "none"
+            AddSleeperId = "none"
+            DropSleeperId = "none"
+            EvidencePolicy = "none"
+            EvidenceTrace = "none"
+        }
+    }
+
+    $lookup = Invoke-ButlerReadOnlyExplanationLookup -AuditId $audit.Id
+    $lookupState = Get-LineValue -Text $lookup -Label "Lookup state:"
+    if ([string]::IsNullOrWhiteSpace($lookupState)) {
+        throw "BF-654 BLOCKED: BF-653 lookup state is missing"
+    }
+
+    $summaryTarget = Get-Bf623TargetView -Text $Summary -BoundaryName "BF-654"
+    $lookupTarget = Get-Bf623TargetView -Text $lookup -BoundaryName "BF-654"
+    foreach ($field in @("SleeperLeagueId", "RosterId", "LeagueName", "DisplayName", "TeamName", "Role")) {
+        if ([string]$summaryTarget.$field -cne [string]$lookupTarget.$field) {
+            throw "BF-654 BLOCKED: summary BF-623 target identity disagrees with BF-653 lookup target identity"
+        }
+    }
+
+    $lookupAuditId = Get-LineValue -Text $lookup -Label "BF-627 audit id:"
+    if ([string]::IsNullOrWhiteSpace($lookupAuditId) -or $lookupAuditId -cne $audit.Id) {
+        throw "BF-654 BLOCKED: BF-653 audit id disagrees with current BF-627 audit"
+    }
+
+    $summaryLineageRaw = Get-LineValue -Text $Summary -Label "BF-631 audited BF-603 / BF-602 snapshot:"
+    $lookupLineageRaw = Get-LineValue -Text $lookup -Label "BF-603 market / BF-602 waiver snapshot:"
+    $summaryLineage = ConvertTo-SnapshotPairView -Line $summaryLineageRaw -BoundaryName "BF-654"
+    $lookupLineage = ConvertTo-SnapshotPairView -Line $lookupLineageRaw -BoundaryName "BF-654"
+    if ($summaryLineage.Market -cne $lookupLineage.Market -or $summaryLineage.Waiver -cne $lookupLineage.Waiver) {
+        throw "BF-654 BLOCKED: BF-653 BF-603/BF-602 lineage disagrees with current BF-631 audit lineage"
+    }
+
+    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+    $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+    if ([string]::IsNullOrWhiteSpace($add.SleeperId) -or [string]::IsNullOrWhiteSpace($drop.SleeperId)) {
+        throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+    }
+    $lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+    $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
+    if (-not $lookupIds.Success) {
+        throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
+    }
+    $lookupAddId = $lookupIds.Groups['add'].Value.Trim()
+    $lookupDropId = $lookupIds.Groups['drop'].Value.Trim()
+    if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
+        throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
+    }
+
+    if ($lookupState -ceq "EXPLANATION_NOT_CAPTURED") {
+        return [pscustomobject]@{
+            Ready = $false
+            State = $lookupState
+            AuditId = $audit.Id
+            ExplanationId = "none"
+            ExplanationType = "none"
+            ExplanationText = "none"
+            MarketSnapshotId = $lookupLineage.Market
+            WaiverSnapshotId = $lookupLineage.Waiver
+            AddSleeperId = $lookupAddId
+            DropSleeperId = $lookupDropId
+            EvidencePolicy = "none"
+            EvidenceTrace = "none"
+        }
+    }
+    if ($lookupState -cne "EXPLANATION_READY") {
+        throw "BF-654 BLOCKED: unsupported BF-653 lookup state $lookupState"
+    }
+
+    $explanationId = Get-LineValue -Text $lookup -Label "Explanation id:"
+    $explanationType = Get-LineValue -Text $lookup -Label "Explanation type:"
+    $explanationText = Get-LineValue -Text $lookup -Label "Why this move:"
+    $evidencePolicy = Get-LineValue -Text $lookup -Label "Evidence policy:"
+    $evidenceTrace = Get-LineValue -Text $lookup -Label "Evidence trace:"
+    if ([string]::IsNullOrWhiteSpace($explanationId) -or $explanationId -ceq "none") {
+        throw "BF-654 BLOCKED: BF-653 explanation id is missing"
+    }
+    if ([string]::IsNullOrWhiteSpace($explanationType) -or $explanationType -ceq "none") {
+        throw "BF-654 BLOCKED: BF-653 explanation type is missing"
+    }
+    if ([string]::IsNullOrWhiteSpace($explanationText) -or $explanationText -ceq "none") {
+        throw "BF-654 BLOCKED: BF-653 persisted explanation text is missing"
+    }
+
+    return [pscustomobject]@{
+        Ready = $true
+        State = $lookupState
+        AuditId = $audit.Id
+        ExplanationId = $explanationId
+        ExplanationType = $explanationType
+        ExplanationText = $explanationText
+        MarketSnapshotId = $lookupLineage.Market
+        WaiverSnapshotId = $lookupLineage.Waiver
+        AddSleeperId = $lookupAddId
+        DropSleeperId = $lookupDropId
+        EvidencePolicy = if ([string]::IsNullOrWhiteSpace($evidencePolicy)) { "none" } else { $evidencePolicy }
+        EvidenceTrace = if ([string]::IsNullOrWhiteSpace($evidenceTrace)) { "none" } else { $evidenceTrace }
+    }
+}
+
 function Resolve-WaiverCandidateById {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
@@ -713,6 +851,28 @@ function ConvertTo-DashboardHtml {
     $thresholdHours = [math]::Round($threshold / 3600, 1)
     $css = Get-SharedCss
     $header = Get-HeaderHtml -Target $target -Active "dashboard"
+    $explanation = Get-GovernedExplanationView -Summary $Summary
+    if ($explanation.Ready) {
+        $whySection = @"
+<section class="panel">
+  <div class="eyebrow">Governed explanation</div>
+  <h2>Why this move?</h2>
+  <div class="next"><p>$(ConvertTo-HtmlText $explanation.ExplanationText)</p></div>
+  <div class="subtle" style="margin-top:10px">Persisted BF-653 explanation for this immutable BF-627 audit. This dashboard does not rerun recommendation or evidence selection.</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-627 audit ID: $(ConvertTo-HtmlText $explanation.AuditId)</div><div>BF-653 lookup state: $(ConvertTo-HtmlText $explanation.State)</div><div>BF-653 explanation ID: $(ConvertTo-HtmlText $explanation.ExplanationId)</div><div>BF-653 explanation type: $(ConvertTo-HtmlText $explanation.ExplanationType)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $explanation.MarketSnapshotId) / $(ConvertTo-HtmlText $explanation.WaiverSnapshotId)</div><div>Audited ADD / DROP Sleeper IDs: $(ConvertTo-HtmlText $explanation.AddSleeperId) / $(ConvertTo-HtmlText $explanation.DropSleeperId)</div><div>BF-653 evidence policy: $(ConvertTo-HtmlText $explanation.EvidencePolicy)</div><div>BF-653 evidence trace: $(ConvertTo-HtmlText $explanation.EvidenceTrace)</div></div></details>
+</section>
+"@
+    }
+    else {
+        $whySection = @"
+<section class="panel">
+  <div class="eyebrow">Governed explanation</div>
+  <h2>Why this move?</h2>
+  <p class="lede">No persisted BF-653 explanation is available for this exact audit.</p>
+  <div class="subtle" style="margin-top:10px">Butler will not invent or recompute an explanation from this dashboard.</div>
+</section>
+"@
+    }
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
@@ -725,6 +885,7 @@ $header
   </div>
   <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
 </section>
+$whySection
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
