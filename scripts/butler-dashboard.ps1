@@ -250,28 +250,29 @@ function Get-WaiverLanePresentation {
     return [pscustomobject]@{ Label=$Lane; Class="neutral" }
 }
 
-function Get-WaiverTargetView {
-    param([Parameter(Mandatory = $true)][string]$Bundle)
+function Get-Bf623TargetView {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$BoundaryName
+    )
 
-    $gate = Get-LineValue -Text $Bundle -Label "Binding gate state:"
-    $leagueRaw = Get-LineValue -Text $Bundle -Label "Bound Sleeper league:"
-    $rosterRaw = Get-LineValue -Text $Bundle -Label "Bound roster / role:"
-    $displayRaw = Get-LineValue -Text $Bundle -Label "Bound display/team:"
-    $comparisonRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    $gate = Get-LineValue -Text $Text -Label "Binding gate state:"
+    $leagueRaw = Get-LineValue -Text $Text -Label "Bound Sleeper league:"
+    $rosterRaw = Get-LineValue -Text $Text -Label "Bound roster / role:"
+    $displayRaw = Get-LineValue -Text $Text -Label "Bound display/team:"
 
     if ($gate -cne "BOUND_TARGET_LIVE_VERIFIED") {
-        throw "BF-648 BLOCKED: BF-623 binding gate is not BOUND_TARGET_LIVE_VERIFIED"
+        throw "$BoundaryName BLOCKED: BF-623 binding gate is not BOUND_TARGET_LIVE_VERIFIED"
     }
-    if ([string]::IsNullOrWhiteSpace($leagueRaw) -or [string]::IsNullOrWhiteSpace($rosterRaw) -or [string]::IsNullOrWhiteSpace($displayRaw) -or [string]::IsNullOrWhiteSpace($comparisonRaw)) {
-        throw "BF-648 BLOCKED: BF-623 verified identity or raw comparison target is missing"
+    if ([string]::IsNullOrWhiteSpace($leagueRaw) -or [string]::IsNullOrWhiteSpace($rosterRaw) -or [string]::IsNullOrWhiteSpace($displayRaw)) {
+        throw "$BoundaryName BLOCKED: BF-623 verified identity is missing"
     }
 
     $leagueMatch = [regex]::Match($leagueRaw, '^(?<id>[0-9]+)\s+\|\s+(?<name>.+)$')
     $rosterMatch = [regex]::Match($rosterRaw, '^(?<id>[0-9]+)\s+/\s+(?<role>[A-Z_]+)$')
     $displayMatch = [regex]::Match($displayRaw, '^(?<display>.*?)\s+/\s+(?<team>.*)$')
-    $comparisonMatch = [regex]::Match($comparisonRaw, '^(?<league>[0-9]+)\s+/\s+(?<roster>[0-9]+)$')
-    if (-not $leagueMatch.Success -or -not $rosterMatch.Success -or -not $displayMatch.Success -or -not $comparisonMatch.Success) {
-        throw "BF-648 BLOCKED: unable to parse BF-623 verified identity or raw comparison target"
+    if (-not $leagueMatch.Success -or -not $rosterMatch.Success -or -not $displayMatch.Success) {
+        throw "$BoundaryName BLOCKED: unable to parse BF-623 verified identity"
     }
 
     $sleeperLeagueId = $leagueMatch.Groups['id'].Value.Trim()
@@ -280,17 +281,12 @@ function Get-WaiverTargetView {
     $role = $rosterMatch.Groups['role'].Value.Trim()
     $displayName = $displayMatch.Groups['display'].Value.Trim()
     $teamName = $displayMatch.Groups['team'].Value.Trim()
-    $comparisonLeagueId = $comparisonMatch.Groups['league'].Value.Trim()
-    $comparisonRosterId = $comparisonMatch.Groups['roster'].Value.Trim()
 
     if ($role -cne "OWNER") {
-        throw "BF-648 BLOCKED: BF-623 target role is not exact OWNER"
-    }
-    if ($sleeperLeagueId -cne $comparisonLeagueId -or $rosterId -cne $comparisonRosterId) {
-        throw "BF-648 BLOCKED: BF-623 verified league/roster identity disagrees with BF-616 raw comparison target"
+        throw "$BoundaryName BLOCKED: BF-623 target role is not exact OWNER"
     }
     if ([string]::IsNullOrWhiteSpace($leagueName) -or $leagueName -ceq "none") {
-        throw "BF-648 BLOCKED: BF-623 verified league name is unavailable"
+        throw "$BoundaryName BLOCKED: BF-623 verified league name is unavailable"
     }
 
     $identityName = $teamName
@@ -298,7 +294,7 @@ function Get-WaiverTargetView {
         $identityName = $displayName
     }
     if ([string]::IsNullOrWhiteSpace($identityName) -or $identityName -ceq "none") {
-        throw "BF-648 BLOCKED: BF-623 verified team/display identity is unavailable"
+        throw "$BoundaryName BLOCKED: BF-623 verified team/display identity is unavailable"
     }
 
     return [pscustomobject]@{
@@ -308,9 +304,149 @@ function Get-WaiverTargetView {
         LeagueName = $leagueName
         DisplayName = $displayName
         TeamName = $teamName
+        IdentityName = $identityName
         Role = $role
         Gate = $gate
+    }
+}
+
+function Get-WaiverTargetView {
+    param([Parameter(Mandatory = $true)][string]$Bundle)
+
+    $verified = Get-Bf623TargetView -Text $Bundle -BoundaryName "BF-648"
+    $comparisonRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    if ([string]::IsNullOrWhiteSpace($comparisonRaw)) {
+        throw "BF-648 BLOCKED: raw comparison target is missing"
+    }
+    $comparisonMatch = [regex]::Match($comparisonRaw, '^(?<league>[0-9]+)\s+/\s+(?<roster>[0-9]+)$')
+    if (-not $comparisonMatch.Success) {
+        throw "BF-648 BLOCKED: unable to parse raw comparison target"
+    }
+    $comparisonLeagueId = $comparisonMatch.Groups['league'].Value.Trim()
+    $comparisonRosterId = $comparisonMatch.Groups['roster'].Value.Trim()
+    if ($verified.SleeperLeagueId -cne $comparisonLeagueId -or $verified.RosterId -cne $comparisonRosterId) {
+        throw "BF-648 BLOCKED: BF-623 verified league/roster identity disagrees with BF-616 raw comparison target"
+    }
+
+    return [pscustomobject]@{
+        Human = $verified.Human
+        SleeperLeagueId = $verified.SleeperLeagueId
+        RosterId = $verified.RosterId
+        LeagueName = $verified.LeagueName
+        DisplayName = $verified.DisplayName
+        TeamName = $verified.TeamName
+        IdentityName = $verified.IdentityName
+        Role = $verified.Role
+        Gate = $verified.Gate
         RawComparison = $comparisonRaw
+    }
+}
+
+function ConvertTo-SnapshotPairView {
+    param(
+        [AllowNull()][string]$Line,
+        [Parameter(Mandatory = $true)][string]$BoundaryName
+    )
+    if ([string]::IsNullOrWhiteSpace($Line)) {
+        throw "$BoundaryName BLOCKED: governed BF-603/BF-602 snapshot pair is missing"
+    }
+    $match = [regex]::Match($Line, '^(?<market>\S+)\s+/\s+(?<waiver>\S+)$')
+    if (-not $match.Success) {
+        throw "$BoundaryName BLOCKED: unable to parse governed BF-603/BF-602 snapshot pair"
+    }
+    $market = $match.Groups['market'].Value.Trim()
+    $waiver = $match.Groups['waiver'].Value.Trim()
+    if ($market -ceq "none" -or $waiver -ceq "none") {
+        throw "$BoundaryName BLOCKED: governed BF-603/BF-602 snapshot identity is unavailable"
+    }
+    return [pscustomobject]@{ Market = $market; Waiver = $waiver; Raw = $Line }
+}
+
+function Get-CurrentGovernedAddView {
+    param(
+        [Parameter(Mandatory = $true)][string]$Bundle,
+        [Parameter(Mandatory = $true)][string]$Summary
+    )
+
+    $bundleTarget = Get-WaiverTargetView -Bundle $Bundle
+    $summaryTarget = Get-Bf623TargetView -Text $Summary -BoundaryName "BF-649"
+    if ($bundleTarget.SleeperLeagueId -cne $summaryTarget.SleeperLeagueId
+        -or $bundleTarget.RosterId -cne $summaryTarget.RosterId
+        -or $bundleTarget.LeagueName -cne $summaryTarget.LeagueName
+        -or $bundleTarget.DisplayName -cne $summaryTarget.DisplayName
+        -or $bundleTarget.TeamName -cne $summaryTarget.TeamName
+        -or $bundleTarget.Role -cne $summaryTarget.Role) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+
+    $state = Get-LineValue -Text $Summary -Label "Decision status:"
+    if ([string]::IsNullOrWhiteSpace($state)) {
+        throw "BF-649 BLOCKED: current governed decision state is missing"
+    }
+    $audit = ConvertTo-AuditView (Get-LineValue -Text $Summary -Label "Audit:")
+    $bf629 = Get-LineValue -Text $Summary -Label "BF-629 live actionability:"
+    $bf631 = Get-LineValue -Text $Summary -Label "BF-631 evidence lineage:"
+    $auditedLineageRaw = Get-LineValue -Text $Summary -Label "BF-631 audited BF-603 / BF-602 snapshot:"
+
+    $active = $state -ceq "CURRENT_AND_ACTIONABLE" -or $state -ceq "CURRENT_REFRESH_RECOMMENDED"
+    if (-not $active) {
+        return [pscustomobject]@{
+            Active = $false
+            SleeperId = "none"
+            State = $state
+            AuditId = $audit.Id
+            AuditCaptured = $audit.Captured
+            Bf629 = $bf629
+            Bf631 = $bf631
+            MarketSnapshotId = "none"
+            WaiverSnapshotId = "none"
+            AuditedLineageRaw = $auditedLineageRaw
+            BundleLineageRaw = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
+            Target = $bundleTarget
+        }
+    }
+
+    if ($bf629 -cne "LIVE_ACTIONABLE_VERIFIED") {
+        throw "BF-649 BLOCKED: current decision state does not preserve BF-629 LIVE_ACTIONABLE_VERIFIED"
+    }
+    if ($bf631 -cne "LATEST_EVIDENCE_LINEAGE_VERIFIED") {
+        throw "BF-649 BLOCKED: current decision state does not preserve BF-631 LATEST_EVIDENCE_LINEAGE_VERIFIED"
+    }
+    if ([string]::IsNullOrWhiteSpace($audit.Id) -or $audit.Id -ceq "none") {
+        throw "BF-649 BLOCKED: current audited recommendation identity is missing"
+    }
+
+    $auditedLineage = ConvertTo-SnapshotPairView -Line $auditedLineageRaw -BoundaryName "BF-649"
+    $bundleLineageRaw = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
+    $bundleLineage = ConvertTo-SnapshotPairView -Line $bundleLineageRaw -BoundaryName "BF-649"
+    if ($auditedLineage.Market -cne $bundleLineage.Market -or $auditedLineage.Waiver -cne $bundleLineage.Waiver) {
+        throw "BF-649 BLOCKED: audited BF-603/BF-602 lineage disagrees with BF-616 comparison bundle"
+    }
+
+    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+    if ([string]::IsNullOrWhiteSpace($add.SleeperId) -or $add.SleeperId -notmatch '^[0-9]+$') {
+        throw "BF-649 BLOCKED: current audited ADD exact Sleeper id is missing or malformed"
+    }
+
+    $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
+    $matches = @($candidates | Where-Object { $_.SleeperId -ceq $add.SleeperId })
+    if ($matches.Count -ne 1) {
+        throw "BF-649 BLOCKED: current audited ADD Sleeper id $($add.SleeperId) must resolve exactly once in BF-616 shortlist; found $($matches.Count)"
+    }
+
+    return [pscustomobject]@{
+        Active = $true
+        SleeperId = $add.SleeperId
+        State = $state
+        AuditId = $audit.Id
+        AuditCaptured = $audit.Captured
+        Bf629 = $bf629
+        Bf631 = $bf631
+        MarketSnapshotId = $auditedLineage.Market
+        WaiverSnapshotId = $auditedLineage.Waiver
+        AuditedLineageRaw = $auditedLineage.Raw
+        BundleLineageRaw = $bundleLineage.Raw
+        Target = $bundleTarget
     }
 }
 
@@ -345,8 +481,8 @@ function Get-SharedCss {
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 .position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
-.board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
-@media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.lane{margin-top:10px}}
+.board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
+@media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.candidate-badges{justify-content:flex-start;margin-top:10px}.lane{margin-top:0}}
 '@
 }
 
@@ -375,6 +511,7 @@ function ConvertTo-DashboardHtml {
     $state = Get-LineValue -Text $Summary -Label "Decision status:"
     $bf629 = Get-LineValue -Text $Summary -Label "BF-629 live actionability:"
     $bf631 = Get-LineValue -Text $Summary -Label "BF-631 evidence lineage:"
+    $auditedLineage = Get-LineValue -Text $Summary -Label "BF-631 audited BF-603 / BF-602 snapshot:"
     $bf633 = Get-LineValue -Text $Summary -Label "BF-633 age telemetry:"
     $thresholdRaw = Get-LineValue -Text $Summary -Label "BF-635 refresh-warning threshold seconds:"
     $telemetry = Get-LineValue -Text $Summary -Label "Telemetry observed at UTC:"
@@ -414,7 +551,7 @@ $header
   <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
 </section>
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
-<section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
+<section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> Butler does not refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
 </main></body></html>
@@ -468,7 +605,10 @@ $header
 }
 
 function ConvertTo-WaiverHtml {
-    param([Parameter(Mandatory = $true)][string]$Bundle)
+    param(
+        [Parameter(Mandatory = $true)][string]$Bundle,
+        [Parameter(Mandatory = $true)][string]$Summary
+    )
 
     $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
     $counts = Get-WaiverAuthorizedCounts -Bundle $Bundle
@@ -476,7 +616,8 @@ function ConvertTo-WaiverHtml {
         throw "BF-646 BLOCKED: parsed BF-616 shortlist count $($candidates.Count) does not match BF-617 authorized total $($counts.Total)"
     }
 
-    $target = Get-WaiverTargetView -Bundle $Bundle
+    $current = Get-CurrentGovernedAddView -Bundle $Bundle -Summary $Summary
+    $target = $current.Target
     $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
     $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
     $bf615 = Get-LineValue -Text $Bundle -Label "BF-615 state:"
@@ -494,11 +635,15 @@ function ConvertTo-WaiverHtml {
         $lane = Get-WaiverLanePresentation -Lane $candidate.Lane
         $injuryText = if ($candidate.Injury -eq "none") { "None reported" } else { $candidate.Injury }
         $depthText = if ($candidate.Depth -eq "none/none") { "Not available" } else { $candidate.Depth }
+        $isCurrent = $current.Active -and $candidate.SleeperId -ceq $current.SleeperId
+        $cardClass = if ($isCurrent) { "current-governed" } else { "" }
+        $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed ADD</span>' } else { "" }
+        $currentCopy = if ($isCurrent) { '<div class="current-copy">Already-audited current ADD · this marker is not a board rank.</div>' } else { "" }
         $cards += @"
-<article class="candidate-card">
+<article class="candidate-card $cardClass">
   <div class="candidate-top">
-    <div><div class="name">$(ConvertTo-HtmlText $candidate.Name)</div><div class="meta">$(ConvertTo-HtmlText $candidate.Position) &middot; NFL $(ConvertTo-HtmlText $candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $candidate.SleeperId)</div></div>
-    <span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span>
+    <div><div class="name">$(ConvertTo-HtmlText $candidate.Name)</div><div class="meta">$(ConvertTo-HtmlText $candidate.Position) &middot; NFL $(ConvertTo-HtmlText $candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $candidate.SleeperId)</div>$currentCopy</div>
+    <div class="candidate-badges">$currentBadge<span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span></div>
   </div>
   <div class="candidate-facts">
     <div><strong>Status</strong>$(ConvertTo-HtmlText $candidate.Status)</div>
@@ -530,10 +675,10 @@ $header
     <div class="board-stat"><strong>$($counts.Newcomer)</strong><span>Newcomer review lane · nonnumeric</span></div>
   </div>
   <div class="board-grid">$cards</div>
-  <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric.</div>
-  <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
+  <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> identifies the already-audited current add only; it does not alter BF-616 order or rank the board.</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist only. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a winner, identify a drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist and, when exact BF-623/BF-631/BF-603/BF-602 reconciliation passes, identifies Butler's already-audited current ADD. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a new winner, identify a new drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -541,9 +686,11 @@ $header
 function ConvertTo-WaiverCandidateDetailHtml {
     param(
         [Parameter(Mandatory = $true)][string]$Bundle,
-        [Parameter(Mandatory = $true)]$Candidate
+        [Parameter(Mandatory = $true)]$Candidate,
+        [Parameter(Mandatory = $true)][string]$Summary
     )
-    $target = Get-WaiverTargetView -Bundle $Bundle
+    $current = Get-CurrentGovernedAddView -Bundle $Bundle -Summary $Summary
+    $target = $current.Target
     $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
     $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
     $bf616 = Get-LineValue -Text $Bundle -Label "BF-616 state:"
@@ -560,6 +707,11 @@ function ConvertTo-WaiverCandidateDetailHtml {
     } else {
         "Historical directional traceability comes only from Butler's frozen governed comparison method. Comparator sets below are evidence lineage, not a new score or ranking."
     }
+    $isCurrent = $current.Active -and $Candidate.SleeperId -ceq $current.SleeperId
+    $currentBadge = if ($isCurrent) { '<span class="current-marker">Current governed ADD</span>' } else { "" }
+    $currentContext = if ($isCurrent) {
+        '<div class="current-context"><strong>Current governed ADD.</strong> This exact Sleeper ID is the already-audited ADD from Butler&apos;s current governed recommendation. The marker is traceability, not a new score or board ranking.</div>'
+    } else { "" }
     $css = Get-SharedCss
     $header = Get-HeaderHtml -Target $target.Human -Active "waivers"
 
@@ -568,8 +720,9 @@ function ConvertTo-WaiverCandidateDetailHtml {
 $header
 <section class="panel">
   <div class="eyebrow">Governed candidate detail</div>
-  <div class="statusrow"><div><h1 class="headline">$(ConvertTo-HtmlText $Candidate.Name)</h1><p class="lede">$(ConvertTo-HtmlText $Candidate.Position) &middot; NFL $(ConvertTo-HtmlText $Candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $Candidate.SleeperId)</p></div><span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span></div>
+  <div class="statusrow"><div><h1 class="headline">$(ConvertTo-HtmlText $Candidate.Name)</h1><p class="lede">$(ConvertTo-HtmlText $Candidate.Position) &middot; NFL $(ConvertTo-HtmlText $Candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $Candidate.SleeperId)</p></div><div class="candidate-badges">$currentBadge<span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span></div></div>
   <div class="board-note"><span class="not-rank">NOT A RANKING.</span> This page inspects one exact BF-616 authorized candidate. It does not change Butler's current recommendation.</div>
+  $currentContext
   <div class="candidate-facts">
     <div><strong>Status</strong>$(ConvertTo-HtmlText $Candidate.Status)</div>
     <div><strong>Injury</strong>$(ConvertTo-HtmlText $injuryText)</div>
@@ -578,10 +731,10 @@ $header
   </div>
   <div class="market"><strong>Market attention:</strong> add $(ConvertTo-HtmlText $Candidate.MarketAdd) / drop $(ConvertTo-HtmlText $Candidate.MarketDrop) / net $(ConvertTo-HtmlText $Candidate.MarketNet)</div>
   <div class="next"><strong>Governed interpretation</strong><p>$(ConvertTo-HtmlText $laneCopy)</p></div>
-  <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
+  <details open><summary>Comparator traceability</summary><div class="tech"><div>Candidate-supported comparators: $(ConvertTo-HtmlText $Candidate.SupportedComparators)</div><div>Eligible comparators: $(ConvertTo-HtmlText $Candidate.EligibleComparators)</div><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div></div></details>
   <div class="actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY · EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY · EXACT ID ONLY.</span> Candidate detail resolves only from the current reconciled BF-616 shortlist by exact Sleeper id. A Current governed ADD marker, when present, comes only from the existing audited recommendation after exact target and evidence-lineage reconciliation. It does not use name lookup, rerank candidates, score newcomers, change the recommendation, run BF-641, refresh evidence, set FAAB, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -613,7 +766,7 @@ Push-Location $repoRoot
 try {
     $listener.Start()
     $url = "http://127.0.0.1:$Port/"
-    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647/BF-648 Butler Dashboard"
+    Write-Host "BF-643/BF-644/BF-645/BF-646/BF-647/BF-648/BF-649 Butler Dashboard"
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
@@ -662,11 +815,13 @@ try {
                     $html = ConvertTo-TeamHtml -RosterContext $rosterContext
                 }
                 elseif ($path -eq "/waivers") {
+                    $summary = Invoke-ButlerReadOnlySummary
                     $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
-                    $html = ConvertTo-WaiverHtml -Bundle $waiverBundle
+                    $html = ConvertTo-WaiverHtml -Bundle $waiverBundle -Summary $summary
                 }
                 elseif ($candidateMatch.Success) {
                     $candidateId = $candidateMatch.Groups['id'].Value
+                    $summary = Invoke-ButlerReadOnlySummary
                     $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
                     $candidate = Resolve-WaiverCandidateById -Bundle $waiverBundle -SleeperId $candidateId
                     if ($null -eq $candidate) {
@@ -674,7 +829,7 @@ try {
                         Send-HttpResponse -Stream $stream -StatusCode 404 -StatusText "Not Found" -ContentType "text/html; charset=utf-8" -Body $notFoundHtml
                         continue
                     }
-                    $html = ConvertTo-WaiverCandidateDetailHtml -Bundle $waiverBundle -Candidate $candidate
+                    $html = ConvertTo-WaiverCandidateDetailHtml -Bundle $waiverBundle -Candidate $candidate -Summary $summary
                 }
                 else {
                     $summary = Invoke-ButlerReadOnlySummary

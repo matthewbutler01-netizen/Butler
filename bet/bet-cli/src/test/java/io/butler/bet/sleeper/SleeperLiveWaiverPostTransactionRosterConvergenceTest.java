@@ -158,6 +158,8 @@ class SleeperLiveWaiverPostTransactionRosterConvergenceTest {
             "audit-1",
             "2026-09-08T18:11:28Z",
             "RECOMMEND_ADD_DROP",
+            "market-audited",
+            "waiver-audited",
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                 "7049", "Jauan Jennings", "WR", "MIN"),
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(

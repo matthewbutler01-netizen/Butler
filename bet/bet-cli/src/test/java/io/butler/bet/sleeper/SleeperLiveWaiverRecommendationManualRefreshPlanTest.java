@@ -90,6 +90,8 @@ class SleeperLiveWaiverRecommendationManualRefreshPlanTest {
             "0dddbd80-868c-4493-9a5d-1660d64ccdf9",
             "2026-09-08T09:53:19.643012Z",
             "RECOMMEND_ADD_DROP",
+            "market-audited",
+            "waiver-audited",
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                 "7049", "Jauan Jennings", "WR", "MIN"),
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(

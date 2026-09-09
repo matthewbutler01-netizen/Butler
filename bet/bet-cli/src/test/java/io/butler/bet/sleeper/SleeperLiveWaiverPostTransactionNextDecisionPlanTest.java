@@ -113,6 +113,7 @@ class SleeperLiveWaiverPostTransactionNextDecisionPlanTest {
             SleeperLiveWaiverLatestGovernedDecisionSummary.POLICY_ID,
             "league", "owner", "sleeperLeague", "Hard(CORE)-Dynasty", 6, "nuke the whales",
             "audit", "2026-09-08T18:11:28Z", "RECOMMEND_ADD_DROP",
+            "market-audited", "waiver-audited",
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay("7049", "Jauan Jennings", "WR", "MIN"),
             new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay("12503", "Isaiah Bond", "WR", "CLE"),
             bf629,
