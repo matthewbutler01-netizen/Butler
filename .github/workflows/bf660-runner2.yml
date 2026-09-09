@@ -29,6 +29,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git revert --no-edit 40267f2118dc23c8bcec150d57326711ef32a1c1
           python .github/bf660_patch.py
+          chmod +x gradlew
           ./gradlew :bet:bet-cli:test --tests io.butler.bet.sleeper.SleeperLiveWaiverRecommendationAuditCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverGovernedExplanationCaptureTest --tests io.butler.bet.sleeper.SleeperLiveWaiverFinalRecommendationBundleTest
           git add -A bet/bet-cli/src/main/java/io/butler/bet/sleeper \
                      bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperLiveWaiverRecommendationAuditCaptureCli.java \
