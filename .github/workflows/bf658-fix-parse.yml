@@ -1,0 +1,46 @@
+name: BF-658 Temporary Parse Fix
+
+on:
+  push:
+    branches:
+      - bf-658-dashboard-explanation-capture
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bf-658-dashboard-explanation-capture
+      - name: Fix Windows PowerShell 5.1 multiline condition
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('scripts/butler-dashboard.ps1')
+          text = path.read_text(encoding='ascii')
+          old = '''    if ([string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
+              -or [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none") {
+                  throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
+              }
+          '''
+          new = '''    $marketLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
+              $waiverLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none"
+              if ($marketLineageMissing -or $waiverLineageMissing) {
+                  throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
+              }
+          '''
+          if old not in text:
+              raise SystemExit('BF-658 multiline condition not found')
+          path.write_text(text.replace(old, new, 1), encoding='ascii', newline='\n')
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1
+          git commit -m "BF-658 fix Windows PowerShell 5.1 parse"
+          git push origin HEAD:bf-658-dashboard-explanation-capture
