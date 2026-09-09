@@ -54,6 +54,18 @@ function ConvertTo-PlayerView {
     return [pscustomobject]@{ Name = $name; Position = $position; Team = $team; SleeperId = $sleeperId }
 }
 
+function Format-Age {
+    param([AllowNull()][object]$Seconds)
+    if ($null -eq $Seconds) { return "Unavailable" }
+    $value = [long]$Seconds
+    if ($value -lt 60) { return "$value sec ago" }
+    if ($value -lt 3600) { return "$([math]::Floor($value / 60)) min ago" }
+    $hours = [math]::Floor($value / 3600)
+    $minutes = [math]::Floor(($value % 3600) / 60)
+    if ($minutes -eq 0) { return "$hours hr ago" }
+    return "$hours hr $minutes min ago"
+}
+
 function ConvertTo-AgeView {
     param([AllowNull()][string]$Line)
     if ([string]::IsNullOrWhiteSpace($Line)) {
@@ -67,18 +79,6 @@ function ConvertTo-AgeView {
         if ([long]::TryParse($parts[1].Trim(), [ref]$parsed)) { $seconds = $parsed }
     }
     return [pscustomobject]@{ Observed = $observed; Seconds = $seconds; Human = (Format-Age -Seconds $seconds) }
-}
-
-function Format-Age {
-    param([AllowNull()][object]$Seconds)
-    if ($null -eq $Seconds) { return "Unavailable" }
-    $value = [long]$Seconds
-    if ($value -lt 60) { return "$value sec ago" }
-    if ($value -lt 3600) { return "$([math]::Floor($value / 60)) min ago" }
-    $hours = [math]::Floor($value / 3600)
-    $minutes = [math]::Floor(($value % 3600) / 60)
-    if ($minutes -eq 0) { return "$hours hr ago" }
-    return "$hours hr $minutes min ago"
 }
 
 function ConvertTo-AuditView {
@@ -147,6 +147,10 @@ function Invoke-ButlerReadOnlyRosterContext {
     return Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -BoundaryName "BF-645"
 }
 
+function Invoke-ButlerReadOnlyWaiverBoard {
+    return Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverComparisonBundle" -BoundaryName "BF-646"
+}
+
 function ConvertTo-RosterPlayerView {
     param([Parameter(Mandatory = $true)][string]$Line)
     $pattern = '^\s{2}(?<id>\S+)\s+\|\s+rosterSlot=(?<slot>\S+)(?:\s+starterOrdinal=(?<ordinal>\d+)\s+lineupSlot=(?<lineup>\S+))?\s+\|\s+mapping=(?<mapping>\S+)\s+\|\s+name=(?<name>.*?)\s+\|\s+pos=(?<pos>.*?)\s+\|\s+nflTeam=(?<team>.*?)\s+\|\s+butlerPlayer=(?<butler>.*)$'
@@ -192,19 +196,74 @@ function Get-RosterStatusLabel {
     }
 }
 
+function ConvertTo-WaiverCandidateView {
+    param([Parameter(Mandatory = $true)][string]$Line)
+    $pattern = '^\s{2}(?<id>\S+)\s+\|\s+(?<name>.*?)\s+\|\s+pos=(?<pos>.*?)\s+\|\s+lane=(?<lane>.*?)\s+\|\s+team=(?<team>.*?)\s+\|\s+status=(?<status>.*?)\s+\|\s+injury=(?<injury>.*?)\s+\|\s+depth=(?<depth>.*?)\s+\|\s+market add/drop/net=(?<add>-?\d+)/(?<drop>-?\d+)/(?<net>-?\d+)\s+\|\s+candidate-supported-comparators=(?<supported>\[.*?\])\s+\|\s+eligible-comparators=(?<eligible>\[.*\])$'
+    $match = [regex]::Match($Line, $pattern)
+    if (-not $match.Success) { return $null }
+    return [pscustomobject]@{
+        SleeperId = $match.Groups['id'].Value.Trim()
+        Name = $match.Groups['name'].Value.Trim()
+        Position = $match.Groups['pos'].Value.Trim()
+        Lane = $match.Groups['lane'].Value.Trim()
+        Team = $match.Groups['team'].Value.Trim()
+        Status = $match.Groups['status'].Value.Trim()
+        Injury = $match.Groups['injury'].Value.Trim()
+        Depth = $match.Groups['depth'].Value.Trim()
+        MarketAdd = $match.Groups['add'].Value.Trim()
+        MarketDrop = $match.Groups['drop'].Value.Trim()
+        MarketNet = $match.Groups['net'].Value.Trim()
+        SupportedComparators = $match.Groups['supported'].Value.Trim()
+        EligibleComparators = $match.Groups['eligible'].Value.Trim()
+    }
+}
+
+function Get-WaiverCandidates {
+    param([Parameter(Mandatory = $true)][string]$Bundle)
+    $candidates = @()
+    foreach ($line in ($Bundle -split "`r?`n")) {
+        if ($line -notmatch '^\s{2}\S+\s+\|\s+.*\|\s+pos=.*\|\s+lane=') { continue }
+        $candidate = ConvertTo-WaiverCandidateView -Line $line
+        if ($null -eq $candidate) { throw "BF-646 BLOCKED: unable to parse governed BF-616 shortlist line: $line" }
+        $candidates += $candidate
+    }
+    return @($candidates)
+}
+
+function Get-WaiverAuthorizedCounts {
+    param([Parameter(Mandatory = $true)][string]$Bundle)
+    $raw = Get-LineValue -Text $Bundle -Label "Authorized shortlist total / historical / newcomer:"
+    if ([string]::IsNullOrWhiteSpace($raw)) { throw "BF-646 BLOCKED: BF-617 authorized shortlist counts are missing" }
+    $match = [regex]::Match($raw, '^(\d+)/(\d+)/(\d+)$')
+    if (-not $match.Success) { throw "BF-646 BLOCKED: unable to parse BF-617 authorized shortlist counts: $raw" }
+    return [pscustomobject]@{
+        Total = [int]$match.Groups[1].Value
+        Historical = [int]$match.Groups[2].Value
+        Newcomer = [int]$match.Groups[3].Value
+    }
+}
+
+function Get-WaiverLanePresentation {
+    param([AllowNull()][string]$Lane)
+    if ($Lane -match 'NEWCOMER') { return [pscustomobject]@{ Label="Newcomer review"; Class="newcomer" } }
+    if ($Lane -match 'HISTORICAL') { return [pscustomobject]@{ Label="Historical directional"; Class="historical" } }
+    return [pscustomobject]@{ Label=$Lane; Class="neutral" }
+}
+
 function Get-SharedCss {
     return @'
 :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#f7f8fb;background:#0b1020;line-height:1.45}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#172447 0,#0b1020 38%,#070b15 100%);min-height:100vh}.shell{max-width:1120px;margin:0 auto;padding:28px 22px 56px}
 .top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:16px}.brand h1{font-size:38px;letter-spacing:.16em;margin:0}.brand p{margin:5px 0 0;color:#9ca9c8}.target{font-size:14px;color:#cbd4eb;text-align:right}
-.nav{display:flex;gap:8px;margin:0 0 20px}.nav a{color:#b9c6e5;text-decoration:none;padding:9px 13px;border:1px solid #28365f;border-radius:10px;background:#0d1630;font-weight:700}.nav a.active{background:#315dca;color:white;border-color:#315dca}
+.nav{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}.nav a{color:#b9c6e5;text-decoration:none;padding:9px 13px;border:1px solid #28365f;border-radius:10px;background:#0d1630;font-weight:700}.nav a.active{background:#315dca;color:white;border-color:#315dca}
 .panel{background:rgba(16,24,48,.88);border:1px solid #28365f;border-radius:20px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28);margin-bottom:18px}.statusrow{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#8ea0c7}.status{font-weight:800;padding:9px 13px;border-radius:999px;font-size:13px;white-space:nowrap}.good{background:#123d2c;color:#8ff0b9}.done{background:#1c315c;color:#a9c6ff}.warn{background:#4b3713;color:#ffd98b}.danger{background:#4c2028;color:#ffb0bc}
-.headline{font-size:28px;margin:6px 0 4px}.lede{color:#cbd4eb;margin:0;max-width:760px}.moves{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}.move{border:1px solid #33436f;border-radius:16px;padding:20px;background:#0d1630}.move.add{border-color:#286a4c}.move.drop{border-color:#74414b}.move h2{font-size:12px;letter-spacing:.14em;margin:0 0 10px}.player-name{font-size:25px;font-weight:800;line-height:1.15}.player-meta{margin-top:8px;color:#aebada;font-size:14px}.player-id{margin-top:5px;color:#7485aa;font-size:12px}
+.headline{font-size:28px;margin:6px 0 4px}.lede{color:#cbd4eb;margin:0;max-width:800px}.moves{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}.move{border:1px solid #33436f;border-radius:16px;padding:20px;background:#0d1630}.move.add{border-color:#286a4c}.move.drop{border-color:#74414b}.move h2{font-size:12px;letter-spacing:.14em;margin:0 0 10px}.player-name{font-size:25px;font-weight:800;line-height:1.15}.player-meta{margin-top:8px;color:#aebada;font-size:14px}.player-id{margin-top:5px;color:#7485aa;font-size:12px}
 .next{margin-top:18px;padding:18px;border-radius:16px;background:#0a142c;border:1px solid #2e467e}.next strong{display:block;font-size:16px;margin-bottom:5px}.next p{margin:0;color:#cbd4eb}.verify-grid,.fresh-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.fresh-grid{margin-top:12px}.verify,.fresh{padding:18px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.check{font-weight:800;color:#8ff0b9}.alert{font-weight:800;color:#ffd98b}.verify small{display:block;color:#8797bd;margin-top:5px}.fresh strong{display:block;color:#9eabd0;font-size:13px}.fresh .age{font-size:22px;font-weight:800;margin-top:5px}.fresh .limit{font-size:12px;color:#8797bd;margin-top:4px}
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 .position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
-@media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}}
+.board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
+@media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.lane{margin-top:10px}}
 '@
 }
 
@@ -212,6 +271,7 @@ function Get-HeaderHtml {
     param([AllowNull()][string]$Target, [Parameter(Mandatory=$true)][string]$Active)
     $dashboardClass = if ($Active -eq "dashboard") { "active" } else { "" }
     $teamClass = if ($Active -eq "team") { "active" } else { "" }
+    $waiversClass = if ($Active -eq "waivers") { "active" } else { "" }
     return @"
 <header class="top">
   <div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div>
@@ -220,6 +280,7 @@ function Get-HeaderHtml {
 <nav class="nav" aria-label="Butler sections">
   <a class="$dashboardClass" href="/">Dashboard</a>
   <a class="$teamClass" href="/team">My Team</a>
+  <a class="$waiversClass" href="/waivers">Waiver Board</a>
 </nav>
 "@
 }
@@ -271,7 +332,7 @@ $header
 </section>
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
-<section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
+<section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> Butler does not refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
 </main></body></html>
 "@
@@ -300,7 +361,8 @@ function ConvertTo-TeamHtml {
             $slotLabel = Get-RosterStatusLabel -Player $player
             $cards += "<article class=`"roster-card`"><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.Team)</div><div class=`"slot`">$(ConvertTo-HtmlText $slotLabel)</div><div class=`"id`">Sleeper ID $(ConvertTo-HtmlText $player.SleeperId)</div></article>"
         }
-        $sections += "<section class=`"position-section`"><div class=`"position-head`"><h2>$position</h2><span class=`"position-count`">$($group.Count) player$(if ($group.Count -ne 1) {'s'} else {''})</span></div><div class=`"roster-grid`">$cards</div></section>"
+        $plural = if ($group.Count -ne 1) { "s" } else { "" }
+        $sections += "<section class=`"position-section`"><div class=`"position-head`"><h2>$position</h2><span class=`"position-count`">$($group.Count) player$plural</span></div><div class=`"roster-grid`">$cards</div></section>"
     }
 
     $other = @($players | Where-Object { -not $knownIds.ContainsKey($_.SleeperId) })
@@ -322,12 +384,96 @@ $header
 "@
 }
 
+function ConvertTo-WaiverHtml {
+    param([Parameter(Mandatory = $true)][string]$Bundle)
+
+    $candidates = @(Get-WaiverCandidates -Bundle $Bundle)
+    $counts = Get-WaiverAuthorizedCounts -Bundle $Bundle
+    if ($candidates.Count -ne $counts.Total) {
+        throw "BF-646 BLOCKED: parsed BF-616 shortlist count $($candidates.Count) does not match BF-617 authorized total $($counts.Total)"
+    }
+
+    $targetRaw = Get-LineValue -Text $Bundle -Label "Sleeper league / target roster:"
+    $lineage = Get-LineValue -Text $Bundle -Label "BF-603 market / BF-602 waiver snapshot:"
+    $methodology = Get-LineValue -Text $Bundle -Label "BF-614 methodology:"
+    $bf615 = Get-LineValue -Text $Bundle -Label "BF-615 state:"
+    $bf616 = Get-LineValue -Text $Bundle -Label "BF-616 state:"
+    $bf617 = Get-LineValue -Text $Bundle -Label "BF-617 state:"
+    if ([string]::IsNullOrWhiteSpace($lineage) -or [string]::IsNullOrWhiteSpace($bf615) -or [string]::IsNullOrWhiteSpace($bf616) -or [string]::IsNullOrWhiteSpace($bf617)) {
+        throw "BF-646 BLOCKED: governed BF-615/BF-616/BF-617 lineage or state is missing"
+    }
+
+    $css = Get-SharedCss
+    $header = Get-HeaderHtml -Target $targetRaw -Active "waivers"
+    $cards = ""
+
+    foreach ($candidate in $candidates) {
+        $lane = Get-WaiverLanePresentation -Lane $candidate.Lane
+        $injuryText = if ($candidate.Injury -eq "none") { "None reported" } else { $candidate.Injury }
+        $depthText = if ($candidate.Depth -eq "none/none") { "Not available" } else { $candidate.Depth }
+        $cards += @"
+<article class="candidate-card">
+  <div class="candidate-top">
+    <div><div class="name">$(ConvertTo-HtmlText $candidate.Name)</div><div class="meta">$(ConvertTo-HtmlText $candidate.Position) &middot; NFL $(ConvertTo-HtmlText $candidate.Team) &middot; Sleeper $(ConvertTo-HtmlText $candidate.SleeperId)</div></div>
+    <span class="lane $($lane.Class)">$(ConvertTo-HtmlText $lane.Label)</span>
+  </div>
+  <div class="candidate-facts">
+    <div><strong>Status</strong>$(ConvertTo-HtmlText $candidate.Status)</div>
+    <div><strong>Injury</strong>$(ConvertTo-HtmlText $injuryText)</div>
+    <div><strong>Depth</strong>$(ConvertTo-HtmlText $depthText)</div>
+    <div><strong>BF-616 lane</strong>$(ConvertTo-HtmlText $candidate.Lane)</div>
+  </div>
+  <div class="market"><strong>Market attention:</strong> add $(ConvertTo-HtmlText $candidate.MarketAdd) / drop $(ConvertTo-HtmlText $candidate.MarketDrop) / net $(ConvertTo-HtmlText $candidate.MarketNet)</div>
+</article>
+"@
+    }
+
+    if ($candidates.Count -eq 0) {
+        $cards = '<div class="subtle">BF-616 has no authorized shortlist entries in the current governed frame.</div>'
+    }
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Waiver Board</title><style>$css</style></head><body><main class="shell">
+$header
+<section class="panel">
+  <div class="eyebrow">Governed Waiver Board</div>
+  <h1 class="headline">Candidates Butler authorized for review</h1>
+  <p class="lede">This page renders the exact BF-616 shortlist from Butler's frozen comparison methodology. It does not select a new winner or change the current audited recommendation.</p>
+  <div class="board-note"><span class="not-rank">NOT A RANKING.</span> Cards remain in BF-616 deterministic display order. Top-to-bottom placement is not preference, value, priority, or advice.</div>
+  <div class="board-stats">
+    <div class="board-stat"><strong>$($counts.Total)</strong><span>Authorized shortlist</span></div>
+    <div class="board-stat"><strong>$($counts.Historical)</strong><span>Historical directional lane</span></div>
+    <div class="board-stat"><strong>$($counts.Newcomer)</strong><span>Newcomer review lane · nonnumeric</span></div>
+  </div>
+  <div class="board-grid">$cards</div>
+  <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is descriptive only and is not Butler's score. Newcomers remain nonnumeric.</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
+</section>
+<section class="panel boundary"><span class="lock">READ ONLY · NOT A RANKING.</span> Waiver Board shows the governed BF-616 shortlist only. It does not rerank candidates, weight market/depth/injury, score newcomers, pick a winner, identify a drop, set FAAB, run BF-641, refresh evidence, or submit a Sleeper transaction.</section>
+</main></body></html>
+"@
+}
+
 function Send-HttpResponse {
-    param([Parameter(Mandatory=$true)]$Stream,[Parameter(Mandatory=$true)][int]$StatusCode,[Parameter(Mandatory=$true)][string]$StatusText,[Parameter(Mandatory=$true)][string]$ContentType,[Parameter(Mandatory=$true)][string]$Body)
+    param(
+        [Parameter(Mandatory=$true)]$Stream,
+        [Parameter(Mandatory=$true)][int]$StatusCode,
+        [Parameter(Mandatory=$true)][string]$StatusText,
+        [Parameter(Mandatory=$true)][string]$ContentType,
+        [Parameter(Mandatory=$true)][string]$Body
+    )
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
-    $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" + "Content-Type: $ContentType`r`n" + "Content-Length: $($bodyBytes.Length)`r`n" + "Cache-Control: no-store`r`n" + "X-Content-Type-Options: nosniff`r`n" + "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'`r`n" + "Connection: close`r`n`r`n"
+    $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" +
+        "Content-Type: $ContentType`r`n" +
+        "Content-Length: $($bodyBytes.Length)`r`n" +
+        "Cache-Control: no-store`r`n" +
+        "X-Content-Type-Options: nosniff`r`n" +
+        "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'`r`n" +
+        "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes,0,$headerBytes.Length); $Stream.Write($bodyBytes,0,$bodyBytes.Length); $Stream.Flush()
+    $Stream.Write($headerBytes, 0, $headerBytes.Length)
+    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+    $Stream.Flush()
 }
 
 $listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
@@ -335,32 +481,56 @@ Push-Location $repoRoot
 try {
     $listener.Start()
     $url = "http://127.0.0.1:$Port/"
-    Write-Host "BF-643/BF-644/BF-645 Butler Dashboard"
+    Write-Host "BF-643/BF-644/BF-645/BF-646 Butler Dashboard"
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
+    Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
     Write-Host "Bind: 127.0.0.1 only"
     Write-Host "Boundary: read-only governed presentation; no BF-641 run and no Sleeper write."
     Write-Host "Press Ctrl+C to stop the dashboard."
+
     if (-not $NoBrowser) { Start-Process $url }
 
     while ($true) {
         $client = $listener.AcceptTcpClient()
         try {
             $stream = $client.GetStream()
-            $reader = [System.IO.StreamReader]::new($stream,[System.Text.Encoding]::ASCII,$false,8192,$true)
+            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 8192, $true)
             $requestLine = $reader.ReadLine()
             if ([string]::IsNullOrWhiteSpace($requestLine)) { continue }
-            while ($true) { $headerLine = $reader.ReadLine(); if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break } }
+
+            while ($true) {
+                $headerLine = $reader.ReadLine()
+                if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break }
+            }
+
             $parts = $requestLine.Split(' ')
-            if ($parts.Length -lt 2 -or $parts[0] -ne "GET") { Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText "Method Not Allowed" -ContentType "text/plain; charset=utf-8" -Body "GET only"; continue }
+            if ($parts.Length -lt 2 -or $parts[0] -ne "GET") {
+                Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText "Method Not Allowed" -ContentType "text/plain; charset=utf-8" -Body "GET only"
+                continue
+            }
+
             $path = $parts[1].Split('?')[0]
-            if ($path -eq "/health") { Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "application/json; charset=utf-8" -Body '{"status":"ok","service":"butler-dashboard","bind":"127.0.0.1"}'; continue }
-            if ($path -ne "/" -and $path -ne "/index.html" -and $path -ne "/team") { Send-HttpResponse -Stream $stream -StatusCode 404 -StatusText "Not Found" -ContentType "text/plain; charset=utf-8" -Body "Not found"; continue }
+            if ($path -eq "/health") {
+                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "application/json; charset=utf-8" -Body '{"status":"ok","service":"butler-dashboard","bind":"127.0.0.1"}'
+                continue
+            }
+
+            if ($path -ne "/" -and $path -ne "/index.html" -and $path -ne "/team" -and $path -ne "/waivers") {
+                Send-HttpResponse -Stream $stream -StatusCode 404 -StatusText "Not Found" -ContentType "text/plain; charset=utf-8" -Body "Not found"
+                continue
+            }
+
             try {
                 if ($path -eq "/team") {
                     $rosterContext = Invoke-ButlerReadOnlyRosterContext
                     $html = ConvertTo-TeamHtml -RosterContext $rosterContext
-                } else {
+                }
+                elseif ($path -eq "/waivers") {
+                    $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard
+                    $html = ConvertTo-WaiverHtml -Bundle $waiverBundle
+                }
+                else {
                     $summary = Invoke-ButlerReadOnlySummary
                     $html = ConvertTo-DashboardHtml -Summary $summary
                 }
@@ -371,7 +541,12 @@ try {
                 Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
             }
         }
-        finally { $client.Close() }
+        finally {
+            $client.Close()
+        }
     }
 }
-finally { $listener.Stop(); Pop-Location }
+finally {
+    $listener.Stop()
+    Pop-Location
+}

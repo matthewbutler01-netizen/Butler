@@ -23,10 +23,11 @@ class ButlerDashboardScriptTest {
     }
 
     @Test
-    void usesOnlyExistingReadOnlyGovernedSummaryAndBf610RosterContext() throws Exception {
+    void usesOnlyExistingReadOnlyGovernedDashboardSources() throws Exception {
         String script = script();
         assertTrue(script.contains(":bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary"));
         assertTrue(script.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
+        assertTrue(script.contains(":bet:bet-cli:sleeperLiveWaiverComparisonBundle"));
         assertFalse(script.contains(":bet:bet-cli:sleeperLiveWaiverSnapshotSync"));
         assertFalse(script.contains(":bet:bet-cli:sleeperLiveWaiverMarketAttentionSync"));
         assertFalse(script.contains(":bet:bet-cli:sleeperLiveWaiverProductionHydration"));
@@ -101,8 +102,6 @@ class ButlerDashboardScriptTest {
         assertTrue(script.contains("ButlerPlayer"));
         assertTrue(script.contains("This is BF-610's BF-623-verified target roster"));
         assertTrue(script.contains("not rankings or lineup advice"));
-        assertFalse(script.contains("positional scarcity"));
-        assertFalse(script.contains("replacement level"));
         assertFalse(script.contains("lineup optimization"));
     }
 
@@ -117,6 +116,46 @@ class ButlerDashboardScriptTest {
         assertTrue(script.contains("Other / unmapped position"));
         assertTrue(script.contains("/team"));
         assertTrue(script.contains("My Team"));
+    }
+
+    @Test
+    void waiverBoardUsesExactBf616ShortlistAndPreservesSourceOrder() throws Exception {
+        String script = script();
+        assertTrue(script.contains("function Invoke-ButlerReadOnlyWaiverBoard"));
+        assertTrue(script.contains("function ConvertTo-WaiverCandidateView"));
+        assertTrue(script.contains("function Get-WaiverCandidates"));
+        assertTrue(script.contains("candidate-supported-comparators="));
+        assertTrue(script.contains("eligible-comparators="));
+        assertTrue(script.contains("Authorized shortlist total / historical / newcomer:"));
+        assertTrue(script.contains("parsed BF-616 shortlist count"));
+        assertTrue(script.contains("Cards remain in BF-616 deterministic display order"));
+        assertTrue(script.contains("NOT A RANKING"));
+        assertFalse(script.contains("Sort-Object"));
+    }
+
+    @Test
+    void waiverBoardKeepsDescriptiveEvidenceNonnumericAndNonRanking() throws Exception {
+        String script = script();
+        assertTrue(script.contains("Newcomer review lane · nonnumeric"));
+        assertTrue(script.contains("Newcomers remain nonnumeric"));
+        assertTrue(script.contains("Market attention is descriptive only"));
+        assertTrue(script.contains("Status, injury, depth, and market attention are descriptive only"));
+        assertTrue(script.contains("does not rerank candidates"));
+        assertTrue(script.contains("weight market/depth/injury"));
+        assertTrue(script.contains("score newcomers"));
+        assertTrue(script.contains("pick a winner"));
+        assertTrue(script.contains("identify a drop"));
+        assertFalse(script.contains("candidate score"));
+        assertFalse(script.contains("player value"));
+    }
+
+    @Test
+    void navigationIncludesReadOnlyWaiverBoardRoute() throws Exception {
+        String script = script();
+        assertTrue(script.contains("href=\"/waivers\">Waiver Board"));
+        assertTrue(script.contains("$path -eq \"/waivers\""));
+        assertTrue(script.contains("ConvertTo-WaiverHtml -Bundle $waiverBundle"));
+        assertTrue(script.contains("Waiver Board: http://127.0.0.1:$Port/waivers"));
     }
 
     @Test
@@ -152,6 +191,6 @@ class ButlerDashboardScriptTest {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-643/BF-644/BF-645 test could not locate scripts/butler-dashboard.ps1");
+        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646 test could not locate scripts/butler-dashboard.ps1");
     }
 }
