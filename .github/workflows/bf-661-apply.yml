@@ -1,0 +1,281 @@
+name: BF-661 Apply and Verify
+
+on:
+  push:
+    branches:
+      - bf-661-dashboard-no-transaction-explanation
+    paths:
+      - '.github/workflows/bf-661-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: windows-latest
+    steps:
+      - name: Check out implementation branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: bf-661-dashboard-no-transaction-explanation
+          fetch-depth: 0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Apply BF-661 dashboard regression patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          dashboard_path = Path('scripts/butler-dashboard.ps1')
+          text = dashboard_path.read_text(encoding='ascii')
+
+          old_presentation = '''        "STALE_DO_NOT_ACT" { return [pscustomobject]@{ Class="danger"; Headline="Do not act"; Copy="A hard safety gate failed. Keep this decision only for traceability until Butler produces a new governed result."; ActionTitle="Stop here"; ActionCopy="Do not make this move from the displayed audit. Butler must produce a new governed state before action." } }
+          default { return [pscustomobject]@{ Class="danger"; Headline="No actionable move"; Copy="Butler does not currently have a governed transaction that is safe to act on."; ActionTitle="No move to make"; ActionCopy="There is no currently governed add/drop action on this screen." } }
+'''
+          new_presentation = '''        "STALE_DO_NOT_ACT" { return [pscustomobject]@{ Class="danger"; Headline="Do not act"; Copy="A hard safety gate failed. Keep this decision only for traceability until Butler produces a new governed result."; ActionTitle="Stop here"; ActionCopy="Do not make this move from the displayed audit. Butler must produce a new governed state before action." } }
+          "NO_TRANSACTION_TO_ACT_ON" { return [pscustomobject]@{ Class="done"; Headline="No governed transaction"; Copy="Butler's governed evaluation did not authorize an add/drop transaction for this audit."; ActionTitle="No move to make"; ActionCopy="Keep the audited no-transaction decision for traceability. There is no ADD/DROP transaction to submit from this audit." } }
+          default { return [pscustomobject]@{ Class="danger"; Headline="No actionable move"; Copy="Butler does not currently have a governed transaction that is safe to act on."; ActionTitle="No move to make"; ActionCopy="There is no currently governed add/drop action on this screen." } }
+'''
+          if text.count(old_presentation) != 1:
+              raise SystemExit('BF-661 patch blocked: state-presentation anchor is not exact')
+          text = text.replace(old_presentation, new_presentation, 1)
+
+          old_identity = r'''    $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+              $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+              if ([string]::IsNullOrWhiteSpace($add.SleeperId) -or [string]::IsNullOrWhiteSpace($drop.SleeperId)) {
+                  throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+              }
+              $lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+              $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
+              if (-not $lookupIds.Success) {
+                  throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
+              }
+              $lookupAddId = $lookupIds.Groups['add'].Value.Trim()
+              $lookupDropId = $lookupIds.Groups['drop'].Value.Trim()
+              if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
+                  throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
+              }
+'''.replace('              ', '    ')
+          new_identity = r'''    $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"
+              if ([string]::IsNullOrWhiteSpace($decisionState)) {
+                  throw "BF-661 BLOCKED: current governed decision state is missing"
+              }
+              $isNoTransaction = $decisionState -ceq "NO_TRANSACTION_TO_ACT_ON"
+              $transactionStates = @(
+                  "CURRENT_AND_ACTIONABLE",
+                  "CURRENT_REFRESH_RECOMMENDED",
+                  "TRANSACTION_ALREADY_COMPLETE",
+                  "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+                  "STALE_DO_NOT_ACT"
+              )
+              $isTransaction = $transactionStates -ccontains $decisionState
+              if (-not $isNoTransaction -and -not $isTransaction) {
+                  throw "BF-661 BLOCKED: unsupported current governed decision state $decisionState"
+              }
+
+              $add = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "ADD:")
+              $drop = ConvertTo-PlayerView (Get-LineValue -Text $Summary -Label "DROP:")
+              $hasAddId = -not [string]::IsNullOrWhiteSpace([string]$add.SleeperId)
+              $hasDropId = -not [string]::IsNullOrWhiteSpace([string]$drop.SleeperId)
+              if ($isNoTransaction) {
+                  if ($hasAddId -or $hasDropId) {
+                      throw "BF-661 BLOCKED: NO_TRANSACTION_TO_ACT_ON must not contain audited ADD/DROP Sleeper ids"
+                  }
+              }
+              elseif (-not $hasAddId -or -not $hasDropId) {
+                  throw "BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"
+              }
+
+              $lookupIdsRaw = Get-LineValue -Text $lookup -Label "Audited add / drop Sleeper ids:"
+              $lookupAddId = "none"
+              $lookupDropId = "none"
+              if ($isNoTransaction) {
+                  if ([string]$lookupIdsRaw -cne "none / none") {
+                      throw "BF-661 BLOCKED: BF-653 no-transaction audited ADD/DROP ids must be absent"
+                  }
+              }
+              else {
+                  $lookupIds = [regex]::Match([string]$lookupIdsRaw, '^(?<add>[0-9]+)\s*/\s*(?<drop>[0-9]+)$')
+                  if (-not $lookupIds.Success) {
+                      throw "BF-654 BLOCKED: unable to parse BF-653 audited ADD/DROP exact Sleeper ids"
+                  }
+                  $lookupAddId = $lookupIds.Groups['add'].Value.Trim()
+                  $lookupDropId = $lookupIds.Groups['drop'].Value.Trim()
+                  if ($lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId) {
+                      throw "BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"
+                  }
+              }
+'''.replace('              ', '    ')
+          if text.count(old_identity) != 1:
+              raise SystemExit('BF-661 patch blocked: BF-654 identity anchor is not exact')
+          text = text.replace(old_identity, new_identity, 1)
+
+          html_anchor = '''    return @"
+          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
+          $header
+          <section class="panel">
+            <div class="statusrow"><div><div class="eyebrow">Current Butler recommendation</div><h2 class="headline">$(ConvertTo-HtmlText $presentation.Headline)</h2><p class="lede">$(ConvertTo-HtmlText $presentation.Copy)</p></div><div class="status $($presentation.Class)">$(ConvertTo-HtmlText $presentation.Headline)</div></div>
+            <div class="moves">
+              <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
+              <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
+            </div>
+            <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
+          </section>
+'''.replace('          ', '')
+          replacement = '''    $movesSection = ""
+          $transactionStates = @(
+              "CURRENT_AND_ACTIONABLE",
+              "CURRENT_REFRESH_RECOMMENDED",
+              "TRANSACTION_ALREADY_COMPLETE",
+              "TRANSACTION_PENDING_DO_NOT_DUPLICATE",
+              "STALE_DO_NOT_ACT"
+          )
+          if ($transactionStates -ccontains $state) {
+              $movesSection = @"
+          <div class="moves">
+            <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
+            <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
+          </div>
+          "@
+          }
+          elseif ($state -cne "NO_TRANSACTION_TO_ACT_ON" -and $state -cne "NO_AUDITED_DECISION") {
+              throw "BF-661 BLOCKED: unsupported dashboard decision state $state"
+          }
+
+          return @"
+          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
+          $header
+          <section class="panel">
+            <div class="statusrow"><div><div class="eyebrow">Current Butler recommendation</div><h2 class="headline">$(ConvertTo-HtmlText $presentation.Headline)</h2><p class="lede">$(ConvertTo-HtmlText $presentation.Copy)</p></div><div class="status $($presentation.Class)">$(ConvertTo-HtmlText $presentation.Headline)</div></div>
+          $movesSection
+            <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
+          </section>
+'''.replace('          ', '')
+          if text.count(html_anchor) != 1:
+              raise SystemExit('BF-661 patch blocked: dashboard moves anchor is not exact')
+          text = text.replace(html_anchor, replacement, 1)
+
+          dashboard_path.write_text(text, encoding='ascii', newline='\n')
+
+          test_path = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java')
+          test_path.write_text('''package io.butler.bet.cli;
+
+          import org.junit.jupiter.api.Test;
+
+          import java.io.IOException;
+          import java.nio.charset.StandardCharsets;
+          import java.nio.file.Files;
+          import java.nio.file.Path;
+
+          import static org.junit.jupiter.api.Assertions.assertFalse;
+          import static org.junit.jupiter.api.Assertions.assertTrue;
+
+          class ButlerDashboardBf661ScriptTest {
+
+              @Test
+              void noTransactionUsesExplicitStateAndAbsentAbsentIdentity() throws Exception {
+                  String script = script();
+                  assertTrue(script.contains("$isNoTransaction = $decisionState -ceq \\\"NO_TRANSACTION_TO_ACT_ON\\\""));
+                  assertTrue(script.contains("NO_TRANSACTION_TO_ACT_ON must not contain audited ADD/DROP Sleeper ids"));
+                  assertTrue(script.contains("$lookupIdsRaw -cne \\\"none / none\\\""));
+                  assertTrue(script.contains("BF-653 no-transaction audited ADD/DROP ids must be absent"));
+                  assertTrue(script.contains("Headline=\\\"No governed transaction\\\""));
+              }
+
+              @Test
+              void transactionBearingPathRetainsExactAddDropChecks() throws Exception {
+                  String script = script();
+                  assertTrue(script.contains("BF-654 BLOCKED: current audited ADD/DROP exact Sleeper ids are missing"));
+                  assertTrue(script.contains("'^(?<add>[0-9]+)\\\\s*/\\\\s*(?<drop>[0-9]+)$'"));
+                  assertTrue(script.contains("$lookupAddId -cne $add.SleeperId -or $lookupDropId -cne $drop.SleeperId"));
+                  assertTrue(script.contains("BF-654 BLOCKED: BF-653 audited ADD/DROP ids disagree with current audited transaction"));
+              }
+
+              @Test
+              void malformedAndUnknownRecommendationStatesFailClosed() throws Exception {
+                  String script = script();
+                  assertTrue(script.contains("BF-661 BLOCKED: unsupported current governed decision state"));
+                  assertTrue(script.contains("BF-661 BLOCKED: unsupported dashboard decision state"));
+                  assertFalse(script.contains("NO_TRANSACTION_TO_ACT_ON\" -or"));
+              }
+
+              @Test
+              void noTransactionRendersExplanationWithoutSyntheticMoveCardsOrCapturePrompt() throws Exception {
+                  String script = script();
+                  assertTrue(script.contains("$movesSection = \\\"\\\""));
+                  assertTrue(script.contains("if ($transactionStates -ccontains $state)"));
+                  assertTrue(script.contains("elseif ($state -cne \\\"NO_TRANSACTION_TO_ACT_ON\\\" -and $state -cne \\\"NO_AUDITED_DECISION\\\")"));
+                  assertTrue(script.contains("if ($Explanation.Ready)"));
+                  assertTrue(script.contains("Active = $false"));
+                  assertTrue(script.contains("BF-653 explanation type:"));
+                  assertTrue(script.contains("Audited ADD / DROP Sleeper IDs:"));
+              }
+
+              private static String script() throws IOException {
+                  Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+                  for (int depth = 0; depth < 7 && current != null; depth++) {
+                      Path candidate = current.resolve("scripts/butler-dashboard.ps1");
+                      if (Files.isRegularFile(candidate)) {
+                          return Files.readString(candidate, StandardCharsets.US_ASCII);
+                      }
+                      current = current.getParent();
+                  }
+                  throw new IOException("BF-661 test could not locate scripts/butler-dashboard.ps1");
+              }
+          }
+          '''.replace('          ', ''), encoding='ascii', newline='\n')
+
+      - name: Parse Butler dashboard with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+              exit 1
+          }
+
+      - name: Enforce ASCII-only dashboard source
+        shell: powershell
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path '.\scripts\butler-dashboard.ps1').Path)
+          $bad = @($bytes | Where-Object { $_ -gt 127 })
+          if ($bad.Count -gt 0) {
+              Write-Error ("BF-661 BLOCKED: dashboard contains {0} non-ASCII byte(s)" -f $bad.Count)
+              exit 1
+          }
+
+      - name: Run focused BF-661 regression
+        shell: powershell
+        run: .\gradlew.bat --dependency-verification=strict :bet:bet-cli:test --tests io.butler.bet.cli.ButlerDashboardBf661ScriptTest
+
+      - name: Run full build and tests
+        shell: powershell
+        run: .\gradlew.bat --dependency-verification=strict clean build
+
+      - name: Verify dependency lockfile is current
+        shell: powershell
+        run: |
+          .\gradlew.bat --dependency-verification=strict :bet:bet-cli:dependencies --write-locks
+          if (-not (git diff --quiet -- bet/bet-cli/gradle.lockfile)) {
+              git diff -- bet/bet-cli/gradle.lockfile
+              throw 'BF-661 BLOCKED: dependency lockfile changed'
+          }
+
+      - name: Commit verified BF-661 patch and remove temporary workflow
+        shell: powershell
+        run: |
+          git config user.name "Butler BF-661 automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1 bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf661ScriptTest.java
+          git rm .github/workflows/bf-661-apply.yml
+          git commit -m "BF-661: render governed no-transaction explanation"
+          git push origin HEAD:bf-661-dashboard-no-transaction-explanation
