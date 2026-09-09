@@ -648,6 +648,77 @@ function Get-CurrentGovernedTransactionPairView {
     }
 }
 
+function Get-GovernedManualRefreshPlanView {
+    param([Parameter(Mandatory = $true)][string]$Summary)
+
+    $decisionState = Get-LineValue -Text $Summary -Label "Decision status:"
+    if ([string]::IsNullOrWhiteSpace($decisionState)) {
+        throw "BF-655 BLOCKED: current governed decision state is missing"
+    }
+    if ($decisionState -cne "CURRENT_REFRESH_RECOMMENDED") {
+        return [pscustomobject]@{
+            Active = $false
+            Policy = "none"
+            State = "NOT_REQUIRED"
+            Instruction = "none"
+            Steps = @()
+        }
+    }
+
+    $planMarkers = [regex]::Matches($Summary, '(?m)^BF-636 - governed MANUAL refresh plan\r?$')
+    if ($planMarkers.Count -ne 1) {
+        throw "BF-655 BLOCKED: CURRENT_REFRESH_RECOMMENDED requires exactly one BF-636 governed manual refresh plan"
+    }
+    $planText = $Summary.Substring($planMarkers[0].Index)
+    $policy = Get-LineValue -Text $planText -Label "Plan policy:"
+    $planState = Get-LineValue -Text $planText -Label "Plan state:"
+    $instruction = Get-LineValue -Text $planText -Label "Operator instruction:"
+    if ([string]::IsNullOrWhiteSpace($policy)) {
+        throw "BF-655 BLOCKED: BF-636 plan policy is missing"
+    }
+    if ($planState -cne "MANUAL_REFRESH_PLAN_READY") {
+        throw "BF-655 BLOCKED: CURRENT_REFRESH_RECOMMENDED requires BF-636 MANUAL_REFRESH_PLAN_READY"
+    }
+    if ([string]::IsNullOrWhiteSpace($instruction)) {
+        throw "BF-655 BLOCKED: BF-636 operator instruction is missing"
+    }
+
+    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)$'
+    $stepMatches = [regex]::Matches($planText, $stepPattern)
+    if ($stepMatches.Count -ne 9) {
+        throw "BF-655 BLOCKED: BF-636 ready plan must contain exactly nine rendered steps"
+    }
+
+    $steps = @()
+    for ($index = 0; $index -lt $stepMatches.Count; $index++) {
+        $match = $stepMatches[$index]
+        $order = [int]$match.Groups['order'].Value
+        if ($order -ne ($index + 1)) {
+            throw "BF-655 BLOCKED: BF-636 step order is malformed or non-contiguous"
+        }
+        $mode = $match.Groups['mode'].Value.Trim()
+        if ($mode -cne "BUTLER_WRITE" -and $mode -cne "READ_ONLY") {
+            throw "BF-655 BLOCKED: BF-636 step mode is unsupported: $mode"
+        }
+        $steps += [pscustomobject]@{
+            Order = $order
+            Bf = $match.Groups['bf'].Value.Trim()
+            Mode = $match.Groups['mode'].Value.Trim()
+            TaskName = $match.Groups['task'].Value.Trim()
+            Command = $match.Groups['command'].Value.Trim()
+            Purpose = $match.Groups['purpose'].Value.Trim()
+        }
+    }
+
+    return [pscustomobject]@{
+        Active = $true
+        Policy = $policy
+        State = $planState
+        Instruction = $instruction
+        Steps = @($steps)
+    }
+}
+
 function Get-GovernedExplanationView {
     param([Parameter(Mandatory = $true)][string]$Summary)
 
@@ -794,6 +865,7 @@ function Get-SharedCss {
 .lineage{display:flex;justify-content:space-between;gap:20px;align-items:center}.lineage-copy strong,.lineage-copy span{display:block}.lineage-copy strong{font-size:17px}.lineage-copy span{color:#97a7ca;font-size:13px;margin-top:3px}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.button{display:inline-block;text-decoration:none;color:#fff;background:#315dca;padding:11px 16px;border-radius:11px;font-weight:700}.subtle{color:#94a2c5;font-size:13px}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}
 details{margin-top:14px;border-top:1px solid #28365f;padding-top:14px}summary{cursor:pointer;color:#a9b7d7;font-weight:700}.tech{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-family:Consolas,monospace;font-size:12px;color:#9eabd0}.tech div{word-break:break-word}.raw-guard{margin-top:12px;padding:12px;border-left:3px solid #536996;background:#0b142b;color:#bfc9e1;font-size:12px}
 .position-section{margin-top:20px}.position-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:10px}.position-head h2{margin:0;font-size:21px}.position-count{color:#8797bd;font-size:13px}.roster-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.roster-card .name{font-size:18px;font-weight:800}.roster-card .meta{color:#aebada;font-size:13px;margin-top:4px}.roster-card .slot{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:999px;background:#17254a;color:#a9c6ff;font-size:11px;font-weight:800}.roster-card .id{color:#6f81aa;font-size:11px;margin-top:8px}.roster-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.roster-card .current-marker{margin-top:10px}.roster-note{color:#9ba8c8;font-size:13px;margin-top:8px}
+.refresh-plan-note{margin-top:14px;padding:14px 16px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.refresh-steps{display:grid;gap:10px;margin-top:16px}.refresh-step{padding:15px 16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.refresh-step-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.refresh-step-num{font-size:18px;font-weight:900}.refresh-step-bf{color:#a9c6ff;font-weight:800}.refresh-mode{display:inline-block;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:900}.refresh-mode.read{background:#1c315c;color:#a9c6ff}.refresh-mode.write{background:#4b3713;color:#ffd98b}.refresh-task{margin-top:7px;font-weight:800}.refresh-command{margin-top:9px;padding:11px 12px;border-radius:10px;background:#080f20;border:1px solid #26345c;color:#c7d9ff;font-family:Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.refresh-purpose{margin-top:8px;color:#aebada;font-size:12px}
 .board-note{margin-top:16px;padding:15px 17px;border:1px solid #6a5427;border-radius:14px;background:#261f10;color:#f0d79a}.not-rank{font-weight:900;letter-spacing:.08em}.board-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.board-stat{padding:15px;border-radius:14px;background:#0d1630;border:1px solid #26345c}.board-stat strong{display:block;font-size:22px}.board-stat span{font-size:12px;color:#91a1c7}.board-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}.candidate-card{padding:18px;border:1px solid #2b3962;border-radius:15px;background:#0d1630}.candidate-card.current-governed{border-color:#416fda;box-shadow:0 0 0 1px rgba(65,111,218,.28)}.candidate-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.candidate-card .name{font-size:19px;font-weight:800}.candidate-card .meta{color:#aebada;font-size:13px;margin-top:4px}.candidate-badges{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.current-marker{display:inline-block;padding:5px 8px;border-radius:999px;background:#203d79;color:#c7d9ff;font-size:11px;font-weight:900;white-space:nowrap}.current-copy{margin-top:10px;color:#a9c6ff;font-size:12px;font-weight:700}.current-context{margin-top:16px;padding:14px 16px;border:1px solid #416fda;border-radius:14px;background:#0d1b3a;color:#c7d9ff}.pair-context{margin-top:12px;padding:12px;border:1px solid #334a82;border-radius:12px;background:#101e3d;color:#c7d9ff;font-size:12px}.pair-context strong{display:block;color:#fff;margin-bottom:4px}.pair-context .pair-meta{color:#aebada;margin-top:3px}.pair-context .actions{margin-top:10px}.pair-context .button{padding:8px 11px;font-size:12px}.lane{display:inline-block;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.lane.historical{background:#173a2b;color:#8ff0b9}.lane.newcomer{background:#3f3216;color:#ffd98b}.lane.neutral{background:#1c315c;color:#a9c6ff}.candidate-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.candidate-facts div{font-size:12px;color:#aab7d6}.candidate-facts strong{display:block;color:#7487b5;font-size:10px;text-transform:uppercase;letter-spacing:.08em}.market{margin-top:12px;padding-top:11px;border-top:1px solid #26345c;color:#93a3c8;font-size:12px}.market strong{color:#cbd4eb}.board-disclaimer{font-size:12px;color:#8fa0c7;margin-top:12px}
 @media(max-width:760px){.top{display:block}.target{text-align:left;margin-top:12px}.moves,.verify-grid,.fresh-grid,.tech,.roster-grid,.board-grid,.board-stats{grid-template-columns:1fr}.brand h1{font-size:30px}.statusrow{display:block}.status{display:inline-block;margin-top:12px}.lineage{display:block}.lineage .status{margin-top:10px}.candidate-top{display:block}.candidate-badges{justify-content:flex-start;margin-top:10px}.lane{margin-top:0}}
 '@
@@ -851,6 +923,33 @@ function ConvertTo-DashboardHtml {
     $thresholdHours = [math]::Round($threshold / 3600, 1)
     $css = Get-SharedCss
     $header = Get-HeaderHtml -Target $target -Active "dashboard"
+    $refreshPlan = Get-GovernedManualRefreshPlanView -Summary $Summary
+    $refreshPlanSection = ""
+    if ($refreshPlan.Active) {
+        $refreshCards = ""
+        foreach ($step in $refreshPlan.Steps) {
+            $modeClass = if ($step.Mode -ceq "READ_ONLY") { "read" } else { "write" }
+            $refreshCards += @"
+<article class="refresh-step">
+  <div class="refresh-step-head"><span class="refresh-step-num">$(ConvertTo-HtmlText $step.Order)</span><span class="refresh-step-bf">$(ConvertTo-HtmlText $step.Bf)</span><span class="refresh-mode $modeClass">$(ConvertTo-HtmlText $step.Mode)</span></div>
+  <div class="refresh-task">$(ConvertTo-HtmlText $step.TaskName)</div>
+  <div class="refresh-command">$(ConvertTo-HtmlText $step.Command)</div>
+  <div class="refresh-purpose">$(ConvertTo-HtmlText $step.Purpose)</div>
+</article>
+"@
+        }
+        $refreshPlanSection = @"
+<section class="panel">
+  <div class="eyebrow">Governed manual refresh plan</div>
+  <h2>Refresh Butler evidence safely</h2>
+  <p class="lede">Run these manually, one at a time, and inspect each result before continuing.</p>
+  <div class="refresh-plan-note"><strong>MANUAL ONLY.</strong> BF-636 executes none of these commands, and this dashboard does not run them for you. `BUTLER_WRITE` means the listed CLI task persists governed Butler data; `READ_ONLY` means it only projects/revalidates governed state.</div>
+  <div class="refresh-steps">$refreshCards</div>
+  <details><summary>Technical details</summary><div class="tech"><div>BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)</div><div>BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)</div><div>Governed step count: $($refreshPlan.Steps.Count)</div><div>Source: existing compact governed decision summary</div></div><div class="raw-guard">$(ConvertTo-HtmlText $refreshPlan.Instruction)</div></details>
+</section>
+"@
+    }
+
     $explanation = Get-GovernedExplanationView -Summary $Summary
     if ($explanation.Ready) {
         $whySection = @"
@@ -885,11 +984,12 @@ $header
   </div>
   <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong><p>$(ConvertTo-HtmlText $presentation.ActionCopy)</p></div>
 </section>
+$refreshPlanSection
 $whySection
 <section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> Butler does not refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 manual refresh instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
 </main></body></html>
 "@
 }
