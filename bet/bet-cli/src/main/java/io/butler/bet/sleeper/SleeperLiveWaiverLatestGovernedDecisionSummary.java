@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Objects;
 
-/** BF-630 compact presentation tightened by BF-632 currentness, BF-634 age telemetry, BF-635 warning policy, and BF-638 transaction lifecycle clarity. */
+/** BF-630 compact presentation tightened by BF-632 currentness, BF-634 age telemetry, BF-635 warning policy, BF-638 transaction lifecycle clarity, and BF-649 audited evidence traceability. */
 public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     public static final String POLICY_ID =
         "sleeper-live-waiver-latest-governed-decision-summary-v5-bf623-bf628-bf629-bf631-bf633-bf635-bf638-transaction-lifecycle";
@@ -136,6 +136,8 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
             revalidation.auditId(),
             revalidation.capturedAtUtc(),
             revalidation.recommendationState(),
+            evidenceLineage.auditedMarketSnapshotId(),
+            evidenceLineage.auditedWaiverSnapshotId(),
             add,
             drop,
             revalidation.state(),
@@ -340,6 +342,8 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         String auditId,
         String capturedAtUtc,
         String recommendationState,
+        String auditedMarketSnapshotId,
+        String auditedWaiverSnapshotId,
         PlayerDisplay addPlayer,
         PlayerDisplay dropPlayer,
         SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState bf629State,
