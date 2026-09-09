@@ -105,18 +105,15 @@ jobs:
           '''.replace('          ', '')
           text = text[:identity_start] + new_identity + text[identity_end:]
 
-          original_moves = '''  <div class="moves">
-            <article class="move add"><h2>ADD</h2><div class="player-name">$(ConvertTo-HtmlText $add.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $add.Position) &middot; $(ConvertTo-HtmlText $add.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $add.SleeperId)</div></article>
-            <article class="move drop"><h2>DROP</h2><div class="player-name">$(ConvertTo-HtmlText $drop.Name)</div><div class="player-meta">$(ConvertTo-HtmlText $drop.Position) &middot; $(ConvertTo-HtmlText $drop.Team)</div><div class="player-id">Sleeper ID $(ConvertTo-HtmlText $drop.SleeperId)</div></article>
-          </div>
-          '''.replace('          ', '')
-          if text.count(original_moves) != 1:
-              raise SystemExit(f'BF-661 BLOCKED: dashboard move-card anchor count was {text.count(original_moves)}')
-          text = text.replace(original_moves, '$movesSection\n', 1)
+          dashboard_function = text.index('function ConvertTo-DashboardHtml {')
+          return_marker = '    return @"\n<!doctype html><html lang="en"><head><meta charset="utf-8"'
+          dashboard_return = text.index(return_marker, dashboard_function)
+          moves_start = text.index('  <div class="moves">\n', dashboard_return)
+          moves_end_marker = '  <div class="next"><strong>$(ConvertTo-HtmlText $presentation.ActionTitle)</strong>'
+          moves_end = text.index(moves_end_marker, moves_start)
+          text = text[:moves_start] + '$movesSection\n' + text[moves_end:]
 
-          return_anchor = '''    return @"
-          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
-          '''.replace('          ', '')
+          dashboard_return = text.index(return_marker, dashboard_function)
           moves_logic = '''    $movesSection = ""
           $transactionStates = @(
               "CURRENT_AND_ACTIONABLE",
@@ -137,12 +134,8 @@ jobs:
               throw "BF-661 BLOCKED: unsupported dashboard decision state $state"
           }
 
-          return @"
-          <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler Dashboard</title><style>$css</style></head><body><main class="shell">
           '''.replace('          ', '')
-          if text.count(return_anchor) != 1:
-              raise SystemExit('BF-661 BLOCKED: dashboard return anchor drifted')
-          text = text.replace(return_anchor, moves_logic, 1)
+          text = text[:dashboard_return] + moves_logic + text[dashboard_return:]
 
           path.write_text(text, encoding='ascii', newline='\n')
 
