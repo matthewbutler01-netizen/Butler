@@ -1,0 +1,44 @@
+name: Windows PowerShell Parse
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-dashboard.ps1'
+      - '.github/workflows/windows-powershell-parse.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-dashboard.ps1'
+      - '.github/workflows/windows-powershell-parse.yml'
+
+concurrency:
+  group: windows-powershell-parse-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  parse:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Parse Butler dashboard with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+              exit 1
+          }
+          Write-Host 'Windows PowerShell 5.1 parser accepted scripts/butler-dashboard.ps1'
