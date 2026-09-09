@@ -23,6 +23,8 @@ jobs:
           java-version: '25'
       - name: Apply BF-653 patch
         run: python .github/bf653_patch.py
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
       - name: Compile BF-653 sources and tests
         run: ./gradlew :bet:bet-cli:compileTestJava
       - name: Commit BF-653 wiring
