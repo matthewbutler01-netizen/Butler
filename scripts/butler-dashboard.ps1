@@ -953,8 +953,9 @@ function Get-GovernedExplanationCaptureView {
     if ($Explanation.AuditId -notmatch $uuidPattern) {
         throw "BF-658 BLOCKED: current BF-627 audit id is malformed for governed explanation capture"
     }
-    if ([string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
-        -or [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none") {
+    $marketLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.MarketSnapshotId) -or $Explanation.MarketSnapshotId -ceq "none"
+    $waiverLineageMissing = [string]::IsNullOrWhiteSpace($Explanation.WaiverSnapshotId) -or $Explanation.WaiverSnapshotId -ceq "none"
+    if ($marketLineageMissing -or $waiverLineageMissing) {
         throw "BF-658 BLOCKED: reconciled BF-603/BF-602 lineage is unavailable for governed explanation capture"
     }
     if ($Explanation.AddSleeperId -notmatch '^[0-9]+$' -or $Explanation.DropSleeperId -notmatch '^[0-9]+$') {
