@@ -1,0 +1,38 @@
+name: BF-655 Apply
+
+on:
+  push:
+    branches:
+      - bf-655-dashboard-refresh-plan
+    paths:
+      - .github/workflows/bf655-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: bf-655-dashboard-refresh-plan
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Apply BF-655 patch
+        run: python .github/bf655_patch.py
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+      - name: Compile BF-655 regression test
+        run: ./gradlew :bet:bet-cli:compileTestJava
+      - name: Run BF-655 regression test
+        run: ./gradlew :bet:bet-cli:test --tests io.butler.bet.cli.ButlerDashboardBf655ScriptTest
+      - name: Commit BF-655 dashboard wiring
+        run: |
+          git config user.name "Matt"
+          git config user.email "323053860+matthewbutler01-netizen@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1
+          git commit -m "BF-655: render governed manual refresh plan"
+          git push origin HEAD:bf-655-dashboard-refresh-plan
