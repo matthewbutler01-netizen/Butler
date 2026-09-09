@@ -13,7 +13,17 @@ jobs:
           ref: bf-650-powershell51-ascii-dashboard
           persist-credentials: true
       - name: Update HTML entity source assertions
-        run: python -c "from pathlib import Path; ps=[Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java'),Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf649ScriptTest.java')]; [(lambda p: p.write_text(p.read_text(encoding='utf-8').replace(' · ',' &middot; '),encoding='utf-8'))(p) for p in ps]"
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          paths = [
+              Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java'),
+              Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf649ScriptTest.java'),
+          ]
+          for path in paths:
+              text = path.read_text(encoding='utf-8')
+              path.write_text(text.replace(' · ', ' &middot; '), encoding='utf-8')
+          PY
       - name: Commit assertion updates
         run: |
           if git diff --quiet -- bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardScriptTest.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf649ScriptTest.java; then exit 0; fi
