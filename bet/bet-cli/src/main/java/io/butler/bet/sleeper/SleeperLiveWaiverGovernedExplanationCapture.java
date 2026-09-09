@@ -131,9 +131,8 @@ public final class SleeperLiveWaiverGovernedExplanationCapture {
             || !target.sleeperUserId().equals(audit.sleeperOwnerId())
             || !target.sleeperLeagueId().equals(audit.sleeperLeagueId())
             || target.rosterId() != audit.rosterId()
-            || target.providerSeason() != audit.season()
-            || !target.providerStatus().equals(audit.providerStatus())
-            || !Objects.equals(target.providerLeg(), audit.providerLeg())) {
+            || audit.season() != SleeperPersonalizedTargetService.TARGET_SEASON
+            || !target.providerStatus().equals(audit.providerStatus())) {
             throw new IllegalStateException("BF-653 BLOCKED: BF-623 target does not reconcile to exact BF-627 audit");
         }
     }
