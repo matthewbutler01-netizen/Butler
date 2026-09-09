@@ -39,7 +39,6 @@ public final class SleeperLiveWaiverGovernedExplanationCapture {
     private final GovernedRecommendationExplanationRepository explanationRepository;
     private final RecommendationSource recommendationSource;
     private final EvidenceSource evidenceSource;
-    private final PostTransactionReplaySource postTransactionReplaySource;
     private final Clock clock;
 
     public SleeperLiveWaiverGovernedExplanationCapture(Database database) {
@@ -49,12 +48,8 @@ public final class SleeperLiveWaiverGovernedExplanationCapture {
         this.recommendationSource = (leagueId, ownerId) ->
             new SleeperLiveWaiverFinalRecommendationBundle(database).run(leagueId, ownerId);
         this.evidenceSource = recommendation ->
-    new SleeperLiveWaiverCrossPositionTransactionEvidence(database).explain(recommendation);
-this.postTransactionReplaySource = (target, audit) -> {
-    var replay = new SleeperLiveWaiverPostTransactionRecommendationReplay(database).replay(target, audit);
-    return new PostTransactionReplay(replay.recommendation(), replay.evidence());
-};
-this.clock = Clock.systemUTC();
+            new SleeperLiveWaiverCrossPositionTransactionEvidence(database).explain(recommendation);
+        this.clock = Clock.systemUTC();
     }
 
     SleeperLiveWaiverGovernedExplanationCapture(
@@ -63,21 +58,10 @@ this.clock = Clock.systemUTC();
         RecommendationSource recommendationSource,
         EvidenceSource evidenceSource,
         Clock clock) {
-        this(auditRepository, explanationRepository, recommendationSource, evidenceSource, clock, null);
-    }
-
-    SleeperLiveWaiverGovernedExplanationCapture(
-        GovernedRecommendationAuditRepository auditRepository,
-        GovernedRecommendationExplanationRepository explanationRepository,
-        RecommendationSource recommendationSource,
-        EvidenceSource evidenceSource,
-        Clock clock,
-        PostTransactionReplaySource postTransactionReplaySource) {
         this.auditRepository = Objects.requireNonNull(auditRepository, "auditRepository must not be null");
         this.explanationRepository = Objects.requireNonNull(explanationRepository, "explanationRepository must not be null");
         this.recommendationSource = Objects.requireNonNull(recommendationSource, "recommendationSource must not be null");
         this.evidenceSource = Objects.requireNonNull(evidenceSource, "evidenceSource must not be null");
-        this.postTransactionReplaySource = postTransactionReplaySource;
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -88,25 +72,10 @@ this.clock = Clock.systemUTC();
         GovernedRecommendationAuditRepository.AuditRecord audit = exactAudit(target.butlerLeagueId(), normalizedAuditId);
         reconcileTarget(target, audit);
 
-        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation;
-EvidenceSource payloadEvidenceSource = evidenceSource;
-try {
-    recommendation = recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
-} catch (IllegalStateException liveFailure) {
-    if (!isPostTransactionRosterDrift(liveFailure) || postTransactionReplaySource == null) {
-        throw liveFailure;
-    }
-    PostTransactionReplay replay = postTransactionReplaySource.replay(target, audit);
-    recommendation = Objects.requireNonNull(replay.recommendation(), "BF-659 replay recommendation must not be null");
-    payloadEvidenceSource = ignored -> {
-        if (replay.evidence() == null) {
-            throw new IllegalStateException("BF-659 BLOCKED: cross-position replay evidence is missing");
-        }
-        return replay.evidence();
-    };
-}
-reconcileAudit(audit, recommendation);
-ExplanationPayload payload = explanationPayload(recommendation, payloadEvidenceSource);
+        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation =
+            recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
+        reconcileAudit(audit, recommendation);
+        ExplanationPayload payload = explanationPayload(recommendation, evidenceSource);
 
         var desired = new GovernedRecommendationExplanationRepository.ExplanationRecord(
             null,
@@ -263,12 +232,6 @@ ExplanationPayload payload = explanationPayload(recommendation, payloadEvidenceS
         return String.join(" | ", pieces);
     }
 
-    private static boolean isPostTransactionRosterDrift(IllegalStateException failure) {
-        String message = failure.getMessage();
-        return message != null && message.startsWith(
-            "BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame;");
-    }
-
     private static void validateVerifiedTarget(SleeperPersonalizedTargetService.VerifiedTarget target) {
         Objects.requireNonNull(target, "target must not be null");
         if (!SleeperPersonalizedTargetService.BF623_POLICY_ID.equals(target.policyId())
@@ -293,22 +256,6 @@ ExplanationPayload payload = explanationPayload(recommendation, payloadEvidenceS
         SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport explain(
             SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation)
             throws SQLException, IOException, InterruptedException;
-    }
-
-    @FunctionalInterface
-    interface PostTransactionReplaySource {
-        PostTransactionReplay replay(
-            SleeperPersonalizedTargetService.VerifiedTarget target,
-            GovernedRecommendationAuditRepository.AuditRecord audit)
-            throws SQLException, IOException, InterruptedException;
-    }
-
-    record PostTransactionReplay(
-        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
-        SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport evidence) {
-        PostTransactionReplay {
-            Objects.requireNonNull(recommendation, "recommendation must not be null");
-        }
     }
 
     record ExplanationPayload(String type, String text, String evidencePolicyId, String evidenceTrace) {}
