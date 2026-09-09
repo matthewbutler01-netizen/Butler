@@ -370,12 +370,22 @@ function Get-CurrentGovernedAddView {
 
     $bundleTarget = Get-WaiverTargetView -Bundle $Bundle
     $summaryTarget = Get-Bf623TargetView -Text $Summary -BoundaryName "BF-649"
-    if ($bundleTarget.SleeperLeagueId -cne $summaryTarget.SleeperLeagueId
-        -or $bundleTarget.RosterId -cne $summaryTarget.RosterId
-        -or $bundleTarget.LeagueName -cne $summaryTarget.LeagueName
-        -or $bundleTarget.DisplayName -cne $summaryTarget.DisplayName
-        -or $bundleTarget.TeamName -cne $summaryTarget.TeamName
-        -or $bundleTarget.Role -cne $summaryTarget.Role) {
+    if ($bundleTarget.SleeperLeagueId -cne $summaryTarget.SleeperLeagueId) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+    if ($bundleTarget.RosterId -cne $summaryTarget.RosterId) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+    if ($bundleTarget.LeagueName -cne $summaryTarget.LeagueName) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+    if ($bundleTarget.DisplayName -cne $summaryTarget.DisplayName) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+    if ($bundleTarget.TeamName -cne $summaryTarget.TeamName) {
+        throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
+    }
+    if ($bundleTarget.Role -cne $summaryTarget.Role) {
         throw "BF-649 BLOCKED: summary BF-623 target identity disagrees with waiver BF-623 target identity"
     }
 
