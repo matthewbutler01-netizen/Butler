@@ -143,8 +143,9 @@ class ButlerDashboardScriptTest {
         assertTrue(script.contains("does not rerank candidates"));
         assertTrue(script.contains("weight market/depth/injury"));
         assertTrue(script.contains("score newcomers"));
-        assertTrue(script.contains("pick a winner"));
-        assertTrue(script.contains("identify a drop"));
+        assertTrue(script.contains("pick a new winner"));
+        assertTrue(script.contains("identify a new drop"));
+        assertTrue(script.contains("already-audited current ADD"));
         assertFalse(script.contains("candidate score"));
         assertFalse(script.contains("player value"));
     }
@@ -242,6 +243,6 @@ class ButlerDashboardScriptTest {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646/BF-647/BF-648 test could not locate scripts/butler-dashboard.ps1");
+        throw new IllegalStateException("BF-643/BF-644/BF-645/BF-646/BF-647/BF-648/BF-649 test could not locate scripts/butler-dashboard.ps1");
     }
 }
