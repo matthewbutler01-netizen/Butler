@@ -74,6 +74,22 @@ public final class SleeperLiveWaiverGovernedExplanationCapture {
 
         SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation =
             recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
+        return captureCompanion(explanationRepository, audit, recommendation, evidenceSource, clock);
+    }
+
+    /** BF-660 writes a BF-653 companion from the exact recommendation already captured by BF-627. */
+    static CaptureReport captureCompanion(
+        GovernedRecommendationExplanationRepository explanationRepository,
+        GovernedRecommendationAuditRepository.AuditRecord audit,
+        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
+        EvidenceSource evidenceSource,
+        Clock clock)
+        throws SQLException, IOException, InterruptedException {
+        Objects.requireNonNull(explanationRepository, "explanationRepository must not be null");
+        Objects.requireNonNull(audit, "audit must not be null");
+        Objects.requireNonNull(recommendation, "recommendation must not be null");
+        Objects.requireNonNull(evidenceSource, "evidenceSource must not be null");
+        Objects.requireNonNull(clock, "clock must not be null");
         reconcileAudit(audit, recommendation);
         ExplanationPayload payload = explanationPayload(recommendation, evidenceSource);
 

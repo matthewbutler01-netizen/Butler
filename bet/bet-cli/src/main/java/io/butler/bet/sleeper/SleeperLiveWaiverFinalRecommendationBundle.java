@@ -60,6 +60,12 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
 
     public RecommendationReport run(String leagueId, String sleeperOwnerId)
         throws SQLException, IOException, InterruptedException {
+        return execute(leagueId, sleeperOwnerId).recommendation();
+    }
+
+    /** BF-660 retains the exact BF-615 bundle used by this BF-620 recommendation for audit-time explanation capture. */
+    RecommendationExecution execute(String leagueId, String sleeperOwnerId)
+        throws SQLException, IOException, InterruptedException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
 
@@ -74,27 +80,28 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             freshnessSource.audit(normalizedLeagueId, normalizedOwnerId);
         validateFreshness(bundle, freshness, normalizedLeagueId, normalizedOwnerId);
 
+        RecommendationReport recommendation;
         if (selection.state() != SelectionState.UNIQUE_ADD_DROP_SELECTED) {
-            return new RecommendationReport(
+            recommendation = new RecommendationReport(
                 BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
                 bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
                 bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
                 methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
                 null, null, newcomerAlternatives(bundle),
                 RecommendationState.NO_GOVERNED_TRANSACTION);
+        } else {
+            var add = Objects.requireNonNull(selection.selectedAdd());
+            var drop = Objects.requireNonNull(selection.selectedDrop());
+            validateSelectedPairAgainstLiveAndSnapshot(bundle, freshness, add, drop);
+            recommendation = new RecommendationReport(
+                BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
+                bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
+                bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
+                methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
+                add, drop, newcomerAlternatives(bundle),
+                RecommendationState.RECOMMEND_ADD_DROP);
         }
-
-        var add = Objects.requireNonNull(selection.selectedAdd());
-        var drop = Objects.requireNonNull(selection.selectedDrop());
-        validateSelectedPairAgainstLiveAndSnapshot(bundle, freshness, add, drop);
-
-        return new RecommendationReport(
-            BF620_POLICY_ID, normalizedLeagueId, normalizedOwnerId,
-            bundle.comparisons().marketSnapshotId(), bundle.comparisons().waiverSnapshotId(),
-            bundle.comparisons().sleeperLeagueId(), bundle.comparisons().rosterId(),
-            methodology, selection, freshness.providerSeason(), freshness.providerStatus(), freshness.providerLeg(),
-            add, drop, newcomerAlternatives(bundle),
-            RecommendationState.RECOMMEND_ADD_DROP);
+        return new RecommendationExecution(recommendation, bundle);
     }
 
     private MethodologyReport methodology(SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
@@ -411,6 +418,15 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
     private static String requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
         return value.trim();
+    }
+
+    record RecommendationExecution(
+        RecommendationReport recommendation,
+        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) {
+        RecommendationExecution {
+            Objects.requireNonNull(recommendation, "recommendation must not be null");
+            Objects.requireNonNull(bundle, "bundle must not be null");
+        }
     }
 
     @FunctionalInterface

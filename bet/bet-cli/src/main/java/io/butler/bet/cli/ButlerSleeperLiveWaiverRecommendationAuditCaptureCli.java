@@ -45,8 +45,13 @@ public final class ButlerSleeperLiveWaiverRecommendationAuditCaptureCli {
             System.out.println("Captured add / drop Sleeper ids: none / none");
         }
         System.out.println("Immutable audit records retained for league: " + report.retainedAuditRecordsForLeague());
+        System.out.println("BF-653 explanation capture state: " + report.explanationCaptureState());
+        System.out.println("Explanation id / type: " + report.explanationId() + " / " + report.explanationType());
+        System.out.println("Explanation: " + report.explanationText());
+        System.out.println("Explanation evidence policy: " + value(report.explanationEvidencePolicyId()));
+        System.out.println("Explanation evidence trace: " + value(report.explanationEvidenceTrace()));
         System.out.println();
-        System.out.println("Boundary: BF-627 writes only an immutable Butler audit record after BF-623 live identity verification and BF-620 lineage reconciliation. It does not submit a Sleeper transaction, set FAAB, mutate the Sleeper league, or change the governed recommendation methodology.");
+        System.out.println("Boundary: BF-627 writes an immutable Butler audit plus its BF-653 explanation companion from the same exact governed recommendation frame after BF-623 live identity verification and BF-620 lineage reconciliation. It does not submit a Sleeper transaction, set FAAB, mutate the Sleeper league, refresh evidence, rerank players, or change the governed recommendation methodology.");
     }
 
     private static String value(Object value) {

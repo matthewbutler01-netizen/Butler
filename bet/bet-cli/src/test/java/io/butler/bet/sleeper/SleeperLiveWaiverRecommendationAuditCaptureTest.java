@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.GovernedRecommendationAuditRepository;
+import io.butler.bet.data.GovernedRecommendationExplanationRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -10,6 +11,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +27,7 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         Database database = database();
         var repository = new GovernedRecommendationAuditRepository(database);
         var recommendation = recommendation("market-1", "waiver-1", "7049", "12503");
-        var service = service(repository, recommendation);
+        var service = service(database, repository, recommendation);
 
         var first = service.capture(target());
         var second = service.capture(target());
@@ -36,13 +39,18 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         assertEquals("7049", first.addSleeperPlayerId());
         assertEquals("12503", first.dropSleeperPlayerId());
         assertEquals(1, repository.countForLeague("butler-hardcore"));
+        assertEquals(GovernedRecommendationExplanationRepository.CaptureState.CAPTURED_VERIFIED, first.explanationCaptureState());
+        assertEquals(GovernedRecommendationExplanationRepository.CaptureState.ALREADY_CAPTURED_EXACT, second.explanationCaptureState());
+        assertEquals(first.explanationId(), second.explanationId());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_SAME_POSITION, first.explanationType());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.SAME_POSITION_REASON, first.explanationText());
     }
 
     @Test
     void noGovernedTransactionIsPersistedWithoutInventingAddDrop() throws Exception {
         Database database = database();
         var repository = new GovernedRecommendationAuditRepository(database);
-        var service = service(repository, noTransaction("market-2", "waiver-2"));
+        var service = service(database, repository, noTransaction("market-2", "waiver-2"));
 
         var result = service.capture(target());
 
@@ -51,6 +59,8 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         assertEquals(null, result.addSleeperPlayerId());
         assertEquals(null, result.dropSleeperPlayerId());
         assertEquals(1, repository.countForLeague("butler-hardcore"));
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_NO_TRANSACTION, result.explanationType());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.NO_TRANSACTION_REASON, result.explanationText());
     }
 
     @Test
@@ -58,7 +68,7 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         Database database = database();
         var repository = new GovernedRecommendationAuditRepository(database);
         var wrongOwner = recommendation("market-3", "waiver-3", "7049", "12503", "wrong-owner", 6);
-        var service = service(repository, wrongOwner);
+        var service = service(database, repository, wrongOwner);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> service.capture(target()));
 
@@ -89,7 +99,7 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
             base.sleeperLeagueId(), base.rosterId(), badMethodology, base.selection(), base.providerSeason(),
             base.providerStatus(), base.providerLeg(), base.recommendedAdd(), base.recommendedDrop(),
             base.newcomerReviewAlternatives(), base.state());
-        var service = service(repository, mismatch);
+        var service = service(database, repository, mismatch);
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> service.capture(target()));
 
@@ -104,8 +114,9 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         AtomicReference<SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport> current =
             new AtomicReference<>(recommendation("market-5", "waiver-5", "7049", "12503"));
         var service = new SleeperLiveWaiverRecommendationAuditCapture(
-            (leagueId, ownerId) -> current.get(),
+            (SleeperLiveWaiverRecommendationAuditCapture.RecommendationSource) (leagueId, ownerId) -> current.get(),
             repository,
+            new GovernedRecommendationExplanationRepository(database),
             Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
 
         service.capture(target());
@@ -116,12 +127,41 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
         assertEquals(1, repository.countForLeague("butler-hardcore"));
     }
 
+    @Test
+    void bf660UsesOneExactDecisionEvaluationAndPersistsCrossPositionEvidence() throws Exception {
+        Database database = database();
+        var repository = new GovernedRecommendationAuditRepository(database);
+        var explanations = new GovernedRecommendationExplanationRepository(database);
+        var recommendation = crossPositionRecommendation("market-x", "waiver-x", "7049", "12503");
+        var evidence = crossPositionEvidence(recommendation);
+        AtomicInteger evaluations = new AtomicInteger();
+        var service = new SleeperLiveWaiverRecommendationAuditCapture(
+            (SleeperLiveWaiverRecommendationAuditCapture.DecisionSource) (leagueId, ownerId) -> {
+                evaluations.incrementAndGet();
+                return new SleeperLiveWaiverRecommendationAuditCapture.DecisionFrame(recommendation, evidence);
+            },
+            repository,
+            explanations,
+            Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
+
+        var result = service.capture(target());
+
+        assertEquals(1, evaluations.get());
+        assertEquals(SleeperLiveWaiverGovernedExplanationCapture.TYPE_CROSS_POSITION, result.explanationType());
+        assertEquals(SleeperLiveWaiverCrossPositionTransactionEvidence.POLICY_ID, result.explanationEvidencePolicyId());
+        assertTrue(result.explanationEvidenceTrace().contains("ADD=7049"));
+        assertTrue(result.explanationEvidenceTrace().contains("DROP=12503"));
+        assertTrue(explanations.findByAuditId(result.auditId()).isPresent());
+    }
+
     private SleeperLiveWaiverRecommendationAuditCapture service(
+        Database database,
         GovernedRecommendationAuditRepository repository,
         SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation) {
         return new SleeperLiveWaiverRecommendationAuditCapture(
-            (leagueId, ownerId) -> recommendation,
+            (SleeperLiveWaiverRecommendationAuditCapture.RecommendationSource) (leagueId, ownerId) -> recommendation,
             repository,
+            new GovernedRecommendationExplanationRepository(database),
             Clock.fixed(Instant.parse("2026-09-08T09:40:00Z"), ZoneOffset.UTC));
     }
 
@@ -191,6 +231,48 @@ class SleeperLiveWaiverRecommendationAuditCaptureTest {
             drop,
             List.of(),
             SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.RECOMMEND_ADD_DROP);
+    }
+
+    private static SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport crossPositionRecommendation(
+        String market, String waiver, String addId, String dropId) {
+        var base = recommendation(market, waiver, addId, dropId);
+        var methodology = new SleeperLiveWaiverFinalRecommendationBundle.MethodologyReport(
+            SleeperLiveWaiverFinalRecommendationBundle.BF618_POLICY_ID,
+            market,
+            2,
+            0,
+            List.of("RB", "WR"),
+            base.methodology().addWinnerRule(),
+            base.methodology().evidenceRule(),
+            base.methodology().crossPositionRule(),
+            base.methodology().newcomerRule(),
+            base.methodology().dropRule(),
+            base.methodology().protectedTargetRule(),
+            base.methodology().state());
+        return new SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport(
+            base.policyId(), base.leagueId(), base.sleeperOwnerId(), base.marketSnapshotId(), base.waiverSnapshotId(),
+            base.sleeperLeagueId(), base.rosterId(), methodology, base.selection(), base.providerSeason(),
+            base.providerStatus(), base.providerLeg(), base.recommendedAdd(), base.recommendedDrop(),
+            base.newcomerReviewAlternatives(), base.state());
+    }
+
+    private static SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport crossPositionEvidence(
+        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation) {
+        var option = new SleeperLiveWaiverCrossPositionTransactionEvidence.TransactionEvidence(
+            recommendation.recommendedAdd(),
+            recommendation.recommendedDrop(),
+            Map.of("nflverse", 1.25),
+            Map.of("nflverse", List.of("rec", "rec_yd")),
+            true);
+        return new SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport(
+            SleeperLiveWaiverCrossPositionTransactionEvidence.POLICY_ID,
+            recommendation.leagueId(),
+            recommendation.sleeperOwnerId(),
+            recommendation.marketSnapshotId(),
+            recommendation.waiverSnapshotId(),
+            recommendation.selection().state(),
+            List.of(option),
+            SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceState.RECONCILED);
     }
 
     private static SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport noTransaction(

@@ -2,6 +2,8 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.GovernedRecommendationAuditRepository;
+import io.butler.bet.data.GovernedRecommendationExplanationRepository;
+import io.butler.bet.data.PlayerSeasonProductionRepository;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -13,31 +15,70 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
     public static final String POLICY_ID =
         "sleeper-live-waiver-recommendation-audit-v1-bf623-final-lineage-immutable-explicit";
 
-    private final RecommendationSource recommendationSource;
+    private final DecisionSource decisionSource;
     private final GovernedRecommendationAuditRepository repository;
+    private final GovernedRecommendationExplanationRepository explanationRepository;
     private final Clock clock;
 
     public SleeperLiveWaiverRecommendationAuditCapture(Database database) {
         this(
-            (leagueId, ownerId) -> new SleeperLiveWaiverFinalRecommendationBundle(database).run(leagueId, ownerId),
+            productionDecisionSource(database),
             new GovernedRecommendationAuditRepository(database),
+            new GovernedRecommendationExplanationRepository(database),
             Clock.systemUTC());
     }
 
     SleeperLiveWaiverRecommendationAuditCapture(
         RecommendationSource recommendationSource,
         GovernedRecommendationAuditRepository repository,
+        GovernedRecommendationExplanationRepository explanationRepository,
         Clock clock) {
-        this.recommendationSource = Objects.requireNonNull(recommendationSource, "recommendationSource must not be null");
+        this(
+            (DecisionSource) (leagueId, ownerId) -> new DecisionFrame(recommendationSource.run(leagueId, ownerId), null),
+            repository,
+            explanationRepository,
+            clock);
+    }
+
+    SleeperLiveWaiverRecommendationAuditCapture(
+        DecisionSource decisionSource,
+        GovernedRecommendationAuditRepository repository,
+        GovernedRecommendationExplanationRepository explanationRepository,
+        Clock clock) {
+        this.decisionSource = Objects.requireNonNull(decisionSource, "decisionSource must not be null");
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
+        this.explanationRepository = Objects.requireNonNull(explanationRepository, "explanationRepository must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
+    }
+
+    private static DecisionSource productionDecisionSource(Database database) {
+        Objects.requireNonNull(database, "database must not be null");
+        return (leagueId, ownerId) -> {
+            SleeperLiveWaiverFinalRecommendationBundle finalBundle =
+                new SleeperLiveWaiverFinalRecommendationBundle(database);
+            var execution = finalBundle.execute(leagueId, ownerId);
+            var recommendation = execution.recommendation();
+            SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport evidence = null;
+            if (recommendation.state()
+                    == SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.RECOMMEND_ADD_DROP
+                && recommendation.methodology().historicalFinalistPositions().size() > 1) {
+                PlayerSeasonProductionRepository productionRepository =
+                    new PlayerSeasonProductionRepository(database);
+                evidence = new SleeperLiveWaiverCrossPositionTransactionEvidence(
+                    (ignoredLeague, ignoredOwner) -> execution.bundle(),
+                    productionRepository::findByPlayerId)
+                    .explain(recommendation);
+            }
+            return new DecisionFrame(recommendation, evidence);
+        };
     }
 
     public CaptureReport capture(SleeperPersonalizedTargetService.VerifiedTarget target)
         throws SQLException, IOException, InterruptedException {
         validateVerifiedTarget(target);
 
-        var recommendation = recommendationSource.run(target.butlerLeagueId(), target.sleeperUserId());
+        DecisionFrame decision = decisionSource.run(target.butlerLeagueId(), target.sleeperUserId());
+        var recommendation = decision.recommendation();
         reconcile(target, recommendation);
 
         String addId = recommendation.recommendedAdd() == null
@@ -76,6 +117,16 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
             throw new IllegalStateException("BF-627 BLOCKED: audit readback id does not match capture result");
         }
 
+        SleeperLiveWaiverGovernedExplanationCapture.EvidenceSource evidenceSource = ignored -> {
+            if (decision.crossPositionEvidence() == null) {
+                throw new IllegalStateException(
+                    "BF-660 BLOCKED: exact cross-position BF-625 evidence is missing from BF-627 decision frame");
+            }
+            return decision.crossPositionEvidence();
+        };
+        var explanation = SleeperLiveWaiverGovernedExplanationCapture.captureCompanion(
+            explanationRepository, readback, recommendation, evidenceSource, clock);
+
         return new CaptureReport(
             POLICY_ID,
             persisted.state(),
@@ -94,7 +145,13 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
             readback.recommendationState(),
             readback.addSleeperPlayerId(),
             readback.dropSleeperPlayerId(),
-            repository.countForLeague(readback.leagueId()));
+            repository.countForLeague(readback.leagueId()),
+            explanation.captureState(),
+            explanation.explanationId(),
+            explanation.explanationType(),
+            explanation.explanationText(),
+            explanation.evidencePolicyId(),
+            explanation.evidenceTrace());
     }
 
     private static void validateVerifiedTarget(SleeperPersonalizedTargetService.VerifiedTarget target) {
@@ -180,6 +237,20 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
             throws SQLException, IOException, InterruptedException;
     }
 
+    @FunctionalInterface
+    interface DecisionSource {
+        DecisionFrame run(String leagueId, String ownerId)
+            throws SQLException, IOException, InterruptedException;
+    }
+
+    record DecisionFrame(
+        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
+        SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport crossPositionEvidence) {
+        DecisionFrame {
+            Objects.requireNonNull(recommendation, "recommendation must not be null");
+        }
+    }
+
     public record CaptureReport(
         String policyId,
         GovernedRecommendationAuditRepository.CaptureState captureState,
@@ -198,10 +269,21 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
         String recommendationState,
         String addSleeperPlayerId,
         String dropSleeperPlayerId,
-        int retainedAuditRecordsForLeague) {
+        int retainedAuditRecordsForLeague,
+        GovernedRecommendationExplanationRepository.CaptureState explanationCaptureState,
+        String explanationId,
+        String explanationType,
+        String explanationText,
+        String explanationEvidencePolicyId,
+        String explanationEvidenceTrace) {
         public CaptureReport {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-627 policyId");
             Objects.requireNonNull(captureState, "captureState must not be null");
+            Objects.requireNonNull(explanationCaptureState, "explanationCaptureState must not be null");
+            Objects.requireNonNull(explanationId, "explanationId must not be null");
+            Objects.requireNonNull(explanationType, "explanationType must not be null");
+            Objects.requireNonNull(explanationText, "explanationText must not be null");
         }
     }
+
 }
