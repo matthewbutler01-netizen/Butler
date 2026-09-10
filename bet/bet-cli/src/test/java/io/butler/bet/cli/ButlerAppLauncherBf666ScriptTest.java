@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppLauncherBf666ScriptTest {
 
     @Test
-    void powershellLauncherUsesExplicitLocalSelectionAndExistingDashboardOnly() throws Exception {
+    void powershellLauncherUsesExplicitLocalSelectionAndDelegatesOnlyToAppShell() throws Exception {
         String script = script("scripts/butler-app.ps1");
 
         assertTrue(script.contains("$localAppData = $env:LOCALAPPDATA"));
@@ -22,9 +22,9 @@ class ButlerAppLauncherBf666ScriptTest {
         assertTrue(script.contains("[Guid]::TryParse($candidate, [ref]$parsed)"));
         assertTrue(script.contains("-ResetLeague"));
         assertTrue(script.contains("already configured for a different league"));
-        assertTrue(script.contains("& $dashboard -LeagueId $selectedLeagueId -Port $Port -NoBrowser"));
-        assertTrue(script.contains("& $dashboard -LeagueId $selectedLeagueId -Port $Port"));
-        assertTrue(script.contains("$dashboard = Join-Path $scriptDir \"butler-dashboard.ps1\""));
+        assertTrue(script.contains("$appShell = Join-Path $scriptDir \"butler-app-shell.ps1\""));
+        assertTrue(script.contains("& $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser"));
+        assertTrue(script.contains("& $appShell -LeagueId $selectedLeagueId -Port $Port"));
 
         assertFalse(script.contains("gradlew"));
         assertFalse(script.contains("SleeperClient"));
