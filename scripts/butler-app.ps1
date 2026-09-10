@@ -54,6 +54,45 @@ function Read-ConfiguredLeagueId {
     }
 }
 
+function Get-AppPortState {
+    param([Parameter(Mandatory = $true)][int]$RequestedPort)
+
+    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$RequestedPort/health")
+    $request.Method = "GET"
+    $request.Timeout = 600
+    $response = $null
+    try {
+        try {
+            $response = $request.GetResponse()
+        }
+        catch [System.Net.WebException] {
+            if ($null -eq $_.Exception.Response) {
+                if ($_.Exception.Status -eq [System.Net.WebExceptionStatus]::ConnectFailure) {
+                    return "FREE"
+                }
+                return "OCCUPIED_OTHER"
+            }
+            $response = $_.Exception.Response
+        }
+
+        $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+        try {
+            $body = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+
+        if ([int]$response.StatusCode -eq 200 -and $body -match '"service"\s*:\s*"butler-app-shell"') {
+            return "OCCUPIED_BUTLER"
+        }
+        return "OCCUPIED_OTHER"
+    }
+    finally {
+        if ($null -ne $response) { $response.Close() }
+    }
+}
+
 if ($ResetLeague) {
     if (-not [string]::IsNullOrWhiteSpace($LeagueId)) {
         throw "BF-666 BLOCKED: -ResetLeague cannot be combined with -LeagueId."
@@ -88,6 +127,14 @@ if ($null -eq $configuredLeagueId) {
 }
 elseif ($null -ne $requestedLeagueId) {
     Write-Host "Butler app league selection already matches."
+}
+
+$portState = Get-AppPortState -RequestedPort $Port
+if ($portState -ceq "OCCUPIED_BUTLER") {
+    throw "BF-669 BLOCKED: Butler is already running on port $Port. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
+}
+if ($portState -ceq "OCCUPIED_OTHER") {
+    throw "BF-669 BLOCKED: local port $Port is already in use by another process. Butler will not stop it automatically. Stop that process yourself or launch Butler with -Port <free-port>."
 }
 
 Write-Host "Butler App"
