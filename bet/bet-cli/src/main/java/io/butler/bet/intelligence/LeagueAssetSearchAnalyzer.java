@@ -13,7 +13,8 @@ import java.util.Objects;
 /**
  * Searches a league's current player and draft-pick inventory without auto-selecting ambiguous matches.
  * Matching is a transparent case-insensitive substring check across asset identity and displayed asset
- * metadata. Current owning fantasy-team identity is output context only and never causes an asset match.
+ * metadata. Fantasy-team identity, whether current owner or pick origin, is output context only and never
+ * causes an asset match.
  */
 public final class LeagueAssetSearchAnalyzer {
     private final LeagueAssetInventoryAnalyzer inventory;
@@ -76,8 +77,6 @@ public final class LeagueAssetSearchAnalyzer {
     private static boolean matchesPick(String needle, LeagueAssetInventoryAnalyzer.DraftPickAsset pick) {
         return contains(pick.draftPickId(), needle)
             || contains(pick.label(), needle)
-            || contains(pick.originalTeamId(), needle)
-            || contains(pick.originalTeamName(), needle)
             || contains(Integer.toString(pick.season()), needle)
             || contains(Integer.toString(pick.round()), needle)
             || (pick.pickNumber() != null && contains(Integer.toString(pick.pickNumber()), needle));
