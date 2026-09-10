@@ -259,34 +259,39 @@ public final class ButlerLauncher {
         if (report.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + report.minimumAsOfDate());
 
         for (var team : report.teams()) {
-            var concentration = team.concentration();
-            var slots = team.rosterSlots();
-            var picks = team.draftCapital();
-            int slotValued = slots.slots().values().stream().mapToInt(slot -> slot.valuedPlayers()).sum();
-            int slotStale = slots.slots().values().stream().mapToInt(slot -> slot.stalePlayers()).sum();
-            int slotMissing = slots.slots().values().stream().mapToInt(slot -> slot.missingPlayers()).sum();
-            int slotTotal = slots.slots().values().stream().mapToInt(slot -> slot.totalPlayers()).sum();
-
-            System.out.printf(
-                "%s  assets=%.2f  players=%.2f  picks=%.2f  starter-share=%.1f%%  top1=%.1f%%  top3=%.1f%%  hhi=%.4f  asset-coverage=%d/%d (%.1f%%)  [%s]%n",
-                team.teamName(), team.usableAssetValue(), team.usablePlayerValue(), team.usableDraftPickValue(),
-                team.starterValueSharePercent(), team.topAssetSharePercent(), team.topThreeAssetSharePercent(),
-                team.concentrationIndex(), concentration.valuedAssets(), concentration.totalAssets(),
-                concentration.coveragePercent(), team.teamId());
-
-            System.out.printf("  roster-slots: valued=%d/%d  stale=%d  missing=%d%n",
-                slotValued, slotTotal, slotStale, slotMissing);
-            System.out.printf("  draft-capital: valued=%d/%d  stale=%d  missing=%d  seasons=%d%n",
-                picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(), picks.seasons().size());
-
-            team.positionalDepth().positions().values().stream()
-                .sorted(java.util.Comparator.comparing(io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer.PositionDepth::position))
-                .forEach(position -> System.out.printf(
-                    "  %s: players=%d  usable-value=%.2f  coverage=%d/%d (%.1f%%)  top1=%.1f%%  top3=%.1f%%%n",
-                    position.position(), position.totalPlayers(), position.totalUsableValue(), position.valuedPlayers(),
-                    position.totalPlayers(), position.coveragePercent(), position.topOneSharePercent(),
-                    position.topThreeSharePercent()));
+            printTeamProfileTeam(team);
         }
+    }
+
+    static void printTeamProfileTeam(LeagueCompositeTeamProfileAnalyzer.TeamProfile team) {
+        if (team == null) throw new IllegalArgumentException("team must not be null");
+        var concentration = team.concentration();
+        var slots = team.rosterSlots();
+        var picks = team.draftCapital();
+        int slotValued = slots.slots().values().stream().mapToInt(slot -> slot.valuedPlayers()).sum();
+        int slotStale = slots.slots().values().stream().mapToInt(slot -> slot.stalePlayers()).sum();
+        int slotMissing = slots.slots().values().stream().mapToInt(slot -> slot.missingPlayers()).sum();
+        int slotTotal = slots.slots().values().stream().mapToInt(slot -> slot.totalPlayers()).sum();
+
+        System.out.println(team.teamName());
+        System.out.printf("  values: assets=%.2f  players=%.2f  picks=%.2f  starter-share=%.1f%%%n",
+            team.usableAssetValue(), team.usablePlayerValue(), team.usableDraftPickValue(), team.starterValueSharePercent());
+        System.out.printf("  concentration: top1=%.1f%%  top3=%.1f%%  hhi=%.4f  asset-coverage=%d/%d (%.1f%%)%n",
+            team.topAssetSharePercent(), team.topThreeAssetSharePercent(), team.concentrationIndex(),
+            concentration.valuedAssets(), concentration.totalAssets(), concentration.coveragePercent());
+        System.out.printf("  roster: valued=%d/%d  stale=%d  missing=%d%n",
+            slotValued, slotTotal, slotStale, slotMissing);
+        System.out.printf("  draft: valued=%d/%d  stale=%d  missing=%d  seasons=%d%n",
+            picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(), picks.seasons().size());
+
+        team.positionalDepth().positions().values().stream()
+            .sorted(java.util.Comparator.comparing(io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer.PositionDepth::position))
+            .forEach(position -> System.out.printf(
+                "  %s: players=%d  value=%.2f  coverage=%d/%d (%.1f%%)  top1=%.1f%%  top3=%.1f%%%n",
+                position.position(), position.totalPlayers(), position.totalUsableValue(), position.valuedPlayers(),
+                position.totalPlayers(), position.coveragePercent(), position.topOneSharePercent(),
+                position.topThreeSharePercent()));
+        System.out.println("  team-id=" + team.teamId());
     }
 
     static void printTeamProfileUsage() {

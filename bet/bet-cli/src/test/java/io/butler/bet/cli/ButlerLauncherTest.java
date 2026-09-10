@@ -1,6 +1,11 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.intelligence.LeagueAssetConcentrationAnalyzer;
+import io.butler.bet.intelligence.LeagueCompositeTeamProfileAnalyzer;
+import io.butler.bet.intelligence.LeagueDraftCapitalTimelineAnalyzer;
 import io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;
+import io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer;
+import io.butler.bet.intelligence.LeagueRosterSlotValueAnalyzer;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -8,6 +13,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,6 +60,54 @@ class ButlerLauncherTest {
             "league", "player-evidence-readiness"}));
         assertFalse(ButlerLauncher.isSupportedPlayerEvidenceReadiness(new String[]{
             "league", "player-evidence-readiness", "league-id", "2025", "--wrong", "2026-09-01"}));
+    }
+
+    @Test
+    void rendersTeamProfileAsCompactLabeledRowsWithStablePositionOrder() {
+        LocalDate asOf = LocalDate.of(2026, 9, 1);
+        var assets = List.of(
+            new LeagueAssetConcentrationAnalyzer.AssetValue(LeagueAssetConcentrationAnalyzer.AssetType.PLAYER, "p1", "QB One", 100.0, asOf),
+            new LeagueAssetConcentrationAnalyzer.AssetValue(LeagueAssetConcentrationAnalyzer.AssetType.DRAFT_PICK, "pick1", "2027 R1", 50.0, asOf));
+        var concentration = new LeagueAssetConcentrationAnalyzer.TeamConcentration(
+            "team-alpha", "Alpha", "source", null, 150.0, 2, 2, 0, 0, assets);
+        var slots = new LeagueRosterSlotValueAnalyzer.TeamRosterSlotContext(
+            "team-alpha", "Alpha", Map.of(
+                "STARTER", new LeagueRosterSlotValueAnalyzer.SlotValue("STARTER", 80.0, 1, 0, 0, 1),
+                "BENCH", new LeagueRosterSlotValueAnalyzer.SlotValue("BENCH", 20.0, 1, 0, 0, 1)));
+        var qb = new LeaguePositionalDepthAnalyzer.PositionDepth(
+            "QB", 1, 1, 0, 0, List.of(
+                new LeaguePositionalDepthAnalyzer.PlayerDepthValue("p1", "QB One", "QB", "STARTER", 100.0, asOf)));
+        var wr = new LeaguePositionalDepthAnalyzer.PositionDepth(
+            "WR", 1, 1, 0, 0, List.of(
+                new LeaguePositionalDepthAnalyzer.PlayerDepthValue("p2", "WR One", "WR", "BENCH", 20.0, asOf)));
+        var depth = new LeaguePositionalDepthAnalyzer.TeamDepth(
+            "team-alpha", "Alpha", Map.of("WR", wr, "QB", qb));
+        var season = new LeagueDraftCapitalTimelineAnalyzer.SeasonDraftCapital(
+            2027, 50.0, 1, 0, 0, 1, Map.of(1, 1));
+        var picks = new LeagueDraftCapitalTimelineAnalyzer.TeamDraftCapital(
+            "team-alpha", "Alpha", 50.0, 1, 0, 0, 1, List.of(season));
+        var team = new LeagueCompositeTeamProfileAnalyzer.TeamProfile(
+            "team-alpha", "Alpha", concentration, slots, depth, picks);
+
+        PrintStream original = System.out;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+            ButlerLauncher.printTeamProfileTeam(team);
+        } finally {
+            System.setOut(original);
+        }
+        String output = buffer.toString(StandardCharsets.UTF_8);
+        String[] lines = output.strip().split("\\R");
+
+        assertTrue(output.contains("Alpha"));
+        assertTrue(output.contains("  values: assets=150.00  players=100.00  picks=50.00  starter-share=80.0%"));
+        assertTrue(output.contains("  concentration: top1=66.7%  top3=100.0%  hhi=0.5556  asset-coverage=2/2 (100.0%)"));
+        assertTrue(output.contains("  roster: valued=2/2  stale=0  missing=0"));
+        assertTrue(output.contains("  draft: valued=1/1  stale=0  missing=0  seasons=1"));
+        assertTrue(output.contains("  team-id=team-alpha"));
+        assertTrue(output.indexOf("  QB:") < output.indexOf("  WR:"));
+        for (String line : lines) assertTrue(line.length() <= 120);
     }
 
     @Test
