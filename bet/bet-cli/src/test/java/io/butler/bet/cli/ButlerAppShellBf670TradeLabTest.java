@@ -34,6 +34,24 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
+    void firstTradeNavigationPaintsBeforeGovernedGradleReads() throws Exception {
+        String shell = script("scripts/butler-app-shell.ps1");
+        String host = script("scripts/butler-trade-lab-host.ps1");
+
+        assertTrue(shell.contains("$requestTarget -ceq '/trade'"));
+        assertTrue(shell.contains("Get-TradeLabLoadingHtml -LeagueId $LeagueId"));
+        assertTrue(host.contains("function Get-TradeLabLoadingHtml"));
+        assertTrue(host.contains("http-equiv=\"refresh\" content=\"1;url=/trade?load=1\""));
+        assertTrue(host.contains("Opening Trade Lab..."));
+        assertTrue(host.contains("The workspace will appear automatically."));
+        assertTrue(host.contains("No proposal, transaction, or Sleeper write is being executed."));
+
+        int immediatePaint = shell.indexOf("Get-TradeLabLoadingHtml -LeagueId $LeagueId");
+        int governedLoad = shell.indexOf("Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget");
+        assertTrue(immediatePaint >= 0 && governedLoad > immediatePaint);
+    }
+
+    @Test
     void preservedCoreStillCarriesBf667AndBf668AppBehavior() throws Exception {
         String core = script("scripts/butler-app-shell-core.ps1");
 
