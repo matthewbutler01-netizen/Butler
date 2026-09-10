@@ -50,10 +50,25 @@ class ButlerAppLauncherBf669PortAwareTest {
         assertTrue(script.contains("function Remove-OwnButlerRunState"));
         assertTrue(script.contains("Get-Process -Id $markerPid -ErrorAction SilentlyContinue"));
         assertTrue(script.contains("$process.StartTime.ToUniversalTime().Ticks"));
-        assertTrue(script.contains("$liveRunState -and $portState -ceq \"OCCUPIED_OTHER\""));
+        assertTrue(script.contains("$liveRunState -or $ownedByButlerProcess"));
         assertTrue(script.contains("$portState = \"OCCUPIED_BUTLER\""));
         assertTrue(script.contains("Butler is already starting on port $Port"));
         assertTrue(script.contains("finally {\n    Remove-OwnButlerRunState\n}"));
+    }
+
+    @Test
+    void occupiedListenerCanBeIdentifiedAsThisButlerCheckoutWithoutKillingIt() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("function Test-PortOwnedByButlerProcess"));
+        assertTrue(script.contains("Get-NetTCPConnection -LocalPort $RequestedPort -State Listen"));
+        assertTrue(script.contains("Where-Object { $_.LocalAddress -ceq \"127.0.0.1\" }"));
+        assertTrue(script.contains("Get-CimInstance Win32_Process -Filter \"ProcessId = $ownerPid\""));
+        assertTrue(script.contains("$launcherPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)"));
+        assertTrue(script.contains("$appShellPath = [IO.Path]::GetFullPath($appShell)"));
+        assertTrue(script.contains("$commandLine.IndexOf($launcherPath, [System.StringComparison]::OrdinalIgnoreCase)"));
+        assertTrue(script.contains("$commandLine.IndexOf($appShellPath, [System.StringComparison]::OrdinalIgnoreCase)"));
+        assertTrue(script.contains("Listener ownership is only an identity fallback. Failure here must remain fail-closed."));
     }
 
     @Test
@@ -68,7 +83,6 @@ class ButlerAppLauncherBf669PortAwareTest {
 
         assertFalse(script.contains("Stop-Process"));
         assertFalse(script.contains("taskkill"));
-        assertFalse(script.contains("Get-NetTCPConnection"));
         assertFalse(script.contains("Invoke-Expression"));
     }
 

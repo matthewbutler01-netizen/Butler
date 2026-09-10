@@ -14,6 +14,8 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appShell = Join-Path $scriptDir "butler-app-shell.ps1"
+$launcherPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
+$appShellPath = [IO.Path]::GetFullPath($appShell)
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -129,6 +131,32 @@ function Remove-OwnButlerRunState {
     }
 }
 
+function Test-PortOwnedByButlerProcess {
+    param([Parameter(Mandatory = $true)][int]$RequestedPort)
+
+    try {
+        $listeners = @(Get-NetTCPConnection -LocalPort $RequestedPort -State Listen -ErrorAction Stop |
+            Where-Object { $_.LocalAddress -ceq "127.0.0.1" })
+        foreach ($listener in $listeners) {
+            $ownerPid = [int]$listener.OwningProcess
+            if ($ownerPid -le 0) { continue }
+
+            $owner = Get-CimInstance Win32_Process -Filter "ProcessId = $ownerPid" -ErrorAction Stop
+            if ($null -eq $owner -or [string]::IsNullOrWhiteSpace([string]$owner.CommandLine)) { continue }
+
+            $commandLine = [string]$owner.CommandLine
+            if ($commandLine.IndexOf($launcherPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $commandLine.IndexOf($appShellPath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                return $true
+            }
+        }
+    }
+    catch {
+        # Listener ownership is only an identity fallback. Failure here must remain fail-closed.
+    }
+    return $false
+}
+
 function Get-AppPortState {
     param([Parameter(Mandatory = $true)][int]$RequestedPort)
 
@@ -220,7 +248,11 @@ elseif ($null -ne $requestedLeagueId) {
 
 $liveRunState = Test-LiveButlerRunState
 $portState = Get-AppPortState -RequestedPort $Port
-if ($liveRunState -and $portState -ceq "OCCUPIED_OTHER") {
+$ownedByButlerProcess = $false
+if ($portState -ceq "OCCUPIED_OTHER") {
+    $ownedByButlerProcess = Test-PortOwnedByButlerProcess -RequestedPort $Port
+}
+if (($liveRunState -or $ownedByButlerProcess) -and $portState -ceq "OCCUPIED_OTHER") {
     $portState = "OCCUPIED_BUTLER"
 }
 if ($liveRunState -and $portState -ceq "FREE") {
