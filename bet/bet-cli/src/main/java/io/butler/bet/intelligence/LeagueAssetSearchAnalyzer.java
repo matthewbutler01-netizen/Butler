@@ -12,7 +12,8 @@ import java.util.Objects;
 
 /**
  * Searches a league's current player and draft-pick inventory without auto-selecting ambiguous matches.
- * Matching is a transparent case-insensitive substring check across the displayed asset metadata.
+ * Matching is a transparent case-insensitive substring check across asset identity and displayed asset
+ * metadata. Current owning fantasy-team identity is output context only and never causes an asset match.
  */
 public final class LeagueAssetSearchAnalyzer {
     private final LeagueAssetInventoryAnalyzer inventory;
@@ -39,13 +40,13 @@ public final class LeagueAssetSearchAnalyzer {
 
         for (var team : report.teams()) {
             for (var player : team.players()) {
-                if (!matchesPlayer(needle, team, player)) continue;
+                if (!matchesPlayer(needle, player)) continue;
                 players.add(new PlayerMatch(
                     team.teamId(), team.teamName(), player.playerId(), player.playerName(), player.position(),
                     player.nflTeam(), player.slot(), player.value(), player.asOfDate()));
             }
             for (var pick : team.draftPicks()) {
-                if (!matchesPick(needle, team, pick)) continue;
+                if (!matchesPick(needle, pick)) continue;
                 picks.add(new DraftPickMatch(
                     team.teamId(), team.teamName(), pick.draftPickId(), pick.season(), pick.round(), pick.label(),
                     pick.originalTeamId(), pick.originalTeamName(), pick.pickNumber(), pick.value(), pick.asOfDate()));
@@ -64,22 +65,16 @@ public final class LeagueAssetSearchAnalyzer {
         return new SearchReport(report.leagueId(), report.source(), query, List.copyOf(players), List.copyOf(picks));
     }
 
-    private static boolean matchesPlayer(String needle, LeagueAssetInventoryAnalyzer.TeamInventory team,
-                                         LeagueAssetInventoryAnalyzer.PlayerAsset player) {
-        return contains(team.teamId(), needle)
-            || contains(team.teamName(), needle)
-            || contains(player.playerId(), needle)
+    private static boolean matchesPlayer(String needle, LeagueAssetInventoryAnalyzer.PlayerAsset player) {
+        return contains(player.playerId(), needle)
             || contains(player.playerName(), needle)
             || contains(player.position(), needle)
             || contains(player.nflTeam(), needle)
             || contains(player.slot(), needle);
     }
 
-    private static boolean matchesPick(String needle, LeagueAssetInventoryAnalyzer.TeamInventory team,
-                                       LeagueAssetInventoryAnalyzer.DraftPickAsset pick) {
-        return contains(team.teamId(), needle)
-            || contains(team.teamName(), needle)
-            || contains(pick.draftPickId(), needle)
+    private static boolean matchesPick(String needle, LeagueAssetInventoryAnalyzer.DraftPickAsset pick) {
+        return contains(pick.draftPickId(), needle)
             || contains(pick.label(), needle)
             || contains(pick.originalTeamId(), needle)
             || contains(pick.originalTeamName(), needle)
