@@ -101,6 +101,40 @@ function Get-AppNav {
     return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Lab</a></nav>"
 }
 
+function Get-TradeLabLoadingHtml {
+    param([Parameter(Mandatory = $true)][string]$LeagueId)
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'trade'
+    $safeLeague = ConvertTo-HtmlText $LeagueId
+    return @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="1;url=/trade?load=1">
+<title>Butler Trade Lab</title>
+<style>$css</style>
+</head>
+<body>
+<main class="shell">
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>
+$nav
+<section class="panel">
+<div class="eyebrow">Governed trade intelligence</div>
+<div class="statusrow">
+<div><h2 class="headline">Opening Trade Lab...</h2><p class="lede">Loading your exact roster identity and persisted league assets. The workspace will appear automatically.</p></div>
+<span class="status done">READ ONLY</span>
+</div>
+<div class="empty">Butler is preparing the governed trade workspace. No proposal, transaction, or Sleeper write is being executed.</div>
+</section>
+</main>
+</body>
+</html>
+"@
+}
+
 function Add-TradeNavigation {
     param([Parameter(Mandatory = $true)][string]$Html)
     if ($Html -match 'href="/trade"') { return $Html }
