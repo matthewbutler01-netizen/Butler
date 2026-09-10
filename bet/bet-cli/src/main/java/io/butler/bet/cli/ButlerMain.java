@@ -250,14 +250,22 @@ public final class ButlerMain {
             : "Movement window: unavailable");
         if (context.teams().isEmpty()) System.out.println("No team context available until a value source can be resolved.");
         else for (var team : context.teams()) {
-            String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
-            String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
-            System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
-                team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.valuedAssets(), team.totalAssets(),
-                team.coveragePercent(), movement, team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
-                team.risers(), team.fallers(), team.unchanged(), team.teamId());
+            printLeagueTeamContextTeam(team);
         }
         printLeagueActions(context.actionPlan().actions());
+    }
+
+    static void printLeagueTeamContextTeam(LeagueTeamContextAnalyzer.TeamContext team) {
+        if (team == null) throw new IllegalArgumentException("team must not be null");
+        String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
+        String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
+        System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f%n",
+            team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue());
+        System.out.printf("  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)%n",
+            team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
+            team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent());
+        System.out.printf("  movement-counts: risers=%d  fallers=%d  unchanged=%d  team-id=%s%n",
+            team.risers(), team.fallers(), team.unchanged(), team.teamId());
     }
 
     static void printLeagueDecisionReadiness(LeagueDecisionReadinessAnalyzer.DecisionReadinessReport report) {

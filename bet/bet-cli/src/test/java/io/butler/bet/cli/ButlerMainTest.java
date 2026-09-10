@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
+import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -95,6 +96,41 @@ class ButlerMainTest {
         assertFalse(ButlerMain.isSupportedLeagueDraftCapital(new String[]{"league", "draft-capital"}));
         assertFalse(ButlerMain.isSupportedLeagueDraftCapital(new String[]{
             "league", "draft-capital", "league-id", "--wrong-flag", "2026-09-01"}));
+    }
+
+    @Test
+    void rendersTeamContextAsCompactPrimaryAndDetailRows() {
+        var team = new LeagueTeamContextAnalyzer.TeamContext(
+            4, "team-123", "Love: JT, Jeanty &Javonte",
+            1234.50, 678.25, 1912.75, 24, 25, 96.0,
+            15.75, 20, 25, 11, 8, 1);
+
+        String output = capture(() -> ButlerMain.printLeagueTeamContextTeam(team));
+        String[] lines = output.strip().split("\\R");
+
+        assertTrue(lines.length == 3);
+        assertTrue(lines[0].equals(
+            "Love: JT, Jeanty &Javonte  rank=4  total=1912.75  players=1234.50  picks=678.25"));
+        assertTrue(lines[0].length() <= 120);
+        assertTrue(lines[1].equals(
+            "  coverage=24/25 (96.0%)  movement=+15.75  movement-coverage=20/25 (80.0%)"));
+        assertTrue(lines[2].equals(
+            "  movement-counts: risers=11  fallers=8  unchanged=1  team-id=team-123"));
+    }
+
+    @Test
+    void rendersUnavailableTeamMovementWithoutInventingDelta() {
+        var team = new LeagueTeamContextAnalyzer.TeamContext(
+            null, "team-alpha", "Alpha",
+            100.0, 50.0, 150.0, 2, 3, 66.7,
+            null, 0, 2, 0, 0, 0);
+
+        String output = capture(() -> ButlerMain.printLeagueTeamContextTeam(team));
+
+        assertTrue(output.contains("Alpha  rank=-  total=150.00  players=100.00  picks=50.00"));
+        assertTrue(output.contains("movement=unavailable"));
+        assertTrue(output.contains("movement-coverage=0/2 (0.0%)"));
+        assertTrue(output.contains("team-id=team-alpha"));
     }
 
     @Test
