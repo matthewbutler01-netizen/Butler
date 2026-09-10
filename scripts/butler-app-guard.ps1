@@ -56,12 +56,22 @@ function Test-LoopbackPortBindable {
 
 function Get-ExistingManagedButlerPort {
     foreach ($candidatePort in $managedPorts) {
+        $candidateMutexName = "Local\Butler.App.Port.$candidatePort"
+        $candidateCreatedNew = $false
         $candidateMutex = $null
         try {
-            $candidateMutex = [System.Threading.Mutex]::OpenExisting("Local\Butler.App.Port.$candidatePort")
-            return [int]$candidatePort
-        }
-        catch [System.Threading.WaitHandleCannotBeOpenedException] {
+            # Use the same constructor/createdNew mechanism as the proven BF-669
+            # duplicate-port guard. If we created the mutex, no Butler owned that
+            # managed port; dispose the temporary handle immediately. If we did
+            # not create it, an existing Butler guard already owns the name.
+            $candidateMutex = [System.Threading.Mutex]::new(
+                $false,
+                $candidateMutexName,
+                [ref]$candidateCreatedNew
+            )
+            if (-not $candidateCreatedNew) {
+                return [int]$candidatePort
+            }
         }
         finally {
             if ($null -ne $candidateMutex) {
