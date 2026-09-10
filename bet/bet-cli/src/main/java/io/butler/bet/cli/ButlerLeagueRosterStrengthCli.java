@@ -63,10 +63,17 @@ public final class ButlerLeagueRosterStrengthCli {
         System.out.println("Ranking: starter market value, then total usable player market value. Draft capital is excluded; positional depth is descriptive only.");
         System.out.println("Roster-strength tier is not contender/rebuilder posture and creates no recommendation.");
         for (var team : report.teams()) {
-            System.out.printf("%s [%s]: tier=%s starter-value=%.2f total-player-value=%.2f coverage=%d/%d (%.1f%%) stale=%d missing=%d%n",
-                team.teamName(), team.teamId(), team.tier(), team.starterValue(), team.totalPlayerValue(),
-                team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(), team.stalePlayers(), team.missingPlayers());
+            printTeam(team);
         }
+    }
+
+    static void printTeam(LeagueRosterStrengthTierAnalyzer.TeamRosterStrength team) {
+        if (team == null) throw new IllegalArgumentException("team must not be null");
+        System.out.printf("%s  tier=%s  starter-value=%.2f  total-player-value=%.2f%n",
+            team.teamName(), team.tier(), team.starterValue(), team.totalPlayerValue());
+        System.out.printf("  coverage=%d/%d (%.1f%%)  stale=%d  missing=%d  team-id=%s%n",
+            team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(),
+            team.stalePlayers(), team.missingPlayers(), team.teamId());
     }
 
     private static LocalDate parseDate(String value) {
