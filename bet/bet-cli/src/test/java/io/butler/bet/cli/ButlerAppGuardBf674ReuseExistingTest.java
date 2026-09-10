@@ -35,12 +35,27 @@ class ButlerAppGuardBf674ReuseExistingTest {
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(guard.contains("$existingUrl = \"http://127.0.0.1:$ExistingPort/\""));
-        assertTrue(guard.contains("if (-not $NoBrowser)"));
-        assertTrue(guard.contains("Start-Process -FilePath $existingUrl"));
+        assertTrue(guard.contains("Start-Process $existingUrl"));
 
-        int condition = guard.indexOf("if (-not $NoBrowser)");
-        int browser = guard.indexOf("Start-Process -FilePath $existingUrl");
-        assertTrue(condition >= 0 && browser > condition);
+        int helper = guard.indexOf("function Use-ExistingManagedButler");
+        int condition = guard.indexOf("if (-not $NoBrowser)", helper);
+        int browser = guard.indexOf("Start-Process $existingUrl", helper);
+        assertTrue(helper >= 0 && condition > helper && browser > condition);
+    }
+
+    @Test
+    void explicitLeagueNeverSilentlyReusesAnUnverifiedRunningTarget() throws Exception {
+        String guard = script("scripts/butler-app-guard.ps1");
+
+        assertTrue(guard.contains("$leagueWasExplicit = $PSBoundParameters.ContainsKey(\"LeagueId\")"));
+        assertTrue(guard.contains("if ($leagueWasExplicit)"));
+        assertTrue(guard.contains("The explicitly requested -LeagueId cannot be verified against the existing app"));
+
+        int existing = guard.indexOf("$existingManagedPort = Get-ExistingManagedButlerPort");
+        int leagueGuard = guard.indexOf("if ($leagueWasExplicit)", existing);
+        int blockedExit = guard.indexOf("exit 1", leagueGuard);
+        int reuse = guard.indexOf("Use-ExistingManagedButler -ExistingPort $Port", existing);
+        assertTrue(existing >= 0 && leagueGuard > existing && blockedExit > leagueGuard && reuse > blockedExit);
     }
 
     @Test
