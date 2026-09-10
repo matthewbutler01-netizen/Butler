@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TeamAssetPortfolioAnalyzerTest {
@@ -103,6 +104,34 @@ class TeamAssetPortfolioAnalyzerTest {
         assertEquals(160.0, report.draftPickValue());
     }
 
+    @Test
+    void unresolvedExplicitSourceFailsClosedInsteadOfReturningZeroCoverage() throws Exception {
+        Fixture f = fixture(LeagueValueFormat.TWO_QB);
+        f.playerValues.save(PlayerValue.create(f.qb.getId(), 300,
+            DynastyProcessValueImporter.SOURCE_2QB, LocalDate.of(2026, 9, 1)));
+        String unresolvedSource = UUID.randomUUID().toString();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamAssetPortfolioAnalyzer(f.database).analyze(f.league.getId(), unresolvedSource));
+
+        assertTrue(error.getMessage().contains(f.league.getId()));
+        assertTrue(error.getMessage().contains(unresolvedSource));
+        assertTrue(error.getMessage().contains(DynastyProcessValueImporter.SOURCE_2QB));
+    }
+
+    @Test
+    void explicitSourceFailsClosedWhenNoPersistedValueSourcesExist() throws Exception {
+        Fixture f = fixture(LeagueValueFormat.TWO_QB);
+        String unresolvedSource = UUID.randomUUID().toString();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+            () -> new TeamAssetPortfolioAnalyzer(f.database).analyze(f.league.getId(), unresolvedSource));
+
+        assertTrue(error.getMessage().contains(f.league.getId()));
+        assertTrue(error.getMessage().contains(unresolvedSource));
+        assertTrue(error.getMessage().contains("No persisted value sources are available."));
+    }
+
     private Fixture fixture(LeagueValueFormat format) throws Exception {
         Database database = new Database(tempDir.resolve("portfolio.db"));
         database.initialize();
@@ -139,6 +168,5 @@ class TeamAssetPortfolioAnalyzerTest {
 
     private record Fixture(Database database, League league, Player qb, Player wr,
                            DraftPick alphaFirst, DraftPick betaSecond,
-                           PlayerValueRepository playerValues,
-                           DraftPickValueRepository pickValues) {}
+                           PlayerValueRepository playerValues, DraftPickValueRepository pickValues) {}
 }

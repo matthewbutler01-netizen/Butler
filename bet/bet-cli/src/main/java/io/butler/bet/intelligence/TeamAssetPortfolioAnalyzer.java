@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Reports each fantasy team's persisted player and draft-pick asset value separately.
@@ -47,8 +49,23 @@ public final class TeamAssetPortfolioAnalyzer {
 
     public PortfolioReport analyze(String leagueId, String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
+        String normalizedSource = requireText(source, "source");
         leagues.analyze(normalizedLeagueId);
-        return analyzeResolved(normalizedLeagueId, requireText(source, "source"));
+        validateExplicitSource(normalizedLeagueId, normalizedSource);
+        return analyzeResolved(normalizedLeagueId, normalizedSource);
+    }
+
+    private void validateExplicitSource(String leagueId, String source) throws SQLException {
+        Set<String> available = new TreeSet<>();
+        available.addAll(playerValues.findSources());
+        available.addAll(draftPickValues.findSources());
+        if (available.contains(source)) return;
+
+        String availability = available.isEmpty()
+            ? "No persisted value sources are available."
+            : "Available persisted sources: " + String.join(", ", available);
+        throw new IllegalArgumentException(
+            "unknown portfolio value source for league " + leagueId + ": " + source + ". " + availability);
     }
 
     private PortfolioReport analyzeResolved(String leagueId, String source) throws SQLException {
