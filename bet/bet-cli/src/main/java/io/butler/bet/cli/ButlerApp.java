@@ -520,11 +520,17 @@ public final class ButlerApp {
             return;
         }
         for (var team : report.teams()) {
-            System.out.printf("%d. %s  total=%.2f  players=%.2f  picks=%.2f  assets=%d players + %d picks  dates=%s  [%s]%n",
-                team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
-                team.valuedPlayers(), team.valuedDraftPicks(),
-                valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
+            printFranchiseRankingTeam(team);
         }
+    }
+
+    static void printFranchiseRankingTeam(FranchiseValueRankingAnalyzer.FranchiseValue team) {
+        if (team == null) throw new IllegalArgumentException("team must not be null");
+        System.out.printf("%d. %s  total=%.2f  players=%.2f  picks=%.2f%n",
+            team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue());
+        System.out.printf("  assets: players=%d  picks=%d  dates=%s  team-id=%s%n",
+            team.valuedPlayers(), team.valuedDraftPicks(),
+            valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
     }
 
     private static void printTeamPortfolio(String leagueId, String sourceOverride) throws SQLException {
