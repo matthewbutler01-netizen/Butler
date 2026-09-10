@@ -49,4 +49,20 @@ class ButlerLeagueFutureCapitalCliTest {
     void recognizesOnlyFutureCapitalCommand() {
         assertTrue(ButlerLeagueFutureCapitalCli.isCommand(new String[]{"league", "future-capital", "l1"}));
     }
+
+    @Test
+    void formatsCompactFutureCapitalRows() {
+        String lineSeparator = System.lineSeparator();
+
+        assertEquals(
+            "Alpha: tier=STRONG value=456.78" + lineSeparator
+                + "  coverage=5/6 (83.3%) stale=1 missing=0 team-id=team-7" + lineSeparator,
+            ButlerLeagueFutureCapitalCli.formatTeam(
+                "Alpha", "team-7", "STRONG", 456.78, 5, 6, 83.3, 1, 0));
+
+        assertEquals(
+            "  2027: value=123.45 coverage=2/3 (66.7%) stale=0 missing=1 rounds={1=1, 2=1}" + lineSeparator,
+            ButlerLeagueFutureCapitalCli.formatSeason(
+                2027, 123.45, 2, 3, 66.7, 0, 1, "{1=1, 2=1}"));
+    }
 }
