@@ -233,7 +233,7 @@ public final class ButlerLauncher {
         System.out.println(result.persisted() ? "nflverse production refresh" : "nflverse production preview");
         System.out.println("Season: " + result.season());
         System.out.println("As-of: " + result.asOfDate());
-        System.out.printf("Provider rows: %d  requested-season=%d  crosswalk=%d  mapped=%d%n",
+        System.out.printf("provider-rows=%d  requested-season-rows=%d  crosswalk-entries=%d  mapped-provider-rows=%d%n",
             result.providerRows(), result.providerRowsForSeason(), result.crosswalkEntries(), result.providerRowsMapped());
         System.out.printf("Butler players: eligible=%d  matched=%d  unmatched=%d%n",
             result.eligiblePlayers(), result.matchedPlayers(), result.unmatchedPlayers());
