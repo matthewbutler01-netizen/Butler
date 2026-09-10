@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 
 /** Read-only CLI for governed league-relative future draft-capital tiers. */
 public final class ButlerLeagueFutureCapitalCli {
@@ -71,15 +72,47 @@ public final class ButlerLeagueFutureCapitalCli {
         System.out.println("Future-capital tier is a separate future-flexibility dimension; it does not change current roster strength, team posture, or create a trade recommendation.");
 
         for (var team : report.teams()) {
-            System.out.printf("%s  tier=%s  value=%.2f  coverage=%d/%d (%.1f%%)  stale=%d missing=%d  [%s]%n",
-                team.teamName(), team.tier(), team.value(), team.valuedPicks(), team.totalPicks(),
-                team.coveragePercent(), team.stalePicks(), team.missingPicks(), team.teamId());
+            System.out.print(formatTeam(
+                team.teamName(), team.teamId(), team.tier(), team.value(), team.valuedPicks(), team.totalPicks(),
+                team.coveragePercent(), team.stalePicks(), team.missingPicks()));
             for (var season : team.seasons()) {
-                System.out.printf("  %d: value=%.2f coverage=%d/%d (%.1f%%) stale=%d missing=%d rounds=%s%n",
+                System.out.print(formatSeason(
                     season.season(), season.value(), season.valuedPicks(), season.totalPicks(), season.coveragePercent(),
-                    season.stalePicks(), season.missingPicks(), season.roundCounts());
+                    season.stalePicks(), season.missingPicks(), season.roundCounts()));
             }
         }
+    }
+
+    static String formatTeam(
+        String teamName,
+        String teamId,
+        Object tier,
+        double value,
+        int valuedPicks,
+        int totalPicks,
+        double coveragePercent,
+        int stalePicks,
+        int missingPicks
+    ) {
+        return String.format(Locale.ROOT,
+            "%s: tier=%s value=%.2f%n"
+                + "  coverage=%d/%d (%.1f%%) stale=%d missing=%d team-id=%s%n",
+            teamName, tier, value, valuedPicks, totalPicks, coveragePercent, stalePicks, missingPicks, teamId);
+    }
+
+    static String formatSeason(
+        int season,
+        double value,
+        int valuedPicks,
+        int totalPicks,
+        double coveragePercent,
+        int stalePicks,
+        int missingPicks,
+        Object roundCounts
+    ) {
+        return String.format(Locale.ROOT,
+            "  %d: value=%.2f coverage=%d/%d (%.1f%%) stale=%d missing=%d rounds=%s%n",
+            season, value, valuedPicks, totalPicks, coveragePercent, stalePicks, missingPicks, roundCounts);
     }
 
     static void printUsage() {
