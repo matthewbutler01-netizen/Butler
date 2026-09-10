@@ -1,0 +1,119 @@
+name: BF-535 patch
+
+on:
+  push:
+    branches:
+      - bf-535-improve-team-context-terminal-readability
+    paths:
+      - .github/workflows/bf535-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: bf-535-improve-team-context-terminal-readability
+      - name: Apply BF-535 terminal readability patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          main = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMain.java')
+          text = main.read_text(encoding='utf-8')
+          old = '''        else for (var team : context.teams()) {
+            String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
+            String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
+            System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
+                team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.valuedAssets(), team.totalAssets(),
+                team.coveragePercent(), movement, team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
+                team.risers(), team.fallers(), team.unchanged(), team.teamId());
+        }
+        printLeagueActions(context.actionPlan().actions());
+    }
+'''
+          new = '''        else for (var team : context.teams()) {
+            printLeagueTeamContextTeam(team);
+        }
+        printLeagueActions(context.actionPlan().actions());
+    }
+
+    static void printLeagueTeamContextTeam(LeagueTeamContextAnalyzer.TeamContext team) {
+        if (team == null) throw new IllegalArgumentException("team must not be null");
+        String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
+        String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
+        System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f%n",
+            team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue());
+        System.out.printf("  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)%n",
+            team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
+            team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent());
+        System.out.printf("  movement-counts: risers=%d  fallers=%d  unchanged=%d  team-id=%s%n",
+            team.risers(), team.fallers(), team.unchanged(), team.teamId());
+    }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected team-context output block once, found {text.count(old)}')
+          main.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+
+          test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerMainTest.java')
+          text = test.read_text(encoding='utf-8')
+          import_anchor = 'import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;\n'
+          import_replacement = 'import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;\nimport io.butler.bet.intelligence.LeagueTeamContextAnalyzer;\n'
+          if text.count(import_anchor) != 1:
+              raise SystemExit(f'expected import anchor once, found {text.count(import_anchor)}')
+          text = text.replace(import_anchor, import_replacement, 1)
+          marker = '    @Test\n    void printsRequiredAndOptionalActionsWithDeterministicCommands() {'
+          addition = (
+              '    @Test\n'
+              '    void rendersTeamContextAsCompactPrimaryAndDetailRows() {\n'
+              '        var team = new LeagueTeamContextAnalyzer.TeamContext(\n'
+              '            4, "team-123", "Love: JT, Jeanty &Javonte",\n'
+              '            1234.50, 678.25, 1912.75, 24, 25, 96.0,\n'
+              '            15.75, 20, 25, 11, 8, 1);\n'
+              '\n'
+              '        String output = capture(() -> ButlerMain.printLeagueTeamContextTeam(team));\n'
+              '        String[] lines = output.strip().split("\\\\R");\n'
+              '\n'
+              '        assertTrue(lines.length == 3);\n'
+              '        assertTrue(lines[0].equals(\n'
+              '            "Love: JT, Jeanty &Javonte  rank=4  total=1912.75  players=1234.50  picks=678.25"));\n'
+              '        assertTrue(lines[0].length() <= 120);\n'
+              '        assertTrue(lines[1].equals(\n'
+              '            "  coverage=24/25 (96.0%)  movement=+15.75  movement-coverage=20/25 (80.0%)"));\n'
+              '        assertTrue(lines[2].equals(\n'
+              '            "  movement-counts: risers=11  fallers=8  unchanged=1  team-id=team-123"));\n'
+              '    }\n'
+              '\n'
+              '    @Test\n'
+              '    void rendersUnavailableTeamMovementWithoutInventingDelta() {\n'
+              '        var team = new LeagueTeamContextAnalyzer.TeamContext(\n'
+              '            null, "team-alpha", "Alpha",\n'
+              '            100.0, 50.0, 150.0, 2, 3, 66.7,\n'
+              '            null, 0, 2, 0, 0, 0);\n'
+              '\n'
+              '        String output = capture(() -> ButlerMain.printLeagueTeamContextTeam(team));\n'
+              '\n'
+              '        assertTrue(output.contains("Alpha  rank=-  total=150.00  players=100.00  picks=50.00"));\n'
+              '        assertTrue(output.contains("movement=unavailable"));\n'
+              '        assertTrue(output.contains("movement-coverage=0/2 (0.0%)"));\n'
+              '        assertTrue(output.contains("team-id=team-alpha"));\n'
+              '    }\n'
+              '\n'
+          )
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected test insertion point once, found {text.count(marker)}')
+          test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8', newline='\n')
+          PY
+          rm .github/workflows/bf535-patch.yml
+      - name: Commit BF-535 patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMain.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerMainTest.java .github/workflows/bf535-patch.yml
+          git commit -m "BF-535: improve team-context terminal readability"
+          git push origin HEAD:bf-535-improve-team-context-terminal-readability
