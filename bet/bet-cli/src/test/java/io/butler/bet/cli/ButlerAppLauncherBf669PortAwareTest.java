@@ -19,11 +19,25 @@ class ButlerAppLauncherBf669PortAwareTest {
 
         assertTrue(script.contains("function Get-AppPortState"));
         assertTrue(script.contains("http://127.0.0.1:$RequestedPort/health"));
-        assertTrue(script.contains("[System.Net.WebExceptionStatus]::ConnectFailure"));
+        assertTrue(script.contains("$request.Proxy = $null"));
+        assertTrue(script.contains("[System.Net.Sockets.TcpListener]::new("));
+        assertTrue(script.contains("$probe.Start()"));
+        assertTrue(script.contains("catch [System.Net.Sockets.SocketException]"));
         assertTrue(script.contains("return \"FREE\""));
         assertTrue(script.contains("return \"OCCUPIED_BUTLER\""));
         assertTrue(script.contains("return \"OCCUPIED_OTHER\""));
         assertTrue(script.contains("\"service\"\\s*:\\s*\"butler-app-shell\""));
+        assertFalse(script.contains("[System.Net.WebExceptionStatus]::ConnectFailure"));
+    }
+
+    @Test
+    void failedHealthProbeFallsThroughToActualLoopbackBindCheck() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("if ($null -ne $_.Exception.Response)"));
+        assertTrue(script.contains("if ($null -ne $response)"));
+        assertTrue(script.contains("[System.Net.IPAddress]::Parse(\"127.0.0.1\")"));
+        assertTrue(script.contains("try { $probe.Stop() } catch {}"));
     }
 
     @Test
