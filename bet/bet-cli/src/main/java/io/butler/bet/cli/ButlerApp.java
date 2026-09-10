@@ -519,9 +519,14 @@ public final class ButlerApp {
             System.out.println("No teams found for this league.");
             return;
         }
-        for (var team : report.teams()) {
-            System.out.printf("%d. %s  total=%.2f  players=%.2f  picks=%.2f  assets=%d players + %d picks  dates=%s  [%s]%n",
-                team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue(),
+        printFranchiseRankingTeams(report.teams());
+    }
+
+    static void printFranchiseRankingTeams(List<FranchiseValueRankingAnalyzer.FranchiseValue> teams) {
+        for (var team : teams) {
+            System.out.printf("%d. %s  total=%.2f  players=%.2f  picks=%.2f%n",
+                team.rank(), team.teamName(), team.totalAssetValue(), team.playerValue(), team.draftPickValue());
+            System.out.printf("  assets=%d players + %d picks  dates=%s  team-id=%s%n",
                 team.valuedPlayers(), team.valuedDraftPicks(),
                 valueDates(team.oldestValueDate(), team.latestValueDate()), team.teamId());
         }
