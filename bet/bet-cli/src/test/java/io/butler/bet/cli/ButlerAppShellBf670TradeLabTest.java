@@ -52,6 +52,19 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
+    void windowsPowerShell51UsesUnambiguousTradeQueryParser() throws Exception {
+        String shell = script("scripts/butler-app-shell.ps1");
+
+        int tradeModuleLoad = shell.indexOf(". $tradeLab");
+        int compatibilityOverride = shell.indexOf("function ConvertFrom-TradeRequestTarget");
+        assertTrue(tradeModuleLoad >= 0 && compatibilityOverride > tradeModuleLoad);
+        assertTrue(shell.contains("$equals = $pair.IndexOf('=')"));
+        assertTrue(shell.contains("$pair.Substring(0, $equals)"));
+        assertTrue(shell.contains("$pair.Substring($equals + 1)"));
+        assertFalse(shell.contains(".Split(@('='), 2)"));
+    }
+
+    @Test
     void preservedCoreStillCarriesBf667AndBf668AppBehavior() throws Exception {
         String core = script("scripts/butler-app-shell-core.ps1");
 
