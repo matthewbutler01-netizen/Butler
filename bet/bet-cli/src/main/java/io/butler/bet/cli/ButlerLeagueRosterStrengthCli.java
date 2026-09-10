@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 
 /** Read-only CLI for governed league-relative current-roster strength tiers. */
 public final class ButlerLeagueRosterStrengthCli {
@@ -63,10 +64,29 @@ public final class ButlerLeagueRosterStrengthCli {
         System.out.println("Ranking: starter market value, then total usable player market value. Draft capital is excluded; positional depth is descriptive only.");
         System.out.println("Roster-strength tier is not contender/rebuilder posture and creates no recommendation.");
         for (var team : report.teams()) {
-            System.out.printf("%s [%s]: tier=%s starter-value=%.2f total-player-value=%.2f coverage=%d/%d (%.1f%%) stale=%d missing=%d%n",
+            System.out.print(formatTeam(
                 team.teamName(), team.teamId(), team.tier(), team.starterValue(), team.totalPlayerValue(),
-                team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(), team.stalePlayers(), team.missingPlayers());
+                team.valuedPlayers(), team.totalPlayers(), team.coveragePercent(), team.stalePlayers(), team.missingPlayers()));
         }
+    }
+
+    static String formatTeam(
+        String teamName,
+        String teamId,
+        Object tier,
+        double starterValue,
+        double totalPlayerValue,
+        int valuedPlayers,
+        int totalPlayers,
+        double coveragePercent,
+        int stalePlayers,
+        int missingPlayers
+    ) {
+        return String.format(Locale.ROOT,
+            "%s: tier=%s starter-value=%.2f total-player-value=%.2f%n"
+                + "  coverage=%d/%d (%.1f%%) stale=%d missing=%d team-id=%s%n",
+            teamName, tier, starterValue, totalPlayerValue,
+            valuedPlayers, totalPlayers, coveragePercent, stalePlayers, missingPlayers, teamId);
     }
 
     private static LocalDate parseDate(String value) {
