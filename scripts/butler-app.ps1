@@ -13,7 +13,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$dashboard = Join-Path $scriptDir "butler-dashboard.ps1"
+$appShell = Join-Path $scriptDir "butler-app-shell.ps1"
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
     $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
@@ -25,8 +25,8 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 $configDir = Join-Path $localAppData "Butler"
 $configPath = Join-Path $configDir "app-league.txt"
 
-if (-not (Test-Path -LiteralPath $dashboard)) {
-    throw "BF-666 BLOCKED: governed Butler dashboard not found at $dashboard"
+if (-not (Test-Path -LiteralPath $appShell)) {
+    throw "BF-667 BLOCKED: Butler app shell not found at $appShell"
 }
 
 function ConvertTo-ButlerLeagueId {
@@ -92,11 +92,11 @@ elseif ($null -ne $requestedLeagueId) {
 
 Write-Host "Butler App"
 Write-Host "League: $selectedLeagueId"
-Write-Host "Launching governed local dashboard on port $Port."
+Write-Host "Launching Butler app shell on port $Port."
 
 if ($NoBrowser) {
-    & $dashboard -LeagueId $selectedLeagueId -Port $Port -NoBrowser
+    & $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser
 }
 else {
-    & $dashboard -LeagueId $selectedLeagueId -Port $Port
+    & $appShell -LeagueId $selectedLeagueId -Port $Port
 }
