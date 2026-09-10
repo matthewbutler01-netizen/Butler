@@ -55,9 +55,22 @@ public final class ButlerLeagueTeamPostureCli {
         System.out.println("Available: " + report.available());
         System.out.println("Posture is descriptive strategic context only; it is not an accept/reject trade recommendation.");
         for (var team : report.teams()) {
-            System.out.printf("%s [%s]: competitive=%s  roster=%s  posture=%s%n",
-                team.teamName(), team.teamId(), team.competitiveTier(), team.rosterTier(), team.posture());
+            System.out.print(formatTeam(
+                team.teamName(), team.teamId(), team.competitiveTier(), team.rosterTier(), team.posture()));
         }
+    }
+
+    static String formatTeam(
+        String teamName,
+        String teamId,
+        Object competitiveTier,
+        Object rosterTier,
+        Object posture
+    ) {
+        return String.format(
+            "%s: competitive=%s roster=%s posture=%s%n"
+                + "  team-id=%s%n",
+            teamName, competitiveTier, rosterTier, posture, teamId);
     }
 
     private static int parseSeason(String value) {
