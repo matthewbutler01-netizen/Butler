@@ -28,4 +28,15 @@ class ButlerLeagueTeamPostureCliTest {
         assertEquals(ButlerCommandRouter.Route.LEAGUE_TEAM_POSTURE,
             ButlerCommandRouter.route(new String[]{"league", "team-posture", "l1", "2026"}));
     }
+
+    @Test
+    void formatsCompactTeamPostureRows() {
+        String lineSeparator = System.lineSeparator();
+
+        assertEquals(
+            "Alpha: competitive=CONTENDER roster=STRONG posture=BUY" + lineSeparator
+                + "  team-id=team-7" + lineSeparator,
+            ButlerLeagueTeamPostureCli.formatTeam(
+                "Alpha", "team-7", "CONTENDER", "STRONG", "BUY"));
+    }
 }
