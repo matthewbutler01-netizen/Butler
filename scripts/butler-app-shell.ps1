@@ -17,18 +17,20 @@ $repoRoot = Split-Path -Parent $scriptDir
 $coreShell = Join-Path $scriptDir 'butler-app-shell-core.ps1'
 $tradeHost = Join-Path $scriptDir 'butler-trade-lab-host.ps1'
 $tradeLab = Join-Path $scriptDir 'butler-trade-lab.ps1'
+$history = Join-Path $scriptDir 'butler-decision-history.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 
-foreach ($required in @($coreShell, $tradeHost, $tradeLab, $gradle)) {
+foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-670 BLOCKED: required Butler app component not found at $required"
     }
 }
 
-# Trade Lab host defines only read-only presentation/orchestration helpers.
+# App modules define only read-only presentation/orchestration helpers.
 . $tradeHost
 . $tradeLab
+. $history
 
 # Windows PowerShell 5.1 can bind String.Split(char[], int) calls to the
 # StringSplitOptions overload. Override only the request-query parser with
@@ -203,12 +205,13 @@ try {
     $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
-    Write-Host 'Butler App Shell (BF-670)'
+    Write-Host 'Butler App Shell (BF-671)'
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
     Write-Host "League: http://127.0.0.1:$Port/league"
     Write-Host "Trade Lab: http://127.0.0.1:$Port/trade"
+    Write-Host "History: http://127.0.0.1:$Port/history"
     Write-Host 'Bind: 127.0.0.1 only'
     Write-Host "Preserved BF-668 app core: isolated on internal loopback port $innerPort"
     Write-Host 'Boundary: GET-only read-only app routing/presentation; no automatic Butler or Sleeper write.'
@@ -242,7 +245,24 @@ try {
             $path = $requestTarget.Split('?')[0]
 
             if ($path -eq '/health') {
-                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","bind":"127.0.0.1"}'
+                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","bind":"127.0.0.1"}'
+                continue
+            }
+
+            if ($path -eq '/history') {
+                try {
+                    $html = if ($requestTarget -ceq '/history') {
+                        Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId
+                    }
+                    else {
+                        Invoke-DecisionHistoryHtml -LeagueId $LeagueId
+                    }
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+                }
+                catch {
+                    $errorHtml = "<!doctype html><html><body><h1>Butler Decision History blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/history`">Return to Decision History</a></p></body></html>"
+                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+                }
                 continue
             }
 
@@ -267,7 +287,7 @@ try {
                 $proxied = Invoke-AppCoreGet -InnerPort $innerPort -RequestTarget $requestTarget
                 $body = $proxied.Body
                 if ($proxied.ContentType -match '^text/html' -and $body -match '<nav class="nav" aria-label="Butler sections">') {
-                    $body = Add-TradeNavigation -Html $body
+                    $body = Add-AppNavigation -Html $body
                 }
                 Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body
             }
