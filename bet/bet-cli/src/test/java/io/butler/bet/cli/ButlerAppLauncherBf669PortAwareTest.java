@@ -41,6 +41,22 @@ class ButlerAppLauncherBf669PortAwareTest {
     }
 
     @Test
+    void liveRunMarkerRecognizesBusyButlerWithoutDependingOnHealthTiming() throws Exception {
+        String script = script();
+
+        assertTrue(script.contains("running-port-{0}.txt"));
+        assertTrue(script.contains("function Test-LiveButlerRunState"));
+        assertTrue(script.contains("function Write-ButlerRunState"));
+        assertTrue(script.contains("function Remove-OwnButlerRunState"));
+        assertTrue(script.contains("Get-Process -Id $markerPid -ErrorAction SilentlyContinue"));
+        assertTrue(script.contains("$process.StartTime.ToUniversalTime().Ticks"));
+        assertTrue(script.contains("$liveRunState -and $portState -ceq \"OCCUPIED_OTHER\""));
+        assertTrue(script.contains("$portState = \"OCCUPIED_BUTLER\""));
+        assertTrue(script.contains("Butler is already starting on port $Port"));
+        assertTrue(script.contains("finally {\n    Remove-OwnButlerRunState\n}"));
+    }
+
+    @Test
     void duplicateAndForeignPortFailuresAreClearAndNeverKillProcesses() throws Exception {
         String script = script();
 

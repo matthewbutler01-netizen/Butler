@@ -24,6 +24,7 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 
 $configDir = Join-Path $localAppData "Butler"
 $configPath = Join-Path $configDir "app-league.txt"
+$runStatePath = Join-Path $configDir ("running-port-{0}.txt" -f $Port)
 
 if (-not (Test-Path -LiteralPath $appShell)) {
     throw "BF-667 BLOCKED: Butler app shell not found at $appShell"
@@ -51,6 +52,80 @@ function Read-ConfiguredLeagueId {
     }
     catch {
         throw "BF-666 BLOCKED: Butler app league configuration is invalid. Run scripts\butler-app.cmd -ResetLeague and configure it again."
+    }
+}
+
+function Remove-StaleRunState {
+    try {
+        if (Test-Path -LiteralPath $runStatePath) {
+            Remove-Item -LiteralPath $runStatePath -Force
+        }
+    }
+    catch {
+    }
+}
+
+function Test-LiveButlerRunState {
+    if (-not (Test-Path -LiteralPath $runStatePath)) { return $false }
+
+    try {
+        $raw = [IO.File]::ReadAllText($runStatePath, [Text.Encoding]::ASCII).Trim()
+        $parts = $raw.Split('|')
+        if ($parts.Length -ne 3) {
+            Remove-StaleRunState
+            return $false
+        }
+
+        $markerPid = 0
+        $markerStartTicks = 0L
+        if (-not [int]::TryParse($parts[0], [ref]$markerPid)) {
+            Remove-StaleRunState
+            return $false
+        }
+        if (-not [long]::TryParse($parts[1], [ref]$markerStartTicks)) {
+            Remove-StaleRunState
+            return $false
+        }
+
+        $process = Get-Process -Id $markerPid -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            Remove-StaleRunState
+            return $false
+        }
+
+        $actualStartTicks = $process.StartTime.ToUniversalTime().Ticks
+        if ($actualStartTicks -ne $markerStartTicks) {
+            Remove-StaleRunState
+            return $false
+        }
+
+        return $true
+    }
+    catch {
+        Remove-StaleRunState
+        return $false
+    }
+}
+
+function Write-ButlerRunState {
+    param([Parameter(Mandatory = $true)][string]$SelectedLeagueId)
+
+    [IO.Directory]::CreateDirectory($configDir) | Out-Null
+    $self = Get-Process -Id $PID
+    $startTicks = $self.StartTime.ToUniversalTime().Ticks
+    $text = "$PID|$startTicks|$SelectedLeagueId`r`n"
+    [IO.File]::WriteAllText($runStatePath, $text, [Text.Encoding]::ASCII)
+}
+
+function Remove-OwnButlerRunState {
+    try {
+        if (-not (Test-Path -LiteralPath $runStatePath)) { return }
+        $raw = [IO.File]::ReadAllText($runStatePath, [Text.Encoding]::ASCII).Trim()
+        if ($raw.StartsWith("$PID|", [System.StringComparison]::Ordinal)) {
+            Remove-Item -LiteralPath $runStatePath -Force
+        }
+    }
+    catch {
     }
 }
 
@@ -143,7 +218,14 @@ elseif ($null -ne $requestedLeagueId) {
     Write-Host "Butler app league selection already matches."
 }
 
+$liveRunState = Test-LiveButlerRunState
 $portState = Get-AppPortState -RequestedPort $Port
+if ($liveRunState -and $portState -ceq "OCCUPIED_OTHER") {
+    $portState = "OCCUPIED_BUTLER"
+}
+if ($liveRunState -and $portState -ceq "FREE") {
+    throw "BF-669 BLOCKED: Butler is already starting on port $Port. Wait for the existing Butler window to finish launching before trying again."
+}
 if ($portState -ceq "OCCUPIED_BUTLER") {
     throw "BF-669 BLOCKED: Butler is already running on port $Port. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
 }
@@ -151,13 +233,19 @@ if ($portState -ceq "OCCUPIED_OTHER") {
     throw "BF-669 BLOCKED: local port $Port is already in use by another process. Butler will not stop it automatically. Stop that process yourself or launch Butler with -Port <free-port>."
 }
 
-Write-Host "Butler App"
-Write-Host "League: $selectedLeagueId"
-Write-Host "Launching Butler app shell on port $Port."
+Write-ButlerRunState -SelectedLeagueId $selectedLeagueId
+try {
+    Write-Host "Butler App"
+    Write-Host "League: $selectedLeagueId"
+    Write-Host "Launching Butler app shell on port $Port."
 
-if ($NoBrowser) {
-    & $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser
+    if ($NoBrowser) {
+        & $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser
+    }
+    else {
+        & $appShell -LeagueId $selectedLeagueId -Port $Port
+    }
 }
-else {
-    & $appShell -LeagueId $selectedLeagueId -Port $Port
+finally {
+    Remove-OwnButlerRunState
 }
