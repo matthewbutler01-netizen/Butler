@@ -60,36 +60,50 @@ function Get-AppPortState {
     $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$RequestedPort/health")
     $request.Method = "GET"
     $request.Timeout = 600
+    $request.Proxy = $null
     $response = $null
     try {
         try {
             $response = $request.GetResponse()
         }
         catch [System.Net.WebException] {
-            if ($null -eq $_.Exception.Response) {
-                if ($_.Exception.Status -eq [System.Net.WebExceptionStatus]::ConnectFailure) {
-                    return "FREE"
-                }
-                return "OCCUPIED_OTHER"
+            if ($null -ne $_.Exception.Response) {
+                $response = $_.Exception.Response
             }
-            $response = $_.Exception.Response
         }
 
-        $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
-        try {
-            $body = $reader.ReadToEnd()
-        }
-        finally {
-            $reader.Dispose()
-        }
+        if ($null -ne $response) {
+            $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try {
+                $body = $reader.ReadToEnd()
+            }
+            finally {
+                $reader.Dispose()
+            }
 
-        if ([int]$response.StatusCode -eq 200 -and $body -match '"service"\s*:\s*"butler-app-shell"') {
-            return "OCCUPIED_BUTLER"
+            if ([int]$response.StatusCode -eq 200 -and $body -match '"service"\s*:\s*"butler-app-shell"') {
+                return "OCCUPIED_BUTLER"
+            }
+            return "OCCUPIED_OTHER"
         }
-        return "OCCUPIED_OTHER"
     }
     finally {
         if ($null -ne $response) { $response.Close() }
+    }
+
+    $probe = [System.Net.Sockets.TcpListener]::new(
+        [System.Net.IPAddress]::Parse("127.0.0.1"),
+        $RequestedPort
+    )
+    try {
+        $probe.Start()
+        return "FREE"
+    }
+    catch [System.Net.Sockets.SocketException] {
+        return "OCCUPIED_OTHER"
+    }
+    finally {
+        try { $probe.Stop() } catch {}
     }
 }
 
