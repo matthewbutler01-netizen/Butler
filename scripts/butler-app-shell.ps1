@@ -202,7 +202,12 @@ try {
 
             if ($path -eq '/trade') {
                 try {
-                    $html = Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget
+                    $html = if ($requestTarget -ceq '/trade') {
+                        Get-TradeLabLoadingHtml -LeagueId $LeagueId
+                    }
+                    else {
+                        Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget
+                    }
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
                 }
                 catch {
