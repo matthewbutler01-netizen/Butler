@@ -56,7 +56,7 @@ function Test-LoopbackPortBindable {
 
 function Get-ExistingManagedButlerPort {
     foreach ($candidatePort in $managedPorts) {
-        $candidateMutexName = "Local\\Butler.App.Port.$candidatePort"
+        $candidateMutexName = "Local\Butler.App.Port.$candidatePort"
         $candidateCreatedNew = $false
         $candidateMutex = $null
         try {
@@ -114,7 +114,7 @@ if (-not $portWasExplicit) {
     }
 }
 
-$mutexName = "Local\\Butler.App.Port.$Port"
+$mutexName = "Local\Butler.App.Port.$Port"
 $createdNew = $false
 $instanceMutex = $null
 try {
