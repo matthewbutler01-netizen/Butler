@@ -12,6 +12,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $portWasExplicit = $PSBoundParameters.ContainsKey("Port")
+$leagueWasExplicit = $PSBoundParameters.ContainsKey("LeagueId")
 $managedPorts = 8080..8099
 $loopback = [System.Net.IPAddress]::Parse("127.0.0.1")
 
@@ -111,6 +112,17 @@ function Get-ExistingManagedButlerPort {
     return $null
 }
 
+function Use-ExistingManagedButler {
+    param([Parameter(Mandatory = $true)][int]$ExistingPort)
+
+    $existingUrl = "http://127.0.0.1:$ExistingPort/"
+    Write-Host "Butler is already running on port $ExistingPort."
+    Write-Host "Local URL: $existingUrl"
+    if (-not $NoBrowser) {
+        Start-Process $existingUrl
+    }
+}
+
 function Open-ButlerPortLock {
     param([Parameter(Mandatory = $true)][int]$SelectedPort)
 
@@ -133,7 +145,15 @@ function Open-ButlerPortLock {
 if (-not $portWasExplicit) {
     $existingManagedPort = Get-ExistingManagedButlerPort
     if ($null -ne $existingManagedPort) {
+        # BF-674 turns a proven BF-673 duplicate discovery into normal app reuse.
+        # Do not reacquire its lock or mutex; explicit -Port still reaches BF-669.
         $Port = [int]$existingManagedPort
+        if ($leagueWasExplicit) {
+            Write-Host "BF-674 BLOCKED: Butler is already running on port $Port. The explicitly requested -LeagueId cannot be verified against the existing app. Stop the existing Butler window with Ctrl+C before relaunching with -LeagueId."
+            exit 1
+        }
+        Use-ExistingManagedButler -ExistingPort $Port
+        exit 0
     }
     else {
         $selectedPort = $null
