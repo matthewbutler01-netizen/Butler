@@ -18,10 +18,11 @@ $coreShell = Join-Path $scriptDir 'butler-app-shell-core.ps1'
 $tradeHost = Join-Path $scriptDir 'butler-trade-lab-host.ps1'
 $tradeLab = Join-Path $scriptDir 'butler-trade-lab.ps1'
 $history = Join-Path $scriptDir 'butler-decision-history.ps1'
+$detail = Join-Path $scriptDir 'butler-decision-detail.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 
-foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $gradle)) {
+foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-670 BLOCKED: required Butler app component not found at $required"
     }
@@ -31,6 +32,7 @@ foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $gradle)) {
 . $tradeHost
 . $tradeLab
 . $history
+. $detail
 
 # Windows PowerShell 5.1 can bind String.Split(char[], int) calls to the
 # StringSplitOptions overload. Override only the request-query parser with
@@ -205,7 +207,7 @@ try {
     $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
-    Write-Host 'Butler App Shell (BF-671)'
+    Write-Host 'Butler App Shell (BF-672)'
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
@@ -245,7 +247,7 @@ try {
             $path = $requestTarget.Split('?')[0]
 
             if ($path -eq '/health') {
-                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","bind":"127.0.0.1"}'
+                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","bind":"127.0.0.1"}'
                 continue
             }
 
@@ -255,7 +257,7 @@ try {
                         Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId
                     }
                     else {
-                        Invoke-DecisionHistoryHtml -LeagueId $LeagueId
+                        Invoke-DecisionHistoryHtml -LeagueId $LeagueId -RequestTarget $requestTarget
                     }
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
                 }
