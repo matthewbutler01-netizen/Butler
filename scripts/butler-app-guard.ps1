@@ -11,6 +11,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$portWasExplicit = $PSBoundParameters.ContainsKey("Port")
+$managedPorts = 8080..8099
+$loopback = [System.Net.IPAddress]::Parse("127.0.0.1")
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appLauncher = Join-Path $scriptDir "butler-app.ps1"
@@ -35,11 +38,70 @@ function Invoke-ButlerLauncher {
     & $appLauncher @arguments
 }
 
+function Test-LoopbackPortBindable {
+    param([Parameter(Mandatory = $true)][int]$CandidatePort)
+
+    $probe = [System.Net.Sockets.TcpListener]::new($loopback, $CandidatePort)
+    try {
+        $probe.Start()
+        return $true
+    }
+    catch [System.Net.Sockets.SocketException] {
+        return $false
+    }
+    finally {
+        try { $probe.Stop() } catch {}
+    }
+}
+
+function Get-ExistingManagedButlerPort {
+    foreach ($candidatePort in $managedPorts) {
+        $candidateMutex = $null
+        try {
+            $candidateMutex = [System.Threading.Mutex]::OpenExisting("Local\Butler.App.Port.$candidatePort")
+            return [int]$candidatePort
+        }
+        catch [System.Threading.WaitHandleCannotBeOpenedException] {
+        }
+        finally {
+            if ($null -ne $candidateMutex) {
+                $candidateMutex.Dispose()
+            }
+        }
+    }
+    return $null
+}
+
 # Resetting the persisted league selection preserves the existing BF-666 behavior
 # and does not represent an app-server launch.
 if ($ResetLeague) {
     Invoke-ButlerLauncher
     exit 0
+}
+
+# BF-673 changes only the normal no-port app launch. Explicit -Port remains the
+# exact BF-669 contract and never silently moves to a different local port.
+if (-not $portWasExplicit) {
+    $existingManagedPort = Get-ExistingManagedButlerPort
+    if ($null -ne $existingManagedPort) {
+        $Port = [int]$existingManagedPort
+    }
+    else {
+        $selectedPort = $null
+        foreach ($candidatePort in $managedPorts) {
+            if (Test-LoopbackPortBindable -CandidatePort $candidatePort) {
+                $selectedPort = [int]$candidatePort
+                break
+            }
+        }
+        if ($null -eq $selectedPort) {
+            throw "BF-673 BLOCKED: no free Butler loopback port is available from 8080 through 8099. Butler did not stop or modify any listener."
+        }
+        $Port = [int]$selectedPort
+        if ($Port -ne 8080) {
+            Write-Host "Butler default port 8080 is unavailable. Using local port $Port instead."
+        }
+    }
 }
 
 $mutexName = "Local\Butler.App.Port.$Port"
