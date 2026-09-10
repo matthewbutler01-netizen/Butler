@@ -73,7 +73,7 @@ public final class ButlerLeagueRosterStrengthCli {
     static String formatTeam(
         String teamName,
         String teamId,
-        String tier,
+        Object tier,
         double starterValue,
         double totalPlayerValue,
         int valuedPlayers,
