@@ -221,9 +221,10 @@ public final class ButlerLauncher {
         System.out.printf("Production evidence: %d/%d (%.1f%%)%n",
             report.productionEvidencePlayers(), report.totalPlayers(), report.productionCoveragePercent());
         for (var team : report.teams()) {
-            System.out.printf("%s  readiness=%s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)  exact-birth=%d  reported-age=%d  experience=%d  [%s]%n",
+            System.out.printf("%s  %s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)%n",
                 team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
-                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent(),
+                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent());
+            System.out.printf("  details: exact-birth=%d  reported-age=%d  experience=%d  team-id=%s%n",
                 team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
         }
     }
