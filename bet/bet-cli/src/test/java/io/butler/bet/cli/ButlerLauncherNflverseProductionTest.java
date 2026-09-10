@@ -34,6 +34,8 @@ class ButlerLauncherNflverseProductionTest {
         String output = capture(() -> ButlerLauncher.printNflverseProduction(result));
 
         assertTrue(output.contains("nflverse production preview"));
+        assertTrue(output.contains("provider-rows=500  requested-season-rows=500  crosswalk-entries=12000  mapped-provider-rows=450"));
+        assertFalse(output.contains("requested-season=500"));
         assertTrue(output.contains("eligible=300  matched=280  unmatched=20"));
         assertTrue(output.contains("Production snapshots written: 0 (preview only)"));
         assertTrue(output.contains("Missing Player  sleeper=1001"));
