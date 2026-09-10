@@ -36,22 +36,46 @@ class LeagueAssetSearchAnalyzerTest {
         Fixture f = fixture();
         var analyzer = new LeagueAssetSearchAnalyzer(f.database);
 
-        var playerReport = analyzer.search(f.league.getId(), " receiver ");
+        var playerReport = analyzer.search(f.league.getId(), " quarterback ");
         assertEquals(DynastyProcessValueImporter.SOURCE_1QB, playerReport.source());
-        assertEquals("receiver", playerReport.query());
+        assertEquals("quarterback", playerReport.query());
         assertEquals(1, playerReport.totalMatches());
-        assertEquals(f.wr.getId(), playerReport.players().getFirst().playerId());
-        assertEquals("Beta", playerReport.players().getFirst().teamName());
+        assertEquals(f.qb.getId(), playerReport.players().getFirst().playerId());
+        assertEquals("Alpha", playerReport.players().getFirst().teamName());
 
         var pickReport = analyzer.search(f.league.getId(), "2027 1st");
         assertEquals(1, pickReport.totalMatches());
         assertEquals(f.alphaFirst.getId(), pickReport.draftPicks().getFirst().draftPickId());
-        assertEquals("Beta", pickReport.draftPicks().getFirst().teamName());
+        assertEquals("Love: JT, Jeanty &Javonte", pickReport.draftPicks().getFirst().teamName());
         assertEquals("Alpha", pickReport.draftPicks().getFirst().originalTeamName());
 
         var idReport = analyzer.search(f.league.getId(), f.alphaFirst.getId());
         assertEquals(1, idReport.totalMatches());
         assertEquals(f.alphaFirst.getId(), idReport.draftPicks().getFirst().draftPickId());
+    }
+
+    @Test
+    void playerSurnameCollisionWithOwningTeamNameReturnsOnlyMatchingAsset() throws Exception {
+        Fixture f = fixture();
+        var analyzer = new LeagueAssetSearchAnalyzer(f.database);
+
+        var report = analyzer.search(f.league.getId(), "Jeanty");
+
+        assertEquals(1, report.totalMatches());
+        assertEquals(1, report.players().size());
+        assertEquals(0, report.draftPicks().size());
+        assertEquals(f.wr.getId(), report.players().getFirst().playerId());
+        assertEquals("Ashton Jeanty", report.players().getFirst().playerName());
+        assertEquals("Love: JT, Jeanty &Javonte", report.players().getFirst().teamName());
+    }
+
+    @Test
+    void owningTeamNameAloneDoesNotFloodAssetSearch() throws Exception {
+        Fixture f = fixture();
+
+        var report = new LeagueAssetSearchAnalyzer(f.database).search(f.league.getId(), "Javonte");
+
+        assertEquals(0, report.totalMatches());
     }
 
     @Test
@@ -90,9 +114,9 @@ class LeagueAssetSearchAnalyzerTest {
 
         League league = new League(UUID.randomUUID().toString(), "league-ext", "League");
         Team alpha = new Team(UUID.randomUUID().toString(), "1", league.getId(), "Alpha");
-        Team beta = new Team(UUID.randomUUID().toString(), "2", league.getId(), "Beta");
+        Team beta = new Team(UUID.randomUUID().toString(), "2", league.getId(), "Love: JT, Jeanty &Javonte");
         Player qb = new Player(UUID.randomUUID().toString(), "qb-ext", "Quarterback Example", "QB", "CHI");
-        Player wr = new Player(UUID.randomUUID().toString(), "wr-ext", "Receiver Example", "WR", "MIN");
+        Player wr = new Player(UUID.randomUUID().toString(), "wr-ext", "Ashton Jeanty", "WR", "LV");
         leagues.save(league);
         formats.save(league.getId(), LeagueValueFormat.ONE_QB);
         teams.save(alpha);
