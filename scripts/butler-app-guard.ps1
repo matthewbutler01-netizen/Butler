@@ -111,6 +111,17 @@ function Get-ExistingManagedButlerPort {
     return $null
 }
 
+function Use-ExistingManagedButler {
+    param([Parameter(Mandatory = $true)][int]$ExistingPort)
+
+    $existingUrl = "http://127.0.0.1:$ExistingPort/"
+    Write-Host "Butler is already running on port $ExistingPort."
+    Write-Host "Local URL: $existingUrl"
+    if (-not $NoBrowser) {
+        Start-Process -FilePath $existingUrl
+    }
+}
+
 function Open-ButlerPortLock {
     param([Parameter(Mandatory = $true)][int]$SelectedPort)
 
@@ -133,7 +144,11 @@ function Open-ButlerPortLock {
 if (-not $portWasExplicit) {
     $existingManagedPort = Get-ExistingManagedButlerPort
     if ($null -ne $existingManagedPort) {
+        # BF-674 turns a proven BF-673 duplicate discovery into normal app reuse.
+        # Do not reacquire its lock or mutex; explicit -Port still reaches BF-669.
         $Port = [int]$existingManagedPort
+        Use-ExistingManagedButler -ExistingPort $Port
+        exit 0
     }
     else {
         $selectedPort = $null
