@@ -35,17 +35,25 @@ class ButlerAppLauncherBf666ScriptTest {
     }
 
     @Test
-    void commandLauncherUsesWindowsPowerShellAndForwardsAllArguments() throws Exception {
+    void commandLauncherUsesWindowsPowerShellAndForwardsAllArgumentsThroughGuard() throws Exception {
         String command = script("scripts/butler-app.cmd");
+        String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(command.contains("WindowsPowerShell\\v1.0\\powershell.exe"));
-        assertTrue(command.contains("-File \"%~dp0butler-app.ps1\" %*"));
+        assertTrue(command.contains("-File \"%~dp0butler-app-guard.ps1\" %*"));
         assertTrue(command.contains("exit /b %ERRORLEVEL%"));
+        assertTrue(guard.contains("$appLauncher = Join-Path $scriptDir \"butler-app.ps1\""));
+        assertTrue(guard.contains("$arguments.LeagueId = $LeagueId"));
+        assertTrue(guard.contains("Port = $Port"));
+        assertTrue(guard.contains("$arguments.NoBrowser = $true"));
+        assertTrue(guard.contains("$arguments.ResetLeague = $true"));
+        assertTrue(guard.contains("& $appLauncher @arguments"));
     }
 
     @Test
     void launcherScriptsRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app.ps1"));
+        assertAscii(script("scripts/butler-app-guard.ps1"));
         assertAscii(script("scripts/butler-app.cmd"));
     }
 
