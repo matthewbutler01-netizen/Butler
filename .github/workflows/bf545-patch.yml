@@ -4,53 +4,46 @@ on:
   push:
     branches:
       - bf-545-improve-player-evidence-terminal-readability
+    paths:
+      - .github/workflows/bf545-patch.yml
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          persist-credentials: true
-      - name: Apply BF-545 presentation patch
-        shell: python {0}
+          ref: bf-545-improve-player-evidence-terminal-readability
+      - name: Apply BF-545 terminal readability patch
+        shell: bash
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
           launcher = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java')
           text = launcher.read_text(encoding='utf-8')
-          old = '''        for (var team : report.teams()) {
-            System.out.printf("%s  readiness=%s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)  exact-birth=%d  reported-age=%d  experience=%d  [%s]%n",
-                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
-                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent(),
-                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
-        }
-'''
-          new = '''        for (var team : report.teams()) {
-            System.out.printf("%s  %s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)%n",
-                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
-                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent());
-            System.out.printf("  details: exact-birth=%d  reported-age=%d  experience=%d  team-id=%s%n",
-                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
-        }
-'''
-          if old not in text:
-              raise SystemExit('BF-545 launcher target block not found')
-          launcher.write_text(text.replace(old, new, 1), encoding='utf-8')
+          old = '        for (var team : report.teams()) {\n            System.out.printf("%s  readiness=%s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)  exact-birth=%d  reported-age=%d  experience=%d  [%s]%n",\n                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),\n                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent(),\n                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());\n        }'
+          new = '        for (var team : report.teams()) {\n            System.out.printf("%s  %s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)%n",\n                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),\n                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent());\n            System.out.printf("  details: exact-birth=%d  reported-age=%d  experience=%d  team-id=%s%n",\n                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());\n        }'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected player-evidence output block once, found {text.count(old)}')
+          launcher.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
 
           test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java')
           text = test.read_text(encoding='utf-8')
-          text = text.replace('package io.butler.bet.cli;\n\nimport org.junit.jupiter.api.Test;',
-                              'package io.butler.bet.cli;\n\nimport io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;\nimport org.junit.jupiter.api.Test;', 1)
-          text = text.replace('import java.nio.charset.StandardCharsets;\n',
-                              'import java.nio.charset.StandardCharsets;\nimport java.time.LocalDate;\nimport java.util.List;\n', 1)
-          marker = '''    @Test
-    void advertisesCompositeProfileAndEvidenceSyntax() {
-'''
+          import_anchor = 'package io.butler.bet.cli;\n\nimport org.junit.jupiter.api.Test;'
+          import_replacement = 'package io.butler.bet.cli;\n\nimport io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;\nimport org.junit.jupiter.api.Test;'
+          if text.count(import_anchor) != 1:
+              raise SystemExit(f'expected analyzer import anchor once, found {text.count(import_anchor)}')
+          text = text.replace(import_anchor, import_replacement, 1)
+          util_anchor = 'import java.nio.charset.StandardCharsets;\n'
+          util_replacement = 'import java.nio.charset.StandardCharsets;\nimport java.time.LocalDate;\nimport java.util.List;\n'
+          if text.count(util_anchor) != 1:
+              raise SystemExit(f'expected utility import anchor once, found {text.count(util_anchor)}')
+          text = text.replace(util_anchor, util_replacement, 1)
+          marker = '    @Test\n    void advertisesCompositeProfileAndEvidenceSyntax() {'
           addition = '''    @Test
     void rendersPlayerEvidenceTeamsAsCompactPrimaryAndDetailRowsInStableOrder() {
         var report = new LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport(
@@ -84,17 +77,16 @@ jobs:
     }
 
 '''
-          if marker not in text:
-              raise SystemExit('BF-545 test insertion marker not found')
-          test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8')
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected CLI test insertion point once, found {text.count(marker)}')
+          test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8', newline='\n')
+          PY
+          rm .github/workflows/bf545-patch.yml
       - name: Commit BF-545 patch
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "BF-545: compact player-evidence team output"
-          git push
+          git add bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java .github/workflows/bf545-patch.yml
+          git commit -m "BF-545: improve player-evidence terminal readability"
+          git push origin HEAD:bf-545-improve-player-evidence-terminal-readability
