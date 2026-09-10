@@ -44,39 +44,39 @@ jobs:
               raise SystemExit(f'expected utility import anchor once, found {text.count(util_anchor)}')
           text = text.replace(util_anchor, util_replacement, 1)
           marker = '    @Test\n    void advertisesCompositeProfileAndEvidenceSyntax() {'
-          addition = '''    @Test
-    void rendersPlayerEvidenceTeamsAsCompactPrimaryAndDetailRowsInStableOrder() {
-        var report = new LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport(
-            "league-id", 2025, "sleeper", "nflverse", LocalDate.of(2026, 9, 1),
-            List.of(
-                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(
-                    "team-alpha", "Alpha", 20, 18, 10, 8, 6, 19,
-                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.PARTIAL),
-                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(
-                    "team-zulu", "Zulu", 20, 20, 12, 8, 7, 20,
-                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.READY)));
-
-        PrintStream original = System.out;
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        try {
-            System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
-            ButlerLauncher.printPlayerEvidenceReadiness(report);
-        } finally {
-            System.setOut(original);
-        }
-        String output = buffer.toString(StandardCharsets.UTF_8);
-
-        String alphaPrimary = "Alpha  PARTIAL  age=18/20 (90.0%)  production=19/20 (95.0%)";
-        String zuluPrimary = "Zulu  READY  age=20/20 (100.0%)  production=20/20 (100.0%)";
-        assertTrue(output.contains(alphaPrimary));
-        assertTrue(output.contains("  details: exact-birth=10  reported-age=8  experience=6  team-id=team-alpha"));
-        assertTrue(output.contains(zuluPrimary));
-        assertTrue(output.contains("  details: exact-birth=12  reported-age=8  experience=7  team-id=team-zulu"));
-        assertTrue(output.indexOf(alphaPrimary) < output.indexOf(zuluPrimary));
-        assertFalse(output.contains("Alpha  readiness="));
-    }
-
-'''
+          addition = (
+              '    @Test\n'
+              '    void rendersPlayerEvidenceTeamsAsCompactPrimaryAndDetailRowsInStableOrder() {\n'
+              '        var report = new LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport(\n'
+              '            "league-id", 2025, "sleeper", "nflverse", LocalDate.of(2026, 9, 1),\n'
+              '            List.of(\n'
+              '                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(\n'
+              '                    "team-alpha", "Alpha", 20, 18, 10, 8, 6, 19,\n'
+              '                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.PARTIAL),\n'
+              '                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(\n'
+              '                    "team-zulu", "Zulu", 20, 20, 12, 8, 7, 20,\n'
+              '                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.READY)));\n'
+              '\n'
+              '        PrintStream original = System.out;\n'
+              '        ByteArrayOutputStream buffer = new ByteArrayOutputStream();\n'
+              '        try {\n'
+              '            System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));\n'
+              '            ButlerLauncher.printPlayerEvidenceReadiness(report);\n'
+              '        } finally {\n'
+              '            System.setOut(original);\n'
+              '        }\n'
+              '        String output = buffer.toString(StandardCharsets.UTF_8);\n'
+              '\n'
+              '        String alphaPrimary = "Alpha  PARTIAL  age=18/20 (90.0%)  production=19/20 (95.0%)";\n'
+              '        String zuluPrimary = "Zulu  READY  age=20/20 (100.0%)  production=20/20 (100.0%)";\n'
+              '        assertTrue(output.contains(alphaPrimary));\n'
+              '        assertTrue(output.contains("  details: exact-birth=10  reported-age=8  experience=6  team-id=team-alpha"));\n'
+              '        assertTrue(output.contains(zuluPrimary));\n'
+              '        assertTrue(output.contains("  details: exact-birth=12  reported-age=8  experience=7  team-id=team-zulu"));\n'
+              '        assertTrue(output.indexOf(alphaPrimary) < output.indexOf(zuluPrimary));\n'
+              '        assertFalse(output.contains("Alpha  readiness="));\n'
+              '    }\n\n'
+          )
           if text.count(marker) != 1:
               raise SystemExit(f'expected CLI test insertion point once, found {text.count(marker)}')
           test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8', newline='\n')
