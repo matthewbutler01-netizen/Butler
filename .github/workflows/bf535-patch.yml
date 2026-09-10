@@ -25,36 +25,8 @@ jobs:
 
           main = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMain.java')
           text = main.read_text(encoding='utf-8')
-          old = '''        else for (var team : context.teams()) {
-            String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
-            String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
-            System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",
-                team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.valuedAssets(), team.totalAssets(),
-                team.coveragePercent(), movement, team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),
-                team.risers(), team.fallers(), team.unchanged(), team.teamId());
-        }
-        printLeagueActions(context.actionPlan().actions());
-    }
-'''
-          new = '''        else for (var team : context.teams()) {
-            printLeagueTeamContextTeam(team);
-        }
-        printLeagueActions(context.actionPlan().actions());
-    }
-
-    static void printLeagueTeamContextTeam(LeagueTeamContextAnalyzer.TeamContext team) {
-        if (team == null) throw new IllegalArgumentException("team must not be null");
-        String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";
-        String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";
-        System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f%n",
-            team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue());
-        System.out.printf("  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)%n",
-            team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,
-            team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent());
-        System.out.printf("  movement-counts: risers=%d  fallers=%d  unchanged=%d  team-id=%s%n",
-            team.risers(), team.fallers(), team.unchanged(), team.teamId());
-    }
-'''
+          old = '        else for (var team : context.teams()) {\n            String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";\n            String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";\n            System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)  risers=%d  fallers=%d  unchanged=%d  [%s]%n",\n                team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue(), team.valuedAssets(), team.totalAssets(),\n                team.coveragePercent(), movement, team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent(),\n                team.risers(), team.fallers(), team.unchanged(), team.teamId());\n        }\n        printLeagueActions(context.actionPlan().actions());\n    }\n'
+          new = '        else for (var team : context.teams()) {\n            printLeagueTeamContextTeam(team);\n        }\n        printLeagueActions(context.actionPlan().actions());\n    }\n\n    static void printLeagueTeamContextTeam(LeagueTeamContextAnalyzer.TeamContext team) {\n        if (team == null) throw new IllegalArgumentException("team must not be null");\n        String rank = team.rankAvailable() ? Integer.toString(team.rank()) : "-";\n        String movement = team.movementAvailable() ? String.format("%+.2f", team.playerValueDelta()) : "unavailable";\n        System.out.printf("%s  rank=%s  total=%.2f  players=%.2f  picks=%.2f%n",\n            team.teamName(), rank, team.totalAssetValue(), team.playerValue(), team.draftPickValue());\n        System.out.printf("  coverage=%d/%d (%.1f%%)  movement=%s  movement-coverage=%d/%d (%.1f%%)%n",\n            team.valuedAssets(), team.totalAssets(), team.coveragePercent(), movement,\n            team.playersWithMovementHistory(), team.rosterSize(), team.movementCoveragePercent());\n        System.out.printf("  movement-counts: risers=%d  fallers=%d  unchanged=%d  team-id=%s%n",\n            team.risers(), team.fallers(), team.unchanged(), team.teamId());\n    }\n'
           if text.count(old) != 1:
               raise SystemExit(f'expected team-context output block once, found {text.count(old)}')
           main.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
