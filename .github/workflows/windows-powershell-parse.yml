@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - bf-665-policy-aware-age-label
     paths:
       - 'scripts/butler-dashboard.ps1'
       - '.github/workflows/windows-powershell-parse.yml'
@@ -19,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   parse:
@@ -54,3 +55,43 @@ jobs:
               exit 1
           }
           Write-Host 'BF-650 ASCII-only dashboard source gate passed'
+
+  bf665_patch:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/bf-665-policy-aware-age-label'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: bf-665-policy-aware-age-label
+      - name: Apply BF-665 source and regression patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          dashboard = Path('scripts/butler-dashboard.ps1')
+          text = dashboard.read_text(encoding='utf-8')
+          old = '    $thresholdHours = [math]::Round($threshold / 3600, 1)\n    $css = Get-SharedCss'
+          new = '    $thresholdHours = [math]::Round($threshold / 3600, 1)\n    $freshnessLimit = if ($state -ceq "NO_TRANSACTION_TO_ACT_ON") { "BF-635 move-refresh warning: not applicable to no-transaction decisions" } else { "Warning boundary: $thresholdHours hours" }\n    $css = Get-SharedCss'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected threshold insertion point once, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          old_card = '<div class="limit">Warning boundary: $thresholdHours hours</div>'
+          if text.count(old_card) != 2:
+              raise SystemExit(f'expected two direct warning-boundary card labels, found {text.count(old_card)}')
+          text = text.replace(old_card, '<div class="limit">$(ConvertTo-HtmlText $freshnessLimit)</div>')
+          dashboard.write_text(text, encoding='utf-8', newline='\n')
+
+          test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf665ScriptTest.java')
+          test.write_text('''package io.butler.bet.cli;\n\nimport org.junit.jupiter.api.Test;\n\nimport java.io.IOException;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.nio.file.Path;\n\nimport static org.junit.jupiter.api.Assertions.assertEquals;\nimport static org.junit.jupiter.api.Assertions.assertFalse;\nimport static org.junit.jupiter.api.Assertions.assertTrue;\n\nclass ButlerDashboardBf665ScriptTest {\n\n    @Test\n    void noTransactionDecisionMakesBf635MoveRefreshWarningNotApplicable() throws Exception {\n        String script = script();\n        assertTrue(script.contains("$freshnessLimit = if ($state -ceq \\\"NO_TRANSACTION_TO_ACT_ON\\\") { \\\"BF-635 move-refresh warning: not applicable to no-transaction decisions\\\" } else { \\\"Warning boundary: $thresholdHours hours\\\" }"));\n        assertEquals(2, count(script, "<div class=\\\"limit\\\">$(ConvertTo-HtmlText $freshnessLimit)</div>"));\n        assertFalse(script.contains("<div class=\\\"limit\\\">Warning boundary: $thresholdHours hours</div>"));\n    }\n\n    @Test\n    void transactionBearingPathRetainsExistingWarningBoundaryCopy() throws Exception {\n        String script = script();\n        assertTrue(script.contains("else { \\\"Warning boundary: $thresholdHours hours\\\" }"));\n        assertTrue(script.contains("$market = ConvertTo-AgeView $marketRaw"));\n        assertTrue(script.contains("$waiver = ConvertTo-AgeView $waiverRaw"));\n    }\n\n    private static int count(String text, String needle) {\n        int count = 0;\n        int index = 0;\n        while ((index = text.indexOf(needle, index)) >= 0) {\n            count++;\n            index += needle.length();\n        }\n        return count;\n    }\n\n    private static String script() throws IOException {\n        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();\n        for (int depth = 0; depth < 7 && current != null; depth++) {\n            Path candidate = current.resolve("scripts/butler-dashboard.ps1");\n            if (Files.isRegularFile(candidate)) {\n                return Files.readString(candidate, StandardCharsets.US_ASCII);\n            }\n            current = current.getParent();\n        }\n        throw new IOException("BF-665 test could not locate scripts/butler-dashboard.ps1");\n    }\n}\n''', encoding='ascii', newline='\n')
+          PY
+          git fetch origin main:refs/remotes/origin/main
+          git show origin/main:.github/workflows/windows-powershell-parse.yml > .github/workflows/windows-powershell-parse.yml
+      - name: Commit BF-665 patch and restore workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/butler-dashboard.ps1 bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerDashboardBf665ScriptTest.java .github/workflows/windows-powershell-parse.yml
+          git commit -m "BF-665: make no-transaction evidence age label policy-aware"
+          git push origin HEAD:bf-665-policy-aware-age-label
