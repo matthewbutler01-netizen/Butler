@@ -1,0 +1,100 @@
+name: BF-545 patch
+
+on:
+  push:
+    branches:
+      - bf-545-improve-player-evidence-terminal-readability
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: true
+      - name: Apply BF-545 presentation patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          launcher = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java')
+          text = launcher.read_text(encoding='utf-8')
+          old = '''        for (var team : report.teams()) {
+            System.out.printf("%s  readiness=%s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)  exact-birth=%d  reported-age=%d  experience=%d  [%s]%n",
+                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
+                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent(),
+                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
+        }
+'''
+          new = '''        for (var team : report.teams()) {
+            System.out.printf("%s  %s  age=%d/%d (%.1f%%)  production=%d/%d (%.1f%%)%n",
+                team.teamName(), team.readiness(), team.ageEvidencePlayers(), team.totalPlayers(), team.ageCoveragePercent(),
+                team.productionEvidencePlayers(), team.totalPlayers(), team.productionCoveragePercent());
+            System.out.printf("  details: exact-birth=%d  reported-age=%d  experience=%d  team-id=%s%n",
+                team.exactBirthDatePlayers(), team.reportedAgePlayers(), team.experienceEvidencePlayers(), team.teamId());
+        }
+'''
+          if old not in text:
+              raise SystemExit('BF-545 launcher target block not found')
+          launcher.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java')
+          text = test.read_text(encoding='utf-8')
+          text = text.replace('package io.butler.bet.cli;\n\nimport org.junit.jupiter.api.Test;',
+                              'package io.butler.bet.cli;\n\nimport io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;\nimport org.junit.jupiter.api.Test;', 1)
+          text = text.replace('import java.nio.charset.StandardCharsets;\n',
+                              'import java.nio.charset.StandardCharsets;\nimport java.time.LocalDate;\nimport java.util.List;\n', 1)
+          marker = '''    @Test
+    void advertisesCompositeProfileAndEvidenceSyntax() {
+'''
+          addition = '''    @Test
+    void rendersPlayerEvidenceTeamsAsCompactPrimaryAndDetailRowsInStableOrder() {
+        var report = new LeaguePlayerEvidenceReadinessAnalyzer.ReadinessReport(
+            "league-id", 2025, "sleeper", "nflverse", LocalDate.of(2026, 9, 1),
+            List.of(
+                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(
+                    "team-alpha", "Alpha", 20, 18, 10, 8, 6, 19,
+                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.PARTIAL),
+                new LeaguePlayerEvidenceReadinessAnalyzer.TeamReadiness(
+                    "team-zulu", "Zulu", 20, 20, 12, 8, 7, 20,
+                    LeaguePlayerEvidenceReadinessAnalyzer.Readiness.READY)));
+
+        PrintStream original = System.out;
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        try {
+            System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));
+            ButlerLauncher.printPlayerEvidenceReadiness(report);
+        } finally {
+            System.setOut(original);
+        }
+        String output = buffer.toString(StandardCharsets.UTF_8);
+
+        String alphaPrimary = "Alpha  PARTIAL  age=18/20 (90.0%)  production=19/20 (95.0%)";
+        String zuluPrimary = "Zulu  READY  age=20/20 (100.0%)  production=20/20 (100.0%)";
+        assertTrue(output.contains(alphaPrimary));
+        assertTrue(output.contains("  details: exact-birth=10  reported-age=8  experience=6  team-id=team-alpha"));
+        assertTrue(output.contains(zuluPrimary));
+        assertTrue(output.contains("  details: exact-birth=12  reported-age=8  experience=7  team-id=team-zulu"));
+        assertTrue(output.indexOf(alphaPrimary) < output.indexOf(zuluPrimary));
+        assertFalse(output.contains("Alpha  readiness="));
+    }
+
+'''
+          if marker not in text:
+              raise SystemExit('BF-545 test insertion marker not found')
+          test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8')
+      - name: Commit BF-545 patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "BF-545: compact player-evidence team output"
+          git push
