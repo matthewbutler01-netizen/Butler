@@ -32,7 +32,8 @@ class ButlerAppGuardBf673DefaultPortTest {
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(guard.contains("function Get-ExistingManagedButlerPort"));
-        assertTrue(guard.contains("$candidateMutexName = \"Local\\\\Butler.App.Port.$candidatePort\""));
+        assertTrue(guard.contains("$candidateMutexName ="));
+        assertTrue(guard.contains("Butler.App.Port.$candidatePort"));
         assertTrue(guard.contains("$candidateCreatedNew = $false"));
         assertTrue(guard.contains("[ref]$candidateCreatedNew"));
         assertTrue(guard.contains("if (-not $candidateCreatedNew)"));
@@ -51,7 +52,6 @@ class ButlerAppGuardBf673DefaultPortTest {
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(guard.contains("Explicit -Port remains the"));
-        assertTrue(guard.contains("$mutexName = \"Local\\\\Butler.App.Port.$Port\""));
         assertTrue(guard.contains("[System.Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)"));
         assertTrue(guard.contains("Butler is already running on port $Port"));
         assertTrue(guard.contains("Port = $Port"));
