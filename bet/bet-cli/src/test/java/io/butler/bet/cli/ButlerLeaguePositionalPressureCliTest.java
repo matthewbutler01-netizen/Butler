@@ -40,4 +40,16 @@ class ButlerLeaguePositionalPressureCliTest {
         assertTrue(ButlerLeaguePositionalPressureCli.isCommand(args));
         assertEquals(ButlerCommandRouter.Route.LEAGUE_POSITIONAL_PRESSURE, ButlerCommandRouter.route(args));
     }
+
+    @Test
+    void formatsCompactTeamPressureRows() {
+        String rendered = ButlerLeaguePositionalPressureCli.formatTeam(
+            "Alpha", "team-7", "CONTENDER", 1234.5, 2345.67, 8, 7, 1, 0);
+
+        String lineSeparator = System.lineSeparator();
+        assertEquals(
+            "  Alpha: tier=CONTENDER starter-coverage-value=1234.50 total-position-value=2345.67" + lineSeparator
+                + "    players=8 valued=7 stale=1 missing=0 team-id=team-7" + lineSeparator,
+            rendered);
+    }
 }
