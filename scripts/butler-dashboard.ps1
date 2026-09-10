@@ -1087,6 +1087,8 @@ function ConvertTo-DashboardHtml {
     $audit = ConvertTo-AuditView $auditRaw
     $presentation = Get-StatePresentation $state
     $verification = Get-VerificationCopy -Bf629 $bf629 -Bf631 $bf631
+    $explanationHeading = if ($state -ceq "NO_TRANSACTION_TO_ACT_ON") { "Why no transaction?" } else { "Why this move?" }
+    $rosterSafetyDetail = if ($bf629 -ceq "NO_TRANSACTION_TO_REVALIDATE") { "BF-629 confirms this audited decision has no transaction requiring live roster revalidation." } else { "BF-629 checks whether the audited move is still valid against Sleeper." }
     $rosterIcon = if ($verification.RosterOk) { "&#10003;" } else { "&#9888;" }
     $rosterClass = if ($verification.RosterOk) { "check" } else { "alert" }
     $lineageIcon = if ($verification.LineageOk) { "&#10003;" } else { "&#9888;" }
@@ -1159,7 +1161,7 @@ function ConvertTo-DashboardHtml {
         $whySection = @"
 <section class="panel">
   <div class="eyebrow">Governed explanation</div>
-  <h2>Why this move?</h2>
+  <h2>$(ConvertTo-HtmlText $explanationHeading)</h2>
   <div class="next"><p>$(ConvertTo-HtmlText $explanation.ExplanationText)</p></div>
   <div class="subtle" style="margin-top:10px">Persisted BF-653 explanation for this immutable BF-627 audit. This dashboard does not rerun recommendation or evidence selection.</div>
   <details><summary>Technical details</summary><div class="tech"><div>BF-627 audit ID: $(ConvertTo-HtmlText $explanation.AuditId)</div><div>BF-653 lookup state: $(ConvertTo-HtmlText $explanation.State)</div><div>BF-653 explanation ID: $(ConvertTo-HtmlText $explanation.ExplanationId)</div><div>BF-653 explanation type: $(ConvertTo-HtmlText $explanation.ExplanationType)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $explanation.MarketSnapshotId) / $(ConvertTo-HtmlText $explanation.WaiverSnapshotId)</div><div>Audited ADD / DROP Sleeper IDs: $(ConvertTo-HtmlText $explanation.AddSleeperId) / $(ConvertTo-HtmlText $explanation.DropSleeperId)</div><div>BF-653 evidence policy: $(ConvertTo-HtmlText $explanation.EvidencePolicy)</div><div>BF-653 evidence trace: $(ConvertTo-HtmlText $explanation.EvidenceTrace)</div></div></details>
@@ -1183,7 +1185,7 @@ function ConvertTo-DashboardHtml {
         $whySection = @"
 <section class="panel">
   <div class="eyebrow">Governed explanation</div>
-  <h2>Why this move?</h2>
+  <h2>$(ConvertTo-HtmlText $explanationHeading)</h2>
   <p class="lede">No persisted BF-653 explanation is available for this exact audit.</p>
   <div class="subtle" style="margin-top:10px">Butler will not invent or recompute an explanation from this dashboard.</div>
   $capturePrompt
@@ -1222,7 +1224,7 @@ $movesSection
 $refreshPlanSection
 $nextDecisionPlanSection
 $whySection
-<section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>BF-629 checks whether the audited move is still valid against Sleeper.</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
+<section class="panel"><div class="eyebrow">Safety checks</div><h2>Butler verified the decision</h2><div class="verify-grid"><div class="verify"><div class="$rosterClass">$rosterIcon $(ConvertTo-HtmlText $verification.Roster)</div><small>$(ConvertTo-HtmlText $rosterSafetyDetail)</small></div><div class="verify"><div class="$lineageClass">$lineageIcon $(ConvertTo-HtmlText $verification.Lineage)</div><small>BF-631 proves this audit still points to Butler's latest governed evidence frame.</small></div></div><div class="fresh-grid"><div class="fresh"><strong>Waiver market evidence</strong><div class="age">$(ConvertTo-HtmlText $market.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div><div class="fresh"><strong>Roster / waiver evidence</strong><div class="age">$(ConvertTo-HtmlText $waiver.Human)</div><div class="limit">Warning boundary: $thresholdHours hours</div></div></div></section>
 <section class="panel"><div class="eyebrow">Decision record</div><div class="lineage"><div class="lineage-copy"><strong>Immutable Butler audit captured</strong><span>Every governed recommendation remains traceable even after your roster changes.</span></div><div class="status done">AUDITED</div></div><details><summary>Technical details</summary><div class="tech"><div>Decision state: $(ConvertTo-HtmlText $state)</div><div>BF-629: $(ConvertTo-HtmlText $bf629)</div><div>BF-631: $(ConvertTo-HtmlText $bf631)</div><div>BF-631 audited BF-603 / BF-602: $(ConvertTo-HtmlText $auditedLineage)</div><div>BF-633: $(ConvertTo-HtmlText $bf633)</div><div>Audit ID: $(ConvertTo-HtmlText $audit.Id)</div><div>Captured UTC: $(ConvertTo-HtmlText $audit.Captured)</div><div>Telemetry UTC: $(ConvertTo-HtmlText $telemetry)</div><div>Warning threshold: $(ConvertTo-HtmlText $thresholdRaw) sec</div><div>BF-603 observed: $(ConvertTo-HtmlText $market.Observed)</div><div>BF-603 age: $(ConvertTo-HtmlText $market.Seconds) sec</div><div>BF-602 observed: $(ConvertTo-HtmlText $waiver.Observed)</div><div>BF-602 age: $(ConvertTo-HtmlText $waiver.Seconds) sec</div></div><div class="raw-guard">$(ConvertTo-HtmlText $guard)</div></details></section>
 <section class="panel"><div class="actions"><a class="button" href="/">Refresh status</a><a class="button" href="/team">View My Team</a><a class="button" href="/waivers">View Waiver Board</a><span class="subtle">These views are read-only and do not start BF-641.</span></div></section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> If BF-636 refresh, BF-640 next-decision, or BF-658 explanation-capture manual instructions are shown, they are copyable operator instructions only. Butler does not execute those commands, refresh evidence, rerank players, capture an audit or explanation, set FAAB, submit a Sleeper transaction, cancel a transaction, or mutate your league from this dashboard.</section>
