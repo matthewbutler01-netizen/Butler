@@ -27,7 +27,7 @@ class ButlerAppTest {
         assertEquals(
             "3. Love: JT, Jeanty &Javonte  total=1912.75  players=1234.50  picks=678.25", lines[0]);
         assertEquals(
-            "  assets: players=25  picks=6  dates=2026-08-30 -> 2026-09-02  team-id=team-123", lines[1]);
+            "  assets: players=25  picks=6  dates=2026-08-30 to 2026-09-02  team-id=team-123", lines[1]);
         assertTrue(lines[0].length() <= 120);
     }
 
