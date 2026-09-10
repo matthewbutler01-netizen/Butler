@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 
 /** Read-only CLI for governed lineup-aware positional pressure tiers. */
 public final class ButlerLeaguePositionalPressureCli {
@@ -71,11 +72,29 @@ public final class ButlerLeaguePositionalPressureCli {
             System.out.printf("%n%s direct-starters=%d available=%s%n", position, pressure.directStarterRequirement(), pressure.available());
             if (!pressure.available()) System.out.println("  Reason: " + pressure.insufficiencyReason());
             for (var team : pressure.teams()) {
-                System.out.printf("  %s [%s]: tier=%s starter-coverage-value=%.2f total-position-value=%.2f players=%d valued=%d stale=%d missing=%d%n",
+                System.out.print(formatTeam(
                     team.teamName(), team.teamId(), team.tier(), team.starterCoverageValue(), team.totalPositionValue(),
-                    team.totalPlayers(), team.valuedPlayers(), team.stalePlayers(), team.missingPlayers());
+                    team.totalPlayers(), team.valuedPlayers(), team.stalePlayers(), team.missingPlayers()));
             }
         }
+    }
+
+    static String formatTeam(
+        String teamName,
+        String teamId,
+        Object tier,
+        double starterCoverageValue,
+        double totalPositionValue,
+        int totalPlayers,
+        int valuedPlayers,
+        int stalePlayers,
+        int missingPlayers
+    ) {
+        return String.format(Locale.ROOT,
+            "  %s: tier=%s starter-coverage-value=%.2f total-position-value=%.2f%n"
+                + "    players=%d valued=%d stale=%d missing=%d team-id=%s%n",
+            teamName, tier, starterCoverageValue, totalPositionValue,
+            totalPlayers, valuedPlayers, stalePlayers, missingPlayers, teamId);
     }
 
     private static String requireSource(String value) {
