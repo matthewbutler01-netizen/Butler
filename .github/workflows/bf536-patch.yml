@@ -1,0 +1,109 @@
+name: BF-536 patch
+
+on:
+  push:
+    branches:
+      - bf-536-improve-team-profile-terminal-readability
+    paths:
+      - .github/workflows/bf536-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: bf-536-improve-team-profile-terminal-readability
+      - name: Apply BF-536 terminal readability patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          launcher = Path('bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java')
+          text = launcher.read_text(encoding='utf-8')
+          old = '        for (var team : report.teams()) {\n            var concentration = team.concentration();\n            var slots = team.rosterSlots();\n            var picks = team.draftCapital();\n            int slotValued = slots.slots().values().stream().mapToInt(slot -> slot.valuedPlayers()).sum();\n            int slotStale = slots.slots().values().stream().mapToInt(slot -> slot.stalePlayers()).sum();\n            int slotMissing = slots.slots().values().stream().mapToInt(slot -> slot.missingPlayers()).sum();\n            int slotTotal = slots.slots().values().stream().mapToInt(slot -> slot.totalPlayers()).sum();\n\n            System.out.printf(\n                "%s  assets=%.2f  players=%.2f  picks=%.2f  starter-share=%.1f%%  top1=%.1f%%  top3=%.1f%%  hhi=%.4f  asset-coverage=%d/%d (%.1f%%)  [%s]%n",\n                team.teamName(), team.usableAssetValue(), team.usablePlayerValue(), team.usableDraftPickValue(),\n                team.starterValueSharePercent(), team.topAssetSharePercent(), team.topThreeAssetSharePercent(),\n                team.concentrationIndex(), concentration.valuedAssets(), concentration.totalAssets(),\n                concentration.coveragePercent(), team.teamId());\n\n            System.out.printf("  roster-slots: valued=%d/%d  stale=%d  missing=%d%n",\n                slotValued, slotTotal, slotStale, slotMissing);\n            System.out.printf("  draft-capital: valued=%d/%d  stale=%d  missing=%d  seasons=%d%n",\n                picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(), picks.seasons().size());\n\n            team.positionalDepth().positions().values().stream()\n                .sorted(java.util.Comparator.comparing(io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer.PositionDepth::position))\n                .forEach(position -> System.out.printf(\n                    "  %s: players=%d  usable-value=%.2f  coverage=%d/%d (%.1f%%)  top1=%.1f%%  top3=%.1f%%%n",\n                    position.position(), position.totalPlayers(), position.totalUsableValue(), position.valuedPlayers(),\n                    position.totalPlayers(), position.coveragePercent(), position.topOneSharePercent(),\n                    position.topThreeSharePercent()));\n        }\n'
+          new = '        for (var team : report.teams()) {\n            printTeamProfileTeam(team);\n        }\n    }\n\n    static void printTeamProfileTeam(LeagueCompositeTeamProfileAnalyzer.TeamProfile team) {\n        if (team == null) throw new IllegalArgumentException("team must not be null");\n        var concentration = team.concentration();\n        var slots = team.rosterSlots();\n        var picks = team.draftCapital();\n        int slotValued = slots.slots().values().stream().mapToInt(slot -> slot.valuedPlayers()).sum();\n        int slotStale = slots.slots().values().stream().mapToInt(slot -> slot.stalePlayers()).sum();\n        int slotMissing = slots.slots().values().stream().mapToInt(slot -> slot.missingPlayers()).sum();\n        int slotTotal = slots.slots().values().stream().mapToInt(slot -> slot.totalPlayers()).sum();\n\n        System.out.println(team.teamName());\n        System.out.printf("  values: assets=%.2f  players=%.2f  picks=%.2f  starter-share=%.1f%%%n",\n            team.usableAssetValue(), team.usablePlayerValue(), team.usableDraftPickValue(), team.starterValueSharePercent());\n        System.out.printf("  concentration: top1=%.1f%%  top3=%.1f%%  hhi=%.4f  asset-coverage=%d/%d (%.1f%%)%n",\n            team.topAssetSharePercent(), team.topThreeAssetSharePercent(), team.concentrationIndex(),\n            concentration.valuedAssets(), concentration.totalAssets(), concentration.coveragePercent());\n        System.out.printf("  roster: valued=%d/%d  stale=%d  missing=%d%n",\n            slotValued, slotTotal, slotStale, slotMissing);\n        System.out.printf("  draft: valued=%d/%d  stale=%d  missing=%d  seasons=%d%n",\n            picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(), picks.seasons().size());\n\n        team.positionalDepth().positions().values().stream()\n            .sorted(java.util.Comparator.comparing(io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer.PositionDepth::position))\n            .forEach(position -> System.out.printf(\n                "  %s: players=%d  value=%.2f  coverage=%d/%d (%.1f%%)  top1=%.1f%%  top3=%.1f%%%n",\n                position.position(), position.totalPlayers(), position.totalUsableValue(), position.valuedPlayers(),\n                position.totalPlayers(), position.coveragePercent(), position.topOneSharePercent(),\n                position.topThreeSharePercent()));\n        System.out.println("  team-id=" + team.teamId());\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected team-profile output block once, found {text.count(old)}')
+          launcher.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+
+          test = Path('bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java')
+          text = test.read_text(encoding='utf-8')
+          import_anchor = 'import io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;\n'
+          import_replacement = 'import io.butler.bet.intelligence.LeagueAssetConcentrationAnalyzer;\nimport io.butler.bet.intelligence.LeagueCompositeTeamProfileAnalyzer;\nimport io.butler.bet.intelligence.LeagueDraftCapitalTimelineAnalyzer;\nimport io.butler.bet.intelligence.LeaguePlayerEvidenceReadinessAnalyzer;\nimport io.butler.bet.intelligence.LeaguePositionalDepthAnalyzer;\nimport io.butler.bet.intelligence.LeagueRosterSlotValueAnalyzer;\n'
+          if text.count(import_anchor) != 1:
+              raise SystemExit(f'expected analyzer import anchor once, found {text.count(import_anchor)}')
+          text = text.replace(import_anchor, import_replacement, 1)
+          util_anchor = 'import java.util.List;\n'
+          util_replacement = 'import java.util.List;\nimport java.util.Map;\n'
+          if text.count(util_anchor) != 1:
+              raise SystemExit(f'expected util import anchor once, found {text.count(util_anchor)}')
+          text = text.replace(util_anchor, util_replacement, 1)
+          marker = '    @Test\n    void rendersPlayerEvidenceTeamsAsCompactPrimaryAndDetailRowsInStableOrder() {'
+          addition = (
+              '    @Test\n'
+              '    void rendersTeamProfileAsCompactLabeledRowsWithStablePositionOrder() {\n'
+              '        LocalDate asOf = LocalDate.of(2026, 9, 1);\n'
+              '        var assets = List.of(\n'
+              '            new LeagueAssetConcentrationAnalyzer.AssetValue(LeagueAssetConcentrationAnalyzer.AssetType.PLAYER, "p1", "QB One", 100.0, asOf),\n'
+              '            new LeagueAssetConcentrationAnalyzer.AssetValue(LeagueAssetConcentrationAnalyzer.AssetType.DRAFT_PICK, "pick1", "2027 R1", 50.0, asOf));\n'
+              '        var concentration = new LeagueAssetConcentrationAnalyzer.TeamConcentration(\n'
+              '            "team-alpha", "Alpha", "source", null, 150.0, 2, 2, 0, 0, assets);\n'
+              '        var slots = new LeagueRosterSlotValueAnalyzer.TeamRosterSlotContext(\n'
+              '            "team-alpha", "Alpha", Map.of(\n'
+              '                "STARTER", new LeagueRosterSlotValueAnalyzer.SlotValue("STARTER", 80.0, 1, 0, 0, 1),\n'
+              '                "BENCH", new LeagueRosterSlotValueAnalyzer.SlotValue("BENCH", 20.0, 1, 0, 0, 1)));\n'
+              '        var qb = new LeaguePositionalDepthAnalyzer.PositionDepth(\n'
+              '            "QB", 1, 1, 0, 0, List.of(\n'
+              '                new LeaguePositionalDepthAnalyzer.PlayerDepthValue("p1", "QB One", "QB", "STARTER", 100.0, asOf)));\n'
+              '        var wr = new LeaguePositionalDepthAnalyzer.PositionDepth(\n'
+              '            "WR", 1, 1, 0, 0, List.of(\n'
+              '                new LeaguePositionalDepthAnalyzer.PlayerDepthValue("p2", "WR One", "WR", "BENCH", 20.0, asOf)));\n'
+              '        var depth = new LeaguePositionalDepthAnalyzer.TeamDepth(\n'
+              '            "team-alpha", "Alpha", Map.of("WR", wr, "QB", qb));\n'
+              '        var season = new LeagueDraftCapitalTimelineAnalyzer.SeasonDraftCapital(\n'
+              '            2027, 50.0, 1, 0, 0, 1, Map.of(1, 1));\n'
+              '        var picks = new LeagueDraftCapitalTimelineAnalyzer.TeamDraftCapital(\n'
+              '            "team-alpha", "Alpha", 50.0, 1, 0, 0, 1, List.of(season));\n'
+              '        var team = new LeagueCompositeTeamProfileAnalyzer.TeamProfile(\n'
+              '            "team-alpha", "Alpha", concentration, slots, depth, picks);\n'
+              '\n'
+              '        PrintStream original = System.out;\n'
+              '        ByteArrayOutputStream buffer = new ByteArrayOutputStream();\n'
+              '        try {\n'
+              '            System.setOut(new PrintStream(buffer, true, StandardCharsets.UTF_8));\n'
+              '            ButlerLauncher.printTeamProfileTeam(team);\n'
+              '        } finally {\n'
+              '            System.setOut(original);\n'
+              '        }\n'
+              '        String output = buffer.toString(StandardCharsets.UTF_8);\n'
+              '        String[] lines = output.strip().split("\\\\R");\n'
+              '\n'
+              '        assertTrue(output.contains("Alpha"));\n'
+              '        assertTrue(output.contains("  values: assets=150.00  players=100.00  picks=50.00  starter-share=80.0%"));\n'
+              '        assertTrue(output.contains("  concentration: top1=66.7%  top3=100.0%  hhi=0.5556  asset-coverage=2/2 (100.0%)"));\n'
+              '        assertTrue(output.contains("  roster: valued=2/2  stale=0  missing=0"));\n'
+              '        assertTrue(output.contains("  draft: valued=1/1  stale=0  missing=0  seasons=1"));\n'
+              '        assertTrue(output.contains("  team-id=team-alpha"));\n'
+              '        assertTrue(output.indexOf("  QB:") < output.indexOf("  WR:"));\n'
+              '        for (String line : lines) assertTrue(line.length() <= 120);\n'
+              '    }\n'
+              '\n'
+          )
+          if text.count(marker) != 1:
+              raise SystemExit(f'expected team-profile test insertion point once, found {text.count(marker)}')
+          test.write_text(text.replace(marker, addition + marker, 1), encoding='utf-8', newline='\n')
+          PY
+          rm .github/workflows/bf536-patch.yml
+      - name: Commit BF-536 patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLauncher.java bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerLauncherTest.java .github/workflows/bf536-patch.yml
+          git commit -m "BF-536: improve team-profile terminal readability"
+          git push origin HEAD:bf-536-improve-team-profile-terminal-readability
