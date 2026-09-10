@@ -1,4 +1,7 @@
 import org.gradle.api.artifacts.ExternalModuleDependency
+import org.gradle.api.tasks.testing.Test
+import java.io.File
+import java.util.UUID
 
 plugins {
     base
@@ -34,6 +37,19 @@ allprojects {
                 )
             }
         }
+    }
+}
+
+val betCliProject = project(":bet:bet-cli")
+betCliProject.plugins.withId("java") {
+    betCliProject.tasks.named<Test>("butlerAcceptanceTest") {
+        val invocationResultsDir = File(
+            System.getProperty("java.io.tmpdir"),
+            "butler-gradle/butlerAcceptanceTest/${UUID.randomUUID()}"
+        )
+        binaryResultsDirectory.set(File(invocationResultsDir, "binary"))
+        reports.junitXml.outputLocation.set(File(invocationResultsDir, "junit-xml"))
+        reports.html.outputLocation.set(File(invocationResultsDir, "html"))
     }
 }
 
