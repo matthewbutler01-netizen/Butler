@@ -65,6 +65,17 @@ function ConvertFrom-TradeRequestTarget {
     return $query
 }
 
+# An empty HashSet is normally unrolled by the PowerShell pipeline into no
+# output, which turns the caller's selection set into $null. Preserve the
+# collection object even when nothing is selected so opponent loading can
+# render unchecked asset boxes safely on Windows PowerShell 5.1.
+function Get-TradeSelectionSet {
+    param([object[]]$Values)
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($value in @($Values)) { [void]$set.Add([string]$value) }
+    Write-Output -NoEnumerate $set
+}
+
 function Get-FreeLoopbackPort {
     $probe = [System.Net.Sockets.TcpListener]::new($loopback, 0)
     try {
