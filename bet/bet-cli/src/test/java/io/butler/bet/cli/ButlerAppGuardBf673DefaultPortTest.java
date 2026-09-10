@@ -28,19 +28,26 @@ class ButlerAppGuardBf673DefaultPortTest {
     }
 
     @Test
-    void existingManagedButlerUsesProvenCreatedNewMutexDetectionBeforeFreePortSelection() throws Exception {
+    void existingManagedButlerIsDiscoveredByHeldButlerOwnedFileLock() throws Exception {
         String guard = script("scripts/butler-app-guard.ps1");
 
+        assertTrue(guard.contains("function Get-ButlerPortLockPath"));
+        assertTrue(guard.contains("app-port-locks"));
+        assertTrue(guard.contains("port-{0}.lock"));
+        assertTrue(guard.contains("function Test-ButlerPortLockHeld"));
+        assertTrue(guard.contains("[System.IO.FileMode]::OpenOrCreate"));
+        assertTrue(guard.contains("[System.IO.FileAccess]::ReadWrite"));
+        assertTrue(guard.contains("[System.IO.FileShare]::None"));
+        assertTrue(guard.contains("An unlocked stale file is harmless"));
+        assertTrue(guard.contains("return $false"));
+        assertTrue(guard.contains("catch [System.IO.IOException]"));
+        assertTrue(guard.contains("return $true"));
+        assertTrue(guard.contains("$candidateStream.Dispose()"));
         assertTrue(guard.contains("function Get-ExistingManagedButlerPort"));
-        assertTrue(guard.contains("$candidateMutexName ="));
-        assertTrue(guard.contains("Butler.App.Port.$candidatePort"));
-        assertTrue(guard.contains("$candidateCreatedNew = $false"));
-        assertTrue(guard.contains("[ref]$candidateCreatedNew"));
-        assertTrue(guard.contains("if (-not $candidateCreatedNew)"));
-        assertTrue(guard.contains("$candidateMutex.Dispose()"));
-        assertFalse(guard.contains("Mutex]::OpenExisting"));
+        assertTrue(guard.contains("Test-ButlerPortLockHeld -CandidatePort $candidatePort"));
         assertTrue(guard.contains("$existingManagedPort = Get-ExistingManagedButlerPort"));
         assertTrue(guard.contains("$Port = [int]$existingManagedPort"));
+        assertFalse(guard.contains("Mutex]::OpenExisting"));
 
         int existing = guard.indexOf("$existingManagedPort = Get-ExistingManagedButlerPort");
         int freeScan = guard.indexOf("$selectedPort = $null");
@@ -48,11 +55,28 @@ class ButlerAppGuardBf673DefaultPortTest {
     }
 
     @Test
+    void selectedPortHoldsFileLockForLauncherLifetimeAndKeepsBf669Mutex() throws Exception {
+        String guard = script("scripts/butler-app-guard.ps1");
+
+        assertTrue(guard.contains("function Open-ButlerPortLock"));
+        assertTrue(guard.contains("$portLock = Open-ButlerPortLock -SelectedPort $Port"));
+        assertTrue(guard.contains("[System.Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)"));
+        assertTrue(guard.contains("Invoke-ButlerLauncher"));
+        assertTrue(guard.contains("$instanceMutex.Dispose()"));
+        assertTrue(guard.contains("$portLock.Dispose()"));
+
+        int acquire = guard.indexOf("$portLock = Open-ButlerPortLock -SelectedPort $Port");
+        int launch = guard.lastIndexOf("Invoke-ButlerLauncher");
+        int release = guard.indexOf("$portLock.Dispose()");
+        assertTrue(acquire >= 0 && launch > acquire && release > launch);
+    }
+
+    @Test
     void explicitPortKeepsExactBf669Behavior() throws Exception {
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(guard.contains("Explicit -Port remains the"));
-        assertTrue(guard.contains("[System.Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)"));
+        assertTrue(guard.contains("$mutexName = \"Local\\Butler.App.Port.$Port\""));
         assertTrue(guard.contains("Butler is already running on port $Port"));
         assertTrue(guard.contains("Port = $Port"));
         assertFalse(guard.contains("$Port = 8081"));

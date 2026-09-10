@@ -54,39 +54,78 @@ function Test-LoopbackPortBindable {
     }
 }
 
-function Get-ExistingManagedButlerPort {
-    foreach ($candidatePort in $managedPorts) {
-        $candidateMutexName = "Local\Butler.App.Port.$candidatePort"
-        $candidateCreatedNew = $false
-        $candidateMutex = $null
-        try {
-            # Use the same constructor/createdNew mechanism as the proven BF-669
-            # duplicate-port guard. If we created the mutex, no Butler owned that
-            # managed port; dispose the temporary handle immediately. If we did
-            # not create it, an existing Butler guard already owns the name.
-            $candidateMutex = [System.Threading.Mutex]::new(
-                $false,
-                $candidateMutexName,
-                [ref]$candidateCreatedNew
-            )
-            if (-not $candidateCreatedNew) {
-                return [int]$candidatePort
-            }
-        }
-        finally {
-            if ($null -ne $candidateMutex) {
-                $candidateMutex.Dispose()
-            }
-        }
-    }
-    return $null
-}
-
 # Resetting the persisted league selection preserves the existing BF-666 behavior
 # and does not represent an app-server launch.
 if ($ResetLeague) {
     Invoke-ButlerLauncher
     exit 0
+}
+
+$localAppData = $env:LOCALAPPDATA
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+}
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    throw "BF-673 BLOCKED: LocalApplicationData is unavailable for Butler app instance locks."
+}
+$lockDirectory = Join-Path (Join-Path $localAppData "Butler") "app-port-locks"
+[IO.Directory]::CreateDirectory($lockDirectory) | Out-Null
+
+function Get-ButlerPortLockPath {
+    param([Parameter(Mandatory = $true)][int]$CandidatePort)
+    return Join-Path $lockDirectory ("port-{0}.lock" -f $CandidatePort)
+}
+
+function Test-ButlerPortLockHeld {
+    param([Parameter(Mandatory = $true)][int]$CandidatePort)
+
+    $candidatePath = Get-ButlerPortLockPath -CandidatePort $CandidatePort
+    $candidateStream = $null
+    try {
+        # An unlocked stale file is harmless: opening it exclusively succeeds,
+        # so only a live guard that still holds the FileStream counts as Butler.
+        $candidateStream = [System.IO.File]::Open(
+            $candidatePath,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+        return $false
+    }
+    catch [System.IO.IOException] {
+        return $true
+    }
+    finally {
+        if ($null -ne $candidateStream) {
+            $candidateStream.Dispose()
+        }
+    }
+}
+
+function Get-ExistingManagedButlerPort {
+    foreach ($candidatePort in $managedPorts) {
+        if (Test-ButlerPortLockHeld -CandidatePort $candidatePort) {
+            return [int]$candidatePort
+        }
+    }
+    return $null
+}
+
+function Open-ButlerPortLock {
+    param([Parameter(Mandatory = $true)][int]$SelectedPort)
+
+    $selectedPath = Get-ButlerPortLockPath -CandidatePort $SelectedPort
+    try {
+        return [System.IO.File]::Open(
+            $selectedPath,
+            [System.IO.FileMode]::OpenOrCreate,
+            [System.IO.FileAccess]::ReadWrite,
+            [System.IO.FileShare]::None
+        )
+    }
+    catch [System.IO.IOException] {
+        throw "BF-669 BLOCKED: Butler is already running on port $SelectedPort. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
+    }
 }
 
 # BF-673 changes only the normal no-port app launch. Explicit -Port remains the
@@ -114,10 +153,14 @@ if (-not $portWasExplicit) {
     }
 }
 
+$portLock = $null
 $mutexName = "Local\Butler.App.Port.$Port"
 $createdNew = $false
 $instanceMutex = $null
 try {
+    # The file lock is the BF-673 cross-port discovery source. The named mutex
+    # remains the proven BF-669 exact-port duplicate guard.
+    $portLock = Open-ButlerPortLock -SelectedPort $Port
     $instanceMutex = [System.Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)
     if (-not $createdNew) {
         throw "BF-669 BLOCKED: Butler is already running on port $Port. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
@@ -128,5 +171,8 @@ try {
 finally {
     if ($null -ne $instanceMutex) {
         $instanceMutex.Dispose()
+    }
+    if ($null -ne $portLock) {
+        $portLock.Dispose()
     }
 }
