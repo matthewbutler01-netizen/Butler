@@ -30,6 +30,41 @@ foreach ($required in @($coreShell, $tradeHost, $tradeLab, $gradle)) {
 . $tradeHost
 . $tradeLab
 
+# Windows PowerShell 5.1 can bind String.Split(char[], int) calls to the
+# StringSplitOptions overload. Override only the request-query parser with
+# IndexOf/Substring so BF-670 remains compatible with the supported launcher.
+function ConvertFrom-TradeRequestTarget {
+    param([Parameter(Mandatory = $true)][string]$RequestTarget)
+
+    $query = @{}
+    $question = $RequestTarget.IndexOf('?')
+    if ($question -lt 0 -or $question + 1 -ge $RequestTarget.Length) { return $query }
+
+    $rawQuery = $RequestTarget.Substring($question + 1)
+    foreach ($pair in ($rawQuery -split '&')) {
+        if ([string]::IsNullOrWhiteSpace($pair)) { continue }
+        $equals = $pair.IndexOf('=')
+        if ($equals -lt 0) {
+            $rawKey = $pair.Replace('+', ' ')
+            $rawValue = ''
+        }
+        else {
+            $rawKey = $pair.Substring(0, $equals).Replace('+', ' ')
+            $rawValue = $pair.Substring($equals + 1).Replace('+', ' ')
+        }
+        $key = [System.Uri]::UnescapeDataString($rawKey)
+        $value = [System.Uri]::UnescapeDataString($rawValue)
+        if ([string]::IsNullOrWhiteSpace($key)) { continue }
+        if ($query.ContainsKey($key)) {
+            $query[$key] = @($query[$key]) + @($value)
+        }
+        else {
+            $query[$key] = @($value)
+        }
+    }
+    return $query
+}
+
 function Get-FreeLoopbackPort {
     $probe = [System.Net.Sockets.TcpListener]::new($loopback, 0)
     try {
