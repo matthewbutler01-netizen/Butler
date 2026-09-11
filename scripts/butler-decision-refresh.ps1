@@ -94,7 +94,7 @@ function Read-DecisionRefreshFormBody {
         }
         $readTotal += $readNow
     }
-    return [string]::new($buffer)
+    return (-join $buffer)
 }
 
 function Get-DecisionRefreshSubmittedToken {
