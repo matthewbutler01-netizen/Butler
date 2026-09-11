@@ -19,20 +19,24 @@ $tradeHost = Join-Path $scriptDir 'butler-trade-lab-host.ps1'
 $tradeLab = Join-Path $scriptDir 'butler-trade-lab.ps1'
 $history = Join-Path $scriptDir 'butler-decision-history.ps1'
 $detail = Join-Path $scriptDir 'butler-decision-detail.ps1'
+$decisionRefresh = Join-Path $scriptDir 'butler-decision-refresh.ps1'
+$decisionRefreshRunner = Join-Path $scriptDir 'sleeper-live-waiver-no-transaction-refresh.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 
-foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $gradle)) {
+foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-670 BLOCKED: required Butler app component not found at $required"
     }
 }
 
-# App modules define only read-only presentation/orchestration helpers.
+# Existing modules remain read-only. BF-675 adds one explicit token-gated POST
+# module for a governed Butler evidence/recommendation refresh only.
 . $tradeHost
 . $tradeLab
 . $history
 . $detail
+. $decisionRefresh
 
 # Windows PowerShell 5.1 can bind String.Split(char[], int) calls to the
 # StringSplitOptions overload. Override only the request-query parser with
@@ -200,6 +204,7 @@ function Send-HttpResponse {
 $innerPort = Get-FreeLoopbackPort
 $coreProcess = $null
 $listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+$decisionRefreshToken = New-DecisionRefreshToken
 Push-Location $repoRoot
 try {
     $coreProcess = Start-AppCore -InnerPort $innerPort
@@ -207,16 +212,17 @@ try {
     $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
-    Write-Host 'Butler App Shell (BF-672)'
+    Write-Host 'Butler App Shell (BF-675)'
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
     Write-Host "League: http://127.0.0.1:$Port/league"
     Write-Host "Trade Lab: http://127.0.0.1:$Port/trade"
     Write-Host "History: http://127.0.0.1:$Port/history"
+    Write-Host "Manual decision refresh: http://127.0.0.1:$Port/refresh"
     Write-Host 'Bind: 127.0.0.1 only'
     Write-Host "Preserved BF-668 app core: isolated on internal loopback port $innerPort"
-    Write-Host 'Boundary: GET-only read-only app routing/presentation; no automatic Butler or Sleeper write.'
+    Write-Host 'Boundary: all existing app pages remain GET/read-only. Only exact token-gated POST /refresh may run the BF-675 Butler refresh cycle; no Sleeper transaction write exists.'
     Write-Host 'Press Ctrl+C to stop Butler.'
 
     if (-not $NoBrowser) { Start-Process $url }
@@ -228,14 +234,27 @@ try {
             $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 8192, $true)
             $requestLine = $reader.ReadLine()
             if ([string]::IsNullOrWhiteSpace($requestLine)) { continue }
+
+            $requestHeaders = @{}
             while ($true) {
                 $headerLine = $reader.ReadLine()
                 if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break }
+                $colon = $headerLine.IndexOf(':')
+                if ($colon -gt 0) {
+                    $headerName = $headerLine.Substring(0, $colon).Trim()
+                    $headerValue = $headerLine.Substring($colon + 1).Trim()
+                    if ($requestHeaders.ContainsKey($headerName)) {
+                        $requestHeaders[$headerName] = ([string]$requestHeaders[$headerName]) + ',' + $headerValue
+                    }
+                    else {
+                        $requestHeaders[$headerName] = $headerValue
+                    }
+                }
             }
 
             $parts = $requestLine.Split(' ')
-            if ($parts.Length -lt 2 -or $parts[0] -ne 'GET') {
-                Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
+            if ($parts.Length -lt 2) {
+                Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'Malformed Butler request.'
                 continue
             }
 
@@ -246,8 +265,55 @@ try {
             }
             $path = $requestTarget.Split('?')[0]
 
+            if ($parts[0] -eq 'POST') {
+                if ($requestTarget -cne '/refresh') {
+                    Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
+                    continue
+                }
+                try {
+                    $formBody = Read-DecisionRefreshFormBody -Reader $reader -Headers $requestHeaders
+                    $submittedToken = Get-DecisionRefreshSubmittedToken -Body $formBody
+                    if ([string]::IsNullOrWhiteSpace($submittedToken) -or $submittedToken -cne $decisionRefreshToken) {
+                        throw 'BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid.'
+                    }
+
+                    # Invalidate before any Butler write so browser retries/replays cannot
+                    # execute a second refresh with the same confirmation page.
+                    $decisionRefreshToken = New-DecisionRefreshToken
+                    $resultText = Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $decisionRefreshRunner
+                    $html = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+                }
+                catch {
+                    $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
+                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+                }
+                continue
+            }
+
+            if ($parts[0] -ne 'GET') {
+                Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
+                continue
+            }
+
             if ($path -eq '/health') {
-                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","bind":"127.0.0.1"}'
+                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
+                continue
+            }
+
+            if ($path -eq '/refresh') {
+                if ($requestTarget -cne '/refresh') {
+                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'BF-675 refresh confirmation accepts no query parameters.'
+                    continue
+                }
+                try {
+                    $html = Get-DecisionRefreshConfirmationHtml -LeagueId $LeagueId -Token $decisionRefreshToken
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+                }
+                catch {
+                    $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
+                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+                }
                 continue
             }
 
@@ -290,6 +356,7 @@ try {
                 $body = $proxied.Body
                 if ($proxied.ContentType -match '^text/html' -and $body -match '<nav class="nav" aria-label="Butler sections">') {
                     $body = Add-AppNavigation -Html $body
+                    $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
                 }
                 Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body
             }
