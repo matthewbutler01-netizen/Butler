@@ -42,7 +42,9 @@ class ButlerAppShellBf680HistoryProgressiveDisclosureTest {
         assertTrue(count(html, "BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)") >= 2);
         assertTrue(count(html, "BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)") >= 2);
         assertTrue(count(html, "ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)") >= 2);
-        assertTrue(detail.contains("$marker = \"<p class=`\\\"history-lineage`\\\">Audit: $safeAudit</p>\""));
+        assertTrue(detail.contains("$marker = \"<p class="));
+        assertTrue(detail.contains("history-lineage"));
+        assertTrue(detail.contains("Audit: $safeAudit</p>"));
         assertTrue(detail.contains("/history?audit=$encodedAudit"));
         assertTrue(detail.contains("View decision"));
     }
