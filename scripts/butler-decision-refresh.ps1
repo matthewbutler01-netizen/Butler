@@ -1,4 +1,4 @@
-# BF-675/BF-676/BF-677 native manual governed waiver refresh app module.
+# BF-675/BF-676/BF-677/BF-678 native manual governed waiver refresh app module.
 # GET renders confirmation only. Exact POST /refresh is token-gated and invokes
 # the repo-owned governed refresh runner; no Sleeper transaction endpoint exists here.
 
@@ -94,7 +94,7 @@ function Get-DecisionRefreshConfirmationHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Butler - Check for a new decision</title>
 <style>$css
-.refresh-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:20px}.refresh-button{appearance:none;border:1px solid #3b82f6;border-radius:12px;background:#2563eb;color:#fff;font:inherit;font-weight:700;padding:12px 18px;cursor:pointer}.refresh-cancel{display:inline-block;padding:12px 0}.refresh-warning{margin-top:18px;padding:16px;border:1px solid #334155;border-radius:14px}.refresh-list{line-height:1.7}.refresh-list li{margin:5px 0}
+.refresh-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-button{appearance:none;border:1px solid #3b82f6;border-radius:12px;background:#2563eb;color:#fff;font:inherit;font-weight:700;padding:12px 18px;cursor:pointer}.refresh-cancel{display:inline-block;padding:12px 0}.refresh-warning{margin-top:18px;padding:16px;border:1px solid #334155;border-radius:14px}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}.refresh-list{line-height:1.7;margin-bottom:0}.refresh-list li{margin:5px 0}
 </style>
 </head>
 <body>
@@ -104,11 +104,12 @@ $nav
 <section class="panel">
 <div class="eyebrow">Manual governed refresh</div>
 <div class="statusrow"><div><h2 class="headline">Check for a new decision?</h2><p class="lede">Butler will refresh its governed waiver evidence, recompute the existing recommendation method, and capture a new immutable audit package.</p></div><span class="status done">MANUAL</span></div>
-<div class="refresh-warning"><strong>This does not submit a waiver move to Sleeper.</strong><ul class="refresh-list"><li>The current governed decision is re-checked before any Butler write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable recommendation, BF-676 proceeds only when BF-635 reports the approved six-hour refresh warning and BF-636 supplies the exact ready nine-step plan.</li><li>Refreshing a warning-state recommendation may preserve it, change it, or produce no governed transaction after newer evidence is evaluated.</li><li>Fully current actionable, stale hard-gate, pending, completed/unconverged, and unknown states are blocked before BF-602.</li><li>The refresh may take several minutes while the browser waits for the nine governed stages. If a stage fails, later stages stop; earlier Butler evidence stages may already have completed.</li></ul></div>
+<div class="refresh-warning"><strong>This does not submit a waiver move to Sleeper.</strong><p>The current governed decision is re-checked before any Butler write.</p></div>
 <form method="post" action="/refresh">
 <input type="hidden" name="token" value="$safeToken">
 <div class="refresh-actions"><button class="refresh-button" type="submit">Confirm and check again</button><a class="refresh-cancel" href="/">Cancel</a></div>
 </form>
+<details class="refresh-governance"><summary>How Butler governs this refresh</summary><ul class="refresh-list"><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable recommendation, BF-676 proceeds only when BF-635 reports the approved six-hour refresh warning and BF-636 supplies the exact ready nine-step plan.</li><li>Refreshing a warning-state recommendation may preserve it, change it, or produce no governed transaction after newer evidence is evaluated.</li><li>Fully current actionable, stale hard-gate, pending, completed/unconverged, and unknown states are blocked before BF-602.</li><li>The refresh may take several minutes while the browser waits for the nine governed stages. If a stage fails, later stages stop; earlier Butler evidence stages may already have completed.</li></ul></details>
 </section>
 </main>
 </body>
