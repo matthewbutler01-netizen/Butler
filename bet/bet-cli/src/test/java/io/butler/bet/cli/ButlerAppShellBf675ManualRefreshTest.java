@@ -72,15 +72,16 @@ class ButlerAppShellBf675ManualRefreshTest {
     void runnerRequiresExactGovernedNoTransactionStateBeforeBf602() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
-        assertTrue(runner.contains("Decision status: NO_TRANSACTION_TO_ACT_ON"));
-        assertTrue(runner.contains("BF-629 live actionability: NO_TRANSACTION_TO_REVALIDATE"));
-        assertTrue(runner.contains("BF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED"));
+        assertTrue(runner.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
+        assertTrue(runner.contains("$bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE'"));
+        assertTrue(runner.contains("$bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
         assertTrue(runner.contains("No BF-602/BF-603/etc. write stage was executed"));
 
-        int preflight = runner.indexOf("$requiredPreflight = @(");
-        int firstWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'");
-        assertTrue(preflight >= 0 && firstWrite > preflight,
-            "BF-675 preflight must be defined and checked before the first Butler write task");
+        int preflight = runner.indexOf("$decisionState = Get-Bf676SingleField");
+        int noTransactionGate = runner.indexOf("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'", preflight);
+        int firstWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'", noTransactionGate);
+        assertTrue(preflight >= 0 && noTransactionGate > preflight && firstWrite > noTransactionGate,
+            "BF-675 no-transaction authorization must still be checked before BF-602");
     }
 
     @Test
