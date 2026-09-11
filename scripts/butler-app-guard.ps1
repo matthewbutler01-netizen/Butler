@@ -13,7 +13,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $portWasExplicit = $PSBoundParameters.ContainsKey("Port")
 $leagueWasExplicit = $PSBoundParameters.ContainsKey("LeagueId")
-$managedPorts = 8080..8099
+$managedPorts = 8080..8199
 $loopback = [System.Net.IPAddress]::Parse("127.0.0.1")
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -164,7 +164,7 @@ if (-not $portWasExplicit) {
             }
         }
         if ($null -eq $selectedPort) {
-            throw "BF-673 BLOCKED: no free Butler loopback port is available from 8080 through 8099. Butler did not stop or modify any listener."
+            throw "BF-673 BLOCKED: no free Butler loopback port is available from 8080 through 8199. Butler did not stop or modify any listener."
         }
         $Port = [int]$selectedPort
         if ($Port -ne 8080) {
