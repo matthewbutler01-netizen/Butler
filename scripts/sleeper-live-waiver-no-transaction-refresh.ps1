@@ -28,7 +28,7 @@ function Invoke-Bf675GradleStep {
         [switch]$CaptureOutput
     )
 
-    Write-Output ("BF-675 START: {0}" -f $Label)
+    Write-Host ("BF-675 START: {0}" -f $Label)
     $gradleArgs = @($Task, "--args=$LeagueId")
     $previousErrorActionPreference = $ErrorActionPreference
     $exitCode = -1
@@ -54,23 +54,23 @@ function Invoke-Bf675GradleStep {
         throw "BF-675 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed."
     }
 
-    Write-Output ("BF-675 PASS: {0}" -f $Label)
+    Write-Host ("BF-675 PASS: {0}" -f $Label)
     if ($CaptureOutput) {
-        Write-Output -NoEnumerate $lines
+        return $lines
     }
 }
 
 Push-Location $repoRoot
 try {
-    Write-Output 'BF-675 manual governed no-transaction refresh'
-    Write-Output ("Butler league: {0}" -f $LeagueId)
-    Write-Output 'Boundary: explicit Butler evidence/recommendation refresh only. This runner never submits, cancels, or replaces a Sleeper transaction and never sets FAAB.'
+    Write-Host 'BF-675 manual governed no-transaction refresh'
+    Write-Host ("Butler league: {0}" -f $LeagueId)
+    Write-Host 'Boundary: explicit Butler evidence/recommendation refresh only. This runner never submits, cancels, or replaces a Sleeper transaction and never sets FAAB.'
 
-    $preflightResult = @(Invoke-Bf675GradleStep `
+    $preflightLines = @(Invoke-Bf675GradleStep `
         -Label 'PRECHECK - current governed no-transaction state' `
         -Task ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' `
         -CaptureOutput)
-    $preflight = $preflightResult -join "`n"
+    $preflight = $preflightLines -join "`n"
 
     $requiredPreflight = @(
         'Decision status: NO_TRANSACTION_TO_ACT_ON',
@@ -83,7 +83,7 @@ try {
         }
     }
 
-    Write-Output 'BF-675 PREFLIGHT VERIFIED: current immutable decision is an exact governed no-transaction with latest evidence lineage.'
+    Write-Host 'BF-675 PREFLIGHT VERIFIED: current immutable decision is an exact governed no-transaction with latest evidence lineage.'
 
     $steps = @(
         @{ Order = 1; Bf = 'BF-602'; Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync' },
@@ -99,14 +99,14 @@ try {
     foreach ($step in $steps) {
         Invoke-Bf675GradleStep `
             -Label ("STEP {0}/9 - {1}" -f $step.Order, $step.Bf) `
-            -Task $step.Task | Out-Host
+            -Task $step.Task
     }
 
-    $finalResult = @(Invoke-Bf675GradleStep `
+    $finalLines = @(Invoke-Bf675GradleStep `
         -Label 'STEP 9/9 - BF-629/BF-631/BF-633/BF-635/BF-638/BF-639' `
         -Task ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' `
         -CaptureOutput)
-    $finalText = $finalResult -join "`n"
+    $finalText = $finalLines -join "`n"
 
     Write-Output 'BF-675 REFRESH COMPLETE'
     Write-Output 'All nine governed stages completed successfully.'
