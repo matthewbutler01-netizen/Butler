@@ -21,10 +21,11 @@ $history = Join-Path $scriptDir 'butler-decision-history.ps1'
 $detail = Join-Path $scriptDir 'butler-decision-detail.ps1'
 $decisionRefresh = Join-Path $scriptDir 'butler-decision-refresh.ps1'
 $decisionRefreshRunner = Join-Path $scriptDir 'sleeper-live-waiver-no-transaction-refresh.ps1'
+$requestWorker = Join-Path $scriptDir 'butler-app-request-worker.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 
-foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $gradle)) {
+foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $requestWorker, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-670 BLOCKED: required Butler app component not found at $required"
     }
@@ -201,14 +202,45 @@ function Send-HttpResponse {
     $Stream.Flush()
 }
 
+$maxRequestWorkers = 8
 $innerPort = Get-FreeLoopbackPort
 $coreProcess = $null
 $listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
 $decisionRefreshToken = New-DecisionRefreshToken
+$refreshState = [hashtable]::Synchronized(@{ Token = $decisionRefreshToken })
+$requestPool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(1, $maxRequestWorkers)
+$activeRequests = New-Object System.Collections.Generic.List[object]
+
+function Remove-CompletedRequestJobs {
+    param([switch]$WaitForOne)
+
+    do {
+        $removed = $false
+        for ($index = $activeRequests.Count - 1; $index -ge 0; $index--) {
+            $job = $activeRequests[$index]
+            if (-not $job.Handle.IsCompleted) { continue }
+            try {
+                [void]$job.PowerShell.EndInvoke($job.Handle)
+            }
+            catch {
+                Write-Warning ("BF-689 request worker failed: {0}" -f $_.Exception.Message)
+            }
+            finally {
+                $job.PowerShell.Dispose()
+                $activeRequests.RemoveAt($index)
+            }
+            $removed = $true
+        }
+        if ($removed -or -not $WaitForOne) { return }
+        Start-Sleep -Milliseconds 10
+    } while ($true)
+}
+
 Push-Location $repoRoot
 try {
     $coreProcess = Start-AppCore -InnerPort $innerPort
     Wait-ForAppCore -InnerPort $innerPort -Process $coreProcess
+    $requestPool.Open()
     $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
@@ -228,150 +260,58 @@ try {
     if (-not $NoBrowser) { Start-Process $url }
 
     while ($true) {
-        $client = $listener.AcceptTcpClient()
-        try {
-            $stream = $client.GetStream()
-            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::ASCII, $false, 8192, $true)
-            $requestLine = $reader.ReadLine()
-            if ([string]::IsNullOrWhiteSpace($requestLine)) { continue }
-
-            $requestHeaders = @{}
-            while ($true) {
-                $headerLine = $reader.ReadLine()
-                if ($null -eq $headerLine -or $headerLine.Length -eq 0) { break }
-                $colon = $headerLine.IndexOf(':')
-                if ($colon -gt 0) {
-                    $headerName = $headerLine.Substring(0, $colon).Trim()
-                    $headerValue = $headerLine.Substring($colon + 1).Trim()
-                    if ($requestHeaders.ContainsKey($headerName)) {
-                        $requestHeaders[$headerName] = ([string]$requestHeaders[$headerName]) + ',' + $headerValue
-                    }
-                    else {
-                        $requestHeaders[$headerName] = $headerValue
-                    }
-                }
-            }
-
-            $parts = $requestLine.Split(' ')
-            if ($parts.Length -lt 2) {
-                Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'Malformed Butler request.'
-                continue
-            }
-
-            $requestTarget = $parts[1]
-            if ($requestTarget.Length -gt 16384) {
-                Send-HttpResponse -Stream $stream -StatusCode 414 -StatusText 'URI Too Long' -ContentType 'text/plain; charset=utf-8' -Body 'Butler request is too large.'
-                continue
-            }
-            $path = $requestTarget.Split('?')[0]
-
-            if ($parts[0] -eq 'POST') {
-                if ($requestTarget -cne '/refresh') {
-                    Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
-                    continue
-                }
-                try {
-                    $formBody = Read-DecisionRefreshFormBody -Reader $reader -Headers $requestHeaders
-                    $submittedToken = Get-DecisionRefreshSubmittedToken -Body $formBody
-                    if ([string]::IsNullOrWhiteSpace($submittedToken) -or $submittedToken -cne $decisionRefreshToken) {
-                        throw 'BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid.'
-                    }
-
-                    # Invalidate before any Butler write so browser retries/replays cannot
-                    # execute a second refresh with the same confirmation page.
-                    $decisionRefreshToken = New-DecisionRefreshToken
-                    $resultText = Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $decisionRefreshRunner
-                    $html = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
-                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
-                }
-                catch {
-                    $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
-                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
-                }
-                continue
-            }
-
-            if ($parts[0] -ne 'GET') {
-                Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
-                continue
-            }
-
-            if ($path -eq '/health') {
-                Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
-                continue
-            }
-
-            if ($path -eq '/refresh') {
-                if ($requestTarget -cne '/refresh') {
-                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'BF-675 refresh confirmation accepts no query parameters.'
-                    continue
-                }
-                try {
-                    $html = Get-DecisionRefreshConfirmationHtml -LeagueId $LeagueId -Token $decisionRefreshToken
-                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
-                }
-                catch {
-                    $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
-                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
-                }
-                continue
-            }
-
-            if ($path -eq '/history') {
-                try {
-                    $html = if ($requestTarget -ceq '/history') {
-                        Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId
-                    }
-                    else {
-                        Invoke-DecisionHistoryHtml -LeagueId $LeagueId -RequestTarget $requestTarget
-                    }
-                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
-                }
-                catch {
-                    $errorHtml = "<!doctype html><html><body><h1>Butler Decision History blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/history`">Return to Decision History</a></p></body></html>"
-                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
-                }
-                continue
-            }
-
-            if ($path -eq '/trade') {
-                try {
-                    $html = if ($requestTarget -ceq '/trade') {
-                        Get-TradeLabLoadingHtml -LeagueId $LeagueId
-                    }
-                    else {
-                        Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget
-                    }
-                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
-                }
-                catch {
-                    $errorHtml = "<!doctype html><html><body><h1>Butler Trade Lab blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/trade`">Return to Trade Lab</a></p></body></html>"
-                    Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
-                }
-                continue
-            }
-
-            try {
-                $proxied = Invoke-AppCoreGet -InnerPort $innerPort -RequestTarget $requestTarget
-                $body = $proxied.Body
-                if ($proxied.ContentType -match '^text/html' -and $body -match '<nav class="nav" aria-label="Butler sections">') {
-                    $body = Add-AppNavigation -Html $body
-                    $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
-                }
-                Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body
-            }
-            catch {
-                $errorHtml = "<!doctype html><html><body><h1>Butler app blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
-                Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
-            }
+        Remove-CompletedRequestJobs
+        while ($activeRequests.Count -ge $maxRequestWorkers) {
+            Remove-CompletedRequestJobs -WaitForOne
         }
-        finally {
-            $client.Close()
+
+        $client = $listener.AcceptTcpClient()
+        $powerShell = [System.Management.Automation.PowerShell]::Create()
+        try {
+            $powerShell.RunspacePool = $requestPool
+            [void]$powerShell.AddCommand($requestWorker)
+            [void]$powerShell.AddParameter('Client', $client)
+            [void]$powerShell.AddParameter('LeagueId', $LeagueId)
+            [void]$powerShell.AddParameter('InnerPort', $innerPort)
+            [void]$powerShell.AddParameter('TradeHost', $tradeHost)
+            [void]$powerShell.AddParameter('TradeLab', $tradeLab)
+            [void]$powerShell.AddParameter('History', $history)
+            [void]$powerShell.AddParameter('Detail', $detail)
+            [void]$powerShell.AddParameter('DecisionRefresh', $decisionRefresh)
+            [void]$powerShell.AddParameter('DecisionRefreshRunner', $decisionRefreshRunner)
+            [void]$powerShell.AddParameter('RepoRoot', $repoRoot)
+            [void]$powerShell.AddParameter('RefreshState', $refreshState)
+            $handle = $powerShell.BeginInvoke()
+            $activeRequests.Add([pscustomobject]@{
+                PowerShell = $powerShell
+                Handle = $handle
+            })
+        }
+        catch {
+            try { $client.Close() } catch {}
+            $powerShell.Dispose()
+            throw
         }
     }
 }
 finally {
     try { $listener.Stop() } catch {}
+
+    foreach ($job in @($activeRequests)) {
+        try {
+            if (-not $job.Handle.IsCompleted) { $job.PowerShell.Stop() }
+            [void]$job.PowerShell.EndInvoke($job.Handle)
+        }
+        catch {
+        }
+        finally {
+            try { $job.PowerShell.Dispose() } catch {}
+        }
+    }
+    $activeRequests.Clear()
+    try { $requestPool.Close() } catch {}
+    try { $requestPool.Dispose() } catch {}
+
     if ($null -ne $coreProcess -and -not $coreProcess.HasExited) {
         try { $coreProcess.Kill() } catch {}
         try { $coreProcess.WaitForExit(5000) | Out-Null } catch {}
