@@ -39,12 +39,13 @@ class ButlerAppShellBf682DecisionDetailReadableTimestampTest {
     }
 
     @Test
-    void explanationTimestampPresentationRemainsUntouched() throws Exception {
+    void laterExplanationPresentationDoesNotAlterBf682ImmutableCaptureContract() throws Exception {
         String detail = script("scripts/butler-decision-detail.ps1");
         String detailHtml = section(detail, "function ConvertTo-DecisionDetailHtml", "function Invoke-DecisionHistoryHtml");
 
-        assertTrue(detailHtml.contains("<strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $Explanation.Captured)</span>"));
-        assertFalse(detailHtml.contains("ConvertTo-HistoryCapturedLabel -Captured $Explanation.Captured"));
+        assertTrue(detailHtml.contains("$capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $Entry.Captured"));
+        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). This detail view is reconciled"));
+        assertTrue(detailHtml.contains("Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)"));
     }
 
     @Test
