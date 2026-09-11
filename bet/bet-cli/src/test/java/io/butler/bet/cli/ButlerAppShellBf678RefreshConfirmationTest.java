@@ -62,18 +62,21 @@ class ButlerAppShellBf678RefreshConfirmationTest {
     void bf676WriteBoundaryAndRunnerRemainUnchanged() throws Exception {
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(refresh.contains("BF-676 BLOCKED: refresh POST must contain only the one-use token."));
         assertTrue(refresh.contains("if ($values.Count -ne 1 -or -not $values.ContainsKey('token'))"));
-        assertTrue(shell.contains("$submittedToken -cne $decisionRefreshToken"));
-        assertTrue(shell.contains("$decisionRefreshToken = New-DecisionRefreshToken"));
-        assertTrue(shell.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $decisionRefreshRunner"));
+        assertTrue(shell.contains("[hashtable]::Synchronized(@{ Token = $decisionRefreshToken })"));
+        assertTrue(worker.contains("$SubmittedToken -cne [string]$State.Token"));
+        assertTrue(worker.contains("$State.Token = New-DecisionRefreshToken"));
+        assertTrue(worker.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner"));
     }
 
     @Test
     void bf678FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-decision-refresh.ps1"));
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
     }
 
     private static String confirmationSection(String refresh) {
