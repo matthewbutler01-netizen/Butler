@@ -16,6 +16,7 @@ class ButlerAppShellBf670TradeLabTest {
     @Test
     void publicShellOwnsTradeRouteAndKeepsGetOnlyBoundary() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String host = script("scripts/butler-trade-lab-host.ps1");
 
         assertTrue(shell.contains("butler-app-shell-core.ps1"));
@@ -23,31 +24,32 @@ class ButlerAppShellBf670TradeLabTest {
         assertTrue(shell.contains("butler-trade-lab.ps1"));
         assertTrue(shell.contains(". $tradeHost"));
         assertTrue(shell.contains(". $tradeLab"));
-        assertTrue(shell.contains("$path -eq '/trade'"));
-        assertTrue(shell.contains("Invoke-TradeLabHtml"));
-        assertTrue(shell.contains("$parts[0] -ne 'GET'"));
-        assertTrue(shell.contains("-Body 'GET only'"));
-        assertTrue(shell.contains("form-action 'self'"));
+        assertTrue(worker.contains("$path -eq '/trade'"));
+        assertTrue(worker.contains("Invoke-TradeLabHtml"));
+        assertTrue(worker.contains("$parts[0] -ne 'GET'"));
+        assertTrue(worker.contains("-Body 'GET only'"));
+        assertTrue(worker.contains("form-action 'self'"));
         assertTrue(host.contains("href=`\"/trade`\""));
         assertTrue(host.contains("Add-TradeNavigation"));
         assertFalse(shell.contains("method=\"post\""));
+        assertFalse(worker.contains("method=\"post\""));
     }
 
     @Test
     void firstTradeNavigationPaintsBeforeGovernedGradleReads() throws Exception {
-        String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String host = script("scripts/butler-trade-lab-host.ps1");
 
-        assertTrue(shell.contains("$requestTarget -ceq '/trade'"));
-        assertTrue(shell.contains("Get-TradeLabLoadingHtml -LeagueId $LeagueId"));
+        assertTrue(worker.contains("$requestTarget -ceq '/trade'"));
+        assertTrue(worker.contains("Get-TradeLabLoadingHtml -LeagueId $LeagueId"));
         assertTrue(host.contains("function Get-TradeLabLoadingHtml"));
         assertTrue(host.contains("http-equiv=\"refresh\" content=\"1;url=/trade?load=1\""));
         assertTrue(host.contains("Opening Trade Lab..."));
         assertTrue(host.contains("The workspace will appear automatically."));
         assertTrue(host.contains("No proposal, transaction, or Sleeper write is being executed."));
 
-        int immediatePaint = shell.indexOf("Get-TradeLabLoadingHtml -LeagueId $LeagueId");
-        int governedLoad = shell.indexOf("Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget");
+        int immediatePaint = worker.indexOf("Get-TradeLabLoadingHtml -LeagueId $LeagueId");
+        int governedLoad = worker.indexOf("Invoke-TradeLabHtml -LeagueId $LeagueId -RequestTarget $requestTarget");
         assertTrue(immediatePaint >= 0 && governedLoad > immediatePaint);
     }
 
@@ -96,6 +98,7 @@ class ButlerAppShellBf670TradeLabTest {
     void tradeLabDoesNotExposeMutationCounterOrExecutionCommands() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertFalse(trade.contains("trade counter-proposal"));
         assertFalse(trade.contains("trade counter-authorize"));
@@ -107,13 +110,17 @@ class ButlerAppShellBf670TradeLabTest {
         assertFalse(trade.contains("Start-Job"));
         assertFalse(trade.contains("Stop-Process"));
         assertFalse(shell.contains("trade counter-"));
+        assertFalse(worker.contains("trade counter-"));
         assertFalse(shell.contains("sleeperLiveWaiverSnapshotSync"));
+        assertFalse(worker.contains("sleeperLiveWaiverSnapshotSync"));
         assertFalse(shell.contains("sleeperLiveWaiverMarketAttentionSync"));
+        assertFalse(worker.contains("sleeperLiveWaiverMarketAttentionSync"));
     }
 
     @Test
     void tradeLabFilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-app-shell-core.ps1"));
         assertAscii(script("scripts/butler-trade-lab-host.ps1"));
         assertAscii(script("scripts/butler-trade-lab.ps1"));

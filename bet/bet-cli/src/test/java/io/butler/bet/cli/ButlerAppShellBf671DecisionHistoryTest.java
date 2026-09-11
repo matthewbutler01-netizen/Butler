@@ -16,20 +16,21 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void publicShellOwnsNativeHistoryRouteWithImmediateFirstPaint() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String history = script("scripts/butler-decision-history.ps1");
 
         assertTrue(shell.contains("butler-decision-history.ps1"));
         assertTrue(shell.contains(". $history"));
-        assertTrue(shell.contains("$path -eq '/history'"));
-        assertTrue(shell.contains("$requestTarget -ceq '/history'"));
-        assertTrue(shell.contains("Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId"));
-        assertTrue(shell.contains("Invoke-DecisionHistoryHtml -LeagueId $LeagueId"));
-        assertTrue(shell.contains("\"history\":\"ready\""));
+        assertTrue(worker.contains("$path -eq '/history'"));
+        assertTrue(worker.contains("$requestTarget -ceq '/history'"));
+        assertTrue(worker.contains("Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId"));
+        assertTrue(worker.contains("Invoke-DecisionHistoryHtml -LeagueId $LeagueId"));
+        assertTrue(worker.contains("\"history\":\"ready\""));
         assertTrue(history.contains("http-equiv=\"refresh\" content=\"1;url=/history?load=1\""));
         assertTrue(history.contains("Opening Decision History..."));
 
-        int immediatePaint = shell.indexOf("Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId");
-        int governedLoad = shell.indexOf("Invoke-DecisionHistoryHtml -LeagueId $LeagueId");
+        int immediatePaint = worker.indexOf("Get-DecisionHistoryLoadingHtml -LeagueId $LeagueId");
+        int governedLoad = worker.indexOf("Invoke-DecisionHistoryHtml -LeagueId $LeagueId");
         assertTrue(immediatePaint >= 0 && governedLoad > immediatePaint);
     }
 
@@ -54,7 +55,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void historyNavigationCoexistsWithExistingAppPages() throws Exception {
         String history = script("scripts/butler-decision-history.ps1");
-        String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(history.contains("href=`\"/`\">Dashboard"));
         assertTrue(history.contains("href=`\"/team`\">My Team"));
@@ -63,13 +64,13 @@ class ButlerAppShellBf671DecisionHistoryTest {
         assertTrue(history.contains("href=`\"/trade`\">Trade Lab"));
         assertTrue(history.contains("href=`\"/history`\">History"));
         assertTrue(history.contains("function Add-AppNavigation"));
-        assertTrue(shell.contains("$body = Add-AppNavigation -Html $body"));
+        assertTrue(worker.contains("$body = Add-AppNavigation -Html $body"));
     }
 
     @Test
     void historyPagePreservesReadOnlyBoundaryAndEmptyState() throws Exception {
         String history = script("scripts/butler-decision-history.ps1");
-        String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(history.contains("BF-628 reports no immutable governed waiver audits"));
         assertTrue(history.contains("BF-671 displays BF-628 history only"));
@@ -81,13 +82,14 @@ class ButlerAppShellBf671DecisionHistoryTest {
         assertFalse(history.contains("Invoke-Expression"));
         assertFalse(history.contains("Start-Job"));
         assertFalse(history.contains("Stop-Process"));
-        assertTrue(shell.contains("$parts[0] -ne 'GET'"));
-        assertTrue(shell.contains("form-action 'self'"));
+        assertTrue(worker.contains("$parts[0] -ne 'GET'"));
+        assertTrue(worker.contains("form-action 'self'"));
     }
 
     @Test
     void bf671FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-decision-history.ps1"));
     }
 

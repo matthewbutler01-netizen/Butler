@@ -78,12 +78,14 @@ class ButlerAppShellBf677RefreshEligibilityTest {
     void bf676PostAuthorizationRemainsSeparateAndAuthoritative() throws Exception {
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
         assertTrue(refresh.contains("BF-676 POST preflight"));
-        assertTrue(shell.contains("$submittedToken -cne $decisionRefreshToken"));
-        assertTrue(shell.contains("$decisionRefreshToken = New-DecisionRefreshToken"));
-        assertTrue(shell.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $decisionRefreshRunner"));
+        assertTrue(shell.contains("[hashtable]::Synchronized(@{ Token = $decisionRefreshToken })"));
+        assertTrue(worker.contains("$SubmittedToken -cne [string]$State.Token"));
+        assertTrue(worker.contains("$State.Token = New-DecisionRefreshToken"));
+        assertTrue(worker.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner"));
         assertTrue(runner.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(runner.contains("$decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED'"));
         assertTrue(runner.contains("Assert-Bf676WarningRefreshPlan -Text $preflight"));
@@ -95,6 +97,7 @@ class ButlerAppShellBf677RefreshEligibilityTest {
     void bf677FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-decision-refresh.ps1"));
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
     }
 
     private static String eligibilitySection(String refresh) {

@@ -16,14 +16,15 @@ class ButlerAppShellBf672DecisionDetailTest {
     @Test
     void shellLoadsDetailAfterHistoryAndPassesExactRequestTarget() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(shell.contains("butler-decision-detail.ps1"));
         assertTrue(shell.indexOf(". $history") >= 0);
         assertTrue(shell.indexOf(". $detail") > shell.indexOf(". $history"));
-        assertTrue(shell.contains("Invoke-DecisionHistoryHtml -LeagueId $LeagueId -RequestTarget $requestTarget"));
-        assertTrue(shell.contains("\"decisionDetail\":\"ready\""));
-        assertTrue(shell.contains("$parts[0] -ne 'GET'"));
-        assertTrue(shell.contains("form-action 'self'"));
+        assertTrue(worker.contains("Invoke-DecisionHistoryHtml -LeagueId $LeagueId -RequestTarget $requestTarget"));
+        assertTrue(worker.contains("\"decisionDetail\":\"ready\""));
+        assertTrue(worker.contains("$parts[0] -ne 'GET'"));
+        assertTrue(worker.contains("form-action 'self'"));
     }
 
     @Test
@@ -70,6 +71,7 @@ class ButlerAppShellBf672DecisionDetailTest {
     void bf672RemainsReadOnlyAndAsciiOnly() throws Exception {
         String detail = script("scripts/butler-decision-detail.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertFalse(detail.contains("sleeperLiveWaiverRecommendationAuditCapture"));
         assertFalse(detail.contains("sleeperLiveWaiverGovernedExplanationCapture"));
@@ -81,6 +83,7 @@ class ButlerAppShellBf672DecisionDetailTest {
         assertFalse(detail.contains("Start-Job"));
         assertAscii(detail);
         assertAscii(shell);
+        assertAscii(worker);
     }
 
     private static void assertAscii(String text) {
