@@ -1,4 +1,4 @@
-# BF-671/BF-679/BF-680 native read-only Decision History app module.
+# BF-671/BF-679/BF-680/BF-681 native read-only Decision History app module.
 # Uses BF-628 as the sole authoritative immutable waiver-audit history source.
 
 function Get-AppNav {
@@ -122,6 +122,22 @@ function ConvertTo-DecisionHistoryView {
     }
 }
 
+function ConvertTo-HistoryCapturedLabel {
+    param([Parameter(Mandatory = $true)][string]$Captured)
+
+    try {
+        $parsed = [System.DateTimeOffset]::Parse(
+            $Captured,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AllowWhiteSpaces
+        )
+        return $parsed.ToUniversalTime().ToString("MMM d, yyyy HH:mm 'UTC'", [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    catch {
+        return $Captured
+    }
+}
+
 function ConvertTo-DecisionHistoryHtml {
     param([Parameter(Mandatory = $true)]$History)
 
@@ -133,11 +149,13 @@ function ConvertTo-DecisionHistoryHtml {
 
     # BF-679 reverses the already-authoritative BF-628 sequence for presentation only.
     # BF-680 leaves the newest displayed record full-size and progressively discloses older technical fields.
-    # ConvertTo-DecisionHistoryView keeps the parsed source order unchanged.
+    # BF-681 humanizes the displayed capture time in UTC while preserving the exact source value in details.
+    # ConvertTo-DecisionHistoryView keeps the parsed source order and exact captured value unchanged.
     $presentationEntries = @($History.Entries)
     $cards = ''
     for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
         $entry = $presentationEntries[$entryIndex]
+        $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $entry.Captured
         $decisionLabel = if ($entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') {
             'No governed transaction'
         }
@@ -152,19 +170,19 @@ function ConvertTo-DecisionHistoryHtml {
         if ($isNewest) {
             $cardHtml = @"
 <article class="history-card">
-<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $entry.Captured)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
+<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
 <div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
-<details><summary>Audit and evidence lineage</summary><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
+<details><summary>Audit and evidence lineage</summary><p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
 </article>
 "@
         }
         else {
             $cardHtml = @"
 <article class="history-card history-card-compact">
-<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $entry.Captured)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
+<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
 <details class="history-older-details"><summary>Show audit details</summary>
 <div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
-<p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p>
+<p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p>
 </details>
 </article>
 "@
