@@ -46,26 +46,29 @@ class ButlerAppShellBf687StartupPresentationTest {
     @Test
     void bfCodedFailureDiagnosticsRemainIntact() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(shell.contains("BF-670 BLOCKED: required Butler app component not found at $required"));
         assertTrue(shell.contains("BF-670 BLOCKED: Windows PowerShell 5.1 executable not found."));
-        assertTrue(shell.contains("BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid."));
-        assertTrue(shell.contains("BF-675 refresh confirmation accepts no query parameters."));
+        assertTrue(worker.contains("BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid."));
+        assertTrue(worker.contains("BF-675 refresh confirmation accepts no query parameters."));
     }
 
     @Test
     void presentationChangeDoesNotAlterRefreshExecutionContract() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(shell.contains("$decisionRefreshToken = New-DecisionRefreshToken"));
-        assertTrue(shell.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $decisionRefreshRunner"));
-        assertTrue(shell.contains("if ($requestTarget -cne '/refresh')"));
-        assertTrue(shell.contains("if ($parts[0] -ne 'GET')"));
+        assertTrue(worker.contains("Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner"));
+        assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
+        assertTrue(worker.contains("if ($parts[0] -ne 'GET')"));
     }
 
     @Test
-    void bf687ShellRemainsAsciiOnly() throws Exception {
+    void bf687ShellAndSuccessorWorkerRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
     }
 
     private static void assertAscii(String text) {
