@@ -1,4 +1,4 @@
-# BF-672/BF-682 read-only Decision Detail extension for BF-671 History.
+# BF-672/BF-682/BF-684 read-only Decision Detail extension for BF-671 History.
 # BF-628 validates the exact immutable audit before BF-653 explanation lookup.
 
 function ConvertFrom-DecisionHistoryRequestTarget {
@@ -170,13 +170,14 @@ function ConvertTo-DecisionDetailHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'history'
     $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $Entry.Captured
+    $explanationCapturedLabel = if ($Explanation.State -ceq 'EXPLANATION_READY') { ConvertTo-HistoryCapturedLabel -Captured $Explanation.Captured } else { $Explanation.Captured }
     $detailCss = @'
 .detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.detail-item{padding:14px;border:1px solid #2b3962;border-radius:12px;background:#0d1630}.detail-item strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.detail-item span{display:block;margin-top:5px;font-weight:800;word-break:break-word}.explanation-copy{font-size:18px;line-height:1.55;color:#e8edfb}.mono{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.back-link{color:#a9c6ff;font-weight:800;text-decoration:none}@media(max-width:760px){.detail-grid{grid-template-columns:1fr}}
 '@
     $decisionLabel = if ($Entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') { 'No governed transaction' } elseif ($Entry.RecommendationState -ceq 'RECOMMEND_ADD_DROP') { "ADD $(ConvertTo-HtmlText $Entry.AddSleeperId) / DROP $(ConvertTo-HtmlText $Entry.DropSleeperId)" } else { ConvertTo-HtmlText $Entry.RecommendationState }
     $explanationPanel = if ($Explanation.State -ceq 'EXPLANATION_READY') {
         @"
-<section class="panel"><div class="eyebrow">Persisted governed explanation</div><div class="statusrow"><div><h2 class="headline">Why this decision?</h2><p class="explanation-copy">$(ConvertTo-HtmlText $Explanation.ExplanationText)</p></div><div class="status good">EXPLANATION READY</div></div><div class="detail-grid"><div class="detail-item"><strong>Explanation type</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationType)</span></div><div class="detail-item"><strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $Explanation.Captured)</span></div><div class="detail-item"><strong>Explanation id</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationId)</span></div></div><details><summary>Explanation evidence lineage</summary><p class="mono">Policy: $(ConvertTo-HtmlText $Explanation.Policy)</p><p class="mono">Evidence policy: $(ConvertTo-HtmlText $Explanation.EvidencePolicy)</p><p class="mono">Evidence trace: $(ConvertTo-HtmlText $Explanation.EvidenceTrace)</p></details></section>
+<section class="panel"><div class="eyebrow">Persisted governed explanation</div><div class="statusrow"><div><h2 class="headline">Why this decision?</h2><p class="explanation-copy">$(ConvertTo-HtmlText $Explanation.ExplanationText)</p></div><div class="status good">EXPLANATION READY</div></div><div class="detail-grid"><div class="detail-item"><strong>Explanation type</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationType)</span></div><div class="detail-item"><strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $explanationCapturedLabel)</span></div><div class="detail-item"><strong>Explanation id</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationId)</span></div></div><details><summary>Explanation evidence lineage</summary><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Explanation.Captured)</p><p class="mono">Policy: $(ConvertTo-HtmlText $Explanation.Policy)</p><p class="mono">Evidence policy: $(ConvertTo-HtmlText $Explanation.EvidencePolicy)</p><p class="mono">Evidence trace: $(ConvertTo-HtmlText $Explanation.EvidenceTrace)</p></details></section>
 "@
     }
     else {
