@@ -18,13 +18,13 @@ class ButlerAppGuardBf673DefaultPortTest {
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(guard.contains("$portWasExplicit = $PSBoundParameters.ContainsKey(\"Port\")"));
-        assertTrue(guard.contains("$managedPorts = 8080..8099"));
+        assertTrue(guard.contains("$managedPorts = 8080..8199"));
         assertTrue(guard.contains("[System.Net.IPAddress]::Parse(\"127.0.0.1\")"));
         assertTrue(guard.contains("[System.Net.Sockets.TcpListener]::new($loopback, $CandidatePort)"));
         assertTrue(guard.contains("if (-not $portWasExplicit)"));
         assertTrue(guard.contains("foreach ($candidatePort in $managedPorts)"));
         assertTrue(guard.contains("Butler default port 8080 is unavailable. Using local port $Port instead."));
-        assertTrue(guard.contains("no free Butler loopback port is available from 8080 through 8099"));
+        assertTrue(guard.contains("no free Butler loopback port is available from 8080 through 8199"));
     }
 
     @Test
