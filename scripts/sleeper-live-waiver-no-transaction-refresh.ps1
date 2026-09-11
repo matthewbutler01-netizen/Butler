@@ -42,7 +42,7 @@ function Invoke-Bf675GradleStep {
             $exitCode = $LASTEXITCODE
         }
         else {
-            & $gradle @gradleArgs 2>&1 | Out-Host
+            & $gradle @gradleArgs
             $exitCode = $LASTEXITCODE
         }
     }
