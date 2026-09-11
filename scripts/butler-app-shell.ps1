@@ -212,7 +212,7 @@ try {
     $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
-    Write-Host 'Butler App Shell (BF-675)'
+    Write-Host 'Butler App Shell'
     Write-Host "Local URL: $url"
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
@@ -221,8 +221,8 @@ try {
     Write-Host "History: http://127.0.0.1:$Port/history"
     Write-Host "Manual decision refresh: http://127.0.0.1:$Port/refresh"
     Write-Host 'Bind: 127.0.0.1 only'
-    Write-Host "Preserved BF-668 app core: isolated on internal loopback port $innerPort"
-    Write-Host 'Boundary: all existing app pages remain GET/read-only. Only exact token-gated POST /refresh may run the BF-675 Butler refresh cycle; no Sleeper transaction write exists.'
+    Write-Host "App core: isolated on internal loopback port $innerPort"
+    Write-Host 'Boundary: all existing app pages remain GET/read-only. Only exact token-gated POST /refresh may run the governed Butler refresh cycle; no Sleeper transaction write exists.'
     Write-Host 'Press Ctrl+C to stop Butler.'
 
     if (-not $NoBrowser) { Start-Process $url }
