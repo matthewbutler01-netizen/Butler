@@ -1,4 +1,4 @@
-# BF-671 native read-only Decision History app module.
+# BF-671/BF-679 native read-only Decision History app module.
 # Uses BF-628 as the sole authoritative immutable waiver-audit history source.
 
 function Get-AppNav {
@@ -131,8 +131,12 @@ function ConvertTo-DecisionHistoryHtml {
 .history-list{display:grid;gap:14px;margin-top:18px}.history-card{padding:18px;border:1px solid #2b3962;border-radius:16px;background:#0d1630}.history-card h3{margin:4px 0 8px}.history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.history-meta div{padding:11px;border:1px solid #26345c;border-radius:10px;background:#0a1329}.history-meta strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.history-meta span{display:block;margin-top:4px;font-weight:700;word-break:break-word}.history-lineage{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.history-decision{font-size:17px;font-weight:800}.history-integrity{font-size:12px;font-weight:800;color:#8ff0b9}@media(max-width:760px){.history-meta{grid-template-columns:1fr}}
 '@
 
+    # BF-679 reverses the already-authoritative BF-628 sequence for presentation only.
+    # ConvertTo-DecisionHistoryView keeps the parsed source order unchanged.
+    $presentationEntries = @($History.Entries)
     $cards = ''
-    foreach ($entry in @($History.Entries)) {
+    for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
+        $entry = $presentationEntries[$entryIndex]
         $decisionLabel = if ($entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') {
             'No governed transaction'
         }
