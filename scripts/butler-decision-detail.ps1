@@ -1,4 +1,4 @@
-# BF-672 read-only Decision Detail extension for BF-671 History.
+# BF-672/BF-682 read-only Decision Detail extension for BF-671 History.
 # BF-628 validates the exact immutable audit before BF-653 explanation lookup.
 
 function ConvertFrom-DecisionHistoryRequestTarget {
@@ -169,6 +169,7 @@ function ConvertTo-DecisionDetailHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'history'
+    $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $Entry.Captured
     $detailCss = @'
 .detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.detail-item{padding:14px;border:1px solid #2b3962;border-radius:12px;background:#0d1630}.detail-item strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.detail-item span{display:block;margin-top:5px;font-weight:800;word-break:break-word}.explanation-copy{font-size:18px;line-height:1.55;color:#e8edfb}.mono{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.back-link{color:#a9c6ff;font-weight:800;text-decoration:none}@media(max-width:760px){.detail-grid{grid-template-columns:1fr}}
 '@
@@ -189,7 +190,7 @@ function ConvertTo-DecisionDetailHtml {
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $History.LeagueId) &middot; roster $(ConvertTo-HtmlText $History.RosterId)</div></header>
 $nav
 <p><a class="back-link" href="/history?load=1">&larr; Back to Decision History</a></p>
-<section class="panel"><div class="eyebrow">Immutable decision</div><div class="statusrow"><div><h1 class="headline">$decisionLabel</h1><p class="lede">Captured $(ConvertTo-HtmlText $Entry.Captured). This detail view is reconciled to one exact BF-628 integrity-verified BF-627 audit.</p></div><div class="status good">$(ConvertTo-HtmlText $Entry.IntegrityState)</div></div><div class="detail-grid"><div class="detail-item"><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $Entry.ProviderSeason) / $(ConvertTo-HtmlText $Entry.ProviderStatus) / $(ConvertTo-HtmlText $Entry.ProviderLeg)</span></div><div class="detail-item"><strong>Selection state</strong><span>$(ConvertTo-HtmlText $Entry.SelectionState)</span></div><div class="detail-item"><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $Entry.RecommendationState)</span></div></div><details><summary>Audit and evidence lineage</summary><p class="mono">Audit: $(ConvertTo-HtmlText $Entry.AuditId)</p><p class="mono">BF-603 market: $(ConvertTo-HtmlText $Entry.MarketSnapshotId)</p><p class="mono">BF-602 waiver: $(ConvertTo-HtmlText $Entry.WaiverSnapshotId)</p><p class="mono">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $Entry.AddSleeperId) / $(ConvertTo-HtmlText $Entry.DropSleeperId)</p></details></section>
+<section class="panel"><div class="eyebrow">Immutable decision</div><div class="statusrow"><div><h1 class="headline">$decisionLabel</h1><p class="lede">Captured $(ConvertTo-HtmlText $capturedLabel). This detail view is reconciled to one exact BF-628 integrity-verified BF-627 audit.</p></div><div class="status good">$(ConvertTo-HtmlText $Entry.IntegrityState)</div></div><div class="detail-grid"><div class="detail-item"><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $Entry.ProviderSeason) / $(ConvertTo-HtmlText $Entry.ProviderStatus) / $(ConvertTo-HtmlText $Entry.ProviderLeg)</span></div><div class="detail-item"><strong>Selection state</strong><span>$(ConvertTo-HtmlText $Entry.SelectionState)</span></div><div class="detail-item"><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $Entry.RecommendationState)</span></div></div><details><summary>Audit and evidence lineage</summary><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)</p><p class="mono">Audit: $(ConvertTo-HtmlText $Entry.AuditId)</p><p class="mono">BF-603 market: $(ConvertTo-HtmlText $Entry.MarketSnapshotId)</p><p class="mono">BF-602 waiver: $(ConvertTo-HtmlText $Entry.WaiverSnapshotId)</p><p class="mono">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $Entry.AddSleeperId) / $(ConvertTo-HtmlText $Entry.DropSleeperId)</p></details></section>
 $explanationPanel
 <section class="panel boundary"><span class="lock">READ ONLY.</span> BF-672 validates the selected audit through BF-628 and reads only its persisted BF-653 explanation state. It cannot capture an explanation, rerun a recommendation, refresh evidence, execute BF-641, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
