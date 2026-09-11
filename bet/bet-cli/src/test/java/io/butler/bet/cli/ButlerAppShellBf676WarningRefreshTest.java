@@ -108,13 +108,15 @@ class ButlerAppShellBf676WarningRefreshTest {
     @Test
     void bf676KeepsSinglePostBoundaryAndNoSleeperTransactionExecution() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
-        assertTrue(shell.contains("if ($parts[0] -eq 'POST')"));
-        assertTrue(shell.contains("if ($requestTarget -cne '/refresh')"));
-        assertTrue(shell.contains("$submittedToken -cne $decisionRefreshToken"));
-        assertTrue(shell.contains("$decisionRefreshToken = New-DecisionRefreshToken"));
+        assertTrue(worker.contains("if ($parts[0] -eq 'POST')"));
+        assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
+        assertTrue(worker.contains("$SubmittedToken -cne [string]$State.Token"));
+        assertTrue(worker.contains("$State.Token = New-DecisionRefreshToken"));
+        assertTrue(shell.contains("[hashtable]::Synchronized(@{ Token = $decisionRefreshToken })"));
         assertFalse(refresh.contains("<script"));
         assertFalse(refresh.contains("javascript:"));
         assertFalse(runner.contains("create_transaction"));
@@ -126,6 +128,7 @@ class ButlerAppShellBf676WarningRefreshTest {
     @Test
     void bf676FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-decision-refresh.ps1"));
         assertAscii(script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1"));
     }
