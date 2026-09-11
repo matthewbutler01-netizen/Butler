@@ -1,4 +1,4 @@
-# BF-675/BF-676 native manual governed waiver refresh app module.
+# BF-675/BF-676/BF-677 native manual governed waiver refresh app module.
 # GET renders confirmation only. Exact POST /refresh is token-gated and invokes
 # the repo-owned governed refresh runner; no Sleeper transaction endpoint exists here.
 
@@ -14,6 +14,20 @@ function New-DecisionRefreshToken {
     return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '')
 }
 
+function Get-DecisionRefreshTechnicalField {
+    param(
+        [Parameter(Mandatory = $true)][string]$Html,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    $pattern = '<div>' + [regex]::Escape($Label) + '\s*(?<value>[^<]+)</div>'
+    $matches = [regex]::Matches($Html, $pattern)
+    if ($matches.Count -ne 1) { return $null }
+    $value = [System.Net.WebUtility]::HtmlDecode($matches[0].Groups['value'].Value).Trim()
+    if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+    return $value
+}
+
 function Add-DecisionRefreshControl {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -22,9 +36,43 @@ function Add-DecisionRefreshControl {
 
     if ($RequestTarget -cne '/') { return $Html }
     if ($Html -notmatch '<nav class="nav" aria-label="Butler sections">') {
-        throw 'BF-676 BLOCKED: Dashboard HTML is missing the Butler navigation contract.'
+        throw 'BF-677 BLOCKED: Dashboard HTML is missing the Butler navigation contract.'
     }
     if ($Html -match 'href="/refresh"') { return $Html }
+
+    # BF-677 is presentation eligibility only. These exact technical fields were
+    # already derived from the governed compact summary by the inner Dashboard.
+    # Missing/duplicate/unknown values simply omit the link. BF-676 POST preflight
+    # remains the only authorization for any Butler write.
+    $decisionState = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Decision state:'
+    $bf629State = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-629:'
+    $bf631State = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-631:'
+    if ([string]::IsNullOrWhiteSpace($decisionState) -or
+        [string]::IsNullOrWhiteSpace($bf629State) -or
+        [string]::IsNullOrWhiteSpace($bf631State)) {
+        return $Html
+    }
+
+    $eligible = $false
+    if ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+        $bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        $eligible = $true
+    }
+    elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+        $bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        $bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        $planState = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan state:'
+        $planPolicy = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan policy:'
+        $stepCount = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Governed step count:'
+        if ($planState -ceq 'MANUAL_REFRESH_PLAN_READY' -and
+            $planPolicy -ceq 'sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution' -and
+            $stepCount -ceq '9') {
+            $eligible = $true
+        }
+    }
+
+    if (-not $eligible) { return $Html }
     return $Html.Replace('</nav>', '<a href="/refresh">Check for a new decision</a></nav>')
 }
 
