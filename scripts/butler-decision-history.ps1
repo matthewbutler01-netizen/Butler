@@ -1,4 +1,4 @@
-# BF-671/BF-679 native read-only Decision History app module.
+# BF-671/BF-679/BF-680 native read-only Decision History app module.
 # Uses BF-628 as the sole authoritative immutable waiver-audit history source.
 
 function Get-AppNav {
@@ -128,10 +128,11 @@ function ConvertTo-DecisionHistoryHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'history'
     $historyCss = @'
-.history-list{display:grid;gap:14px;margin-top:18px}.history-card{padding:18px;border:1px solid #2b3962;border-radius:16px;background:#0d1630}.history-card h3{margin:4px 0 8px}.history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.history-meta div{padding:11px;border:1px solid #26345c;border-radius:10px;background:#0a1329}.history-meta strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.history-meta span{display:block;margin-top:4px;font-weight:700;word-break:break-word}.history-lineage{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.history-decision{font-size:17px;font-weight:800}.history-integrity{font-size:12px;font-weight:800;color:#8ff0b9}@media(max-width:760px){.history-meta{grid-template-columns:1fr}}
+.history-list{display:grid;gap:14px;margin-top:18px}.history-card{padding:18px;border:1px solid #2b3962;border-radius:16px;background:#0d1630}.history-card h3{margin:4px 0 8px}.history-card-compact{padding-top:14px;padding-bottom:14px}.history-card-compact .history-older-details{margin-top:8px}.history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.history-meta div{padding:11px;border:1px solid #26345c;border-radius:10px;background:#0a1329}.history-meta strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.06em}.history-meta span{display:block;margin-top:4px;font-weight:700;word-break:break-word}.history-lineage{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.history-decision{font-size:17px;font-weight:800}.history-integrity{font-size:12px;font-weight:800;color:#8ff0b9}@media(max-width:760px){.history-meta{grid-template-columns:1fr}}
 '@
 
     # BF-679 reverses the already-authoritative BF-628 sequence for presentation only.
+    # BF-680 leaves the newest displayed record full-size and progressively discloses older technical fields.
     # ConvertTo-DecisionHistoryView keeps the parsed source order unchanged.
     $presentationEntries = @($History.Entries)
     $cards = ''
@@ -146,13 +147,29 @@ function ConvertTo-DecisionHistoryHtml {
         else {
             ConvertTo-HtmlText $entry.RecommendationState
         }
-        $cards += @"
+
+        $isNewest = $entryIndex -eq ($presentationEntries.Count - 1)
+        if ($isNewest) {
+            $cardHtml = @"
 <article class="history-card">
 <div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $entry.Captured)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
 <div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
 <details><summary>Audit and evidence lineage</summary><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
 </article>
 "@
+        }
+        else {
+            $cardHtml = @"
+<article class="history-card history-card-compact">
+<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $entry.Captured)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
+<details class="history-older-details"><summary>Show audit details</summary>
+<div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
+<p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p>
+</details>
+</article>
+"@
+        }
+        $cards += $cardHtml
     }
     if ([string]::IsNullOrWhiteSpace($cards)) {
         $cards = '<div class="empty">BF-628 reports no immutable governed waiver audits for this exact Butler league.</div>'
