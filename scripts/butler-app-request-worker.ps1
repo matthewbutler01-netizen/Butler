@@ -44,12 +44,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. $TradeHost
-. $TradeLab
-. $History
-. $Detail
-. $DecisionRefresh
-
 # Keep the Windows PowerShell 5.1 request parser override used by the shell.
 function ConvertFrom-TradeRequestTarget {
     param([Parameter(Mandatory = $true)][string]$RequestTarget)
@@ -367,6 +361,23 @@ try {
     }
     $path = $requestTarget.Split('?')[0]
 
+    if ($parts[0] -eq 'GET') {
+        if ($path -eq '/health') {
+            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
+            return
+        }
+    }
+
+    $requestParserOverride = (Get-Item Function:\ConvertFrom-TradeRequestTarget).ScriptBlock
+    $selectionSetOverride = (Get-Item Function:\Get-TradeSelectionSet).ScriptBlock
+    . $TradeHost
+    . $TradeLab
+    . $History
+    . $Detail
+    . $DecisionRefresh
+    Set-Item -Path Function:\ConvertFrom-TradeRequestTarget -Value $requestParserOverride
+    Set-Item -Path Function:\Get-TradeSelectionSet -Value $selectionSetOverride
+
     if ($parts[0] -eq 'POST') {
         if ($requestTarget -cne '/refresh') {
             Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
@@ -390,11 +401,6 @@ try {
 
     if ($parts[0] -ne 'GET') {
         Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
-        return
-    }
-
-    if ($path -eq '/health') {
-        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
         return
     }
 
