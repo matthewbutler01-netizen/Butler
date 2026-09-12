@@ -60,12 +60,12 @@ class ButlerAppShellBf668TeamIntelligenceTest {
     private static String script() throws IOException {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         for (int depth = 0; depth < 7 && current != null; depth++) {
-            Path candidate = current.resolve("scripts/butler-app-shell-core.ps1");
+            Path candidate = current.resolve("scripts/butler-app-shell-core-single.ps1");
             if (Files.isRegularFile(candidate)) {
                 return Files.readString(candidate, StandardCharsets.US_ASCII);
             }
             current = current.getParent();
         }
-        throw new IOException("BF-668 test could not locate scripts/butler-app-shell-core.ps1");
+        throw new IOException("BF-668 test could not locate scripts/butler-app-shell-core-single.ps1");
     }
 }
