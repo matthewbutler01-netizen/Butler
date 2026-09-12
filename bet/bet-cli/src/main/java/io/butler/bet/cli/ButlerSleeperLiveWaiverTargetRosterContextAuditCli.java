@@ -10,6 +10,11 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
     private ButlerSleeperLiveWaiverTargetRosterContextAuditCli() {}
 
     public static void main(String[] args) {
+        if (isTeamBundle(args)) {
+            ButlerMyTeamEvidenceBundleCli.main(new String[]{args[0].trim()});
+            return;
+        }
+
         try {
             if (args == null || args.length != 1
                 || args[0] == null || args[0].isBlank()) {
@@ -27,6 +32,14 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    static boolean isTeamBundle(String[] args) {
+        return args != null
+            && args.length == 2
+            && args[0] != null
+            && !args[0].isBlank()
+            && "--team-bundle".equals(args[1]);
     }
 
     static void print(SleeperLiveWaiverTargetRosterContextAudit.AuditReport report) {

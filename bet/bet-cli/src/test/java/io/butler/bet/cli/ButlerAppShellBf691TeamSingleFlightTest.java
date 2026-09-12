@@ -48,13 +48,16 @@ class ButlerAppShellBf691TeamSingleFlightTest {
     void teamSingleFlightDoesNotChangeTeamEvidenceOrRefreshGovernance() throws Exception {
         String worker = script("scripts/butler-app-request-worker.ps1");
         String preserved = script("scripts/butler-app-shell-core-single.ps1");
+        String bundle = script("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
         assertTrue(preserved.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
-        assertTrue(preserved.contains("league team-context $LeagueId"));
-        assertTrue(preserved.contains("league roster-strength $LeagueId"));
-        assertTrue(preserved.contains("league positional-pressure $LeagueId"));
-        assertTrue(preserved.contains("league team-posture $LeagueId $($rosterView.Season)"));
-        assertTrue(preserved.contains("league future-capital $LeagueId"));
+        assertTrue(preserved.contains("$LeagueId --team-bundle"));
+        assertTrue(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(new String[]{leagueId})"));
+        assertTrue(bundle.contains("ButlerMain.main(new String[]{\"league\", \"team-context\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.main(new String[]{\"league\", \"roster-strength\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.main(new String[]{\"league\", \"positional-pressure\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.main(new String[]{\"league\", \"team-posture\", leagueId, Integer.toString(season)})"));
+        assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.main(new String[]{\"league\", \"future-capital\", leagueId})"));
         assertTrue(preserved.contains("No new team score or strategy model is created here."));
         assertTrue(preserved.contains("READ ONLY."));
 
@@ -64,6 +67,9 @@ class ButlerAppShellBf691TeamSingleFlightTest {
         assertFalse(worker.contains("create_transaction"));
         assertFalse(worker.contains("submitTransaction"));
         assertFalse(worker.contains("waiver_budget"));
+        assertFalse(bundle.contains("create_transaction"));
+        assertFalse(bundle.contains("submitTransaction"));
+        assertFalse(bundle.contains("waiver_budget"));
     }
 
     @Test

@@ -138,6 +138,30 @@ function Invoke-ButlerReadOnlyTask {
     return $text
 }
 
+function Get-TeamEvidenceBundleSection {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $begin = "===BUTLER_TEAM_BUNDLE:$Name:BEGIN==="
+    $end = "===BUTLER_TEAM_BUNDLE:$Name:END==="
+    $beginIndex = $Text.IndexOf($begin, [System.StringComparison]::Ordinal)
+    if ($beginIndex -lt 0) {
+        throw "BF-692 BLOCKED: My Team evidence bundle is missing $Name begin marker."
+    }
+    $contentStart = $beginIndex + $begin.Length
+    $endIndex = $Text.IndexOf($end, $contentStart, [System.StringComparison]::Ordinal)
+    if ($endIndex -lt 0) {
+        throw "BF-692 BLOCKED: My Team evidence bundle is missing $Name end marker."
+    }
+    $section = $Text.Substring($contentStart, $endIndex - $contentStart).Trim()
+    if ([string]::IsNullOrWhiteSpace($section)) {
+        throw "BF-692 BLOCKED: My Team evidence bundle section $Name is empty."
+    }
+    return $section
+}
+
 function Invoke-ButlerLeagueOverview {
     # Keep the exact BF-667 source contract visible for regression/audit.
     $previousPreference = $ErrorActionPreference
@@ -794,14 +818,15 @@ try {
 
             if ($path -eq "/team") {
                 try {
-                    $rosterText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $LeagueId -BoundaryName "BF-668"
+                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments "$LeagueId --team-bundle" -BoundaryName "BF-692"
+                    $rosterText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_CONTEXT"
                     $rosterView = ConvertTo-RosterContextView -Text $rosterText
                     $teamId = $rosterView.ButlerTeamId
-                    $context = ConvertTo-TeamContextView -Text (Invoke-ButlerReadOnly -Arguments "league team-context $LeagueId" -BoundaryName "BF-668") -TeamId $teamId
-                    $strength = ConvertTo-RosterStrengthView -Text (Invoke-ButlerReadOnly -Arguments "league roster-strength $LeagueId" -BoundaryName "BF-668") -TeamId $teamId
-                    $pressure = ConvertTo-PositionalPressureView -Text (Invoke-ButlerReadOnly -Arguments "league positional-pressure $LeagueId" -BoundaryName "BF-668") -TeamId $teamId
-                    $posture = ConvertTo-TeamPostureView -Text (Invoke-ButlerReadOnly -Arguments "league team-posture $LeagueId $($rosterView.Season)" -BoundaryName "BF-668") -TeamId $teamId
-                    $capital = ConvertTo-FutureCapitalView -Text (Invoke-ButlerReadOnly -Arguments "league future-capital $LeagueId" -BoundaryName "BF-668") -TeamId $teamId
+                    $context = ConvertTo-TeamContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "TEAM_CONTEXT") -TeamId $teamId
+                    $strength = ConvertTo-RosterStrengthView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH") -TeamId $teamId
+                    $pressure = ConvertTo-PositionalPressureView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE") -TeamId $teamId
+                    $posture = ConvertTo-TeamPostureView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "TEAM_POSTURE") -TeamId $teamId
+                    $capital = ConvertTo-FutureCapitalView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "FUTURE_CAPITAL") -TeamId $teamId
                     $html = ConvertTo-TeamHtml -Roster $rosterView -Context $context -Strength $strength -Pressure $pressure -Posture $posture -Capital $capital
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
                 }
