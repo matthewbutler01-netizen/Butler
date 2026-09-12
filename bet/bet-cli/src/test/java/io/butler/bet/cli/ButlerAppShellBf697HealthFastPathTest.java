@@ -32,6 +32,26 @@ class ButlerAppShellBf697HealthFastPathTest {
     }
 
     @Test
+    void windowsOverridesAreRestoredAfterModulesLoad() throws Exception {
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int tradeLabLoad = worker.indexOf(". $TradeLab");
+        int parserSnapshot = worker.indexOf("$requestParserOverride = (Get-Item Function:\\ConvertFrom-TradeRequestTarget).ScriptBlock");
+        int selectionSnapshot = worker.indexOf("$selectionSetOverride = (Get-Item Function:\\Get-TradeSelectionSet).ScriptBlock");
+        int parserRestore = worker.indexOf("Set-Item -Path Function:\\ConvertFrom-TradeRequestTarget -Value $requestParserOverride");
+        int selectionRestore = worker.indexOf("Set-Item -Path Function:\\Get-TradeSelectionSet -Value $selectionSetOverride");
+
+        assertTrue(parserSnapshot >= 0 && parserSnapshot < tradeLabLoad,
+                "BF-697 must snapshot the Windows request parser override before module loading");
+        assertTrue(selectionSnapshot >= 0 && selectionSnapshot < tradeLabLoad,
+                "BF-697 must snapshot the empty-selection override before module loading");
+        assertTrue(parserRestore > tradeLabLoad,
+                "BF-697 must restore the Windows request parser override after module loading");
+        assertTrue(selectionRestore > tradeLabLoad,
+                "BF-697 must restore the empty-selection override after module loading");
+    }
+
+    @Test
     void refreshAndNormalRoutesStillLoadExistingModules() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
