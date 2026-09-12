@@ -24,8 +24,13 @@ class ButlerAppShellBf701ErrorBodyDiagnosticsTest {
         assertTrue(script.contains("if ($errorBody.Length -gt 512)"));
         assertTrue(script.contains("$errorBody = $errorBody.Substring(0, 512) + '...'"));
         assertTrue(script.contains("$errorText = $webExceptionMessage + '; body=' + $errorBody"));
-        assertTrue(script.indexOf("$errorBody = $errorReader.ReadToEnd()")
-            < script.indexOf("if ($null -ne $response) { $response.Close() }"));
+
+        int webExceptionCatch = script.indexOf("catch [System.Net.WebException]");
+        int bodyRead = script.indexOf("$errorBody = $errorReader.ReadToEnd()", webExceptionCatch);
+        int responseClose = script.indexOf("if ($null -ne $response) { $response.Close() }", bodyRead);
+        assertTrue(webExceptionCatch >= 0);
+        assertTrue(bodyRead > webExceptionCatch);
+        assertTrue(responseClose > bodyRead);
     }
 
     @Test
