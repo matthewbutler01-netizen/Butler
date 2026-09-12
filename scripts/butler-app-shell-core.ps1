@@ -96,7 +96,7 @@ function Stop-OwnedProcessTree {
     if (Test-Path -LiteralPath $taskkill) {
         try {
             & $taskkill /PID $Process.Id /T /F 2>$null | Out-Null
-            return
+            if ($LASTEXITCODE -eq 0) { return }
         }
         catch {
         }
@@ -163,7 +163,7 @@ function Remove-CompletedCoreJobs {
 function Get-FreeBackendPort {
     $busyPorts = @($activeRequests | ForEach-Object { [int]$_.BackendPort })
     foreach ($candidate in $backendPorts) {
-        if ($busyPorts -notcontains [int]$candidate) { return [int]$candidate }
+        if ($busyPorts -notcontains ([int]$candidate)) { return [int]$candidate }
     }
     throw 'BF-690 BLOCKED: no preserved inner-core worker is available.'
 }
