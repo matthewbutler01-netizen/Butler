@@ -72,71 +72,6 @@ function Invoke-PreservedCoreGet {
     }
 }
 
-function Get-CoreReadSingleFlightKey {
-    param([Parameter(Mandatory = $true)][string]$RequestTarget)
-
-    switch -CaseSensitive ($RequestTarget) {
-        '/' { return 'ROOT' }
-        '/team' { return 'TEAM' }
-        '/waivers' { return 'WAIVERS' }
-        '/league' { return 'LEAGUE' }
-        default { return $null }
-    }
-}
-
-function Invoke-PreservedCoreSingleFlightGet {
-    param([Parameter(Mandatory = $true)][string]$RequestTarget)
-
-    $routeKey = Get-CoreReadSingleFlightKey -RequestTarget $RequestTarget
-    if ([string]::IsNullOrWhiteSpace($routeKey)) {
-        return Invoke-PreservedCoreGet -RequestTarget $RequestTarget
-    }
-
-    $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.Core.Read.{0}.{1}" -f $PID, $routeKey))
-    $lockTaken = $false
-    try {
-        try {
-            $lockTaken = $mutex.WaitOne(180000)
-        }
-        catch [System.Threading.AbandonedMutexException] {
-            $lockTaken = $true
-        }
-        if (-not $lockTaken) {
-            throw ("BF-693 BLOCKED: finite wait for shared {0} core read expired." -f $routeKey)
-        }
-
-        $cacheKey = "Butler.Core.SingleFlight.$PID.$routeKey"
-        $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
-        $nowTicks = [DateTime]::UtcNow.Ticks
-        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
-            return [pscustomobject]@{
-                StatusCode = [int]$cached.StatusCode
-                StatusText = [string]$cached.StatusText
-                ContentType = [string]$cached.ContentType
-                Body = [string]$cached.Body
-            }
-        }
-
-        $proxied = Invoke-PreservedCoreGet -RequestTarget $RequestTarget
-        if ([int]$proxied.StatusCode -eq 200) {
-            [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
-                ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
-                StatusCode = [int]$proxied.StatusCode
-                StatusText = [string]$proxied.StatusText
-                ContentType = [string]$proxied.ContentType
-                Body = [string]$proxied.Body
-            })
-        }
-        return $proxied
-    }
-    finally {
-        if ($lockTaken) {
-            try { $mutex.ReleaseMutex() } catch {}
-        }
-        $mutex.Dispose()
-    }
-}
-
 $stream = $null
 $reader = $null
 try {
@@ -179,7 +114,7 @@ try {
     }
 
     try {
-        $proxied = Invoke-PreservedCoreSingleFlightGet -RequestTarget $requestTarget
+        $proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $proxied.Body
     }
     catch {
