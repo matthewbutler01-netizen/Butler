@@ -15,15 +15,18 @@ class ButlerAppShellBf668TeamIntelligenceTest {
 
     @Test
     void teamRouteIsAppNativeAndUsesOnlyExistingGovernedReadOnlySources() throws Exception {
-        String script = script();
+        String script = source("scripts/butler-app-shell-core-single.ps1");
+        String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
         assertTrue(script.contains("$path -eq \"/team\""));
         assertTrue(script.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
-        assertTrue(script.contains("league team-context $LeagueId"));
-        assertTrue(script.contains("league roster-strength $LeagueId"));
-        assertTrue(script.contains("league positional-pressure $LeagueId"));
-        assertTrue(script.contains("league team-posture $LeagueId $($rosterView.Season)"));
-        assertTrue(script.contains("league future-capital $LeagueId"));
+        assertTrue(script.contains("$LeagueId --team-bundle"));
+        assertTrue(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(new String[]{leagueId})"));
+        assertTrue(bundle.contains("ButlerMain.main(new String[]{\"league\", \"team-context\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.main(new String[]{\"league\", \"roster-strength\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.main(new String[]{\"league\", \"positional-pressure\", leagueId})"));
+        assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.main(new String[]{\"league\", \"team-posture\", leagueId, Integer.toString(season)})"));
+        assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.main(new String[]{\"league\", \"future-capital\", leagueId})"));
         assertTrue(script.contains("My team intelligence"));
         assertTrue(script.contains("Exact BF-623-bound live roster context from BF-610"));
         assertTrue(script.contains("ConvertTo-HtmlText"));
@@ -37,35 +40,42 @@ class ButlerAppShellBf668TeamIntelligenceTest {
         assertFalse(script.contains("sleeperLiveWaiverFinalRecommendationBundle"));
         assertFalse(script.contains("Invoke-Expression"));
         assertFalse(script.contains("Start-Job"));
+        assertFalse(bundle.contains("SnapshotSync"));
+        assertFalse(bundle.contains("MarketAttentionSync"));
+        assertFalse(bundle.contains("RecommendationAuditCapture"));
+        assertFalse(bundle.contains("FinalRecommendationBundle"));
     }
 
     @Test
     void teamPageDoesNotInventACompositeScoreOrLineupRecommendation() throws Exception {
-        String script = script();
+        String script = source("scripts/butler-app-shell-core-single.ps1");
+        String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
         assertTrue(script.contains("No new team score or strategy model is created here."));
         assertTrue(script.contains("this page does not turn them into start/sit advice."));
         assertTrue(script.contains("It does not create a new score, recommend a lineup, rerank players"));
         assertFalse(script.contains("teamScore ="));
         assertFalse(script.contains("lineupRecommendation ="));
+        assertFalse(bundle.contains("teamScore"));
+        assertFalse(bundle.contains("lineupRecommendation"));
     }
 
     @Test
     void appShellRemainsAsciiOnly() throws Exception {
-        String script = script();
+        String script = source("scripts/butler-app-shell-core-single.ps1");
         byte[] encoded = script.getBytes(StandardCharsets.US_ASCII);
         assertEquals(script, new String(encoded, StandardCharsets.US_ASCII));
     }
 
-    private static String script() throws IOException {
+    private static String source(String relativePath) throws IOException {
         Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         for (int depth = 0; depth < 7 && current != null; depth++) {
-            Path candidate = current.resolve("scripts/butler-app-shell-core-single.ps1");
+            Path candidate = current.resolve(relativePath);
             if (Files.isRegularFile(candidate)) {
-                return Files.readString(candidate, StandardCharsets.US_ASCII);
+                return Files.readString(candidate, StandardCharsets.UTF_8);
             }
             current = current.getParent();
         }
-        throw new IOException("BF-668 test could not locate scripts/butler-app-shell-core-single.ps1");
+        throw new IOException("BF-668 test could not locate " + relativePath);
     }
 }
