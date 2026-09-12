@@ -222,7 +222,8 @@ try {
 finally {
     try { $listener.Stop() } catch {}
 
-    foreach ($job in @($activeRequests)) {
+    for ($index = $activeRequests.Count - 1; $index -ge 0; $index--) {
+        $job = $activeRequests[$index]
         try {
             if (-not $job.Handle.IsCompleted) { $job.PowerShell.Stop() }
             [void]$job.PowerShell.EndInvoke($job.Handle)
@@ -237,7 +238,8 @@ finally {
     try { $requestPool.Close() } catch {}
     try { $requestPool.Dispose() } catch {}
 
-    foreach ($backend in @($backendProcesses)) {
+    for ($index = $backendProcesses.Count - 1; $index -ge 0; $index--) {
+        $backend = $backendProcesses[$index]
         Stop-OwnedProcessTree -Process $backend.Process
     }
     $backendProcesses.Clear()
