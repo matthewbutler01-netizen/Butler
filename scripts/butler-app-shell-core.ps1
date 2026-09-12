@@ -180,10 +180,7 @@ try {
             Port = $backendPort
             Process = $process
         })
-    }
-
-    foreach ($backend in $backendProcesses) {
-        Wait-PreservedCore -BackendPort $backend.Port -Process $backend.Process
+        Wait-PreservedCore -BackendPort $backendPort -Process $process
     }
 
     $requestPool.Open()
