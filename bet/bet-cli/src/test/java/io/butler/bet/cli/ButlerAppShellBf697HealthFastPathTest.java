@@ -28,7 +28,7 @@ class ButlerAppShellBf697HealthFastPathTest {
         assertTrue(historyLoad > healthBranch, "History must load after /health fast-path");
         assertTrue(detailLoad > healthBranch, "Decision detail must load after /health fast-path");
         assertTrue(refreshLoad > healthBranch, "Decision refresh must load after /health fast-path");
-        assertTrue(worker.contains("service\\\":\\\"butler-app-shell"));
+        assertTrue(worker.contains("\"service\":\"butler-app-shell\""));
     }
 
     @Test
