@@ -23,7 +23,7 @@ class ButlerAppShellBf690CorePoolIsolationTest {
         assertTrue(core.contains("CreateRunspacePool(1, $maxCoreWorkers)"));
         assertTrue(core.contains("for ($index = 0; $index -lt $maxCoreWorkers; $index++)"));
         assertTrue(core.contains("Start-PreservedCore -BackendPort $backendPort"));
-        assertTrue(core.contains("Wait-PreservedCore -BackendPort $backend.Port -Process $backend.Process"));
+        assertTrue(core.contains("Wait-PreservedCore -BackendPort $backendPort -Process $process"));
         assertTrue(core.contains("while ($activeRequests.Count -ge $maxCoreWorkers)"));
         assertTrue(core.contains("$backendPort = Get-FreeBackendPort"));
         assertTrue(core.contains("$powerShell.AddParameter('BackendPort', $backendPort)"));
