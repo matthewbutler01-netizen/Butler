@@ -123,6 +123,62 @@ function Invoke-AppCoreGet {
     }
 }
 
+function Invoke-TeamSingleFlightGet {
+    param(
+        [Parameter(Mandatory = $true)][int]$Port,
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [Parameter(Mandatory = $true)][string]$League
+    )
+
+    if ($RequestTarget -cne '/team') {
+        return Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+    }
+
+    $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.Team.Read.{0}" -f $PID))
+    $lockTaken = $false
+    try {
+        try {
+            $lockTaken = $mutex.WaitOne(180000)
+        }
+        catch [System.Threading.AbandonedMutexException] {
+            $lockTaken = $true
+        }
+        if (-not $lockTaken) {
+            throw 'BF-691 BLOCKED: finite wait for the shared My Team read expired.'
+        }
+
+        $cacheKey = "Butler.Team.SingleFlight.$PID.$League"
+        $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
+        $nowTicks = [DateTime]::UtcNow.Ticks
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+            return [pscustomobject]@{
+                StatusCode = [int]$cached.StatusCode
+                StatusText = [string]$cached.StatusText
+                ContentType = [string]$cached.ContentType
+                Body = [string]$cached.Body
+            }
+        }
+
+        $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+        if ([int]$proxied.StatusCode -eq 200) {
+            [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
+                StatusCode = [int]$proxied.StatusCode
+                StatusText = [string]$proxied.StatusText
+                ContentType = [string]$proxied.ContentType
+                Body = [string]$proxied.Body
+            })
+        }
+        return $proxied
+    }
+    finally {
+        if ($lockTaken) {
+            try { $mutex.ReleaseMutex() } catch {}
+        }
+        $mutex.Dispose()
+    }
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
@@ -305,7 +361,12 @@ try {
     }
 
     try {
-        $proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+        $proxied = if ($requestTarget -ceq '/team') {
+            Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+        }
+        else {
+            Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+        }
         $body = $proxied.Body
         if ($proxied.ContentType -match '^text/html' -and $body -match '<nav class="nav" aria-label="Butler sections">') {
             $body = Add-AppNavigation -Html $body
