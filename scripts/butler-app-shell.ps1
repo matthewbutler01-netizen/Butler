@@ -266,6 +266,8 @@ try {
         }
 
         $client = $listener.AcceptTcpClient()
+        $client.ReceiveTimeout = 3000
+        $client.SendTimeout = 10000
         $powerShell = [System.Management.Automation.PowerShell]::Create()
         try {
             $powerShell.RunspacePool = $requestPool
