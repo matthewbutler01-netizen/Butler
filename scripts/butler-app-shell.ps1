@@ -327,7 +327,8 @@ try {
 finally {
     try { $listener.Stop() } catch {}
 
-    foreach ($job in @($activeRequests)) {
+    for ($index = $activeRequests.Count - 1; $index -ge 0; $index--) {
+        $job = $activeRequests[$index]
         try {
             if (-not $job.Handle.IsCompleted) { $job.PowerShell.Stop() }
             [void]$job.PowerShell.EndInvoke($job.Handle)
