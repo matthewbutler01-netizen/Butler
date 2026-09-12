@@ -14,11 +14,7 @@ class ButlerAppShellBf695StartupCleanupTest {
 
     @Test
     void startupCleanupDoesNotArrayWrapGenericActiveRequestList() throws Exception {
-        String shell = source("scripts/butler-app-shell.ps1");
-
-        int finallyStart = shell.lastIndexOf("finally {");
-        assertTrue(finallyStart >= 0);
-        String cleanup = shell.substring(finallyStart);
+        String cleanup = cleanupBlock();
 
         assertFalse(cleanup.contains("foreach ($job in @($activeRequests))"));
         assertTrue(cleanup.contains("for ($index = $activeRequests.Count - 1; $index -ge 0; $index--)"));
@@ -29,14 +25,20 @@ class ButlerAppShellBf695StartupCleanupTest {
 
     @Test
     void requestPoolAndCoreCleanupRemainBestEffort() throws Exception {
-        String shell = source("scripts/butler-app-shell.ps1");
-        int finallyStart = shell.lastIndexOf("finally {");
-        String cleanup = shell.substring(finallyStart);
+        String cleanup = cleanupBlock();
 
         assertTrue(cleanup.contains("try { $listener.Stop() } catch {}"));
         assertTrue(cleanup.contains("try { $job.PowerShell.Dispose() } catch {}"));
         assertTrue(cleanup.contains("try { $requestPool.Close() } catch {}"));
         assertTrue(cleanup.contains("try { $requestPool.Dispose() } catch {}"));
+    }
+
+    private static String cleanupBlock() throws IOException {
+        String shell = source("scripts/butler-app-shell.ps1");
+        String marker = "finally {\n    try { $listener.Stop() } catch {}";
+        int finallyStart = shell.indexOf(marker);
+        assertTrue(finallyStart >= 0);
+        return shell.substring(finallyStart);
     }
 
     private static String source(String relativePath) throws IOException {
