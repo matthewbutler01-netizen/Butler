@@ -40,7 +40,8 @@ class ButlerAppShellBf691TeamSingleFlightTest {
         assertTrue(singleFlight >= 0 && release > singleFlight && dispose > release);
         assertTrue(worker.contains("catch [System.Threading.AbandonedMutexException]"));
         assertTrue(worker.contains("if ($lockTaken)"));
-        assertFalse(worker.contains("Start-Sleep", singleFlight));
+        String singleFlightBlock = worker.substring(singleFlight, dispose + "$mutex.Dispose()".length());
+        assertFalse(singleFlightBlock.contains("Start-Sleep"));
     }
 
     @Test
