@@ -135,11 +135,31 @@ $worker = {
         try { [void]$reader.ReadToEnd() } finally { $reader.Dispose() }
     }
     catch [System.Net.WebException] {
+        $webExceptionMessage = $_.Exception.Message
         if ($null -ne $_.Exception.Response) {
             $response = $_.Exception.Response
             try { $statusCode = [int]$response.StatusCode } catch { $statusCode = 0 }
+
+            $errorBody = ''
+            try {
+                $errorReader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+                try { $errorBody = $errorReader.ReadToEnd() } finally { $errorReader.Dispose() }
+            }
+            catch {
+                $errorBody = ''
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($errorBody)) {
+                $errorBody = [regex]::Replace($errorBody, '\s+', ' ').Trim()
+                if ($errorBody.Length -gt 512) {
+                    $errorBody = $errorBody.Substring(0, 512) + '...'
+                }
+                $errorText = $webExceptionMessage + '; body=' + $errorBody
+            }
         }
-        $errorText = $_.Exception.Message
+        if ([string]::IsNullOrEmpty($errorText)) {
+            $errorText = $webExceptionMessage
+        }
     }
     catch {
         $errorText = $_.Exception.Message
