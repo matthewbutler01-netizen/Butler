@@ -68,7 +68,7 @@ class ButlerAppShellBf670TradeLabTest {
 
     @Test
     void preservedCoreStillCarriesBf667AndBf668AppBehavior() throws Exception {
-        String core = script("scripts/butler-app-shell-core.ps1");
+        String core = script("scripts/butler-app-shell-core-single.ps1");
 
         assertTrue(core.contains("$path -eq \"/league\""));
         assertTrue(core.contains("$path -eq \"/team\""));
@@ -122,6 +122,7 @@ class ButlerAppShellBf670TradeLabTest {
         assertAscii(script("scripts/butler-app-shell.ps1"));
         assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-app-shell-core.ps1"));
+        assertAscii(script("scripts/butler-app-shell-core-single.ps1"));
         assertAscii(script("scripts/butler-trade-lab-host.ps1"));
         assertAscii(script("scripts/butler-trade-lab.ps1"));
     }
