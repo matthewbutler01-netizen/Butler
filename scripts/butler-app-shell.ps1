@@ -24,6 +24,7 @@ $decisionRefreshRunner = Join-Path $scriptDir 'sleeper-live-waiver-no-transactio
 $requestWorker = Join-Path $scriptDir 'butler-app-request-worker.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
+$taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 
 foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $requestWorker, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
@@ -122,7 +123,7 @@ function Wait-ForAppCore {
         [Parameter(Mandatory = $true)]$Process
     )
 
-    for ($attempt = 0; $attempt -lt 100; $attempt++) {
+    for ($attempt = 0; $attempt -lt 240; $attempt++) {
         if ($Process.HasExited) {
             throw 'BF-670 BLOCKED: preserved Butler app core exited during startup.'
         }
@@ -144,6 +145,33 @@ function Wait-ForAppCore {
         Start-Sleep -Milliseconds 250
     }
     throw 'BF-670 BLOCKED: preserved Butler app core did not become healthy.'
+}
+
+function Stop-AppCoreTree {
+    param([AllowNull()]$Process)
+
+    if ($null -eq $Process) { return }
+    try {
+        if ($Process.HasExited) { return }
+    }
+    catch {
+        return
+    }
+
+    if (Test-Path -LiteralPath $taskkill) {
+        try {
+            & $taskkill /PID $Process.Id /T /F 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                try { $Process.WaitForExit(5000) | Out-Null } catch {}
+                return
+            }
+        }
+        catch {
+        }
+    }
+
+    try { $Process.Kill() } catch {}
+    try { $Process.WaitForExit(5000) | Out-Null } catch {}
 }
 
 function Invoke-AppCoreGet {
@@ -314,9 +342,6 @@ finally {
     try { $requestPool.Close() } catch {}
     try { $requestPool.Dispose() } catch {}
 
-    if ($null -ne $coreProcess -and -not $coreProcess.HasExited) {
-        try { $coreProcess.Kill() } catch {}
-        try { $coreProcess.WaitForExit(5000) | Out-Null } catch {}
-    }
+    Stop-AppCoreTree -Process $coreProcess
     Pop-Location
 }
