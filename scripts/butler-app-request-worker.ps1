@@ -179,6 +179,74 @@ function Invoke-TeamSingleFlightGet {
     }
 }
 
+function Get-ExpensiveReadSingleFlightKey {
+    param([Parameter(Mandatory = $true)][string]$RequestTarget)
+
+    switch -CaseSensitive ($RequestTarget) {
+        '/' { return 'ROOT' }
+        '/waivers' { return 'WAIVERS' }
+        '/league' { return 'LEAGUE' }
+        default { return $null }
+    }
+}
+
+function Invoke-ExpensiveReadSingleFlightGet {
+    param(
+        [Parameter(Mandatory = $true)][int]$Port,
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [Parameter(Mandatory = $true)][string]$League
+    )
+
+    $routeKey = Get-ExpensiveReadSingleFlightKey -RequestTarget $RequestTarget
+    if ([string]::IsNullOrWhiteSpace($routeKey)) {
+        return Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+    }
+
+    $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.Expensive.Read.{0}.{1}" -f $PID, $routeKey))
+    $lockTaken = $false
+    try {
+        try {
+            $lockTaken = $mutex.WaitOne(180000)
+        }
+        catch [System.Threading.AbandonedMutexException] {
+            $lockTaken = $true
+        }
+        if (-not $lockTaken) {
+            throw ("BF-693 BLOCKED: finite wait for shared {0} read expired." -f $routeKey)
+        }
+
+        $cacheKey = "Butler.Expensive.SingleFlight.$PID.$League.$routeKey"
+        $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
+        $nowTicks = [DateTime]::UtcNow.Ticks
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+            return [pscustomobject]@{
+                StatusCode = [int]$cached.StatusCode
+                StatusText = [string]$cached.StatusText
+                ContentType = [string]$cached.ContentType
+                Body = [string]$cached.Body
+            }
+        }
+
+        $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+        if ([int]$proxied.StatusCode -eq 200) {
+            [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
+                StatusCode = [int]$proxied.StatusCode
+                StatusText = [string]$proxied.StatusText
+                ContentType = [string]$proxied.ContentType
+                Body = [string]$proxied.Body
+            })
+        }
+        return $proxied
+    }
+    finally {
+        if ($lockTaken) {
+            try { $mutex.ReleaseMutex() } catch {}
+        }
+        $mutex.Dispose()
+    }
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
@@ -363,6 +431,9 @@ try {
     try {
         $proxied = if ($requestTarget -ceq '/team') {
             Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+        }
+        elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league') {
+            Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
         }
         else {
             Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
