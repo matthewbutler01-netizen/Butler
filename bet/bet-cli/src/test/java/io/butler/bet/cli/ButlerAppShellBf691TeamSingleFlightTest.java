@@ -52,12 +52,14 @@ class ButlerAppShellBf691TeamSingleFlightTest {
 
         assertTrue(preserved.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
         assertTrue(preserved.contains("$LeagueId --team-bundle"));
-        assertTrue(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(new String[]{leagueId})"));
-        assertTrue(bundle.contains("ButlerMain.main(new String[]{\"league\", \"team-context\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.main(new String[]{\"league\", \"roster-strength\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.main(new String[]{\"league\", \"positional-pressure\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.main(new String[]{\"league\", \"team-posture\", leagueId, Integer.toString(season)})"));
-        assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.main(new String[]{\"league\", \"future-capital\", leagueId})"));
+        assertTrue(bundle.contains("Database database = initializedDatabase()"));
+        assertTrue(bundle.contains("ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertTrue(bundle.contains("new SleeperLiveWaiverTargetRosterContextAudit(database).audit"));
+        assertTrue(bundle.contains("new LeagueTeamContextAnalyzer(database).analyze(leagueId)"));
+        assertTrue(bundle.contains("new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId)"));
+        assertTrue(bundle.contains("new LeaguePositionalPressureAnalyzer(database).analyze(leagueId)"));
+        assertTrue(bundle.contains("new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season)"));
+        assertTrue(bundle.contains("new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)"));
         assertTrue(preserved.contains("No new team score or strategy model is created here."));
         assertTrue(preserved.contains("READ ONLY."));
 

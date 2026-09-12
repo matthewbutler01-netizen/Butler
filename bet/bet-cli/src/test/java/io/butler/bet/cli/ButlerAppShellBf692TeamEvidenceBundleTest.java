@@ -17,12 +17,13 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
     void bundleKeepsAllSixEstablishedReadOnlySourcesInOneJvm() throws Exception {
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
-        assertTrue(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(new String[]{leagueId})"));
-        assertTrue(bundle.contains("ButlerMain.main(new String[]{\"league\", \"team-context\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.main(new String[]{\"league\", \"roster-strength\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.main(new String[]{\"league\", \"positional-pressure\", leagueId})"));
-        assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.main(new String[]{\"league\", \"team-posture\", leagueId, Integer.toString(season)})"));
-        assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.main(new String[]{\"league\", \"future-capital\", leagueId})"));
+        assertTrue(bundle.contains("ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertTrue(bundle.contains("new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId())"));
+        assertTrue(bundle.contains("ButlerMain.printLeagueTeamContext(new LeagueTeamContextAnalyzer(database).analyze(leagueId))"));
+        assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.print(new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId))"));
+        assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.print(new LeaguePositionalPressureAnalyzer(database).analyze(leagueId))"));
+        assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.print(new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season))"));
+        assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.print(new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId))"));
         assertTrue(bundle.contains("providerSeason(rosterContext)"));
 
         assertFalse(bundle.contains("ProcessBuilder"));
@@ -31,6 +32,21 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
         assertFalse(bundle.contains("create_transaction"));
         assertFalse(bundle.contains("submitTransaction"));
         assertFalse(bundle.contains("waiver_budget"));
+    }
+
+    @Test
+    void bundleUsesOneInitializedDatabaseForAllSixReads() throws Exception {
+        String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
+
+        assertEquals(1, occurrences(bundle, "new Database(DATABASE_PATH)"));
+        assertEquals(1, occurrences(bundle, "database.initialize()"));
+        assertTrue(bundle.contains("Database database = initializedDatabase();"));
+        assertFalse(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
+        assertFalse(bundle.contains("ButlerMain.main("));
+        assertFalse(bundle.contains("ButlerLeagueRosterStrengthCli.main("));
+        assertFalse(bundle.contains("ButlerLeaguePositionalPressureCli.main("));
+        assertFalse(bundle.contains("ButlerLeagueTeamPostureCli.main("));
+        assertFalse(bundle.contains("ButlerLeagueFutureCapitalCli.main("));
     }
 
     @Test
