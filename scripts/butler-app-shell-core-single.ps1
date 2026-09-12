@@ -144,8 +144,8 @@ function Get-TeamEvidenceBundleSection {
         [Parameter(Mandatory = $true)][string]$Name
     )
 
-    $begin = "===BUTLER_TEAM_BUNDLE:$Name:BEGIN==="
-    $end = "===BUTLER_TEAM_BUNDLE:$Name:END==="
+    $begin = "===BUTLER_TEAM_BUNDLE:${Name}:BEGIN==="
+    $end = "===BUTLER_TEAM_BUNDLE:${Name}:END==="
     $beginIndex = $Text.IndexOf($begin, [System.StringComparison]::Ordinal)
     if ($beginIndex -lt 0) {
         throw "BF-692 BLOCKED: My Team evidence bundle is missing $Name begin marker."

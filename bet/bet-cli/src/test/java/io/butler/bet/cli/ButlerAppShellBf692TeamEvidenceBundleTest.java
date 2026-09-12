@@ -96,10 +96,14 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
     }
 
     @Test
-    void sectionParserFailsClosedAndPowerShellRemainsAsciiOnly() throws Exception {
+    void sectionParserUsesWindowsSafeVariableDelimitingAndFailsClosed() throws Exception {
         String script = source("scripts/butler-app-shell-core-single.ps1");
 
         assertTrue(script.contains("function Get-TeamEvidenceBundleSection"));
+        assertTrue(script.contains("$begin = \"===BUTLER_TEAM_BUNDLE:${Name}:BEGIN===\""));
+        assertTrue(script.contains("$end = \"===BUTLER_TEAM_BUNDLE:${Name}:END===\""));
+        assertFalse(script.contains("$begin = \"===BUTLER_TEAM_BUNDLE:$Name:BEGIN===\""));
+        assertFalse(script.contains("$end = \"===BUTLER_TEAM_BUNDLE:$Name:END===\""));
         assertTrue(script.contains("BF-692 BLOCKED: My Team evidence bundle is missing $Name begin marker."));
         assertTrue(script.contains("BF-692 BLOCKED: My Team evidence bundle is missing $Name end marker."));
         assertTrue(script.contains("BF-692 BLOCKED: My Team evidence bundle section $Name is empty."));
