@@ -368,11 +368,15 @@ try {
         }
     }
 
+    $requestParserOverride = (Get-Item Function:\ConvertFrom-TradeRequestTarget).ScriptBlock
+    $selectionSetOverride = (Get-Item Function:\Get-TradeSelectionSet).ScriptBlock
     . $TradeHost
     . $TradeLab
     . $History
     . $Detail
     . $DecisionRefresh
+    Set-Item -Path Function:\ConvertFrom-TradeRequestTarget -Value $requestParserOverride
+    Set-Item -Path Function:\Get-TradeSelectionSet -Value $selectionSetOverride
 
     if ($parts[0] -eq 'POST') {
         if ($requestTarget -cne '/refresh') {
