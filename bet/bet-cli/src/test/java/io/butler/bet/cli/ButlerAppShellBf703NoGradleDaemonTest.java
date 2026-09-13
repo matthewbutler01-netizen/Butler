@@ -11,46 +11,51 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ButlerAppShellBf702WarmCliClassesTest {
+class ButlerAppShellBf703NoGradleDaemonTest {
 
     @Test
-    void readOnlyCliClassesWarmBeforeAnyPreservedCoreStarts() throws Exception {
+    void daemonDisableIsEstablishedBeforeWarmupAndWorkerLaunch() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
 
-        assertTrue(script.contains("$repoRoot = Split-Path -Parent $scriptDir"));
-        assertTrue(script.contains("$gradle = Join-Path $repoRoot 'gradlew.bat'"));
-        assertTrue(script.contains("function Initialize-ReadOnlyCliClasses"));
+        assertTrue(script.contains("$gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'"));
+        assertTrue(script.contains("function Enable-ButlerGradleNoDaemon"));
+        assertTrue(script.contains("$env:GRADLE_OPTS = $existing.TrimEnd() + ' ' + $gradleNoDaemonOpt"));
         assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1"));
 
-        int warm = script.indexOf("    Initialize-ReadOnlyCliClasses\n\n    for ($index = 0; $index -lt $maxCoreWorkers; $index++) {");
-        int firstCoreStart = script.indexOf("$process = Start-PreservedCore -BackendPort $backendPort", warm);
-        assertTrue(warm >= 0 && firstCoreStart > warm);
+        int enable = script.indexOf("    Enable-ButlerGradleNoDaemon");
+        int warm = script.indexOf("    Initialize-ReadOnlyCliClasses", enable);
+        int firstCore = script.indexOf("$process = Start-PreservedCore -BackendPort $backendPort", warm);
+        assertTrue(enable >= 0 && warm > enable && firstCore > warm);
     }
 
     @Test
-    void warmupFailureBlocksStartupWithCapturedGradleOutput() throws Exception {
+    void existingGradleOptsArePreservedAndRestored() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
 
-        assertTrue(script.contains("$exitCode = $LASTEXITCODE"));
-        assertTrue(script.contains("$text = ($lines | ForEach-Object { \"$_\" }) -join \"`n\""));
-        assertTrue(script.contains("BF-702 BLOCKED: read-only CLI warm-up failed with Gradle exit code $exitCode."));
+        assertTrue(script.contains("$originalGradleOpts = $env:GRADLE_OPTS"));
+        assertTrue(script.contains("if ([string]::IsNullOrWhiteSpace($existing))"));
+        assertTrue(script.contains("IndexOf($gradleNoDaemonOpt, [System.StringComparison]::OrdinalIgnoreCase)"));
+        assertTrue(script.contains("function Restore-GradleOpts"));
+        assertTrue(script.contains("$env:GRADLE_OPTS = $originalGradleOpts"));
+        assertTrue(script.contains("Restore-GradleOpts"));
     }
 
     @Test
-    void warmupDoesNotReduceRuntimePoolOrExpandWriteBoundary() throws Exception {
+    void lifecycleChangeDoesNotReduceConcurrencyOrExpandWriteBoundary() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
 
         assertTrue(script.contains("$maxCoreWorkers = 6"));
         assertTrue(script.contains("CreateRunspacePool(1, $maxCoreWorkers)"));
         assertTrue(script.contains("while ($activeRequests.Count -ge $maxCoreWorkers)"));
         assertTrue(script.contains("Stop-OwnedProcessTree -Process $backend.Process"));
+        assertFalse(script.contains("& $gradle '--stop'"));
         assertFalse(script.contains("/refresh"));
         assertFalse(script.contains("create_transaction"));
         assertFalse(script.contains("submitTransaction"));
     }
 
     @Test
-    void bf702CorePoolScriptRemainsAsciiOnly() throws Exception {
+    void bf703CorePoolScriptRemainsAsciiOnly() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
         byte[] encoded = script.getBytes(StandardCharsets.US_ASCII);
         assertEquals(script, new String(encoded, StandardCharsets.US_ASCII));
@@ -65,6 +70,6 @@ class ButlerAppShellBf702WarmCliClassesTest {
             }
             current = current.getParent();
         }
-        throw new IOException("BF-702 test could not locate " + relativePath);
+        throw new IOException("BF-703 test could not locate " + relativePath);
     }
 }

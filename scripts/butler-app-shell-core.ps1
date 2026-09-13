@@ -20,6 +20,8 @@ $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+$originalGradleOpts = $env:GRADLE_OPTS
+$gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'
 
 foreach ($required in @($coreSingle, $requestWorker, $powershell)) {
     if (-not (Test-Path -LiteralPath $required)) {
@@ -30,6 +32,26 @@ if (-not (Test-Path -LiteralPath $gradle)) {
     throw "BF-702 BLOCKED: Gradle wrapper not found at $gradle"
 }
 
+function Enable-ButlerGradleNoDaemon {
+    $existing = [string]$env:GRADLE_OPTS
+    if ([string]::IsNullOrWhiteSpace($existing)) {
+        $env:GRADLE_OPTS = $gradleNoDaemonOpt
+        return
+    }
+    if ($existing.IndexOf($gradleNoDaemonOpt, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        $env:GRADLE_OPTS = $existing.TrimEnd() + ' ' + $gradleNoDaemonOpt
+    }
+}
+
+function Restore-GradleOpts {
+    if ($null -eq $originalGradleOpts) {
+        Remove-Item Env:GRADLE_OPTS -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:GRADLE_OPTS = $originalGradleOpts
+    }
+}
+
 function Initialize-ReadOnlyCliClasses {
     $previousPreference = $ErrorActionPreference
     $lines = $null
@@ -38,7 +60,7 @@ function Initialize-ReadOnlyCliClasses {
     try {
         try {
             $ErrorActionPreference = 'Continue'
-            $lines = & $gradle ':bet:bet-cli:classes' 2>&1
+            $lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -199,6 +221,7 @@ function Get-FreeBackendPort {
 }
 
 try {
+    Enable-ButlerGradleNoDaemon
     Initialize-ReadOnlyCliClasses
 
     for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
@@ -272,4 +295,5 @@ finally {
         Stop-OwnedProcessTree -Process $backend.Process
     }
     $backendProcesses.Clear()
+    Restore-GradleOpts
 }
