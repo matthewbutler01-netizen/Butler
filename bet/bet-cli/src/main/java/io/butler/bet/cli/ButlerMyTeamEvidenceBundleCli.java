@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.intelligence.LeagueCompetitiveTierAnalyzer;
 import io.butler.bet.intelligence.LeagueFutureCapitalTierAnalyzer;
 import io.butler.bet.intelligence.LeaguePositionalPressureAnalyzer;
 import io.butler.bet.intelligence.LeagueRosterStrengthTierAnalyzer;
@@ -22,6 +23,7 @@ import java.util.concurrent.Future;
  * BF-699 reuses one initialized database across those exact reads.
  * BF-711 overlaps independent evidence analysis, then renders deterministically.
  * BF-716 overlaps BF-610 roster analysis with the four analyzers that do not need its season.
+ * BF-717 reuses the existing roster-strength report when composing team posture.
  * This class adds no analyzer, score, recommendation, mutation, or evidence synthesis.
  */
 public final class ButlerMyTeamEvidenceBundleCli {
@@ -48,6 +50,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
             String leagueId = args[0].trim();
             Database database = initializedDatabase();
             var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            LeagueTeamPostureAnalyzer teamPostureAnalyzer = new LeagueTeamPostureAnalyzer(database);
 
             ExecutorService executor = newEvidenceExecutor();
             try {
@@ -64,14 +67,15 @@ public final class ButlerMyTeamEvidenceBundleCli {
 
                 SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContextReport = await(rosterContextFuture);
                 int season = rosterContextReport.providerSeason();
-                Future<LeagueTeamPostureAnalyzer.PostureReport> teamPostureFuture = submitEvidence(executor, () ->
-                    new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season));
+                Future<LeagueCompetitiveTierAnalyzer.CompetitiveTierReport> postureCompetitiveFuture = submitEvidence(executor, () ->
+                    teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season));
 
                 LeagueTeamContextAnalyzer.TeamContextReport teamContextReport = await(teamContextFuture);
                 LeagueRosterStrengthTierAnalyzer.RosterStrengthReport rosterStrengthReport = await(rosterStrengthFuture);
                 LeaguePositionalPressureAnalyzer.PositionalPressureReport positionalPressureReport = await(positionalPressureFuture);
                 LeagueFutureCapitalTierAnalyzer.FutureCapitalReport futureCapitalReport = await(futureCapitalFuture);
-                LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = await(teamPostureFuture);
+                LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = LeagueTeamPostureAnalyzer.compose(
+                    await(postureCompetitiveFuture), rosterStrengthReport);
 
                 String rosterContext = capture(() -> {
                     ButlerPersonalizedTargetCliSupport.printVerified(target);

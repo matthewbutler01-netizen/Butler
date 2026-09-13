@@ -71,16 +71,16 @@ class ButlerMyTeamEvidenceBundleBf711ParallelTest {
         int capitalSubmit = source.indexOf("futureCapitalFuture = submitEvidence", pressureSubmit);
         int rosterAwait = source.indexOf("await(rosterContextFuture)", capitalSubmit);
         int season = source.indexOf("rosterContextReport.providerSeason()", rosterAwait);
-        int postureSubmit = source.indexOf("teamPostureFuture = submitEvidence", season);
+        int postureSubmit = source.indexOf("postureCompetitiveFuture = submitEvidence", season);
         int firstIndependentAwait = source.indexOf("await(teamContextFuture)", postureSubmit);
-        int postureAwait = source.indexOf("await(teamPostureFuture)", firstIndependentAwait);
+        int postureAwait = source.indexOf("await(postureCompetitiveFuture)", firstIndependentAwait);
         int firstCapture = source.indexOf("String rosterContext = capture", postureAwait);
 
         assertTrue(target >= 0 && executor > target);
         assertTrue(rosterSubmit > executor && teamSubmit > rosterSubmit && strengthSubmit > teamSubmit);
         assertTrue(pressureSubmit > strengthSubmit && capitalSubmit > pressureSubmit);
         assertTrue(rosterAwait > capitalSubmit, "four independent analyzers must be submitted before roster completion is awaited");
-        assertTrue(season > rosterAwait && postureSubmit > season, "team posture must remain dependent on exact roster provider season");
+        assertTrue(season > rosterAwait && postureSubmit > season, "team posture competitive evidence must remain dependent on exact roster provider season");
         assertTrue(firstIndependentAwait > postureSubmit && postureAwait > firstIndependentAwait);
         assertTrue(firstCapture > postureAwait, "rendering must remain outside worker threads because capture swaps global System.out");
 
