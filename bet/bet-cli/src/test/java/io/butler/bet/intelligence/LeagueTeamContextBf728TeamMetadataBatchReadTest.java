@@ -33,11 +33,14 @@ class LeagueTeamContextBf728TeamMetadataBatchReadTest {
     }
 
     @Test
-    void healthAnalyzerLegacyCountPathIsIntentionallyUnchangedForSeparateMeasurement() throws Exception {
+    void healthAnalyzerSeparateMeasurementFollowupNowUsesBoundedCounts() throws Exception {
         String source = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueHealthAnalyzer.java");
 
-        assertTrue(source.contains("new LeagueAnalyzer(database)"));
-        assertTrue(source.contains("leagueAnalyzer.analyze(normalizedLeagueId)"));
+        assertTrue(source.contains("teams.findByLeagueId(normalizedLeagueId)"));
+        assertTrue(source.contains("rosters.findByLeagueId(normalizedLeagueId)"));
+        assertTrue(source.contains("players.findByLeagueId(normalizedLeagueId)"));
+        assertFalse(source.contains("new LeagueAnalyzer(database)"));
+        assertFalse(source.contains("leagueAnalyzer.analyze("));
     }
 
     private static String source(String relativePath) throws IOException {
