@@ -25,7 +25,8 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
         assertTrue(bundle.contains("ButlerLeagueRosterStrengthCli.print(rosterStrengthReport)"));
         assertTrue(bundle.contains("new LeaguePositionalPressureAnalyzer(database).analyze(leagueId)"));
         assertTrue(bundle.contains("ButlerLeaguePositionalPressureCli.print(positionalPressureReport)"));
-        assertTrue(bundle.contains("new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season)"));
+        assertTrue(bundle.contains("teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season)"));
+        assertTrue(bundle.contains("LeagueTeamPostureAnalyzer.compose("));
         assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.print(teamPostureReport)"));
         assertTrue(bundle.contains("new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)"));
         assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.print(futureCapitalReport)"));
