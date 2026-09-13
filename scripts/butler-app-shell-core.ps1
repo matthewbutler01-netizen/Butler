@@ -16,6 +16,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $coreSingleSource = Join-Path $scriptDir 'butler-app-shell-core-single.ps1'
 $dashboardSource = Join-Path $scriptDir 'butler-dashboard.ps1'
+$dashboardTransformSource = Join-Path $scriptDir 'butler-dashboard-bf715-transform.ps1'
 $requestWorker = Join-Path $scriptDir 'butler-app-core-pool-worker.ps1'
 $directDispatchSource = Join-Path $scriptDir 'butler-direct-java-dispatch.ps1'
 $directProxySource = Join-Path $scriptDir 'butler-direct-java-gradle-proxy.cmd'
@@ -26,6 +27,7 @@ $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
 $runtimeRoot = Join-Path $localAppData ("Butler\app-runtime-{0}" -f $PID)
 $runtimeScriptsDir = Join-Path $runtimeRoot 'scripts'
 $runtimeCoreSingle = Join-Path $runtimeScriptsDir 'butler-app-shell-core-single.ps1'
+$runtimeDashboard = Join-Path $runtimeScriptsDir 'butler-dashboard.ps1'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
@@ -35,7 +37,7 @@ $gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'
 $coreSingleNavigationOriginal = 'if ($proxied.ContentType -match ''^text/html'') {'
 $coreSingleNavigationReplacement = 'if ($proxied.StatusCode -ge 200 -and $proxied.StatusCode -lt 300 -and $proxied.ContentType -match ''^text/html'') {'
 
-foreach ($required in @($coreSingleSource, $dashboardSource, $requestWorker, $directDispatchSource, $directProxySource, $powershell)) {
+foreach ($required in @($coreSingleSource, $dashboardSource, $dashboardTransformSource, $requestWorker, $directDispatchSource, $directProxySource, $powershell)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-704 BLOCKED: required app runtime component not found at $required"
     }
@@ -123,7 +125,8 @@ function Initialize-DirectJavaRuntime {
     $coreSingleText = $coreSingleText.Replace($coreSingleNavigationOriginal, $coreSingleNavigationReplacement)
     [System.IO.File]::WriteAllText($runtimeCoreSingle, $coreSingleText, [System.Text.UTF8Encoding]::new($false))
 
-    Copy-Item -LiteralPath $dashboardSource -Destination (Join-Path $runtimeScriptsDir 'butler-dashboard.ps1') -Force
+    Copy-Item -LiteralPath $dashboardSource -Destination $runtimeDashboard -Force
+    & $dashboardTransformSource -DashboardPath $runtimeDashboard
     Copy-Item -LiteralPath $directDispatchSource -Destination (Join-Path $runtimeScriptsDir 'butler-direct-java-dispatch.ps1') -Force
     Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force
     $env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir

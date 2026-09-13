@@ -123,6 +123,39 @@ jobs:
           }
           Write-Host ("BF-707 staging transform passed on Windows PowerShell 5.1 across {0} navigation site(s)." -f $matchCount)
 
+      - name: Exercise BF-715 exact waivers staging transform
+        shell: powershell
+        run: |
+          $source = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
+          $temp = Join-Path $env:RUNNER_TEMP 'butler-dashboard.bf715.staged.ps1'
+          Copy-Item -LiteralPath $source -Destination $temp -Force
+
+          & '.\scripts\butler-dashboard-bf715-transform.ps1' -DashboardPath $temp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $text = [System.IO.File]::ReadAllText($temp)
+          if (-not $text.Contains('function Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
+              Write-Error 'BF-715 BLOCKED: staged dashboard is missing the exact waiver bundle helper.'
+              exit 1
+          }
+          if (-not $text.Contains('$waiverEvidence = Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
+              Write-Error 'BF-715 BLOCKED: exact /waivers route did not switch to the bundle helper.'
+              exit 1
+          }
+          if ($text.Contains('$summary = Invoke-ButlerReadOnlySummary' + [Environment]::NewLine + '                    $waiverBundle = Invoke-ButlerReadOnlyWaiverBoard' + [Environment]::NewLine + '                    $rosterContext = Invoke-ButlerReadOnlyRosterContext')) {
+              Write-Error 'BF-715 BLOCKED: staged /waivers route still contains three sequential governed reads.'
+              exit 1
+          }
+
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($temp, [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error ("bf715-staged:{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+              exit 1
+          }
+          Write-Host 'BF-715 exact /waivers bundle transform passed on Windows PowerShell 5.1.'
+
       - name: Exercise BF-710 cmd proxy argument tokenization
         shell: powershell
         run: |

@@ -25,9 +25,9 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
         AtomicInteger peak = new AtomicInteger();
 
         var task = (java.util.concurrent.Callable<String>) () -> {
-            started.countDown();
             int now = active.incrementAndGet();
             peak.accumulateAndGet(now, Math::max);
+            started.countDown();
             try {
                 if (!release.await(2, TimeUnit.SECONDS)) throw new IllegalStateException("release timed out");
                 return "ok";
@@ -85,19 +85,16 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
     }
 
     @Test
-    void dispatcherRemainsDashboardScopedAndFallsBackOutsideDashboard() throws Exception {
+    void dispatcherReturnsToSimpleFailClosedDirectExecution() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
 
-        assertTrue(dispatch.contains("Get-ButlerDashboardAncestorPid"));
-        assertTrue(dispatch.contains("'*butler-dashboard.ps1*'"));
-        assertTrue(dispatch.contains(".bf713-waiver-context-cache"));
-        assertTrue(dispatch.contains("$ageSeconds -gt 30"));
-        assertTrue(dispatch.contains("Read-Bf713FreshCacheText -Path $rosterCachePath"));
-        assertTrue(dispatch.contains("'--waiver-board-context-bundle'"));
-        assertTrue(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'WAIVER_BOARD'"));
-        assertTrue(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'ROSTER_CONTEXT'"));
-        assertFalse(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'SUMMARY'"));
+        assertFalse(dispatch.contains("Get-ButlerDashboardAncestorPid"));
+        assertFalse(dispatch.contains(".bf713-waiver-context-cache"));
+        assertFalse(dispatch.contains("Read-Bf713FreshCacheText"));
+        assertFalse(dispatch.contains("Get-Bf712BundleSection"));
+        assertFalse(dispatch.contains("--waiver-board-context-bundle"));
         assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary'"));
+        assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverComparisonBundle'"));
         assertTrue(dispatch.contains("& $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments"));
         assertFalse(dispatch.contains("/refresh"));
         assertFalse(dispatch.contains("create_transaction"));
