@@ -14,15 +14,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppShellBf702WarmCliClassesTest {
 
     @Test
-    void readOnlyCliClassesWarmBeforeAnyPreservedCoreStarts() throws Exception {
+    void readOnlyCliRuntimeWarmsBeforeAnyPreservedCoreStarts() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
 
         assertTrue(script.contains("$repoRoot = Split-Path -Parent $scriptDir"));
         assertTrue(script.contains("$gradle = Join-Path $repoRoot 'gradlew.bat'"));
-        assertTrue(script.contains("function Initialize-ReadOnlyCliClasses"));
-        assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1"));
+        assertTrue(script.contains("function Initialize-ReadOnlyCliRuntime"));
+        assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:installDist' 2>&1"));
+        assertTrue(script.contains("$runtimeLibDir = Join-Path $runtimeInstallDir 'lib'"));
+        assertTrue(script.contains("prepared Butler runtime contains no jars"));
 
-        int warm = script.indexOf("    Initialize-ReadOnlyCliClasses\n\n    for ($index = 0; $index -lt $maxCoreWorkers; $index++) {");
+        int warm = script.indexOf("    Initialize-ReadOnlyCliRuntime\n    Initialize-DirectJavaRuntime");
         int firstCoreStart = script.indexOf("$process = Start-PreservedCore -BackendPort $backendPort", warm);
         assertTrue(warm >= 0 && firstCoreStart > warm);
     }
@@ -33,7 +35,7 @@ class ButlerAppShellBf702WarmCliClassesTest {
 
         assertTrue(script.contains("$exitCode = $LASTEXITCODE"));
         assertTrue(script.contains("$text = ($lines | ForEach-Object { \"$_\" }) -join \"`n\""));
-        assertTrue(script.contains("BF-702 BLOCKED: read-only CLI warm-up failed with Gradle exit code $exitCode."));
+        assertTrue(script.contains("BF-702 BLOCKED: read-only CLI runtime warm-up failed with Gradle exit code $exitCode."));
     }
 
     @Test
