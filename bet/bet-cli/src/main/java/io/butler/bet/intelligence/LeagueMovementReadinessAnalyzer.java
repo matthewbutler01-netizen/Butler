@@ -15,7 +15,11 @@ public final class LeagueMovementReadinessAnalyzer {
     }
 
     public ReadinessReport analyze(String leagueId, String source) throws SQLException {
-        var report = movers.analyze(leagueId, source);
+        return from(movers.analyze(leagueId, source));
+    }
+
+    public static ReadinessReport from(LeagueValueMoverAnalyzer.MoverReport report) {
+        Objects.requireNonNull(report, "report must not be null");
         Readiness readiness;
         if (report.previousDate() == null || report.latestDate() == null) readiness = Readiness.UNAVAILABLE;
         else if (report.totalPlayers() == 0) readiness = Readiness.READY;
@@ -25,7 +29,7 @@ public final class LeagueMovementReadinessAnalyzer {
 
         return new ReadinessReport(
             report.leagueId(), report.source(), report.previousDate(), report.latestDate(),
-            report.totalPlayers(), report.comparablePlayers(), report.missingPlayers(), readiness);
+            report.totalPlayers(), report.comparablePlayers(), report.missingPlayers(), readiness, report);
     }
 
     public enum Readiness {
@@ -38,7 +42,16 @@ public final class LeagueMovementReadinessAnalyzer {
     public record ReadinessReport(String leagueId, String source,
                                   LocalDate previousDate, LocalDate latestDate,
                                   int totalPlayers, int comparablePlayers, int missingPlayers,
-                                  Readiness readiness) {
+                                  Readiness readiness,
+                                  LeagueValueMoverAnalyzer.MoverReport movementEvidence) {
+        public ReadinessReport(String leagueId, String source,
+                               LocalDate previousDate, LocalDate latestDate,
+                               int totalPlayers, int comparablePlayers, int missingPlayers,
+                               Readiness readiness) {
+            this(leagueId, source, previousDate, latestDate,
+                totalPlayers, comparablePlayers, missingPlayers, readiness, null);
+        }
+
         public double coveragePercent() {
             return totalPlayers == 0 ? 0.0 : (comparablePlayers * 100.0) / totalPlayers;
         }
