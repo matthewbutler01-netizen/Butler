@@ -12,7 +12,12 @@ $ErrorActionPreference = 'Stop'
 
 $runtimeLib = [string]$env:BUTLER_APP_RUNTIME_LIB
 if ([string]::IsNullOrWhiteSpace($runtimeLib) -or -not (Test-Path -LiteralPath $runtimeLib -PathType Container)) {
-    Write-Error 'BF-704 BLOCKED: prepared Butler runtime library directory is unavailable.'
+    [Console]::Error.WriteLine('BF-704 BLOCKED: prepared Butler runtime library directory is unavailable.')
+    exit 2
+}
+$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT
+if ([string]::IsNullOrWhiteSpace($repoRoot) -or -not (Test-Path -LiteralPath $repoRoot -PathType Container)) {
+    [Console]::Error.WriteLine('BF-704 BLOCKED: Butler repository root is unavailable.')
     exit 2
 }
 
@@ -29,7 +34,7 @@ if ([string]::IsNullOrWhiteSpace([string]$java)) {
         $java = $javaCommand.Source
     }
     catch {
-        Write-Error 'BF-704 BLOCKED: Java executable is unavailable.'
+        [Console]::Error.WriteLine('BF-704 BLOCKED: Java executable is unavailable.')
         exit 2
     }
 }
@@ -44,7 +49,7 @@ $mainClass = switch ($Task) {
 }
 
 if ([string]::IsNullOrWhiteSpace([string]$mainClass)) {
-    Write-Error ("BF-704 BLOCKED: interactive Gradle task is not authorized for direct Java execution: {0}" -f $Task)
+    [Console]::Error.WriteLine(("BF-704 BLOCKED: interactive Gradle task is not authorized for direct Java execution: {0}" -f $Task))
     exit 2
 }
 
@@ -61,13 +66,19 @@ if (-not [string]::IsNullOrWhiteSpace($normalizedArguments)) {
 $classPath = Join-Path $runtimeLib '*'
 $previousPreference = $ErrorActionPreference
 $exitCode = $null
+Push-Location $repoRoot
 try {
-    $ErrorActionPreference = 'Continue'
-    & $java '-cp' $classPath $mainClass @mainArguments
-    $exitCode = $LASTEXITCODE
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $java '-cp' $classPath $mainClass @mainArguments
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
 }
 finally {
-    $ErrorActionPreference = $previousPreference
+    Pop-Location
 }
 
 if ($null -eq $exitCode) {
