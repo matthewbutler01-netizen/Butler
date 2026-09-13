@@ -8,6 +8,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -77,6 +79,34 @@ public final class PlayerSeasonProductionRepository {
             try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT * FROM player_season_production WHERE player_id=? ORDER BY season DESC, as_of_date DESC, source")) {
                 statement.setString(1, playerId.trim());
+                try (ResultSet rs = statement.executeQuery()) { while (rs.next()) result.add(map(rs)); }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    public List<PlayerSeasonProduction> findByPlayerIdsAndSeason(
+        Collection<String> playerIds, int season) throws SQLException {
+        Objects.requireNonNull(playerIds, "playerIds must not be null");
+        if (season <= 0) throw new IllegalArgumentException("season must be positive");
+
+        LinkedHashSet<String> normalizedIds = new LinkedHashSet<>();
+        for (String playerId : playerIds) {
+            requireText(playerId, "playerId");
+            normalizedIds.add(playerId.trim());
+        }
+        if (normalizedIds.isEmpty()) return List.of();
+
+        String placeholders = String.join(",", normalizedIds.stream().map(ignored -> "?").toList());
+        String sql = "SELECT * FROM player_season_production WHERE season=? AND player_id IN (" + placeholders + ") "
+            + "ORDER BY player_id ASC, as_of_date DESC, source ASC, id ASC";
+        List<PlayerSeasonProduction> result = new ArrayList<>();
+        try (Connection connection = database.openConnection()) {
+            ensureExtendedColumns(connection);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setInt(1, season);
+                int index = 2;
+                for (String playerId : normalizedIds) statement.setString(index++, playerId);
                 try (ResultSet rs = statement.executeQuery()) { while (rs.next()) result.add(map(rs)); }
             }
         }
