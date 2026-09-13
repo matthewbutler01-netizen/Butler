@@ -116,6 +116,7 @@ function Initialize-DirectJavaRuntime {
     Copy-Item -LiteralPath $directDispatchSource -Destination (Join-Path $runtimeScriptsDir 'butler-direct-java-dispatch.ps1') -Force
     Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force
     $env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir
+    $env:BUTLER_APP_REPO_ROOT = $repoRoot
 }
 
 function Get-FreeLoopbackPort {
