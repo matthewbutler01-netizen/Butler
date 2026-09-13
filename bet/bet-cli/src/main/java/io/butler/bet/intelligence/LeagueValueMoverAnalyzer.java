@@ -44,15 +44,16 @@ public final class LeagueValueMoverAnalyzer {
     public MoverReport analyze(String leagueId, String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedSource = requireText(source, "source");
+        var window = windows.latestWindow(normalizedSource);
+        if (window.isPresent()) {
+            return analyze(normalizedLeagueId, normalizedSource,
+                window.orElseThrow().previousDate(), window.orElseThrow().latestDate());
+        }
+
         var league = leagues.analyze(normalizedLeagueId);
         int totalPlayers = league.teams().stream().mapToInt(LeagueAnalyzer.TeamReport::rosterSize).sum();
-        var window = windows.latestWindow(normalizedSource);
-        if (window.isEmpty()) {
-            return new MoverReport(normalizedLeagueId, normalizedSource, null, null,
-                totalPlayers, 0, totalPlayers, List.of());
-        }
-        return analyze(normalizedLeagueId, normalizedSource,
-            window.orElseThrow().previousDate(), window.orElseThrow().latestDate());
+        return new MoverReport(normalizedLeagueId, normalizedSource, null, null,
+            totalPlayers, 0, totalPlayers, List.of());
     }
 
     public MoverReport analyze(String leagueId, String source,

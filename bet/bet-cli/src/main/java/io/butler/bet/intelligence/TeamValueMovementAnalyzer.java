@@ -29,7 +29,8 @@ public final class TeamValueMovementAnalyzer {
         return summarize(leagueMovers.analyze(leagueId, source));
     }
 
-    private MovementReport summarize(LeagueValueMoverAnalyzer.MoverReport report) throws SQLException {
+    public MovementReport summarize(LeagueValueMoverAnalyzer.MoverReport report) throws SQLException {
+        Objects.requireNonNull(report, "report must not be null");
         var league = leagues.analyze(report.leagueId());
         Map<String, MutableTeamMovement> byTeam = new LinkedHashMap<>();
 

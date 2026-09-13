@@ -71,8 +71,10 @@ public final class LeagueTeamContextAnalyzer {
             && movementReadiness.previousDate() != null
             && movementReadiness.latestDate() != null
             && movementReadiness.comparablePlayers() > 0) {
-            TeamValueMovementAnalyzer.MovementReport movementReport = movement.analyze(
-                health.leagueId(), health.source());
+            var movementEvidence = movementReadiness.movementEvidence();
+            TeamValueMovementAnalyzer.MovementReport movementReport = movementEvidence == null
+                ? movement.analyze(health.leagueId(), health.source())
+                : movement.summarize(movementEvidence);
             previousDate = movementReport.previousDate();
             latestDate = movementReport.latestDate();
             for (var team : movementReport.teams()) {
