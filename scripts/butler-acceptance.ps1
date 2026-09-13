@@ -103,11 +103,54 @@ function Start-OwnedButler {
     $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$appLauncher`" -Port $SelectedPort -NoBrowser"
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
-    $process = [System.Diagnostics.Process]::Start($start)
-    if ($null -eq $process) {
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    if (-not $process.Start()) {
         throw 'BF-698 BLOCKED: unable to launch Butler for acceptance.'
     }
+
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process | Add-Member -NotePropertyName ButlerStdoutTask -NotePropertyValue $stdoutTask
+    $process | Add-Member -NotePropertyName ButlerStderrTask -NotePropertyValue $stderrTask
     return $process
+}
+
+function Get-BoundedStartupOutput {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    try { [void]$Process.WaitForExit(2000) } catch {}
+
+    $parts = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in @(
+        [pscustomobject]@{ Label = 'stdout'; Property = 'ButlerStdoutTask' },
+        [pscustomobject]@{ Label = 'stderr'; Property = 'ButlerStderrTask' }
+    )) {
+        try {
+            $property = $Process.PSObject.Properties[$entry.Property]
+            if ($null -eq $property -or $null -eq $property.Value) { continue }
+            $task = $property.Value
+            if (-not $task.IsCompleted) { continue }
+            $text = [string]$task.Result
+            if ([string]::IsNullOrWhiteSpace($text)) { continue }
+            $text = [regex]::Replace($text, '\s+', ' ').Trim()
+            if ($text.Length -gt 900) {
+                $text = '...' + $text.Substring($text.Length - 900)
+            }
+            $parts.Add(($entry.Label + '=' + $text))
+        }
+        catch {
+        }
+    }
+
+    $combined = ($parts -join '; ')
+    if ($combined.Length -gt 1800) {
+        $combined = '...' + $combined.Substring($combined.Length - 1800)
+    }
+    return $combined
 }
 
 function Stop-OwnedButlerTree {
@@ -177,7 +220,11 @@ try {
     $healthy = $false
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($process.HasExited) {
-            throw "BF-698 FAILED: Butler exited during startup with code $($process.ExitCode)."
+            $diagnostic = Get-BoundedStartupOutput -Process $process
+            if ([string]::IsNullOrWhiteSpace($diagnostic)) {
+                throw "BF-698 FAILED: Butler exited during startup with code $($process.ExitCode)."
+            }
+            throw "BF-698 FAILED: Butler exited during startup with code $($process.ExitCode); startup=$diagnostic"
         }
         if (Test-ButlerHealth -Root $root -TimeoutMs 1000) {
             $healthy = $true
