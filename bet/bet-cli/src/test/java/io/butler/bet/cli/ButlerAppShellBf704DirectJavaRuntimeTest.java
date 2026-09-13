@@ -40,7 +40,7 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
 
         assertTrue(proxy.contains("butler-direct-java-dispatch.ps1"));
-        assertTrue(proxy.contains("-Task \"%~1\" -ArgumentText \"%~2\""));
+        assertTrue(proxy.contains("-Task \"%~1\" -ArgumentText \"%~2\" -ArgumentRemainder \"%~3 %~4 %~5 %~6 %~7 %~8 %~9\""));
 
         assertTrue(dispatch.contains("':bet:bet-cli:run' { 'io.butler.bet.cli.ButlerCommandRouter'"));
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli"));
@@ -48,6 +48,9 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverComparisonBundleCli"));
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli"));
         assertTrue(dispatch.contains("interactive Gradle task is not authorized for direct Java execution"));
+        assertTrue(dispatch.contains("[string]$ArgumentRemainder = ''"));
+        assertTrue(dispatch.contains("if ($normalizedArguments -ceq '--args')"));
+        assertTrue(dispatch.contains("BF-710 BLOCKED: Gradle-compatible --args token was split but no argument value followed it."));
         assertTrue(dispatch.contains("$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT"));
         assertTrue(dispatch.contains("$workingDir = Join-Path $repoRoot 'bet\\bet-cli'"));
         assertTrue(dispatch.contains("Push-Location $workingDir"));
