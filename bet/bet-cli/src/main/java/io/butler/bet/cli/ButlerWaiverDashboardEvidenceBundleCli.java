@@ -17,58 +17,90 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * BF-712 read-only composition of the three established Waiver Board evidence sources.
+ * BF-712/BF-713 read-only composition of established Waiver Board evidence sources.
  * Analysis may overlap after exact BF-623 target verification; rendering remains sequential.
  */
 public final class ButlerWaiverDashboardEvidenceBundleCli {
     static final String SUMMARY = "SUMMARY";
     static final String WAIVER_BOARD = "WAIVER_BOARD";
     static final String ROSTER_CONTEXT = "ROSTER_CONTEXT";
+    static final String COMPARISON_ROSTER_ONLY = "--comparison-roster-only";
 
     private static final Path DATABASE_PATH = Path.of("butler.db");
 
     private ButlerWaiverDashboardEvidenceBundleCli() {}
 
     public static void main(String[] args) {
-        if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
-            System.err.println("Error: waiver dashboard evidence bundle requires one Butler league id.");
+        if (args == null || args.length < 1 || args.length > 2
+            || args[0] == null || args[0].isBlank()
+            || (args.length == 2 && !COMPARISON_ROSTER_ONLY.equals(args[1]))) {
+            System.err.println("Error: waiver dashboard evidence bundle requires one Butler league id and optional --comparison-roster-only.");
             System.exit(2);
             return;
         }
 
         try {
             String leagueId = args[0].trim();
-            Database database = initializedDatabase();
-            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
-            String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
-
-            var reports = runConcurrent(
-                () -> {
-                    var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
-                    var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
-                    return new SummaryEvidence(summary, convergence);
-                },
-                () -> new SleeperLiveWaiverComparisonExecutionBundle(database)
-                    .run(leagueId, target.sleeperUserId()),
-                () -> new SleeperLiveWaiverTargetRosterContextAudit(database)
-                    .audit(leagueId, target.sleeperUserId()));
-
-            String summary = withVerifiedTarget(verifiedTarget, capture(() ->
-                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.print(
-                    reports.first().summary(), reports.first().convergence())));
-            String waiverBoard = withVerifiedTarget(verifiedTarget, capture(() ->
-                ButlerSleeperLiveWaiverComparisonBundleCli.print(reports.second())));
-            String rosterContext = withVerifiedTarget(verifiedTarget, capture(() ->
-                ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(reports.third())));
-
-            emit(SUMMARY, summary);
-            emit(WAIVER_BOARD, waiverBoard);
-            emit(ROSTER_CONTEXT, rosterContext);
-            System.out.println("Boundary: BF-712 composes the existing read-only Waiver Board summary, comparison bundle, and target-roster context after one BF-623 target verification; no Butler or Sleeper write is executed.");
+            if (args.length == 2) {
+                runComparisonRosterOnly(leagueId);
+            } else {
+                runFullBundle(leagueId);
+            }
         } catch (Exception e) {
             System.err.println("Error: " + rootMessage(e));
             System.exit(2);
         }
+    }
+
+    private static void runFullBundle(String leagueId) throws Exception {
+        Database database = initializedDatabase();
+        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+        String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
+
+        var reports = runConcurrent(
+            () -> {
+                var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
+                var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
+                return new SummaryEvidence(summary, convergence);
+            },
+            () -> new SleeperLiveWaiverComparisonExecutionBundle(database)
+                .run(leagueId, target.sleeperUserId()),
+            () -> new SleeperLiveWaiverTargetRosterContextAudit(database)
+                .audit(leagueId, target.sleeperUserId()));
+
+        String summary = withVerifiedTarget(verifiedTarget, capture(() ->
+            ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.print(
+                reports.first().summary(), reports.first().convergence())));
+        String waiverBoard = withVerifiedTarget(verifiedTarget, capture(() ->
+            ButlerSleeperLiveWaiverComparisonBundleCli.print(reports.second())));
+        String rosterContext = withVerifiedTarget(verifiedTarget, capture(() ->
+            ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(reports.third())));
+
+        emit(SUMMARY, summary);
+        emit(WAIVER_BOARD, waiverBoard);
+        emit(ROSTER_CONTEXT, rosterContext);
+        System.out.println("Boundary: BF-712 composes the existing read-only Waiver Board summary, comparison bundle, and target-roster context after one BF-623 target verification; no Butler or Sleeper write is executed.");
+    }
+
+    private static void runComparisonRosterOnly(String leagueId) throws Exception {
+        Database database = initializedDatabase();
+        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+        String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
+
+        var reports = runConcurrentPair(
+            () -> new SleeperLiveWaiverComparisonExecutionBundle(database)
+                .run(leagueId, target.sleeperUserId()),
+            () -> new SleeperLiveWaiverTargetRosterContextAudit(database)
+                .audit(leagueId, target.sleeperUserId()));
+
+        String waiverBoard = withVerifiedTarget(verifiedTarget, capture(() ->
+            ButlerSleeperLiveWaiverComparisonBundleCli.print(reports.first())));
+        String rosterContext = withVerifiedTarget(verifiedTarget, capture(() ->
+            ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(reports.second())));
+
+        emit(WAIVER_BOARD, waiverBoard);
+        emit(ROSTER_CONTEXT, rosterContext);
+        System.out.println("Boundary: BF-713 coalesces only the existing read-only waiver comparison and target-roster context after one BF-623 target verification; summary reads remain independent so non-waiver dashboard routes do not pay this cost. No Butler or Sleeper write is executed.");
     }
 
     private static Database initializedDatabase() throws Exception {
@@ -87,6 +119,19 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
             Future<B> secondFuture = executor.submit(second);
             Future<C> thirdFuture = executor.submit(third);
             return new Triple<>(await(firstFuture), await(secondFuture), await(thirdFuture));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    static <A, B> Pair<A, B> runConcurrentPair(
+        Callable<A> first,
+        Callable<B> second) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<A> firstFuture = executor.submit(first);
+            Future<B> secondFuture = executor.submit(second);
+            return new Pair<>(await(firstFuture), await(secondFuture));
         } finally {
             executor.shutdownNow();
         }
@@ -145,6 +190,7 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
         SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport summary,
         SleeperLiveWaiverPostTransactionRosterConvergence.ConvergenceReport convergence) {}
 
+    record Pair<A, B>(A first, B second) {}
     record Triple<A, B, C>(A first, B second, C third) {}
 
     @FunctionalInterface
