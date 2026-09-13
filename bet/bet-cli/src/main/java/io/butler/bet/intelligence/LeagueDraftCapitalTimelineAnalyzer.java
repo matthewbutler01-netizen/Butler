@@ -4,11 +4,13 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.DraftPickRepository;
 import io.butler.bet.data.DraftPickValueRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.domain.DraftPickValue;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +57,11 @@ public final class LeagueDraftCapitalTimelineAnalyzer {
             teamNames.put(team.getId(), team.getName());
         }
 
+        Map<String, DraftPickValue> latestValues = new HashMap<>();
+        for (DraftPickValue value : values.findLatestBySource(source)) {
+            latestValues.put(value.getDraftPickId(), value);
+        }
+
         Map<String, MutableTeam> byTeam = new LinkedHashMap<>();
         for (var entry : teamNames.entrySet()) {
             byTeam.put(entry.getKey(), new MutableTeam(entry.getKey(), entry.getValue()));
@@ -69,7 +76,7 @@ public final class LeagueDraftCapitalTimelineAnalyzer {
             season.roundCounts.merge(pick.getRound(), 1, Integer::sum);
             team.totalPicks++;
 
-            var value = values.findLatestByDraftPickIdAndSource(pick.getId(), source).orElse(null);
+            DraftPickValue value = latestValues.get(pick.getId());
             if (value == null) {
                 season.missingPicks++;
                 team.missingPicks++;
