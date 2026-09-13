@@ -14,22 +14,35 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
-$coreSingle = Join-Path $scriptDir 'butler-app-shell-core-single.ps1'
+$coreSingleSource = Join-Path $scriptDir 'butler-app-shell-core-single.ps1'
+$dashboardSource = Join-Path $scriptDir 'butler-dashboard.ps1'
 $requestWorker = Join-Path $scriptDir 'butler-app-core-pool-worker.ps1'
+$directDispatchSource = Join-Path $scriptDir 'butler-direct-java-dispatch.ps1'
+$directProxySource = Join-Path $scriptDir 'butler-direct-java-gradle-proxy.cmd'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
+$runtimeInstallDir = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli'
+$runtimeLibDir = Join-Path $runtimeInstallDir 'lib'
+$localAppData = [Environment]::GetFolderPath('LocalApplicationData')
+$runtimeRoot = Join-Path $localAppData ("Butler\app-runtime-{0}" -f $PID)
+$runtimeScriptsDir = Join-Path $runtimeRoot 'scripts'
+$runtimeCoreSingle = Join-Path $runtimeScriptsDir 'butler-app-shell-core-single.ps1'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 $originalGradleOpts = $env:GRADLE_OPTS
+$originalRuntimeLib = $env:BUTLER_APP_RUNTIME_LIB
 $gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'
 
-foreach ($required in @($coreSingle, $requestWorker, $powershell)) {
+foreach ($required in @($coreSingleSource, $dashboardSource, $requestWorker, $directDispatchSource, $directProxySource, $powershell)) {
     if (-not (Test-Path -LiteralPath $required)) {
-        throw "BF-690 BLOCKED: required inner-core pool component not found at $required"
+        throw "BF-704 BLOCKED: required app runtime component not found at $required"
     }
 }
 if (-not (Test-Path -LiteralPath $gradle)) {
     throw "BF-702 BLOCKED: Gradle wrapper not found at $gradle"
+}
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    throw 'BF-704 BLOCKED: LocalApplicationData is unavailable.'
 }
 
 function Enable-ButlerGradleNoDaemon {
@@ -52,7 +65,16 @@ function Restore-GradleOpts {
     }
 }
 
-function Initialize-ReadOnlyCliClasses {
+function Restore-RuntimeLib {
+    if ($null -eq $originalRuntimeLib) {
+        Remove-Item Env:BUTLER_APP_RUNTIME_LIB -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:BUTLER_APP_RUNTIME_LIB = $originalRuntimeLib
+    }
+}
+
+function Initialize-ReadOnlyCliRuntime {
     $previousPreference = $ErrorActionPreference
     $lines = $null
     $exitCode = $null
@@ -60,7 +82,7 @@ function Initialize-ReadOnlyCliClasses {
     try {
         try {
             $ErrorActionPreference = 'Continue'
-            $lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1
+            $lines = & $gradle '--no-daemon' ':bet:bet-cli:installDist' 2>&1
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -73,8 +95,27 @@ function Initialize-ReadOnlyCliClasses {
 
     $text = ($lines | ForEach-Object { "$_" }) -join "`n"
     if ($exitCode -ne 0) {
-        throw "BF-702 BLOCKED: read-only CLI warm-up failed with Gradle exit code $exitCode.`n$text"
+        throw "BF-702 BLOCKED: read-only CLI runtime warm-up failed with Gradle exit code $exitCode.`n$text"
     }
+    if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
+        throw "BF-704 BLOCKED: prepared Butler runtime library directory not found at $runtimeLibDir"
+    }
+    $runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
+    if ($runtimeJars.Count -eq 0) {
+        throw "BF-704 BLOCKED: prepared Butler runtime contains no jars at $runtimeLibDir"
+    }
+}
+
+function Initialize-DirectJavaRuntime {
+    if (Test-Path -LiteralPath $runtimeRoot) {
+        Remove-Item -LiteralPath $runtimeRoot -Recurse -Force -ErrorAction Stop
+    }
+    New-Item -ItemType Directory -Path $runtimeScriptsDir -Force | Out-Null
+    Copy-Item -LiteralPath $coreSingleSource -Destination $runtimeCoreSingle -Force
+    Copy-Item -LiteralPath $dashboardSource -Destination (Join-Path $runtimeScriptsDir 'butler-dashboard.ps1') -Force
+    Copy-Item -LiteralPath $directDispatchSource -Destination (Join-Path $runtimeScriptsDir 'butler-direct-java-dispatch.ps1') -Force
+    Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force
+    $env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir
 }
 
 function Get-FreeLoopbackPort {
@@ -93,7 +134,7 @@ function Start-PreservedCore {
 
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $powershell
-    $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$coreSingle`" -LeagueId `"$LeagueId`" -Port $BackendPort -NoBrowser"
+    $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$runtimeCoreSingle`" -LeagueId `"$LeagueId`" -Port $BackendPort -NoBrowser"
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
     $process = [System.Diagnostics.Process]::Start($start)
@@ -222,7 +263,8 @@ function Get-FreeBackendPort {
 
 try {
     Enable-ButlerGradleNoDaemon
-    Initialize-ReadOnlyCliClasses
+    Initialize-ReadOnlyCliRuntime
+    Initialize-DirectJavaRuntime
 
     for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
         do {
@@ -295,5 +337,10 @@ finally {
         Stop-OwnedProcessTree -Process $backend.Process
     }
     $backendProcesses.Clear()
+
+    if (Test-Path -LiteralPath $runtimeRoot) {
+        try { Remove-Item -LiteralPath $runtimeRoot -Recurse -Force -ErrorAction Stop } catch {}
+    }
+    Restore-RuntimeLib
     Restore-GradleOpts
 }
