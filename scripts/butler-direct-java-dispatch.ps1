@@ -20,6 +20,11 @@ if ([string]::IsNullOrWhiteSpace($repoRoot) -or -not (Test-Path -LiteralPath $re
     [Console]::Error.WriteLine('BF-704 BLOCKED: Butler repository root is unavailable.')
     exit 2
 }
+$workingDir = Join-Path $repoRoot 'bet\bet-cli'
+if (-not (Test-Path -LiteralPath $workingDir -PathType Container)) {
+    [Console]::Error.WriteLine('BF-705 BLOCKED: Butler bet-cli working directory is unavailable.')
+    exit 2
+}
 
 $java = $null
 if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
@@ -66,11 +71,11 @@ if (-not [string]::IsNullOrWhiteSpace($normalizedArguments)) {
 $classPath = Join-Path $runtimeLib '*'
 $previousPreference = $ErrorActionPreference
 $exitCode = $null
-Push-Location $repoRoot
+Push-Location $workingDir
 try {
     try {
         $ErrorActionPreference = 'Continue'
-        & $java '-cp' $classPath $mainClass @mainArguments
+        & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments
         $exitCode = $LASTEXITCODE
     }
     finally {

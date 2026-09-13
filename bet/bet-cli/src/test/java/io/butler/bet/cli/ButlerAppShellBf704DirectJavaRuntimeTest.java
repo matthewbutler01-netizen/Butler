@@ -49,8 +49,10 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli"));
         assertTrue(dispatch.contains("interactive Gradle task is not authorized for direct Java execution"));
         assertTrue(dispatch.contains("$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT"));
-        assertTrue(dispatch.contains("Push-Location $repoRoot"));
-        assertTrue(dispatch.contains("& $java '-cp' $classPath $mainClass @mainArguments"));
+        assertTrue(dispatch.contains("$workingDir = Join-Path $repoRoot 'bet\\bet-cli'"));
+        assertTrue(dispatch.contains("Push-Location $workingDir"));
+        assertTrue(dispatch.contains("& $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments"));
+        assertFalse(dispatch.contains("Push-Location $repoRoot"));
         assertFalse(dispatch.contains("gradlew"));
         assertFalse(dispatch.contains("/refresh"));
         assertFalse(dispatch.contains("create_transaction"));
