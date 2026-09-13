@@ -4,7 +4,10 @@ param(
     [string]$Task,
 
     [AllowEmptyString()]
-    [string]$ArgumentText = ''
+    [string]$ArgumentText = '',
+
+    [AllowEmptyString()]
+    [string]$ArgumentRemainder = ''
 )
 
 Set-StrictMode -Version Latest
@@ -58,9 +61,23 @@ if ([string]::IsNullOrWhiteSpace([string]$mainClass)) {
     exit 2
 }
 
-$normalizedArguments = [string]$ArgumentText
-if ($normalizedArguments.StartsWith('--args=', [System.StringComparison]::Ordinal)) {
+$normalizedArguments = ([string]$ArgumentText).Trim()
+$remainder = ([string]$ArgumentRemainder).Trim()
+if ($normalizedArguments -ceq '--args') {
+    if ([string]::IsNullOrWhiteSpace($remainder)) {
+        [Console]::Error.WriteLine('BF-710 BLOCKED: Gradle-compatible --args token was split but no argument value followed it.')
+        exit 2
+    }
+    $normalizedArguments = $remainder
+}
+elif ($normalizedArguments.StartsWith('--args=', [System.StringComparison]::Ordinal)) {
     $normalizedArguments = $normalizedArguments.Substring(7)
+    if (-not [string]::IsNullOrWhiteSpace($remainder)) {
+        $normalizedArguments = ($normalizedArguments.TrimEnd() + ' ' + $remainder).Trim()
+    }
+}
+elif (-not [string]::IsNullOrWhiteSpace($remainder)) {
+    $normalizedArguments = ($normalizedArguments + ' ' + $remainder).Trim()
 }
 
 $mainArguments = @()
