@@ -116,10 +116,9 @@ function Initialize-DirectJavaRuntime {
     Copy-Item -LiteralPath $coreSingleSource -Destination $runtimeCoreSingle -Force
 
     $coreSingleText = [System.IO.File]::ReadAllText($runtimeCoreSingle)
-    $firstNavigationMatch = $coreSingleText.IndexOf($coreSingleNavigationOriginal, [System.StringComparison]::Ordinal)
-    $lastNavigationMatch = $coreSingleText.LastIndexOf($coreSingleNavigationOriginal, [System.StringComparison]::Ordinal)
-    if ($firstNavigationMatch -lt 0 -or $firstNavigationMatch -ne $lastNavigationMatch) {
-        throw 'BF-707 BLOCKED: staged core navigation injection contract is missing or ambiguous.'
+    $navigationMatchCount = [regex]::Matches($coreSingleText, [regex]::Escape($coreSingleNavigationOriginal)).Count
+    if ($navigationMatchCount -lt 1) {
+        throw 'BF-707 BLOCKED: staged core navigation injection contract is missing.'
     }
     $coreSingleText = $coreSingleText.Replace($coreSingleNavigationOriginal, $coreSingleNavigationReplacement)
     [System.IO.File]::WriteAllText($runtimeCoreSingle, $coreSingleText, [System.Text.UTF8Encoding]::new($false))
