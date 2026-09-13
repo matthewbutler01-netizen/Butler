@@ -61,11 +61,11 @@ class LeagueTeamContextAnalyzerBf720MovementReuseTest {
 
         int window = method.indexOf("var window = windows.latestWindow(normalizedSource);");
         int delegate = method.indexOf("return analyze(normalizedLeagueId, normalizedSource,");
-        int leagueRead = method.indexOf("var league = leagues.analyze(normalizedLeagueId);");
+        int leagueRead = method.indexOf("rosters.findByLeagueId(normalizedLeagueId).size()");
         assertTrue(window >= 0);
         assertTrue(delegate > window);
         assertTrue(leagueRead > delegate,
-            "the successful window path must delegate before performing the no-window league read");
+            "the successful window path must delegate before performing the no-window league roster read");
     }
 
     @Test
