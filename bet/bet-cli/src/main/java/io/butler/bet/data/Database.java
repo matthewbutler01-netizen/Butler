@@ -1,20 +1,29 @@
 package io.butler.bet.data;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class Database {
+    private static final ConcurrentHashMap<Path, Object> INITIALIZATION_MONITORS = new ConcurrentHashMap<>();
+
+    private final Path databasePath;
     private final String jdbcUrl;
 
     public Database(Path databasePath) {
         if (databasePath == null) {
             throw new IllegalArgumentException("databasePath must not be null");
         }
-        this.jdbcUrl = "jdbc:sqlite:" + databasePath.toAbsolutePath();
+        this.databasePath = databasePath.toAbsolutePath().normalize();
+        this.jdbcUrl = "jdbc:sqlite:" + this.databasePath;
     }
 
     public Connection openConnection() throws SQLException {
@@ -26,6 +35,22 @@ public final class Database {
     }
 
     public void initialize() throws SQLException {
+        Object monitor = INITIALIZATION_MONITORS.computeIfAbsent(databasePath, ignored -> new Object());
+        synchronized (monitor) {
+            Path lockPath = databasePath.resolveSibling(databasePath.getFileName() + ".init.lock");
+            try (FileChannel lockChannel = FileChannel.open(
+                    lockPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE);
+                 FileLock ignored = lockChannel.lock()) {
+                initializeUnderLock();
+            } catch (IOException e) {
+                throw new SQLException("Unable to coordinate database initialization lock at " + lockPath, e);
+            }
+        }
+    }
+
+    private void initializeUnderLock() throws SQLException {
         try (Connection connection = openConnection();
              Statement statement = connection.createStatement()) {
 
