@@ -52,13 +52,18 @@ class ButlerWaiverDashboardEvidenceBundleBf713ScopeTest {
     }
 
     @Test
-    void dispatcherNeverBundlesTheHomepageSummaryTask() throws Exception {
+    void dispatcherNoLongerInfersDashboardRouteIntent() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
 
+        assertFalse(dispatch.contains("Get-ButlerDashboardAncestorPid"));
         assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary'"));
-        assertTrue(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverComparisonBundle'"));
-        assertTrue(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit'"));
-        assertTrue(dispatch.contains("'--waiver-board-context-bundle'"));
+        assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverComparisonBundle'"));
+        assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit'"));
+        assertFalse(dispatch.contains("--waiver-board-context-bundle"));
+        assertFalse(dispatch.contains(".bf713-waiver-context-cache"));
+        assertTrue(dispatch.contains("':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary'"));
+        assertTrue(dispatch.contains("':bet:bet-cli:sleeperLiveWaiverComparisonBundle'"));
+        assertTrue(dispatch.contains("':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit'"));
     }
 
     @Test
