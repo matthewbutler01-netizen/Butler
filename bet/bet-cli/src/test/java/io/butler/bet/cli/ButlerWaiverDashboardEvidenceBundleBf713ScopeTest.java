@@ -25,9 +25,9 @@ class ButlerWaiverDashboardEvidenceBundleBf713ScopeTest {
         AtomicInteger peak = new AtomicInteger();
 
         var task = (java.util.concurrent.Callable<String>) () -> {
-            started.countDown();
             int now = active.incrementAndGet();
             peak.accumulateAndGet(now, Math::max);
+            started.countDown();
             try {
                 if (!release.await(2, TimeUnit.SECONDS)) throw new IllegalStateException("release timed out");
                 return "ok";
