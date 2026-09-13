@@ -4,13 +4,20 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.DraftPickRepository;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.LeagueValueFormatRepository;
+import io.butler.bet.data.PlayerRepository;
+import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.LeagueValueFormat;
+import io.butler.bet.domain.Player;
+import io.butler.bet.domain.Roster;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Summarizes whether a persisted league has enough trustworthy local data for the core Butler
@@ -22,7 +29,9 @@ public final class LeagueHealthAnalyzer {
     private final LeagueRepository leagues;
     private final LeagueValueFormatRepository formats;
     private final DraftPickRepository draftPicks;
-    private final LeagueAnalyzer leagueAnalyzer;
+    private final TeamRepository teams;
+    private final RosterRepository rosters;
+    private final PlayerRepository players;
     private final LeagueValueSourceResolver sources;
     private final FranchiseValueReadinessAnalyzer franchiseReadiness;
     private final LeagueMovementReadinessAnalyzer movementReadiness;
@@ -32,7 +41,9 @@ public final class LeagueHealthAnalyzer {
         this.leagues = new LeagueRepository(database);
         this.formats = new LeagueValueFormatRepository(database);
         this.draftPicks = new DraftPickRepository(database);
-        this.leagueAnalyzer = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
+        this.rosters = new RosterRepository(database);
+        this.players = new PlayerRepository(database);
         this.sources = new LeagueValueSourceResolver(database);
         this.franchiseReadiness = new FranchiseValueReadinessAnalyzer(database);
         this.movementReadiness = new LeagueMovementReadinessAnalyzer(database);
@@ -62,7 +73,17 @@ public final class LeagueHealthAnalyzer {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         League league = leagues.findById(normalizedLeagueId)
             .orElseThrow(() -> new IllegalArgumentException("league not found: " + normalizedLeagueId));
-        var leagueReport = leagueAnalyzer.analyze(normalizedLeagueId);
+
+        int teamCount = teams.findByLeagueId(normalizedLeagueId).size();
+        Set<String> existingPlayerIds = new HashSet<>();
+        for (Player player : players.findByLeagueId(normalizedLeagueId)) {
+            existingPlayerIds.add(player.getId());
+        }
+        int rosteredPlayers = 0;
+        for (Roster roster : rosters.findByLeagueId(normalizedLeagueId)) {
+            if (existingPlayerIds.contains(roster.getPlayerId())) rosteredPlayers++;
+        }
+
         var format = formats.findByLeagueId(normalizedLeagueId).orElse(null);
         int pickCount = draftPicks.findByLeagueId(normalizedLeagueId).size();
 
@@ -82,7 +103,7 @@ public final class LeagueHealthAnalyzer {
         if (source == null) {
             return new HealthReport(
                 league.getId(), league.getExternalId(), league.getName(),
-                leagueReport.teamCount(), leagueReport.rosteredPlayers(), pickCount,
+                teamCount, rosteredPlayers, pickCount,
                 format, false, null, false, minimumAsOfDate,
                 HealthStatus.SOURCE_REQUIRED, null, null, sourceDiagnostics(format));
         }
@@ -95,7 +116,7 @@ public final class LeagueHealthAnalyzer {
 
         return new HealthReport(
             league.getId(), league.getExternalId(), league.getName(),
-            leagueReport.teamCount(), leagueReport.rosteredPlayers(), pickCount,
+            teamCount, rosteredPlayers, pickCount,
             format, format != null && format != LeagueValueFormat.UNKNOWN,
             source, automaticSource, minimumAsOfDate,
             status, franchise, movement, diagnostics(franchise, movement));
