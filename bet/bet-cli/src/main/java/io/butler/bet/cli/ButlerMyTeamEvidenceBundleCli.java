@@ -12,12 +12,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * Read-only BF-692 composition of the exact BF-668 My Team evidence sources in one JVM.
  * BF-699 reuses one initialized database across those exact reads.
+ * BF-711 overlaps only the independent post-roster analyses, then renders them deterministically.
  * This class adds no analyzer, score, recommendation, mutation, or evidence synthesis.
  */
 public final class ButlerMyTeamEvidenceBundleCli {
@@ -27,6 +32,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
     static final String POSITIONAL_PRESSURE = "POSITIONAL_PRESSURE";
     static final String TEAM_POSTURE = "TEAM_POSTURE";
     static final String FUTURE_CAPITAL = "FUTURE_CAPITAL";
+    static final int POST_ROSTER_WORKERS = 5;
 
     private static final Path DATABASE_PATH = Path.of("butler.db");
     private static final Pattern PROVIDER_SEASON =
@@ -48,24 +54,41 @@ public final class ButlerMyTeamEvidenceBundleCli {
             String rosterContext = capture(() -> printRosterContext(database, leagueId));
             int season = providerSeason(rosterContext);
 
-            String teamContext = capture(() ->
-                ButlerMain.printLeagueTeamContext(new LeagueTeamContextAnalyzer(database).analyze(leagueId)));
-            String rosterStrength = capture(() ->
-                ButlerLeagueRosterStrengthCli.print(new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId)));
-            String positionalPressure = capture(() ->
-                ButlerLeaguePositionalPressureCli.print(new LeaguePositionalPressureAnalyzer(database).analyze(leagueId)));
-            String teamPosture = capture(() ->
-                ButlerLeagueTeamPostureCli.print(new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season)));
-            String futureCapital = capture(() ->
-                ButlerLeagueFutureCapitalCli.print(new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)));
+            ExecutorService executor = newEvidenceExecutor();
+            try {
+                Future<LeagueTeamContextAnalyzer.TeamContextReport> teamContextFuture = submitEvidence(executor, () ->
+                    new LeagueTeamContextAnalyzer(database).analyze(leagueId));
+                Future<LeagueRosterStrengthTierAnalyzer.RosterStrengthReport> rosterStrengthFuture = submitEvidence(executor, () ->
+                    new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId));
+                Future<LeaguePositionalPressureAnalyzer.PositionalPressureReport> positionalPressureFuture = submitEvidence(executor, () ->
+                    new LeaguePositionalPressureAnalyzer(database).analyze(leagueId));
+                Future<LeagueTeamPostureAnalyzer.PostureReport> teamPostureFuture = submitEvidence(executor, () ->
+                    new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season));
+                Future<LeagueFutureCapitalTierAnalyzer.FutureCapitalReport> futureCapitalFuture = submitEvidence(executor, () ->
+                    new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId));
 
-            emit(ROSTER_CONTEXT, rosterContext);
-            emit(TEAM_CONTEXT, teamContext);
-            emit(ROSTER_STRENGTH, rosterStrength);
-            emit(POSITIONAL_PRESSURE, positionalPressure);
-            emit(TEAM_POSTURE, teamPosture);
-            emit(FUTURE_CAPITAL, futureCapital);
-            System.out.println("Boundary: BF-699 reuses one initialized database for the existing read-only My Team evidence only; no Butler or Sleeper write is executed.");
+                LeagueTeamContextAnalyzer.TeamContextReport teamContextReport = await(teamContextFuture);
+                LeagueRosterStrengthTierAnalyzer.RosterStrengthReport rosterStrengthReport = await(rosterStrengthFuture);
+                LeaguePositionalPressureAnalyzer.PositionalPressureReport positionalPressureReport = await(positionalPressureFuture);
+                LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = await(teamPostureFuture);
+                LeagueFutureCapitalTierAnalyzer.FutureCapitalReport futureCapitalReport = await(futureCapitalFuture);
+
+                String teamContext = capture(() -> ButlerMain.printLeagueTeamContext(teamContextReport));
+                String rosterStrength = capture(() -> ButlerLeagueRosterStrengthCli.print(rosterStrengthReport));
+                String positionalPressure = capture(() -> ButlerLeaguePositionalPressureCli.print(positionalPressureReport));
+                String teamPosture = capture(() -> ButlerLeagueTeamPostureCli.print(teamPostureReport));
+                String futureCapital = capture(() -> ButlerLeagueFutureCapitalCli.print(futureCapitalReport));
+
+                emit(ROSTER_CONTEXT, rosterContext);
+                emit(TEAM_CONTEXT, teamContext);
+                emit(ROSTER_STRENGTH, rosterStrength);
+                emit(POSITIONAL_PRESSURE, positionalPressure);
+                emit(TEAM_POSTURE, teamPosture);
+                emit(FUTURE_CAPITAL, futureCapital);
+                System.out.println("Boundary: BF-699 reuses one initialized database for the existing read-only My Team evidence only; no Butler or Sleeper write is executed.");
+            } finally {
+                executor.shutdownNow();
+            }
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
@@ -83,6 +106,31 @@ public final class ButlerMyTeamEvidenceBundleCli {
         ButlerPersonalizedTargetCliSupport.printVerified(target);
         ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(
             new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId()));
+    }
+
+    static ExecutorService newEvidenceExecutor() {
+        return Executors.newFixedThreadPool(POST_ROSTER_WORKERS);
+    }
+
+    static <T> Future<T> submitEvidence(ExecutorService executor, CheckedSupplier<T> supplier) {
+        if (executor == null) throw new IllegalArgumentException("executor must not be null");
+        if (supplier == null) throw new IllegalArgumentException("supplier must not be null");
+        return executor.submit(supplier::get);
+    }
+
+    static <T> T await(Future<T> future) throws Exception {
+        if (future == null) throw new IllegalArgumentException("future must not be null");
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof Exception exception) throw exception;
+            if (cause instanceof Error error) throw error;
+            throw new RuntimeException(cause);
+        }
     }
 
     static int providerSeason(String rosterContext) {
@@ -122,5 +170,10 @@ public final class ButlerMyTeamEvidenceBundleCli {
     @FunctionalInterface
     interface CheckedCommand {
         void run() throws Exception;
+    }
+
+    @FunctionalInterface
+    interface CheckedSupplier<T> {
+        T get() throws Exception;
     }
 }
