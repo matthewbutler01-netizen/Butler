@@ -32,6 +32,8 @@ $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 $originalGradleOpts = $env:GRADLE_OPTS
 $originalRuntimeLib = $env:BUTLER_APP_RUNTIME_LIB
 $gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'
+$coreSingleNavigationOriginal = 'if ($proxied.ContentType -match ''^text/html'') {'
+$coreSingleNavigationReplacement = 'if ($proxied.StatusCode -ge 200 -and $proxied.StatusCode -lt 300 -and $proxied.ContentType -match ''^text/html'') {'
 
 foreach ($required in @($coreSingleSource, $dashboardSource, $requestWorker, $directDispatchSource, $directProxySource, $powershell)) {
     if (-not (Test-Path -LiteralPath $required)) {
@@ -112,6 +114,16 @@ function Initialize-DirectJavaRuntime {
     }
     New-Item -ItemType Directory -Path $runtimeScriptsDir -Force | Out-Null
     Copy-Item -LiteralPath $coreSingleSource -Destination $runtimeCoreSingle -Force
+
+    $coreSingleText = [System.IO.File]::ReadAllText($runtimeCoreSingle)
+    $firstNavigationMatch = $coreSingleText.IndexOf($coreSingleNavigationOriginal, [System.StringComparison]::Ordinal)
+    $lastNavigationMatch = $coreSingleText.LastIndexOf($coreSingleNavigationOriginal, [System.StringComparison]::Ordinal)
+    if ($firstNavigationMatch -lt 0 -or $firstNavigationMatch -ne $lastNavigationMatch) {
+        throw 'BF-707 BLOCKED: staged core navigation injection contract is missing or ambiguous.'
+    }
+    $coreSingleText = $coreSingleText.Replace($coreSingleNavigationOriginal, $coreSingleNavigationReplacement)
+    [System.IO.File]::WriteAllText($runtimeCoreSingle, $coreSingleText, [System.Text.UTF8Encoding]::new($false))
+
     Copy-Item -LiteralPath $dashboardSource -Destination (Join-Path $runtimeScriptsDir 'butler-dashboard.ps1') -Force
     Copy-Item -LiteralPath $directDispatchSource -Destination (Join-Path $runtimeScriptsDir 'butler-direct-java-dispatch.ps1') -Force
     Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force
