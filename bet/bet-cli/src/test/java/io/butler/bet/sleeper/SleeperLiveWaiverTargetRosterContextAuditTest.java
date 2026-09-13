@@ -94,6 +94,17 @@ class SleeperLiveWaiverTargetRosterContextAuditTest {
         assertTrue(error.getMessage().contains("appears on multiple current rosters"));
     }
 
+    @Test
+    void duplicateExactCanonicalPlayerMappingFailsClosed() throws Exception {
+        Database database = seededDatabase();
+        new PlayerRepository(database).save(new Player("B-duplicate", "p1", "Duplicate Player", "QB", "TM"));
+        var audit = audit(database, standardRosters(), standardUsers(), rosteredIds());
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+            () -> audit.audit("L", "owner-1"));
+        assertTrue(error.getMessage().contains("duplicate exact Butler player mapping for Sleeper id p1"));
+    }
+
     private Database seededDatabase() throws Exception {
         Database database = new Database(tempDir.resolve("butler-test.db"));
         database.initialize();
