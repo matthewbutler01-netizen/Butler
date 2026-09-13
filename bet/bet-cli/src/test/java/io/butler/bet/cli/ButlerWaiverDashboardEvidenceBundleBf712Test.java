@@ -52,12 +52,12 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
     }
 
     @Test
-    void bundleUsesOneDatabaseOneTargetVerificationAndDeterministicSections() throws Exception {
+    void bundleKeepsSharedDatabaseHelperAndDeterministicEstablishedSections() throws Exception {
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerWaiverDashboardEvidenceBundleCli.java");
 
         assertEquals(1, occurrences(bundle, "new Database(DATABASE_PATH)"));
         assertEquals(1, occurrences(bundle, "database.initialize()"));
-        assertEquals(1, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertEquals(2, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
         assertTrue(bundle.contains("Executors.newFixedThreadPool(3)"));
         assertTrue(bundle.contains("new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target)"));
         assertTrue(bundle.contains("new SleeperLiveWaiverComparisonExecutionBundle(database)"));
@@ -72,31 +72,32 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
     }
 
     @Test
-    void existingRosterTaskExposesExplicitWaiverBundleModeWithoutExpandingDispatcherWhitelist() throws Exception {
+    void existingRosterTaskExposesExplicitBundleModesWithoutExpandingDispatcherWhitelist() throws Exception {
         String rosterCli = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperLiveWaiverTargetRosterContextAuditCli.java");
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
 
         assertTrue(rosterCli.contains("isWaiverDashboardBundle(args)"));
         assertTrue(rosterCli.contains("\"--waiver-dashboard-bundle\".equals(args[1])"));
-        assertTrue(rosterCli.contains("ButlerWaiverDashboardEvidenceBundleCli.main(new String[]{args[0].trim()})"));
+        assertTrue(rosterCli.contains("isWaiverBoardContextBundle(args)"));
+        assertTrue(rosterCli.contains("\"--waiver-board-context-bundle\".equals(args[1])"));
         assertFalse(dispatch.contains("':bet:bet-cli:waiverDashboardEvidenceBundle'"));
         assertTrue(dispatch.contains("':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit'"));
     }
 
     @Test
-    void dashboardScopedDispatcherUsesOneShotWorkerCacheAndFallsBackOutsideDashboard() throws Exception {
+    void dispatcherRemainsDashboardScopedAndFallsBackOutsideDashboard() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
 
         assertTrue(dispatch.contains("Get-ButlerDashboardAncestorPid"));
         assertTrue(dispatch.contains("'*butler-dashboard.ps1*'"));
-        assertTrue(dispatch.contains(".bf712-waiver-cache"));
+        assertTrue(dispatch.contains(".bf713-waiver-context-cache"));
         assertTrue(dispatch.contains("$ageSeconds -gt 30"));
-        assertTrue(dispatch.contains("Read-Bf712FreshCacheText -Path $cachePaths.Comparison"));
-        assertTrue(dispatch.contains("Read-Bf712FreshCacheText -Path $cachePaths.Roster"));
-        assertTrue(dispatch.contains("'--waiver-dashboard-bundle'"));
-        assertTrue(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'SUMMARY'"));
+        assertTrue(dispatch.contains("Read-Bf713FreshCacheText -Path $rosterCachePath"));
+        assertTrue(dispatch.contains("'--waiver-board-context-bundle'"));
         assertTrue(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'WAIVER_BOARD'"));
         assertTrue(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'ROSTER_CONTEXT'"));
+        assertFalse(dispatch.contains("Get-Bf712BundleSection -Text $bundleText -Name 'SUMMARY'"));
+        assertFalse(dispatch.contains("$Task -eq ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary'"));
         assertTrue(dispatch.contains("& $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments"));
         assertFalse(dispatch.contains("/refresh"));
         assertFalse(dispatch.contains("create_transaction"));
