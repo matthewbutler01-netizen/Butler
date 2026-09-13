@@ -25,6 +25,7 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         assertTrue(core.contains("Copy-Item -LiteralPath $directDispatchSource"));
         assertTrue(core.contains("Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force"));
         assertTrue(core.contains("$env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir"));
+        assertTrue(core.contains("$env:BUTLER_APP_REPO_ROOT = $repoRoot"));
         assertTrue(core.contains("-File `\"$runtimeCoreSingle`\""));
 
         int warm = core.indexOf("    Initialize-ReadOnlyCliRuntime");
@@ -47,6 +48,8 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverComparisonBundleCli"));
         assertTrue(dispatch.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli"));
         assertTrue(dispatch.contains("interactive Gradle task is not authorized for direct Java execution"));
+        assertTrue(dispatch.contains("$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT"));
+        assertTrue(dispatch.contains("Push-Location $repoRoot"));
         assertTrue(dispatch.contains("& $java '-cp' $classPath $mainClass @mainArguments"));
         assertFalse(dispatch.contains("gradlew"));
         assertFalse(dispatch.contains("/refresh"));
