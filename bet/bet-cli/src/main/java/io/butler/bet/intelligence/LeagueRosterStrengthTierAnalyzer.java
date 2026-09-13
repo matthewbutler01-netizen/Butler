@@ -19,43 +19,66 @@ import java.util.Objects;
  * No contender/rebuilder posture or recommendation is inferred.
  */
 public final class LeagueRosterStrengthTierAnalyzer {
-    private final LeagueCompositeTeamProfileAnalyzer profiles;
+    private final LeagueRosterSlotValueAnalyzer rosterSlots;
 
     public LeagueRosterStrengthTierAnalyzer(Database database) {
-        this.profiles = new LeagueCompositeTeamProfileAnalyzer(Objects.requireNonNull(database, "database must not be null"));
+        this.rosterSlots = new LeagueRosterSlotValueAnalyzer(
+            Objects.requireNonNull(database, "database must not be null"));
     }
 
     public RosterStrengthReport analyze(String leagueId) throws SQLException {
-        return compose(profiles.analyze(leagueId));
+        return compose(rosterSlots.analyze(leagueId));
     }
 
     public RosterStrengthReport analyze(String leagueId, String source) throws SQLException {
-        return compose(profiles.analyze(leagueId, source));
+        return compose(rosterSlots.analyze(leagueId, source));
     }
 
     public RosterStrengthReport analyze(String leagueId, LocalDate minimumAsOfDate) throws SQLException {
-        return compose(profiles.analyze(leagueId, minimumAsOfDate));
+        return compose(rosterSlots.analyze(leagueId, minimumAsOfDate));
     }
 
     public RosterStrengthReport analyze(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
-        return compose(profiles.analyze(leagueId, source, minimumAsOfDate));
+        return compose(rosterSlots.analyze(leagueId, source, minimumAsOfDate));
     }
 
+    /** Compatibility composition for existing callers that already hold a full composite profile. */
     public static RosterStrengthReport compose(LeagueCompositeTeamProfileAnalyzer.CompositeProfileReport profileReport) {
         Objects.requireNonNull(profileReport, "profileReport must not be null");
         if (profileReport.teams().isEmpty()) throw new IllegalArgumentException("profile report must contain teams");
 
-        List<TeamRosterStrength> evidence = new ArrayList<>();
-        for (var team : profileReport.teams()) {
-            int totalPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::totalPlayers).sum();
-            int valuedPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::valuedPlayers).sum();
-            int stalePlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::stalePlayers).sum();
-            int missingPlayers = team.rosterSlots().slots().values().stream().mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::missingPlayers).sum();
-            evidence.add(new TeamRosterStrength(team.teamId(), team.teamName(), starterValue(team), team.usablePlayerValue(),
-                totalPlayers, valuedPlayers, stalePlayers, missingPlayers,
-                LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE));
-        }
+        List<TeamRosterStrength> evidence = profileReport.teams().stream()
+            .map(team -> evidence(team.teamId(), team.teamName(), team.rosterSlots()))
+            .toList();
         return classify(profileReport.leagueId(), profileReport.source(), profileReport.minimumAsOfDate(), evidence);
+    }
+
+    /** BF-718 direct composition from the only governed evidence roster-strength actually consumes. */
+    public static RosterStrengthReport compose(LeagueRosterSlotValueAnalyzer.RosterSlotReport rosterReport) {
+        Objects.requireNonNull(rosterReport, "rosterReport must not be null");
+        if (rosterReport.teams().isEmpty()) throw new IllegalArgumentException("roster-slot report must contain teams");
+
+        List<TeamRosterStrength> evidence = rosterReport.teams().stream()
+            .map(team -> evidence(team.teamId(), team.teamName(), team))
+            .toList();
+        return classify(rosterReport.leagueId(), rosterReport.source(), rosterReport.minimumAsOfDate(), evidence);
+    }
+
+    private static TeamRosterStrength evidence(String teamId, String teamName,
+                                               LeagueRosterSlotValueAnalyzer.TeamRosterSlotContext roster) {
+        int totalPlayers = roster.slots().values().stream()
+            .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::totalPlayers).sum();
+        int valuedPlayers = roster.slots().values().stream()
+            .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::valuedPlayers).sum();
+        int stalePlayers = roster.slots().values().stream()
+            .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::stalePlayers).sum();
+        int missingPlayers = roster.slots().values().stream()
+            .mapToInt(LeagueRosterSlotValueAnalyzer.SlotValue::missingPlayers).sum();
+        double starterValue = roster.slots().getOrDefault("STARTER",
+            new LeagueRosterSlotValueAnalyzer.SlotValue("STARTER", 0.0, 0, 0, 0, 0)).value();
+        return new TeamRosterStrength(teamId, teamName, starterValue, roster.totalUsablePlayerValue(),
+            totalPlayers, valuedPlayers, stalePlayers, missingPlayers,
+            LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE);
     }
 
     static RosterStrengthReport classify(String leagueId, String source, LocalDate minimumAsOfDate,
@@ -100,11 +123,6 @@ public final class LeagueRosterStrengthTierAnalyzer {
 
     private static List<TeamRosterStrength> reset(List<TeamRosterStrength> teams) {
         return teams.stream().map(team -> team.withTier(LeagueRosterStrengthTierPolicy.Tier.INSUFFICIENT_EVIDENCE)).toList();
-    }
-
-    private static double starterValue(LeagueCompositeTeamProfileAnalyzer.TeamProfile team) {
-        return team.rosterSlots().slots().getOrDefault("STARTER",
-            new LeagueRosterSlotValueAnalyzer.SlotValue("STARTER", 0.0, 0, 0, 0, 0)).value();
     }
 
     private static RankKey key(TeamRosterStrength team) { return new RankKey(team.starterValue(), team.totalPlayerValue()); }
