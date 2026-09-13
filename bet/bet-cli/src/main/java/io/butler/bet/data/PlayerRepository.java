@@ -8,6 +8,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -42,6 +44,30 @@ public final class PlayerRepository {
     public Optional<Player> findByExternalId(String externalId) throws SQLException {
         requireText(externalId, "externalId");
         return findOne("SELECT id, external_id, display_name, position, nfl_team FROM players WHERE external_id=?", externalId);
+    }
+
+    public List<Player> findByExternalIds(Collection<String> externalIds) throws SQLException {
+        Objects.requireNonNull(externalIds, "externalIds must not be null");
+        LinkedHashSet<String> normalizedIds = new LinkedHashSet<>();
+        for (String externalId : externalIds) {
+            requireText(externalId, "externalId");
+            normalizedIds.add(externalId);
+        }
+        if (normalizedIds.isEmpty()) return List.of();
+
+        String placeholders = String.join(",", java.util.Collections.nCopies(normalizedIds.size(), "?"));
+        String sql = "SELECT id, external_id, display_name, position, nfl_team FROM players "
+            + "WHERE external_id IN (" + placeholders + ") ORDER BY external_id ASC, id ASC";
+        List<Player> result = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = 1;
+            for (String externalId : normalizedIds) statement.setString(index++, externalId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) result.add(map(rs));
+            }
+        }
+        return List.copyOf(result);
     }
 
     public List<Player> findAll() throws SQLException {
