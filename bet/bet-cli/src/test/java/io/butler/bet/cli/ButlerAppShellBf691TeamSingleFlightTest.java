@@ -58,7 +58,8 @@ class ButlerAppShellBf691TeamSingleFlightTest {
         assertTrue(bundle.contains("new LeagueTeamContextAnalyzer(database).analyze(leagueId)"));
         assertTrue(bundle.contains("new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId)"));
         assertTrue(bundle.contains("new LeaguePositionalPressureAnalyzer(database).analyze(leagueId)"));
-        assertTrue(bundle.contains("new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season)"));
+        assertTrue(bundle.contains("teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season)"));
+        assertTrue(bundle.contains("LeagueTeamPostureAnalyzer.compose("));
         assertTrue(bundle.contains("new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)"));
         assertTrue(preserved.contains("No new team score or strategy model is created here."));
         assertTrue(preserved.contains("READ ONLY."));
