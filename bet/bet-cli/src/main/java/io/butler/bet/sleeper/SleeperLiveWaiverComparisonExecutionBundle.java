@@ -32,6 +32,7 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
     private final CandidateSource candidateSource;
     private final RosterSource rosterSource;
     private final ProductionSource productionSource;
+    private final BatchProductionSource batchProductionSource;
 
     public SleeperLiveWaiverComparisonExecutionBundle(Database database) {
         Objects.requireNonNull(database, "database must not be null");
@@ -42,7 +43,8 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
             new SleeperLiveWaiverPregameEvidenceReadinessAudit(database).audit(leagueId));
         this.rosterSource = (leagueId, ownerId) -> rosterFrame(
             new SleeperLiveWaiverTargetRosterProductionComparabilityAudit(database).audit(leagueId, ownerId));
-        this.productionSource = productionRepository::findByPlayerId;
+        this.productionSource = null;
+        this.batchProductionSource = productionRepository::findByPlayerIdsAndSeason;
     }
 
     SleeperLiveWaiverComparisonExecutionBundle(
@@ -54,6 +56,19 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
         this.candidateSource = Objects.requireNonNull(candidateSource, "candidateSource must not be null");
         this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
         this.productionSource = Objects.requireNonNull(productionSource, "productionSource must not be null");
+        this.batchProductionSource = null;
+    }
+
+    SleeperLiveWaiverComparisonExecutionBundle(
+        MethodologySource methodologySource,
+        CandidateSource candidateSource,
+        RosterSource rosterSource,
+        BatchProductionSource batchProductionSource) {
+        this.methodologySource = Objects.requireNonNull(methodologySource, "methodologySource must not be null");
+        this.candidateSource = Objects.requireNonNull(candidateSource, "candidateSource must not be null");
+        this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
+        this.productionSource = null;
+        this.batchProductionSource = Objects.requireNonNull(batchProductionSource, "batchProductionSource must not be null");
     }
 
     public BundleReport run(String leagueId, String sleeperOwnerId)
@@ -89,6 +104,8 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
             throw new IllegalStateException("BF-615 BLOCKED: BENCH/RESERVE replacement pool does not reconcile with BF-614");
         }
 
+        Map<String, List<PlayerSeasonProduction>> productionRows =
+            loadProductionRows(candidates, replacementPool);
         List<CandidateComparison> candidateComparisons = new ArrayList<>();
         List<PairComparison> allPairs = new ArrayList<>();
         MutablePairCounts aggregate = new MutablePairCounts();
@@ -110,7 +127,7 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
                     }
                 } else {
                     Map<String, PlayerSeasonProduction> candidateProduction = latest2025BySource(
-                        productionSource.load(candidate.butlerPlayerId()));
+                        productionRows.getOrDefault(candidate.butlerPlayerId(), List.of()));
                     if (candidateProduction.isEmpty()) {
                         throw new IllegalStateException("BF-615 BLOCKED: reviewable prior-production candidate has no exact 2025 row: "
                             + candidate.sleeperPlayerId());
@@ -121,7 +138,7 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
                             pair = nonNumericPair(candidate, comparator, PairState.TARGET_PRIOR_PRODUCTION_PROTECTED);
                         } else {
                             Map<String, PlayerSeasonProduction> rosterProduction = latest2025BySource(
-                                productionSource.load(comparator.butlerPlayerId()));
+                                productionRows.getOrDefault(comparator.butlerPlayerId(), List.of()));
                             if (rosterProduction.isEmpty()) {
                                 throw new IllegalStateException("BF-615 BLOCKED: production-present target comparator has no exact 2025 row: "
                                     + comparator.sleeperPlayerId());
@@ -173,6 +190,52 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
             List.copyOf(candidateComparisons),
             List.copyOf(allPairs),
             ComparisonState.COMPARISONS_EXECUTED_EVIDENCE_ONLY);
+    }
+
+    private Map<String, List<PlayerSeasonProduction>> loadProductionRows(
+        CandidateFrame candidates,
+        List<RosterEntry> replacementPool) throws SQLException {
+        LinkedHashSet<String> requiredPlayerIds = new LinkedHashSet<>();
+        for (CandidateEntry candidate : candidates.entries()) {
+            if (!candidate.priorProductionPresent()) continue;
+            List<RosterEntry> exactComparators = replacementPool.stream()
+                .filter(value -> SleeperLiveWaiverCandidateRosterComparisonMethodology
+                    .samePosition(candidate.position(), value.position()))
+                .toList();
+            if (exactComparators.isEmpty()) continue;
+            requiredPlayerIds.add(candidate.butlerPlayerId());
+            exactComparators.stream()
+                .filter(RosterEntry::priorProductionPresent)
+                .map(RosterEntry::butlerPlayerId)
+                .forEach(requiredPlayerIds::add);
+        }
+        if (requiredPlayerIds.isEmpty()) return Map.of();
+
+        if (batchProductionSource == null) {
+            Map<String, List<PlayerSeasonProduction>> rowsByPlayer = new LinkedHashMap<>();
+            for (String playerId : requiredPlayerIds) {
+                rowsByPlayer.put(playerId, List.copyOf(Objects.requireNonNull(
+                    productionSource.load(playerId), "production rows must not be null")));
+            }
+            return Collections.unmodifiableMap(rowsByPlayer);
+        }
+
+        List<PlayerSeasonProduction> rows = Objects.requireNonNull(
+            batchProductionSource.load(Collections.unmodifiableSet(requiredPlayerIds), PRODUCTION_SEASON),
+            "production rows must not be null");
+        Map<String, List<PlayerSeasonProduction>> mutable = new LinkedHashMap<>();
+        for (PlayerSeasonProduction row : rows) {
+            Objects.requireNonNull(row, "production row must not be null");
+            if (row.season() != PRODUCTION_SEASON || !requiredPlayerIds.contains(row.playerId())) {
+                throw new IllegalStateException("BF-734 BLOCKED: batch production source returned an unrequested player/season row");
+            }
+            mutable.computeIfAbsent(row.playerId(), ignored -> new ArrayList<>()).add(row);
+        }
+        Map<String, List<PlayerSeasonProduction>> rowsByPlayer = new LinkedHashMap<>();
+        for (Map.Entry<String, List<PlayerSeasonProduction>> entry : mutable.entrySet()) {
+            rowsByPlayer.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(rowsByPlayer);
     }
 
     private PairComparison numericPair(
@@ -524,6 +587,11 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
     @FunctionalInterface
     interface ProductionSource {
         List<PlayerSeasonProduction> load(String butlerPlayerId) throws SQLException;
+    }
+
+    @FunctionalInterface
+    interface BatchProductionSource {
+        List<PlayerSeasonProduction> load(Set<String> butlerPlayerIds, int season) throws SQLException;
     }
 
     record CandidateFrame(String leagueId, String marketSnapshotId, int candidateCount,
