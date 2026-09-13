@@ -46,7 +46,9 @@ public final class FranchiseValueRankingAnalyzer {
         return rank(portfolios.analyze(leagueId, source), cutoff);
     }
 
-    private RankingReport rank(TeamAssetPortfolioAnalyzer.PortfolioReport portfolio, LocalDate minimumAsOfDate) {
+    public static RankingReport rank(TeamAssetPortfolioAnalyzer.PortfolioReport portfolio,
+                                     LocalDate minimumAsOfDate) {
+        Objects.requireNonNull(portfolio, "portfolio must not be null");
         if (!portfolio.complete()) {
             List<String> incomplete = new ArrayList<>();
             for (var team : portfolio.teams()) {
