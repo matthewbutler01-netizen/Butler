@@ -3,10 +3,15 @@ package io.butler.bet.intelligence;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
+import io.butler.bet.domain.PlayerValue;
+import io.butler.bet.domain.Roster;
+import io.butler.bet.domain.Team;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -20,14 +25,14 @@ import java.util.TreeMap;
  * is inferred.
  */
 public final class LeagueRosterSlotValueAnalyzer {
-    private final LeagueAnalyzer leagues;
+    private final TeamRepository teams;
     private final LeagueValueSourceResolver sources;
     private final RosterRepository rosters;
     private final PlayerValueRepository values;
 
     public LeagueRosterSlotValueAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.leagues = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
         this.sources = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.values = new PlayerValueRepository(database);
@@ -48,20 +53,29 @@ public final class LeagueRosterSlotValueAnalyzer {
     public RosterSlotReport analyze(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedSource = requireText(source, "source");
-        var league = leagues.analyze(normalizedLeagueId);
-        Map<String, MutableSlot> leagueSlots = new TreeMap<>();
-        List<TeamRosterSlotContext> teams = new ArrayList<>();
 
-        for (var team : league.teams()) {
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        for (Roster roster : rosters.findByLeagueId(normalizedLeagueId)) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+        }
+
+        Map<String, PlayerValue> latestValues = new HashMap<>();
+        for (PlayerValue value : values.findLatestBySource(normalizedSource)) {
+            latestValues.put(value.getPlayerId(), value);
+        }
+
+        Map<String, MutableSlot> leagueSlots = new TreeMap<>();
+        List<TeamRosterSlotContext> teamContexts = new ArrayList<>();
+        for (Team team : teams.findByLeagueId(normalizedLeagueId)) {
             Map<String, MutableSlot> teamSlots = new TreeMap<>();
-            for (var roster : rosters.findByTeamId(team.teamId())) {
+            for (Roster roster : rostersByTeam.getOrDefault(team.getId(), List.of())) {
                 String slot = normalizeSlot(roster.getSlot());
                 MutableSlot teamSlot = teamSlots.computeIfAbsent(slot, ignored -> new MutableSlot());
                 MutableSlot leagueSlot = leagueSlots.computeIfAbsent(slot, ignored -> new MutableSlot());
                 teamSlot.totalPlayers++;
                 leagueSlot.totalPlayers++;
 
-                var value = values.findLatestByPlayerIdAndSource(roster.getPlayerId(), normalizedSource).orElse(null);
+                PlayerValue value = latestValues.get(roster.getPlayerId());
                 if (value == null) {
                     teamSlot.missingPlayers++;
                     leagueSlot.missingPlayers++;
@@ -77,13 +91,13 @@ public final class LeagueRosterSlotValueAnalyzer {
                 leagueSlot.valuedPlayers++;
                 leagueSlot.value += value.getValue();
             }
-            teams.add(new TeamRosterSlotContext(team.teamId(), team.teamName(), freeze(teamSlots)));
+            teamContexts.add(new TeamRosterSlotContext(team.getId(), team.getName(), freeze(teamSlots)));
         }
 
-        teams.sort(java.util.Comparator.comparing(TeamRosterSlotContext::teamName, String.CASE_INSENSITIVE_ORDER)
+        teamContexts.sort(java.util.Comparator.comparing(TeamRosterSlotContext::teamName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(TeamRosterSlotContext::teamId));
         return new RosterSlotReport(normalizedLeagueId, normalizedSource, minimumAsOfDate,
-            freeze(leagueSlots), List.copyOf(teams));
+            freeze(leagueSlots), List.copyOf(teamContexts));
     }
 
     private static Map<String, SlotValue> freeze(Map<String, MutableSlot> source) {
