@@ -54,6 +54,26 @@ public final class PlayerRepository {
         return result;
     }
 
+    public List<Player> findByLeagueId(String leagueId) throws SQLException {
+        requireText(leagueId, "leagueId");
+        List<Player> result = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 SELECT DISTINCT p.id, p.external_id, p.display_name, p.position, p.nfl_team
+                 FROM players p
+                 JOIN rosters r ON r.player_id = p.id
+                 JOIN teams t ON t.id = r.team_id
+                 WHERE t.league_id = ?
+                 ORDER BY p.display_name COLLATE NOCASE ASC, p.display_name ASC, p.id ASC
+                 """)) {
+            statement.setString(1, leagueId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) result.add(map(rs));
+            }
+        }
+        return List.copyOf(result);
+    }
+
     public boolean deleteById(String id) throws SQLException {
         requireText(id, "id");
         try (Connection connection = database.openConnection();

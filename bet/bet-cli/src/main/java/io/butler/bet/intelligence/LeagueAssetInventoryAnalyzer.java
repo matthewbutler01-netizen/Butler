@@ -61,6 +61,31 @@ public final class LeagueAssetInventoryAnalyzer {
         Map<String, String> teamNames = new HashMap<>();
         for (var team : league.teams()) teamNames.put(team.teamId(), team.teamName());
 
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        for (Roster roster : rosters.findByLeagueId(leagueId)) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+        }
+
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(leagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        Map<String, PlayerValue> latestPlayerValues = new HashMap<>();
+        for (PlayerValue value : playerValues.findLatestBySource(source)) {
+            latestPlayerValues.put(value.getPlayerId(), value);
+        }
+
+        Map<String, List<DraftPick>> picksByOwner = new HashMap<>();
+        for (DraftPick pick : draftPicks.findByLeagueId(leagueId)) {
+            picksByOwner.computeIfAbsent(pick.getOwnerTeamId(), ignored -> new ArrayList<>()).add(pick);
+        }
+
+        Map<String, DraftPickValue> latestPickValues = new HashMap<>();
+        for (DraftPickValue value : draftPickValues.findLatestBySource(source)) {
+            latestPickValues.put(value.getDraftPickId(), value);
+        }
+
         List<TeamInventory> teams = new ArrayList<>();
         int valuedPlayers = 0;
         int missingPlayers = 0;
@@ -69,10 +94,12 @@ public final class LeagueAssetInventoryAnalyzer {
 
         for (var team : league.teams()) {
             List<PlayerAsset> playerAssets = new ArrayList<>();
-            for (Roster roster : rosters.findByTeamId(team.teamId())) {
-                Player player = players.findById(roster.getPlayerId())
-                    .orElseThrow(() -> new IllegalStateException("rostered player not found: " + roster.getPlayerId()));
-                PlayerValue value = playerValues.findLatestByPlayerIdAndSource(player.getId(), source).orElse(null);
+            for (Roster roster : rostersByTeam.getOrDefault(team.teamId(), List.of())) {
+                Player player = playersById.get(roster.getPlayerId());
+                if (player == null) {
+                    throw new IllegalStateException("rostered player not found: " + roster.getPlayerId());
+                }
+                PlayerValue value = latestPlayerValues.get(player.getId());
                 if (value == null) missingPlayers++; else valuedPlayers++;
                 playerAssets.add(new PlayerAsset(
                     player.getId(), player.getDisplayName(), player.getPosition(), player.getNflTeam(), roster.getSlot(),
@@ -83,8 +110,8 @@ public final class LeagueAssetInventoryAnalyzer {
                 .thenComparing(PlayerAsset::playerId));
 
             List<DraftPickAsset> pickAssets = new ArrayList<>();
-            for (DraftPick pick : draftPicks.findByOwnerTeamId(team.teamId())) {
-                DraftPickValue value = draftPickValues.findLatestByDraftPickIdAndSource(pick.getId(), source).orElse(null);
+            for (DraftPick pick : picksByOwner.getOrDefault(team.teamId(), List.of())) {
+                DraftPickValue value = latestPickValues.get(pick.getId());
                 if (value == null) missingPicks++; else valuedPicks++;
                 String originalTeamName = teamNames.get(pick.getOriginalTeamId());
                 if (originalTeamName == null) {
