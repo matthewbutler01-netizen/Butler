@@ -16,13 +16,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Read-only BF-692 composition of the exact BF-668 My Team evidence sources in one JVM.
  * BF-699 reuses one initialized database across those exact reads.
- * BF-711 overlaps only the independent post-roster analyses, then renders them deterministically.
+ * BF-711 overlaps independent evidence analysis, then renders deterministically.
+ * BF-716 overlaps BF-610 roster analysis with the four analyzers that do not need its season.
  * This class adds no analyzer, score, recommendation, mutation, or evidence synthesis.
  */
 public final class ButlerMyTeamEvidenceBundleCli {
@@ -35,8 +34,6 @@ public final class ButlerMyTeamEvidenceBundleCli {
     static final int POST_ROSTER_WORKERS = 5;
 
     private static final Path DATABASE_PATH = Path.of("butler.db");
-    private static final Pattern PROVIDER_SEASON =
-        Pattern.compile("(?m)^Provider season/status/leg:\\s+(\\d+)/");
 
     private ButlerMyTeamEvidenceBundleCli() {}
 
@@ -50,29 +47,36 @@ public final class ButlerMyTeamEvidenceBundleCli {
         try {
             String leagueId = args[0].trim();
             Database database = initializedDatabase();
-
-            String rosterContext = capture(() -> printRosterContext(database, leagueId));
-            int season = providerSeason(rosterContext);
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
 
             ExecutorService executor = newEvidenceExecutor();
             try {
+                Future<SleeperLiveWaiverTargetRosterContextAudit.AuditReport> rosterContextFuture = submitEvidence(executor, () ->
+                    new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId()));
                 Future<LeagueTeamContextAnalyzer.TeamContextReport> teamContextFuture = submitEvidence(executor, () ->
                     new LeagueTeamContextAnalyzer(database).analyze(leagueId));
                 Future<LeagueRosterStrengthTierAnalyzer.RosterStrengthReport> rosterStrengthFuture = submitEvidence(executor, () ->
                     new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId));
                 Future<LeaguePositionalPressureAnalyzer.PositionalPressureReport> positionalPressureFuture = submitEvidence(executor, () ->
                     new LeaguePositionalPressureAnalyzer(database).analyze(leagueId));
-                Future<LeagueTeamPostureAnalyzer.PostureReport> teamPostureFuture = submitEvidence(executor, () ->
-                    new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season));
                 Future<LeagueFutureCapitalTierAnalyzer.FutureCapitalReport> futureCapitalFuture = submitEvidence(executor, () ->
                     new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId));
+
+                SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContextReport = await(rosterContextFuture);
+                int season = rosterContextReport.providerSeason();
+                Future<LeagueTeamPostureAnalyzer.PostureReport> teamPostureFuture = submitEvidence(executor, () ->
+                    new LeagueTeamPostureAnalyzer(database).analyze(leagueId, season));
 
                 LeagueTeamContextAnalyzer.TeamContextReport teamContextReport = await(teamContextFuture);
                 LeagueRosterStrengthTierAnalyzer.RosterStrengthReport rosterStrengthReport = await(rosterStrengthFuture);
                 LeaguePositionalPressureAnalyzer.PositionalPressureReport positionalPressureReport = await(positionalPressureFuture);
-                LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = await(teamPostureFuture);
                 LeagueFutureCapitalTierAnalyzer.FutureCapitalReport futureCapitalReport = await(futureCapitalFuture);
+                LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = await(teamPostureFuture);
 
+                String rosterContext = capture(() -> {
+                    ButlerPersonalizedTargetCliSupport.printVerified(target);
+                    ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(rosterContextReport);
+                });
                 String teamContext = capture(() -> ButlerMain.printLeagueTeamContext(teamContextReport));
                 String rosterStrength = capture(() -> ButlerLeagueRosterStrengthCli.print(rosterStrengthReport));
                 String positionalPressure = capture(() -> ButlerLeaguePositionalPressureCli.print(positionalPressureReport));
@@ -101,13 +105,6 @@ public final class ButlerMyTeamEvidenceBundleCli {
         return database;
     }
 
-    private static void printRosterContext(Database database, String leagueId) throws Exception {
-        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
-        ButlerPersonalizedTargetCliSupport.printVerified(target);
-        ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(
-            new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId()));
-    }
-
     static ExecutorService newEvidenceExecutor() {
         return Executors.newFixedThreadPool(POST_ROSTER_WORKERS);
     }
@@ -131,14 +128,6 @@ public final class ButlerMyTeamEvidenceBundleCli {
             if (cause instanceof Error error) throw error;
             throw new RuntimeException(cause);
         }
-    }
-
-    static int providerSeason(String rosterContext) {
-        Matcher matcher = PROVIDER_SEASON.matcher(rosterContext == null ? "" : rosterContext);
-        if (!matcher.find()) {
-            throw new IllegalStateException("BF-692 BLOCKED: BF-610 roster context is missing provider season.");
-        }
-        return Integer.parseInt(matcher.group(1));
     }
 
     static String capture(CheckedCommand command) throws Exception {
