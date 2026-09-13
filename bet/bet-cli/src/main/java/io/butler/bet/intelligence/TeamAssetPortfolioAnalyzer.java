@@ -50,7 +50,6 @@ public final class TeamAssetPortfolioAnalyzer {
     public PortfolioReport analyze(String leagueId, String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedSource = requireText(source, "source");
-        leagues.analyze(normalizedLeagueId);
         validateExplicitSource(normalizedLeagueId, normalizedSource);
         return analyzeResolved(normalizedLeagueId, normalizedSource);
     }
