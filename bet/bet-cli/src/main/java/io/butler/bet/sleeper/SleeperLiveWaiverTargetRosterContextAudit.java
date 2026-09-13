@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueLineupConfigurationRepository;
+import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.domain.Player;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -139,11 +141,12 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
         }
 
         TargetPartition partition = targetPartition(target, startingSlots);
+        Map<String, CanonicalPlayer> canonicalPlayers = exactCanonicalPlayers(target.playerIds());
         List<TargetPlayer> targetPlayers = new ArrayList<>();
         int mapped = 0;
         int unmapped = 0;
         for (TargetSlot slot : partition.orderedSlots()) {
-            CanonicalPlayer canonical = exactCanonicalPlayer(slot.sleeperPlayerId());
+            CanonicalPlayer canonical = canonicalPlayers.get(slot.sleeperPlayerId());
             if (canonical == null) unmapped++;
             else mapped++;
             targetPlayers.add(new TargetPlayer(
@@ -191,23 +194,26 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
             List.copyOf(targetPlayers));
     }
 
-    private CanonicalPlayer exactCanonicalPlayer(String sleeperPlayerId) throws SQLException {
-        try (Connection connection = database.openConnection();
-             var statement = connection.prepareStatement(
-                 "SELECT id, display_name, position, nfl_team FROM players WHERE external_id = ? ORDER BY id")) {
-            statement.setString(1, sleeperPlayerId);
-            try (ResultSet rs = statement.executeQuery()) {
-                if (!rs.next()) return null;
-                CanonicalPlayer result = new CanonicalPlayer(
-                    rs.getString("id"), rs.getString("display_name"),
-                    rs.getString("position"), rs.getString("nfl_team"));
-                if (rs.next()) {
-                    throw new IllegalStateException("BF-610 BLOCKED: duplicate exact Butler player mapping for Sleeper id "
-                        + sleeperPlayerId);
-                }
-                return result;
+    private Map<String, CanonicalPlayer> exactCanonicalPlayers(List<String> sleeperPlayerIds) throws SQLException {
+        Map<String, List<Player>> byExternalId = new HashMap<>();
+        for (Player player : new PlayerRepository(database).findByExternalIds(sleeperPlayerIds)) {
+            byExternalId.computeIfAbsent(player.getExternalId(), ignored -> new ArrayList<>()).add(player);
+        }
+
+        Map<String, CanonicalPlayer> result = new HashMap<>();
+        for (String sleeperPlayerId : sleeperPlayerIds) {
+            List<Player> matches = byExternalId.getOrDefault(sleeperPlayerId, List.of());
+            if (matches.size() > 1) {
+                throw new IllegalStateException("BF-610 BLOCKED: duplicate exact Butler player mapping for Sleeper id "
+                    + sleeperPlayerId);
+            }
+            if (matches.size() == 1) {
+                Player player = matches.get(0);
+                result.put(sleeperPlayerId, new CanonicalPlayer(
+                    player.getId(), player.getDisplayName(), player.getPosition(), player.getNflTeam()));
             }
         }
+        return Map.copyOf(result);
     }
 
     private ProviderLeague parseLeague(String json) throws IOException {
