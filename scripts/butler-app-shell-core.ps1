@@ -13,8 +13,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptDir
 $coreSingle = Join-Path $scriptDir 'butler-app-shell-core-single.ps1'
 $requestWorker = Join-Path $scriptDir 'butler-app-core-pool-worker.ps1'
+$gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
@@ -22,6 +24,34 @@ $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 foreach ($required in @($coreSingle, $requestWorker, $powershell)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-690 BLOCKED: required inner-core pool component not found at $required"
+    }
+}
+if (-not (Test-Path -LiteralPath $gradle)) {
+    throw "BF-702 BLOCKED: Gradle wrapper not found at $gradle"
+}
+
+function Initialize-ReadOnlyCliClasses {
+    $previousPreference = $ErrorActionPreference
+    $lines = $null
+    $exitCode = $null
+    Push-Location $repoRoot
+    try {
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = & $gradle ':bet:bet-cli:classes' 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $text = ($lines | ForEach-Object { "$_" }) -join "`n"
+    if ($exitCode -ne 0) {
+        throw "BF-702 BLOCKED: read-only CLI warm-up failed with Gradle exit code $exitCode.`n$text"
     }
 }
 
@@ -169,6 +199,8 @@ function Get-FreeBackendPort {
 }
 
 try {
+    Initialize-ReadOnlyCliClasses
+
     for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
         do {
             $backendPort = Get-FreeLoopbackPort
