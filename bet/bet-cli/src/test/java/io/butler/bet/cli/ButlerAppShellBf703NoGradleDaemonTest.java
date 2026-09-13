@@ -14,16 +14,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppShellBf703NoGradleDaemonTest {
 
     @Test
-    void daemonDisableIsEstablishedBeforeWarmupAndWorkerLaunch() throws Exception {
+    void daemonDisableIsEstablishedBeforeRuntimeWarmupAndWorkerLaunch() throws Exception {
         String script = source("scripts/butler-app-shell-core.ps1");
 
         assertTrue(script.contains("$gradleNoDaemonOpt = '-Dorg.gradle.daemon=false'"));
         assertTrue(script.contains("function Enable-ButlerGradleNoDaemon"));
         assertTrue(script.contains("$env:GRADLE_OPTS = $existing.TrimEnd() + ' ' + $gradleNoDaemonOpt"));
-        assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1"));
+        assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:installDist' 2>&1"));
 
         int enable = script.indexOf("    Enable-ButlerGradleNoDaemon");
-        int warm = script.indexOf("    Initialize-ReadOnlyCliClasses", enable);
+        int warm = script.indexOf("    Initialize-ReadOnlyCliRuntime", enable);
         int firstCore = script.indexOf("$process = Start-PreservedCore -BackendPort $backendPort", warm);
         assertTrue(enable >= 0 && warm > enable && firstCore > warm);
     }
