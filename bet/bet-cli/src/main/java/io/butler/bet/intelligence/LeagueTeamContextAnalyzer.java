@@ -19,14 +19,12 @@ import java.util.Objects;
 public final class LeagueTeamContextAnalyzer {
     private final LeagueActionPlanAnalyzer actionPlans;
     private final TeamAssetPortfolioAnalyzer portfolios;
-    private final FranchiseValueRankingAnalyzer rankings;
     private final TeamValueMovementAnalyzer movement;
 
     public LeagueTeamContextAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
         this.actionPlans = new LeagueActionPlanAnalyzer(database);
         this.portfolios = new TeamAssetPortfolioAnalyzer(database);
-        this.rankings = new FranchiseValueRankingAnalyzer(database);
         this.movement = new TeamValueMovementAnalyzer(database);
     }
 
@@ -58,9 +56,8 @@ public final class LeagueTeamContextAnalyzer {
 
         Map<String, Integer> rankByTeam = new HashMap<>();
         if (health.franchiseRankingsReady()) {
-            FranchiseValueRankingAnalyzer.RankingReport ranking = health.minimumAsOfDate() == null
-                ? rankings.rank(health.leagueId(), health.source())
-                : rankings.rank(health.leagueId(), health.source(), health.minimumAsOfDate());
+            FranchiseValueRankingAnalyzer.RankingReport ranking = FranchiseValueRankingAnalyzer.rank(
+                portfolio, health.minimumAsOfDate());
             for (var team : ranking.teams()) {
                 rankByTeam.put(team.teamId(), team.rank());
             }
