@@ -20,7 +20,7 @@ class ButlerAppShellBf702WarmCliClassesTest {
         assertTrue(script.contains("$repoRoot = Split-Path -Parent $scriptDir"));
         assertTrue(script.contains("$gradle = Join-Path $repoRoot 'gradlew.bat'"));
         assertTrue(script.contains("function Initialize-ReadOnlyCliClasses"));
-        assertTrue(script.contains("$lines = & $gradle ':bet:bet-cli:classes' 2>&1"));
+        assertTrue(script.contains("$lines = & $gradle '--no-daemon' ':bet:bet-cli:classes' 2>&1"));
 
         int warm = script.indexOf("    Initialize-ReadOnlyCliClasses\n\n    for ($index = 0; $index -lt $maxCoreWorkers; $index++) {");
         int firstCoreStart = script.indexOf("$process = Start-PreservedCore -BackendPort $backendPort", warm);
