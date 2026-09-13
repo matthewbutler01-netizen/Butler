@@ -19,9 +19,9 @@ class TeamContextBf721SingleReadTest {
             "public PortfolioReport analyze(String leagueId, String source)",
             "private void validateExplicitSource");
 
-        assertFalse(method.contains("leagues.analyze(normalizedLeagueId)"));
+        assertFalse(method.contains("teams.findByLeagueId(normalizedLeagueId)"));
         assertTrue(method.contains("return analyzeResolved(normalizedLeagueId, normalizedSource);"));
-        assertTrue(source.contains("LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);"));
+        assertTrue(source.contains("List<Team> leagueTeams = teams.findByLeagueId(leagueId);"));
     }
 
     @Test
@@ -31,9 +31,9 @@ class TeamContextBf721SingleReadTest {
             "public InventoryReport analyze(String leagueId, String source)",
             "private InventoryReport analyzeResolved");
 
-        assertFalse(method.contains("leagues.analyze(normalizedLeagueId)"));
+        assertFalse(method.contains("teams.findByLeagueId(normalizedLeagueId)"));
         assertTrue(method.contains("return analyzeResolved(normalizedLeagueId, requireText(source, \"source\"));"));
-        assertTrue(source.contains("LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);"));
+        assertTrue(source.contains("List<Team> leagueTeams = teams.findByLeagueId(leagueId);"));
     }
 
     private static String method(String source, String startToken, String endToken) {
