@@ -122,3 +122,48 @@ jobs:
               exit 1
           }
           Write-Host ("BF-707 staging transform passed on Windows PowerShell 5.1 across {0} navigation site(s)." -f $matchCount)
+
+      - name: Exercise BF-710 cmd proxy argument tokenization
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'bf710-proxy'
+          $scripts = Join-Path $root 'scripts'
+          New-Item -ItemType Directory -Path $scripts -Force | Out-Null
+          Copy-Item '.\scripts\butler-direct-java-gradle-proxy.cmd' (Join-Path $root 'gradlew.bat') -Force
+
+          $stub = @'
+          param(
+              [string]$Task,
+              [string]$ArgumentText,
+              [string]$ArgumentRemainder
+          )
+          $capture = "{0}|{1}|{2}" -f $Task, $ArgumentText, $ArgumentRemainder
+          [System.IO.File]::WriteAllText($env:BF710_CAPTURE, $capture, [System.Text.Encoding]::ASCII)
+          exit 0
+          '@
+          [System.IO.File]::WriteAllText((Join-Path $scripts 'butler-direct-java-dispatch.ps1'), $stub, [System.Text.Encoding]::ASCII)
+          $proxy = Join-Path $root 'gradlew.bat'
+          $env:BF710_CAPTURE = Join-Path $root 'capture.txt'
+
+          & $proxy ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' '--args=league-123'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $single = [System.IO.File]::ReadAllText($env:BF710_CAPTURE, [System.Text.Encoding]::ASCII).Split('|', 3)
+          if ($single.Count -ne 3 -or $single[0] -cne ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary') {
+              Write-Error 'BF-710 BLOCKED: cmd proxy lost the whitelisted task name.'
+              exit 1
+          }
+          $singleValue = if ($single[1] -ceq '--args') { $single[2].Trim() } elseif ($single[1].StartsWith('--args=', [System.StringComparison]::Ordinal)) { $single[1].Substring(7).Trim() } else { '' }
+          if ($singleValue -cne 'league-123') {
+              Write-Error ("BF-710 BLOCKED: single-value --args tokenization lost the league id. capture={0}" -f ($single -join '|'))
+              exit 1
+          }
+
+          & $proxy ':bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup' '--args=league-123 audit-456'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $multi = [System.IO.File]::ReadAllText($env:BF710_CAPTURE, [System.Text.Encoding]::ASCII).Split('|', 3)
+          $multiValue = if ($multi[1] -ceq '--args') { $multi[2].Trim() } elseif ($multi[1].StartsWith('--args=', [System.StringComparison]::Ordinal)) { (($multi[1].Substring(7) + ' ' + $multi[2]).Trim()) } else { '' }
+          if ($multiValue -cne 'league-123 audit-456') {
+              Write-Error ("BF-710 BLOCKED: multi-value --args tokenization changed governed arguments. capture={0}" -f ($multi -join '|'))
+              exit 1
+          }
+          Write-Host 'BF-710 cmd proxy preserved single-value and multi-value Gradle-compatible arguments.'
