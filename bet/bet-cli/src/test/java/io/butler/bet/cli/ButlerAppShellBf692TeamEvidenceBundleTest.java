@@ -29,8 +29,10 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
         assertTrue(bundle.contains("ButlerLeagueTeamPostureCli.print(teamPostureReport)"));
         assertTrue(bundle.contains("new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)"));
         assertTrue(bundle.contains("ButlerLeagueFutureCapitalCli.print(futureCapitalReport)"));
-        assertTrue(bundle.contains("providerSeason(rosterContext)"));
+        assertTrue(bundle.contains("int season = rosterContextReport.providerSeason();"));
 
+        assertFalse(bundle.contains("providerSeason(rosterContext)"));
+        assertFalse(bundle.contains("Pattern.compile"));
         assertFalse(bundle.contains("ProcessBuilder"));
         assertFalse(bundle.contains("Runtime.getRuntime"));
         assertFalse(bundle.contains("gradlew"));
@@ -45,6 +47,7 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
 
         assertEquals(1, occurrences(bundle, "new Database(DATABASE_PATH)"));
         assertEquals(1, occurrences(bundle, "database.initialize()"));
+        assertEquals(1, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
         assertTrue(bundle.contains("Database database = initializedDatabase();"));
         assertFalse(bundle.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
         assertFalse(bundle.contains("ButlerMain.main("));
@@ -71,9 +74,13 @@ class ButlerAppShellBf692TeamEvidenceBundleTest {
     }
 
     @Test
-    void providerSeasonComesFromExactBf610RosterOutput() {
-        String roster = "Provider season/status/leg: 2026/in_season/1\n";
-        assertEquals(2026, ButlerMyTeamEvidenceBundleCli.providerSeason(roster));
+    void providerSeasonComesDirectlyFromExactBf610RosterReport() throws Exception {
+        String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
+
+        assertTrue(bundle.contains("SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContextReport = await(rosterContextFuture);"));
+        assertTrue(bundle.contains("int season = rosterContextReport.providerSeason();"));
+        assertFalse(bundle.contains("Pattern PROVIDER_SEASON"));
+        assertFalse(bundle.contains("static int providerSeason("));
     }
 
     @Test

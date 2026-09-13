@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerMyTeamEvidenceBundleBf711ParallelTest {
 
     @Test
-    void postRosterExecutorRunsExactlyFiveIndependentTasksConcurrently() throws Exception {
+    void evidenceExecutorRemainsBoundedAtFiveConcurrentTasks() throws Exception {
         ExecutorService executor = ButlerMyTeamEvidenceBundleCli.newEvidenceExecutor();
         CountDownLatch entered = new CountDownLatch(ButlerMyTeamEvidenceBundleCli.POST_ROSTER_WORKERS);
         CountDownLatch release = new CountDownLatch(1);
@@ -46,7 +46,7 @@ class ButlerMyTeamEvidenceBundleBf711ParallelTest {
                 }));
             }
 
-            assertTrue(entered.await(2, TimeUnit.SECONDS), "all five post-roster tasks should overlap");
+            assertTrue(entered.await(2, TimeUnit.SECONDS), "all five evidence worker slots should overlap");
             assertEquals(ButlerMyTeamEvidenceBundleCli.POST_ROSTER_WORKERS, peak.get());
             release.countDown();
             for (int index = 0; index < futures.size(); index++) {
@@ -59,24 +59,30 @@ class ButlerMyTeamEvidenceBundleBf711ParallelTest {
     }
 
     @Test
-    void productionSubmitsAllAnalysesBeforeAwaitingAndRendersInStableOrder() throws Exception {
+    void productionOverlapsRosterWithIndependentAnalysesThenRendersInStableOrder() throws Exception {
         String source = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
-        int roster = source.indexOf("String rosterContext = capture(() -> printRosterContext(database, leagueId));");
-        int season = source.indexOf("int season = providerSeason(rosterContext);", roster);
-        int executor = source.indexOf("ExecutorService executor = newEvidenceExecutor();", season);
-        int teamSubmit = source.indexOf("teamContextFuture = submitEvidence", executor);
-        int rosterSubmit = source.indexOf("rosterStrengthFuture = submitEvidence", teamSubmit);
-        int pressureSubmit = source.indexOf("positionalPressureFuture = submitEvidence", rosterSubmit);
-        int postureSubmit = source.indexOf("teamPostureFuture = submitEvidence", pressureSubmit);
-        int capitalSubmit = source.indexOf("futureCapitalFuture = submitEvidence", postureSubmit);
-        int firstAwait = source.indexOf("await(teamContextFuture)", capitalSubmit);
-        int firstCapture = source.indexOf("String teamContext = capture", firstAwait);
+        int target = source.indexOf("var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);");
+        int executor = source.indexOf("ExecutorService executor = newEvidenceExecutor();", target);
+        int rosterSubmit = source.indexOf("rosterContextFuture = submitEvidence", executor);
+        int teamSubmit = source.indexOf("teamContextFuture = submitEvidence", rosterSubmit);
+        int strengthSubmit = source.indexOf("rosterStrengthFuture = submitEvidence", teamSubmit);
+        int pressureSubmit = source.indexOf("positionalPressureFuture = submitEvidence", strengthSubmit);
+        int capitalSubmit = source.indexOf("futureCapitalFuture = submitEvidence", pressureSubmit);
+        int rosterAwait = source.indexOf("await(rosterContextFuture)", capitalSubmit);
+        int season = source.indexOf("rosterContextReport.providerSeason()", rosterAwait);
+        int postureSubmit = source.indexOf("teamPostureFuture = submitEvidence", season);
+        int firstIndependentAwait = source.indexOf("await(teamContextFuture)", postureSubmit);
+        int postureAwait = source.indexOf("await(teamPostureFuture)", firstIndependentAwait);
+        int firstCapture = source.indexOf("String rosterContext = capture", postureAwait);
 
-        assertTrue(roster >= 0 && season > roster && executor > season);
-        assertTrue(teamSubmit > executor && rosterSubmit > teamSubmit && pressureSubmit > rosterSubmit);
-        assertTrue(postureSubmit > pressureSubmit && capitalSubmit > postureSubmit && firstAwait > capitalSubmit);
-        assertTrue(firstCapture > firstAwait, "rendering must remain outside worker threads because capture swaps global System.out");
+        assertTrue(target >= 0 && executor > target);
+        assertTrue(rosterSubmit > executor && teamSubmit > rosterSubmit && strengthSubmit > teamSubmit);
+        assertTrue(pressureSubmit > strengthSubmit && capitalSubmit > pressureSubmit);
+        assertTrue(rosterAwait > capitalSubmit, "four independent analyzers must be submitted before roster completion is awaited");
+        assertTrue(season > rosterAwait && postureSubmit > season, "team posture must remain dependent on exact roster provider season");
+        assertTrue(firstIndependentAwait > postureSubmit && postureAwait > firstIndependentAwait);
+        assertTrue(firstCapture > postureAwait, "rendering must remain outside worker threads because capture swaps global System.out");
 
         int emitRoster = source.indexOf("emit(ROSTER_CONTEXT, rosterContext);", firstCapture);
         int emitTeam = source.indexOf("emit(TEAM_CONTEXT, teamContext);", emitRoster);
