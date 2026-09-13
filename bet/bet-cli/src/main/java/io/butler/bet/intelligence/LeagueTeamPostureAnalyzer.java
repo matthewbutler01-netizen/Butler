@@ -24,20 +24,20 @@ public final class LeagueTeamPostureAnalyzer {
     }
 
     public PostureReport analyze(String leagueId, int season) throws SQLException {
-        var competitiveReport = competitive.analyze(performance.analyze(leagueId, season));
+        var competitiveReport = analyzeCompetitiveEvidence(leagueId, season);
         var rosterReport = rosterStrength.analyze(leagueId);
         return compose(competitiveReport, rosterReport);
     }
 
     public PostureReport analyze(String leagueId, int season, String rosterValueSource) throws SQLException {
-        var competitiveReport = competitive.analyze(performance.analyze(leagueId, season));
+        var competitiveReport = analyzeCompetitiveEvidence(leagueId, season);
         var rosterReport = rosterStrength.analyze(leagueId, rosterValueSource);
         return compose(competitiveReport, rosterReport);
     }
 
     public PostureReport analyze(String leagueId, int season, LocalDate minimumAsOfDate) throws SQLException {
         Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
-        var competitiveReport = competitive.analyze(performance.analyze(leagueId, season));
+        var competitiveReport = analyzeCompetitiveEvidence(leagueId, season);
         var rosterReport = rosterStrength.analyze(leagueId, minimumAsOfDate);
         return compose(competitiveReport, rosterReport);
     }
@@ -45,9 +45,15 @@ public final class LeagueTeamPostureAnalyzer {
     public PostureReport analyze(String leagueId, int season, String rosterValueSource,
                                  LocalDate minimumAsOfDate) throws SQLException {
         Objects.requireNonNull(minimumAsOfDate, "minimumAsOfDate must not be null");
-        var competitiveReport = competitive.analyze(performance.analyze(leagueId, season));
+        var competitiveReport = analyzeCompetitiveEvidence(leagueId, season);
         var rosterReport = rosterStrength.analyze(leagueId, rosterValueSource, minimumAsOfDate);
         return compose(competitiveReport, rosterReport);
+    }
+
+    public LeagueCompetitiveTierAnalyzer.CompetitiveTierReport analyzeCompetitiveEvidence(String leagueId,
+                                                                                           int season)
+        throws SQLException {
+        return competitive.analyze(performance.analyze(leagueId, season));
     }
 
     public static PostureReport compose(LeagueCompetitiveTierAnalyzer.CompetitiveTierReport competitiveReport,
