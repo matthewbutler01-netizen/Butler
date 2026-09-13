@@ -13,6 +13,86 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-ButlerDashboardAncestorPid {
+    $currentPid = $PID
+    for ($depth = 0; $depth -lt 6; $depth++) {
+        try {
+            $process = Get-CimInstance Win32_Process -Filter ("ProcessId = {0}" -f $currentPid) -ErrorAction Stop
+        }
+        catch {
+            return $null
+        }
+        if ($null -eq $process) { return $null }
+        $commandLine = [string]$process.CommandLine
+        if ($commandLine -like '*butler-dashboard.ps1*') {
+            return [int]$process.ProcessId
+        }
+        $currentPid = [int]$process.ParentProcessId
+        if ($currentPid -le 0) { break }
+    }
+    return $null
+}
+
+function Get-Bf712CachePaths {
+    param(
+        [Parameter(Mandatory = $true)][int]$DashboardPid,
+        [Parameter(Mandatory = $true)][string]$LeagueId
+    )
+    $runtimeRoot = Split-Path -Parent $PSScriptRoot
+    $cacheRoot = Join-Path $runtimeRoot '.bf712-waiver-cache'
+    $safeLeague = $LeagueId -replace '[^A-Za-z0-9_.-]', '_'
+    $stem = Join-Path $cacheRoot ("{0}-{1}" -f $DashboardPid, $safeLeague)
+    return [pscustomobject]@{
+        Root = $cacheRoot
+        Comparison = $stem + '.comparison.txt'
+        Roster = $stem + '.roster.txt'
+    }
+}
+
+function Write-Bf712CacheText {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Text
+    )
+    $directory = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Text, $utf8)
+}
+
+function Read-Bf712FreshCacheText {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    $ageSeconds = ([DateTime]::UtcNow - $item.LastWriteTimeUtc).TotalSeconds
+    if ($ageSeconds -gt 30) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        return $null
+    }
+    $text = [System.IO.File]::ReadAllText($Path)
+    Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+    return $text
+}
+
+function Get-Bf712BundleSection {
+    param(
+        [Parameter(Mandatory = $true)][string]$Text,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    $begin = "===BUTLER_WAIVER_BUNDLE:${Name}:BEGIN==="
+    $end = "===BUTLER_WAIVER_BUNDLE:${Name}:END==="
+    $start = $Text.IndexOf($begin, [System.StringComparison]::Ordinal)
+    if ($start -lt 0) { throw "BF-712 BLOCKED: waiver evidence bundle is missing $Name begin marker." }
+    $bodyStart = $start + $begin.Length
+    $finish = $Text.IndexOf($end, $bodyStart, [System.StringComparison]::Ordinal)
+    if ($finish -lt 0) { throw "BF-712 BLOCKED: waiver evidence bundle is missing $Name end marker." }
+    $body = $Text.Substring($bodyStart, $finish - $bodyStart).Trim()
+    if ([string]::IsNullOrWhiteSpace($body)) { throw "BF-712 BLOCKED: waiver evidence bundle section $Name is empty." }
+    return $body
+}
+
 $runtimeLib = [string]$env:BUTLER_APP_RUNTIME_LIB
 if ([string]::IsNullOrWhiteSpace($runtimeLib) -or -not (Test-Path -LiteralPath $runtimeLib -PathType Container)) {
     [Console]::Error.WriteLine('BF-704 BLOCKED: prepared Butler runtime library directory is unavailable.')
@@ -85,6 +165,30 @@ if (-not [string]::IsNullOrWhiteSpace($normalizedArguments)) {
     $mainArguments = @($normalizedArguments.Trim() -split '\s+')
 }
 
+$dashboardPid = $null
+$cachePaths = $null
+if ($mainArguments.Count -eq 1 -and -not [string]::IsNullOrWhiteSpace([string]$mainArguments[0])) {
+    $dashboardPid = Get-ButlerDashboardAncestorPid
+    if ($null -ne $dashboardPid) {
+        $cachePaths = Get-Bf712CachePaths -DashboardPid $dashboardPid -LeagueId ([string]$mainArguments[0])
+    }
+}
+
+if ($null -ne $cachePaths -and $Task -eq ':bet:bet-cli:sleeperLiveWaiverComparisonBundle') {
+    $cachedComparison = Read-Bf712FreshCacheText -Path $cachePaths.Comparison
+    if ($null -ne $cachedComparison) {
+        [Console]::Out.WriteLine($cachedComparison)
+        exit 0
+    }
+}
+if ($null -ne $cachePaths -and $Task -eq ':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit') {
+    $cachedRoster = Read-Bf712FreshCacheText -Path $cachePaths.Roster
+    if ($null -ne $cachedRoster) {
+        [Console]::Out.WriteLine($cachedRoster)
+        exit 0
+    }
+}
+
 $classPath = Join-Path $runtimeLib '*'
 $previousPreference = $ErrorActionPreference
 $exitCode = $null
@@ -92,8 +196,28 @@ Push-Location $workingDir
 try {
     try {
         $ErrorActionPreference = 'Continue'
-        & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments
-        $exitCode = $LASTEXITCODE
+        if ($null -ne $cachePaths -and $Task -eq ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary') {
+            $bundleLines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath `
+                'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAuditCli' `
+                ([string]$mainArguments[0]) '--waiver-dashboard-bundle' 2>&1
+            $exitCode = $LASTEXITCODE
+            $bundleText = ($bundleLines | ForEach-Object { "$_" }) -join "`n"
+            if ($exitCode -eq 0) {
+                $summary = Get-Bf712BundleSection -Text $bundleText -Name 'SUMMARY'
+                $comparison = Get-Bf712BundleSection -Text $bundleText -Name 'WAIVER_BOARD'
+                $roster = Get-Bf712BundleSection -Text $bundleText -Name 'ROSTER_CONTEXT'
+                Write-Bf712CacheText -Path $cachePaths.Comparison -Text $comparison
+                Write-Bf712CacheText -Path $cachePaths.Roster -Text $roster
+                [Console]::Out.WriteLine($summary)
+            }
+            else {
+                [Console]::Error.WriteLine($bundleText)
+            }
+        }
+        else {
+            & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments
+            $exitCode = $LASTEXITCODE
+        }
     }
     finally {
         $ErrorActionPreference = $previousPreference
