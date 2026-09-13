@@ -137,6 +137,29 @@ public final class PlayerValueRepository {
         return List.copyOf(values);
     }
 
+    public List<PlayerValue> findBySourceAndDates(String source, LocalDate previousDate, LocalDate latestDate)
+            throws SQLException {
+        String normalizedSource = requireText(source, "source");
+        LocalDate normalizedPreviousDate = Objects.requireNonNull(previousDate, "previousDate must not be null");
+        LocalDate normalizedLatestDate = Objects.requireNonNull(latestDate, "latestDate must not be null");
+        List<PlayerValue> values = new ArrayList<>();
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("""
+                 SELECT id, player_id, value, source, as_of_date
+                 FROM player_values
+                 WHERE source = ? AND as_of_date IN (?, ?)
+                 ORDER BY player_id ASC, as_of_date ASC
+                 """)) {
+            statement.setString(1, normalizedSource);
+            statement.setString(2, normalizedPreviousDate.toString());
+            statement.setString(3, normalizedLatestDate.toString());
+            try (var results = statement.executeQuery()) {
+                while (results.next()) values.add(map(results));
+            }
+        }
+        return List.copyOf(values);
+    }
+
     public List<PlayerValue> findLatestBySource(String source) throws SQLException {
         String normalizedSource = requireText(source, "source");
         List<PlayerValue> values = new ArrayList<>();

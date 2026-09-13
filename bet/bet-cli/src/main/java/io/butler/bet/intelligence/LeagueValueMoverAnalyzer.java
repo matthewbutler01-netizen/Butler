@@ -4,19 +4,23 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
+import io.butler.bet.domain.Team;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public final class LeagueValueMoverAnalyzer {
-    private final LeagueAnalyzer leagues;
+    private final TeamRepository teams;
     private final LeagueValueSourceResolver sourceResolver;
     private final RosterRepository rosters;
     private final PlayerRepository players;
@@ -25,7 +29,7 @@ public final class LeagueValueMoverAnalyzer {
 
     public LeagueValueMoverAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.leagues = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
         this.sourceResolver = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.players = new PlayerRepository(database);
@@ -50,8 +54,7 @@ public final class LeagueValueMoverAnalyzer {
                 window.orElseThrow().previousDate(), window.orElseThrow().latestDate());
         }
 
-        var league = leagues.analyze(normalizedLeagueId);
-        int totalPlayers = league.teams().stream().mapToInt(LeagueAnalyzer.TeamReport::rosterSize).sum();
+        int totalPlayers = rosters.findByLeagueId(normalizedLeagueId).size();
         return new MoverReport(normalizedLeagueId, normalizedSource, null, null,
             totalPlayers, 0, totalPlayers, List.of());
     }
@@ -66,47 +69,64 @@ public final class LeagueValueMoverAnalyzer {
             throw new IllegalArgumentException("previousDate must be before latestDate");
         }
 
-        var league = leagues.analyze(normalizedLeagueId);
-        int totalPlayers = league.teams().stream().mapToInt(LeagueAnalyzer.TeamReport::rosterSize).sum();
-        List<Mover> movers = new ArrayList<>();
+        Map<String, String> teamNames = new HashMap<>();
+        for (Team team : teams.findByLeagueId(normalizedLeagueId)) {
+            teamNames.put(team.getId(), team.getName());
+        }
 
-        for (LeagueAnalyzer.TeamReport team : league.teams()) {
-            for (Roster roster : rosters.findByTeamId(team.teamId())) {
-                List<PlayerValue> history = values.findByPlayerIdAndSource(roster.getPlayerId(), normalizedSource);
-                PlayerValue previous = valueOn(history, normalizedPreviousDate);
-                PlayerValue latest = valueOn(history, normalizedLatestDate);
-                if (previous == null || latest == null) continue;
-                Player player = players.findById(roster.getPlayerId()).orElseThrow(
-                    () -> new IllegalStateException("rostered player not found: " + roster.getPlayerId()));
-                movers.add(new Mover(
-                    team.teamId(),
-                    team.teamName(),
-                    player.getId(),
-                    player.getDisplayName(),
-                    player.getPosition(),
-                    player.getNflTeam(),
-                    normalizedPreviousDate,
-                    previous.getValue(),
-                    normalizedLatestDate,
-                    latest.getValue(),
-                    latest.getValue() - previous.getValue()));
+        List<Roster> leagueRosters = rosters.findByLeagueId(normalizedLeagueId);
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(normalizedLeagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        Map<String, PlayerValue> previousValues = new HashMap<>();
+        Map<String, PlayerValue> latestValues = new HashMap<>();
+        for (PlayerValue value : values.findBySourceAndDates(
+                normalizedSource, normalizedPreviousDate, normalizedLatestDate)) {
+            if (value.getAsOfDate().equals(normalizedPreviousDate)) {
+                previousValues.put(value.getPlayerId(), value);
+            } else if (value.getAsOfDate().equals(normalizedLatestDate)) {
+                latestValues.put(value.getPlayerId(), value);
             }
+        }
+
+        List<Mover> movers = new ArrayList<>();
+        for (Roster roster : leagueRosters) {
+            PlayerValue previous = previousValues.get(roster.getPlayerId());
+            PlayerValue latest = latestValues.get(roster.getPlayerId());
+            if (previous == null || latest == null) continue;
+
+            Player player = playersById.get(roster.getPlayerId());
+            if (player == null) {
+                throw new IllegalStateException("rostered player not found: " + roster.getPlayerId());
+            }
+            String teamName = teamNames.get(roster.getTeamId());
+            if (teamName == null) {
+                throw new IllegalStateException("roster team not found in league: " + roster.getTeamId());
+            }
+            movers.add(new Mover(
+                roster.getTeamId(),
+                teamName,
+                player.getId(),
+                player.getDisplayName(),
+                player.getPosition(),
+                player.getNflTeam(),
+                normalizedPreviousDate,
+                previous.getValue(),
+                normalizedLatestDate,
+                latest.getValue(),
+                latest.getValue() - previous.getValue()));
         }
 
         movers.sort(Comparator.comparingDouble((Mover mover) -> Math.abs(mover.delta())).reversed()
             .thenComparing(Mover::playerName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(Mover::playerId));
 
+        int totalPlayers = leagueRosters.size();
         int comparablePlayers = movers.size();
         return new MoverReport(normalizedLeagueId, normalizedSource, normalizedPreviousDate, normalizedLatestDate,
             totalPlayers, comparablePlayers, totalPlayers - comparablePlayers, List.copyOf(movers));
-    }
-
-    private static PlayerValue valueOn(List<PlayerValue> history, LocalDate date) {
-        for (PlayerValue value : history) {
-            if (value.getAsOfDate().equals(date)) return value;
-        }
-        return null;
     }
 
     private static String requireText(String value, String field) {
