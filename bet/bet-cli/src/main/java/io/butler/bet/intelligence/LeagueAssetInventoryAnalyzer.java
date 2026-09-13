@@ -6,11 +6,13 @@ import io.butler.bet.data.DraftPickValueRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.DraftPick;
 import io.butler.bet.domain.DraftPickValue;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
+import io.butler.bet.domain.Team;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -27,7 +29,7 @@ import java.util.Objects;
  * also be used to obtain stable internal IDs for trade comparison.
  */
 public final class LeagueAssetInventoryAnalyzer {
-    private final LeagueAnalyzer leagues;
+    private final TeamRepository teams;
     private final LeagueValueSourceResolver sources;
     private final RosterRepository rosters;
     private final PlayerRepository players;
@@ -37,7 +39,7 @@ public final class LeagueAssetInventoryAnalyzer {
 
     public LeagueAssetInventoryAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.leagues = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
         this.sources = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.players = new PlayerRepository(database);
@@ -57,9 +59,9 @@ public final class LeagueAssetInventoryAnalyzer {
     }
 
     private InventoryReport analyzeResolved(String leagueId, String source) throws SQLException {
-        LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);
+        List<Team> leagueTeams = teams.findByLeagueId(leagueId);
         Map<String, String> teamNames = new HashMap<>();
-        for (var team : league.teams()) teamNames.put(team.teamId(), team.teamName());
+        for (Team team : leagueTeams) teamNames.put(team.getId(), team.getName());
 
         Map<String, List<Roster>> rostersByTeam = new HashMap<>();
         for (Roster roster : rosters.findByLeagueId(leagueId)) {
@@ -86,15 +88,15 @@ public final class LeagueAssetInventoryAnalyzer {
             latestPickValues.put(value.getDraftPickId(), value);
         }
 
-        List<TeamInventory> teams = new ArrayList<>();
+        List<TeamInventory> teamInventories = new ArrayList<>();
         int valuedPlayers = 0;
         int missingPlayers = 0;
         int valuedPicks = 0;
         int missingPicks = 0;
 
-        for (var team : league.teams()) {
+        for (Team team : leagueTeams) {
             List<PlayerAsset> playerAssets = new ArrayList<>();
-            for (Roster roster : rostersByTeam.getOrDefault(team.teamId(), List.of())) {
+            for (Roster roster : rostersByTeam.getOrDefault(team.getId(), List.of())) {
                 Player player = playersById.get(roster.getPlayerId());
                 if (player == null) {
                     throw new IllegalStateException("rostered player not found: " + roster.getPlayerId());
@@ -110,7 +112,7 @@ public final class LeagueAssetInventoryAnalyzer {
                 .thenComparing(PlayerAsset::playerId));
 
             List<DraftPickAsset> pickAssets = new ArrayList<>();
-            for (DraftPick pick : picksByOwner.getOrDefault(team.teamId(), List.of())) {
+            for (DraftPick pick : picksByOwner.getOrDefault(team.getId(), List.of())) {
                 DraftPickValue value = latestPickValues.get(pick.getId());
                 if (value == null) missingPicks++; else valuedPicks++;
                 String originalTeamName = teamNames.get(pick.getOriginalTeamId());
@@ -127,14 +129,14 @@ public final class LeagueAssetInventoryAnalyzer {
                 .thenComparing(DraftPickAsset::originalTeamName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(DraftPickAsset::draftPickId));
 
-            teams.add(new TeamInventory(team.teamId(), team.teamName(),
+            teamInventories.add(new TeamInventory(team.getId(), team.getName(),
                 List.copyOf(playerAssets), List.copyOf(pickAssets)));
         }
 
-        teams.sort(Comparator.comparing(TeamInventory::teamName, String.CASE_INSENSITIVE_ORDER)
+        teamInventories.sort(Comparator.comparing(TeamInventory::teamName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(TeamInventory::teamId));
         return new InventoryReport(leagueId, source, valuedPlayers, missingPlayers,
-            valuedPicks, missingPicks, List.copyOf(teams));
+            valuedPicks, missingPicks, List.copyOf(teamInventories));
     }
 
     private static String genericPickLabel(int season, int round) {
