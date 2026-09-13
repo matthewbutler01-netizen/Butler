@@ -5,10 +5,12 @@ import io.butler.bet.data.DraftPickRepository;
 import io.butler.bet.data.DraftPickValueRepository;
 import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
 import io.butler.bet.domain.DraftPick;
 import io.butler.bet.domain.DraftPickValue;
 import io.butler.bet.domain.PlayerValue;
 import io.butler.bet.domain.Roster;
+import io.butler.bet.domain.Team;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -27,7 +29,7 @@ import java.util.TreeSet;
  * and draft picks are attributed to their current owner.
  */
 public final class TeamAssetPortfolioAnalyzer {
-    private final LeagueAnalyzer leagues;
+    private final TeamRepository teams;
     private final LeagueValueSourceResolver sources;
     private final RosterRepository rosters;
     private final PlayerValueRepository playerValues;
@@ -36,7 +38,7 @@ public final class TeamAssetPortfolioAnalyzer {
 
     public TeamAssetPortfolioAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.leagues = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
         this.sources = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.playerValues = new PlayerValueRepository(database);
@@ -70,7 +72,7 @@ public final class TeamAssetPortfolioAnalyzer {
     }
 
     private PortfolioReport analyzeResolved(String leagueId, String source) throws SQLException {
-        LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);
+        List<Team> leagueTeams = teams.findByLeagueId(leagueId);
 
         Map<String, List<Roster>> rostersByTeam = new HashMap<>();
         for (Roster roster : rosters.findByLeagueId(leagueId)) {
@@ -92,7 +94,7 @@ public final class TeamAssetPortfolioAnalyzer {
             latestPickValues.put(value.getDraftPickId(), value);
         }
 
-        List<TeamPortfolio> teams = new ArrayList<>();
+        List<TeamPortfolio> teamPortfolios = new ArrayList<>();
         int totalValuedPlayers = 0;
         int totalMissingPlayers = 0;
         int totalValuedPicks = 0;
@@ -100,20 +102,20 @@ public final class TeamAssetPortfolioAnalyzer {
         double totalPlayerValue = 0.0;
         double totalPickValue = 0.0;
 
-        for (LeagueAnalyzer.TeamReport team : league.teams()) {
+        for (Team team : leagueTeams) {
             ValueSummary playerSummary = playerSummary(
-                rostersByTeam.getOrDefault(team.teamId(), List.of()), latestPlayerValues);
+                rostersByTeam.getOrDefault(team.getId(), List.of()), latestPlayerValues);
             ValueSummary pickSummary = pickSummary(
-                picksByOwner.getOrDefault(team.teamId(), List.of()), latestPickValues);
+                picksByOwner.getOrDefault(team.getId(), List.of()), latestPickValues);
             totalValuedPlayers += playerSummary.valued();
             totalMissingPlayers += playerSummary.missing();
             totalValuedPicks += pickSummary.valued();
             totalMissingPicks += pickSummary.missing();
             totalPlayerValue += playerSummary.value();
             totalPickValue += pickSummary.value();
-            teams.add(new TeamPortfolio(
-                team.teamId(),
-                team.teamName(),
+            teamPortfolios.add(new TeamPortfolio(
+                team.getId(),
+                team.getName(),
                 playerSummary.value(),
                 pickSummary.value(),
                 playerSummary.valued(),
@@ -124,7 +126,7 @@ public final class TeamAssetPortfolioAnalyzer {
                 later(playerSummary.latestDate(), pickSummary.latestDate())));
         }
 
-        teams.sort(Comparator.comparing(TeamPortfolio::teamName, String.CASE_INSENSITIVE_ORDER)
+        teamPortfolios.sort(Comparator.comparing(TeamPortfolio::teamName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(TeamPortfolio::teamId));
         return new PortfolioReport(
             leagueId,
@@ -135,7 +137,7 @@ public final class TeamAssetPortfolioAnalyzer {
             totalMissingPlayers,
             totalValuedPicks,
             totalMissingPicks,
-            List.copyOf(teams));
+            List.copyOf(teamPortfolios));
     }
 
     private static ValueSummary playerSummary(List<Roster> teamRosters,
