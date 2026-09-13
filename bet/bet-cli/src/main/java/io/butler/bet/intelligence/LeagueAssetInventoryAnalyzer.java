@@ -53,7 +53,6 @@ public final class LeagueAssetInventoryAnalyzer {
 
     public InventoryReport analyze(String leagueId, String source) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
-        leagues.analyze(normalizedLeagueId);
         return analyzeResolved(normalizedLeagueId, requireText(source, "source"));
     }
 
