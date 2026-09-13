@@ -4,11 +4,17 @@ import io.butler.bet.data.Database;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerValueRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.data.TeamRepository;
+import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerValue;
+import io.butler.bet.domain.Roster;
+import io.butler.bet.domain.Team;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,7 +27,7 @@ import java.util.TreeMap;
  * neutral depth context only; no minimum depth target or positional strength label is inferred.
  */
 public final class LeaguePositionalDepthAnalyzer {
-    private final LeagueAnalyzer leagues;
+    private final TeamRepository teams;
     private final LeagueValueSourceResolver sources;
     private final RosterRepository rosters;
     private final PlayerRepository players;
@@ -29,7 +35,7 @@ public final class LeaguePositionalDepthAnalyzer {
 
     public LeaguePositionalDepthAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        this.leagues = new LeagueAnalyzer(database);
+        this.teams = new TeamRepository(database);
         this.sources = new LeagueValueSourceResolver(database);
         this.rosters = new RosterRepository(database);
         this.players = new PlayerRepository(database);
@@ -51,19 +57,35 @@ public final class LeaguePositionalDepthAnalyzer {
     public DepthReport analyze(String leagueId, String source, LocalDate minimumAsOfDate) throws SQLException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedSource = requireText(source, "source");
-        var league = leagues.analyze(normalizedLeagueId);
-        List<TeamDepth> teams = new ArrayList<>();
 
-        for (var team : league.teams()) {
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        for (Roster roster : rosters.findByLeagueId(normalizedLeagueId)) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+        }
+
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(normalizedLeagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        Map<String, PlayerValue> latestValues = new HashMap<>();
+        for (PlayerValue value : values.findLatestBySource(normalizedSource)) {
+            latestValues.put(value.getPlayerId(), value);
+        }
+
+        List<TeamDepth> teamDepths = new ArrayList<>();
+        for (Team team : teams.findByLeagueId(normalizedLeagueId)) {
             Map<String, MutablePosition> positions = new TreeMap<>();
-            for (var roster : rosters.findByTeamId(team.teamId())) {
-                var player = players.findById(roster.getPlayerId())
-                    .orElseThrow(() -> new IllegalArgumentException("player not found: " + roster.getPlayerId()));
+            for (Roster roster : rostersByTeam.getOrDefault(team.getId(), List.of())) {
+                Player player = playersById.get(roster.getPlayerId());
+                if (player == null) {
+                    throw new IllegalArgumentException("player not found: " + roster.getPlayerId());
+                }
                 String position = normalizePosition(player.getPosition());
                 MutablePosition summary = positions.computeIfAbsent(position, ignored -> new MutablePosition());
                 summary.totalPlayers++;
 
-                var value = values.findLatestByPlayerIdAndSource(player.getId(), normalizedSource).orElse(null);
+                PlayerValue value = latestValues.get(player.getId());
                 if (value == null) {
                     summary.missingPlayers++;
                     continue;
@@ -84,12 +106,12 @@ public final class LeaguePositionalDepthAnalyzer {
                 frozen.put(position, new PositionDepth(position, mutable.totalPlayers, mutable.players.size(),
                     mutable.stalePlayers, mutable.missingPlayers, List.copyOf(mutable.players)));
             });
-            teams.add(new TeamDepth(team.teamId(), team.teamName(), Map.copyOf(frozen)));
+            teamDepths.add(new TeamDepth(team.getId(), team.getName(), Map.copyOf(frozen)));
         }
 
-        teams.sort(Comparator.comparing(TeamDepth::teamName, String.CASE_INSENSITIVE_ORDER)
+        teamDepths.sort(Comparator.comparing(TeamDepth::teamName, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(TeamDepth::teamId));
-        return new DepthReport(normalizedLeagueId, normalizedSource, minimumAsOfDate, List.copyOf(teams));
+        return new DepthReport(normalizedLeagueId, normalizedSource, minimumAsOfDate, List.copyOf(teamDepths));
     }
 
     private static String normalizePosition(String position) {
