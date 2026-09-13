@@ -3,6 +3,7 @@ butler.db
 *.db-journal
 *.db-shm
 *.db-wal
+*.db.init.lock
 
 # Local secrets and credentials
 .env
