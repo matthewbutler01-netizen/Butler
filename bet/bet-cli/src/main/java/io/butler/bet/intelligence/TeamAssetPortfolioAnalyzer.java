@@ -14,7 +14,9 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -69,6 +71,27 @@ public final class TeamAssetPortfolioAnalyzer {
 
     private PortfolioReport analyzeResolved(String leagueId, String source) throws SQLException {
         LeagueAnalyzer.LeagueReport league = leagues.analyze(leagueId);
+
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        for (Roster roster : rosters.findByLeagueId(leagueId)) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+        }
+
+        Map<String, PlayerValue> latestPlayerValues = new HashMap<>();
+        for (PlayerValue value : playerValues.findLatestBySource(source)) {
+            latestPlayerValues.put(value.getPlayerId(), value);
+        }
+
+        Map<String, List<DraftPick>> picksByOwner = new HashMap<>();
+        for (DraftPick pick : draftPicks.findByLeagueId(leagueId)) {
+            picksByOwner.computeIfAbsent(pick.getOwnerTeamId(), ignored -> new ArrayList<>()).add(pick);
+        }
+
+        Map<String, DraftPickValue> latestPickValues = new HashMap<>();
+        for (DraftPickValue value : draftPickValues.findLatestBySource(source)) {
+            latestPickValues.put(value.getDraftPickId(), value);
+        }
+
         List<TeamPortfolio> teams = new ArrayList<>();
         int totalValuedPlayers = 0;
         int totalMissingPlayers = 0;
@@ -78,8 +101,10 @@ public final class TeamAssetPortfolioAnalyzer {
         double totalPickValue = 0.0;
 
         for (LeagueAnalyzer.TeamReport team : league.teams()) {
-            ValueSummary playerSummary = playerSummary(team.teamId(), source);
-            ValueSummary pickSummary = pickSummary(team.teamId(), source);
+            ValueSummary playerSummary = playerSummary(
+                rostersByTeam.getOrDefault(team.teamId(), List.of()), latestPlayerValues);
+            ValueSummary pickSummary = pickSummary(
+                picksByOwner.getOrDefault(team.teamId(), List.of()), latestPickValues);
             totalValuedPlayers += playerSummary.valued();
             totalMissingPlayers += playerSummary.missing();
             totalValuedPicks += pickSummary.valued();
@@ -113,15 +138,15 @@ public final class TeamAssetPortfolioAnalyzer {
             List.copyOf(teams));
     }
 
-    private ValueSummary playerSummary(String teamId, String source) throws SQLException {
+    private static ValueSummary playerSummary(List<Roster> teamRosters,
+                                              Map<String, PlayerValue> latestPlayerValues) {
         double value = 0.0;
         int valued = 0;
         int missing = 0;
         LocalDate oldest = null;
         LocalDate latest = null;
-        for (Roster roster : rosters.findByTeamId(teamId)) {
-            PlayerValue snapshot = playerValues
-                .findLatestByPlayerIdAndSource(roster.getPlayerId(), source).orElse(null);
+        for (Roster roster : teamRosters) {
+            PlayerValue snapshot = latestPlayerValues.get(roster.getPlayerId());
             if (snapshot == null) {
                 missing++;
                 continue;
@@ -134,15 +159,15 @@ public final class TeamAssetPortfolioAnalyzer {
         return new ValueSummary(value, valued, missing, oldest, latest);
     }
 
-    private ValueSummary pickSummary(String teamId, String source) throws SQLException {
+    private static ValueSummary pickSummary(List<DraftPick> teamPicks,
+                                            Map<String, DraftPickValue> latestPickValues) {
         double value = 0.0;
         int valued = 0;
         int missing = 0;
         LocalDate oldest = null;
         LocalDate latest = null;
-        for (DraftPick pick : draftPicks.findByOwnerTeamId(teamId)) {
-            DraftPickValue snapshot = draftPickValues
-                .findLatestByDraftPickIdAndSource(pick.getId(), source).orElse(null);
+        for (DraftPick pick : teamPicks) {
+            DraftPickValue snapshot = latestPickValues.get(pick.getId());
             if (snapshot == null) {
                 missing++;
                 continue;

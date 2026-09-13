@@ -63,6 +63,25 @@ public final class RosterRepository {
         return findMany("SELECT id, external_id, team_id, player_id, slot FROM rosters WHERE team_id=? ORDER BY slot, player_id", teamId);
     }
 
+    public List<Roster> findByLeagueId(String leagueId) throws SQLException {
+        requireText(leagueId, "leagueId");
+        List<Roster> result = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                 SELECT r.id, r.external_id, r.team_id, r.player_id, r.slot
+                 FROM rosters r
+                 JOIN teams t ON t.id = r.team_id
+                 WHERE t.league_id = ?
+                 ORDER BY r.team_id, r.slot, r.player_id
+                 """)) {
+            statement.setString(1, leagueId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) result.add(map(rs));
+            }
+        }
+        return List.copyOf(result);
+    }
+
     public List<Roster> findByPlayerId(String playerId) throws SQLException {
         requireText(playerId, "playerId");
         return findMany("SELECT id, external_id, team_id, player_id, slot FROM rosters WHERE player_id=? ORDER BY team_id", playerId);

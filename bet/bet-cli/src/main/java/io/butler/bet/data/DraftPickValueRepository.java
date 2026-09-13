@@ -81,6 +81,33 @@ public final class DraftPickValueRepository {
         }
     }
 
+    public List<DraftPickValue> findLatestBySource(String source) throws SQLException {
+        String normalizedSource = requireText(source, "source");
+        List<DraftPickValue> result = new ArrayList<>();
+        try (var connection = database.openConnection();
+             var statement = connection.prepareStatement("""
+                 SELECT dpv.id, dpv.draft_pick_id, dpv.value, dpv.source, dpv.as_of_date
+                 FROM draft_pick_values dpv
+                 JOIN (
+                     SELECT draft_pick_id, MAX(as_of_date) AS max_date
+                     FROM draft_pick_values
+                     WHERE source = ?
+                     GROUP BY draft_pick_id
+                 ) latest
+                   ON latest.draft_pick_id = dpv.draft_pick_id
+                  AND latest.max_date = dpv.as_of_date
+                 WHERE dpv.source = ?
+                 ORDER BY dpv.value DESC, dpv.draft_pick_id ASC
+                 """)) {
+            statement.setString(1, normalizedSource);
+            statement.setString(2, normalizedSource);
+            try (var results = statement.executeQuery()) {
+                while (results.next()) result.add(map(results));
+            }
+        }
+        return List.copyOf(result);
+    }
+
     public List<DraftPickValue> findByDraftPickIdAndSource(String draftPickId, String source) throws SQLException {
         String normalizedPickId = requireText(draftPickId, "draftPickId");
         String normalizedSource = requireText(source, "source");
