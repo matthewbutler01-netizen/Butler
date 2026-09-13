@@ -70,13 +70,13 @@ if ($normalizedArguments -ceq '--args') {
     }
     $normalizedArguments = $remainder
 }
-elif ($normalizedArguments.StartsWith('--args=', [System.StringComparison]::Ordinal)) {
+elseif ($normalizedArguments.StartsWith('--args=', [System.StringComparison]::Ordinal)) {
     $normalizedArguments = $normalizedArguments.Substring(7)
     if (-not [string]::IsNullOrWhiteSpace($remainder)) {
         $normalizedArguments = ($normalizedArguments.TrimEnd() + ' ' + $remainder).Trim()
     }
 }
-elif (-not [string]::IsNullOrWhiteSpace($remainder)) {
+elseif (-not [string]::IsNullOrWhiteSpace($remainder)) {
     $normalizedArguments = ($normalizedArguments + ' ' + $remainder).Trim()
 }
 
