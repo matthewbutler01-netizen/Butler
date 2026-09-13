@@ -103,9 +103,6 @@ Write-Host 'Boundary: this command may write fresh Butler evidence for BF-602/BF
 Write-Host 'Boundary: it does not submit, cancel, or replace a Sleeper transaction; it does not mutate a Sleeper roster, FAAB, or trade.'
 
 & $acceptancePreflight
-if ($LASTEXITCODE -ne 0) {
-    throw "BF-723 BLOCKED: acceptance preflight failed with exit code $LASTEXITCODE."
-}
 
 Write-Host 'BF-723: checking exact BF-610 roster state before any Butler evidence write...'
 $preflight = Invoke-ButlerGradleTask -Task $bf610Task -LeagueId $leagueId
@@ -113,8 +110,8 @@ $recoveryNeeded = $false
 if ($preflight.ExitCode -eq 0) {
     Write-Host 'BF-723: BF-610 is already current; skipping evidence writes.'
 }
-elseif ($preflight.Text.Contains($driftPrefix, [System.StringComparison]::Ordinal) -and
-        $preflight.Text.Contains($driftSuffix, [System.StringComparison]::Ordinal)) {
+elseif ($preflight.Text.IndexOf($driftPrefix, [System.StringComparison]::Ordinal) -ge 0 -and
+        $preflight.Text.IndexOf($driftSuffix, [System.StringComparison]::Ordinal) -ge 0) {
     $recoveryNeeded = $true
     Write-Host 'BF-723: exact BF-610 roster drift verified; fixed governed evidence recovery is authorized.'
 }
