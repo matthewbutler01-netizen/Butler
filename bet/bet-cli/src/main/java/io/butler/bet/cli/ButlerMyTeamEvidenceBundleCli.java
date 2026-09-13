@@ -13,6 +13,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,6 +27,7 @@ import java.util.concurrent.Future;
  * BF-711 overlaps independent evidence analysis, then renders deterministically.
  * BF-716 overlaps BF-610 roster analysis with the four analyzers that do not need its season.
  * BF-717 reuses the existing roster-strength report when composing team posture.
+ * BF-722 records monotonic diagnostic timings without changing evidence or rendering.
  * This class adds no analyzer, score, recommendation, mutation, or evidence synthesis.
  */
 public final class ButlerMyTeamEvidenceBundleCli {
@@ -47,36 +51,55 @@ public final class ButlerMyTeamEvidenceBundleCli {
         }
 
         try {
+            long totalStarted = System.nanoTime();
             String leagueId = args[0].trim();
-            Database database = initializedDatabase();
-            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
-            LeagueTeamPostureAnalyzer teamPostureAnalyzer = new LeagueTeamPostureAnalyzer(database);
 
+            long databaseStarted = System.nanoTime();
+            Database database = initializedDatabase();
+            long databaseMs = elapsedMillis(databaseStarted);
+
+            long targetStarted = System.nanoTime();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            long targetMs = elapsedMillis(targetStarted);
+            LeagueTeamPostureAnalyzer teamPostureAnalyzer = new LeagueTeamPostureAnalyzer(database);
+            ConcurrentMap<String, Long> evidenceTimings = new ConcurrentHashMap<>();
+
+            long analysisStarted = System.nanoTime();
             ExecutorService executor = newEvidenceExecutor();
             try {
                 Future<SleeperLiveWaiverTargetRosterContextAudit.AuditReport> rosterContextFuture = submitEvidence(executor, () ->
-                    new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId()));
+                    measureEvidence(evidenceTimings, ROSTER_CONTEXT, () ->
+                        new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, target.sleeperUserId())));
                 Future<LeagueTeamContextAnalyzer.TeamContextReport> teamContextFuture = submitEvidence(executor, () ->
-                    new LeagueTeamContextAnalyzer(database).analyze(leagueId));
+                    measureEvidence(evidenceTimings, TEAM_CONTEXT, () ->
+                        new LeagueTeamContextAnalyzer(database).analyze(leagueId)));
                 Future<LeagueRosterStrengthTierAnalyzer.RosterStrengthReport> rosterStrengthFuture = submitEvidence(executor, () ->
-                    new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId));
+                    measureEvidence(evidenceTimings, ROSTER_STRENGTH, () ->
+                        new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId)));
                 Future<LeaguePositionalPressureAnalyzer.PositionalPressureReport> positionalPressureFuture = submitEvidence(executor, () ->
-                    new LeaguePositionalPressureAnalyzer(database).analyze(leagueId));
+                    measureEvidence(evidenceTimings, POSITIONAL_PRESSURE, () ->
+                        new LeaguePositionalPressureAnalyzer(database).analyze(leagueId)));
                 Future<LeagueFutureCapitalTierAnalyzer.FutureCapitalReport> futureCapitalFuture = submitEvidence(executor, () ->
-                    new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId));
+                    measureEvidence(evidenceTimings, FUTURE_CAPITAL, () ->
+                        new LeagueFutureCapitalTierAnalyzer(database).analyze(leagueId)));
 
                 SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContextReport = await(rosterContextFuture);
                 int season = rosterContextReport.providerSeason();
                 Future<LeagueCompetitiveTierAnalyzer.CompetitiveTierReport> postureCompetitiveFuture = submitEvidence(executor, () ->
-                    teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season));
+                    measureEvidence(evidenceTimings, TEAM_POSTURE, () ->
+                        teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season)));
 
                 LeagueTeamContextAnalyzer.TeamContextReport teamContextReport = await(teamContextFuture);
                 LeagueRosterStrengthTierAnalyzer.RosterStrengthReport rosterStrengthReport = await(rosterStrengthFuture);
                 LeaguePositionalPressureAnalyzer.PositionalPressureReport positionalPressureReport = await(positionalPressureFuture);
                 LeagueFutureCapitalTierAnalyzer.FutureCapitalReport futureCapitalReport = await(futureCapitalFuture);
+                long postureComposeStarted = System.nanoTime();
                 LeagueTeamPostureAnalyzer.PostureReport teamPostureReport = LeagueTeamPostureAnalyzer.compose(
                     await(postureCompetitiveFuture), rosterStrengthReport);
+                evidenceTimings.merge(TEAM_POSTURE, elapsedMillis(postureComposeStarted), Long::sum);
+                long analysisWallMs = elapsedMillis(analysisStarted);
 
+                long renderStarted = System.nanoTime();
                 String rosterContext = capture(() -> {
                     ButlerPersonalizedTargetCliSupport.printVerified(target);
                     ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(rosterContextReport);
@@ -86,6 +109,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
                 String positionalPressure = capture(() -> ButlerLeaguePositionalPressureCli.print(positionalPressureReport));
                 String teamPosture = capture(() -> ButlerLeagueTeamPostureCli.print(teamPostureReport));
                 String futureCapital = capture(() -> ButlerLeagueFutureCapitalCli.print(futureCapitalReport));
+                long renderMs = elapsedMillis(renderStarted);
 
                 emit(ROSTER_CONTEXT, rosterContext);
                 emit(TEAM_CONTEXT, teamContext);
@@ -93,6 +117,8 @@ public final class ButlerMyTeamEvidenceBundleCli {
                 emit(POSITIONAL_PRESSURE, positionalPressure);
                 emit(TEAM_POSTURE, teamPosture);
                 emit(FUTURE_CAPITAL, futureCapital);
+                long totalMs = elapsedMillis(totalStarted);
+                System.out.println(timingMarker(databaseMs, targetMs, analysisWallMs, evidenceTimings, renderMs, totalMs));
                 System.out.println("Boundary: BF-699 reuses one initialized database for the existing read-only My Team evidence only; no Butler or Sleeper write is executed.");
             } finally {
                 executor.shutdownNow();
@@ -117,6 +143,19 @@ public final class ButlerMyTeamEvidenceBundleCli {
         if (executor == null) throw new IllegalArgumentException("executor must not be null");
         if (supplier == null) throw new IllegalArgumentException("supplier must not be null");
         return executor.submit(supplier::get);
+    }
+
+    static <T> T measureEvidence(ConcurrentMap<String, Long> timings, String name,
+                                 CheckedSupplier<T> supplier) throws Exception {
+        if (timings == null) throw new IllegalArgumentException("timings must not be null");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("name must not be blank");
+        if (supplier == null) throw new IllegalArgumentException("supplier must not be null");
+        long started = System.nanoTime();
+        try {
+            return supplier.get();
+        } finally {
+            timings.put(name, elapsedMillis(started));
+        }
     }
 
     static <T> T await(Future<T> future) throws Exception {
@@ -150,6 +189,28 @@ public final class ButlerMyTeamEvidenceBundleCli {
         System.out.println(beginMarker(name));
         if (body != null && !body.isEmpty()) System.out.println(body);
         System.out.println(endMarker(name));
+    }
+
+    static String timingMarker(long databaseMs, long targetMs, long analysisWallMs,
+                               Map<String, Long> evidenceTimings, long renderMs, long totalMs) {
+        if (evidenceTimings == null) throw new IllegalArgumentException("evidenceTimings must not be null");
+        return "===BUTLER_TEAM_TIMING:"
+            + "database_ms=" + databaseMs
+            + ";target_ms=" + targetMs
+            + ";analysis_wall_ms=" + analysisWallMs
+            + ";roster_context_ms=" + evidenceTimings.getOrDefault(ROSTER_CONTEXT, -1L)
+            + ";team_context_ms=" + evidenceTimings.getOrDefault(TEAM_CONTEXT, -1L)
+            + ";roster_strength_ms=" + evidenceTimings.getOrDefault(ROSTER_STRENGTH, -1L)
+            + ";positional_pressure_ms=" + evidenceTimings.getOrDefault(POSITIONAL_PRESSURE, -1L)
+            + ";team_posture_ms=" + evidenceTimings.getOrDefault(TEAM_POSTURE, -1L)
+            + ";future_capital_ms=" + evidenceTimings.getOrDefault(FUTURE_CAPITAL, -1L)
+            + ";render_ms=" + renderMs
+            + ";total_ms=" + totalMs
+            + "===";
+    }
+
+    static long elapsedMillis(long startedNanos) {
+        return Math.max(0L, (System.nanoTime() - startedNanos) / 1_000_000L);
     }
 
     static String beginMarker(String name) {

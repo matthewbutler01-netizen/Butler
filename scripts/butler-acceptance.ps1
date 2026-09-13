@@ -21,11 +21,12 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appLauncher = Join-Path $scriptDir 'butler-app.ps1'
 $loadCheck = Join-Path $scriptDir 'butler-read-load-check.ps1'
+$teamDiagnostic = Join-Path $scriptDir 'butler-team-stage-diagnostic.ps1'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 
-foreach ($required in @($appLauncher, $loadCheck, $powershell, $taskkill)) {
+foreach ($required in @($appLauncher, $loadCheck, $teamDiagnostic, $powershell, $taskkill)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-698 BLOCKED: required acceptance component not found at $required"
     }
@@ -239,6 +240,7 @@ try {
 
     Write-Host 'Direct health: BUTLER_APP_SHELL_VERIFIED'
     & $loadCheck -BaseUrl ($root + '/') -Concurrency $Concurrency -RequestsPerPath $RequestsPerPath -TimeoutSeconds $RequestTimeoutSeconds
+    & $teamDiagnostic
     $passed = $true
 }
 catch {
