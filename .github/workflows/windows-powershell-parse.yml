@@ -1,28 +1,30 @@
-name: Windows PowerShell Parse
+name: Windows PowerShell Compatibility
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'scripts/butler-dashboard.ps1'
+      - 'scripts/**/*.ps1'
+      - 'scripts/**/*.cmd'
       - '.github/workflows/windows-powershell-parse.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'scripts/butler-dashboard.ps1'
+      - 'scripts/**/*.ps1'
+      - 'scripts/**/*.cmd'
       - '.github/workflows/windows-powershell-parse.yml'
 
 concurrency:
-  group: windows-powershell-parse-${{ github.event.pull_request.number || github.ref }}
+  group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  parse:
+  powershell-51:
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -30,27 +32,93 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Parse Butler dashboard with Windows PowerShell 5.1
+      - name: Parse every Butler PowerShell script with Windows PowerShell 5.1
         shell: powershell
         run: |
-          $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
+          $files = @(Get-ChildItem '.\scripts' -Recurse -Filter '*.ps1' -File)
+          if ($files.Count -eq 0) {
+              Write-Error 'BF-709 BLOCKED: no Butler PowerShell scripts were found.'
+              exit 1
+          }
+
+          $failed = $false
+          foreach ($file in $files) {
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+              if ($errors.Count -gt 0) {
+                  $failed = $true
+                  foreach ($error in $errors) {
+                      Write-Error ("{0}:{1}:{2}: {3}" -f $file.FullName, $error.Extent.StartLineNumber, $error.Extent.StartColumnNumber, $error.Message)
+                  }
+              }
+          }
+
+          if ($failed) { exit 1 }
+          Write-Host ("Windows PowerShell 5.1 parser accepted {0} Butler script(s)." -f $files.Count)
+
+      - name: Enforce ASCII-only Windows script sources
+        shell: powershell
+        run: |
+          $files = @(
+              Get-ChildItem '.\scripts' -Recurse -Filter '*.ps1' -File
+              Get-ChildItem '.\scripts' -Recurse -Filter '*.cmd' -File
+          )
+          $failed = $false
+          foreach ($file in $files) {
+              $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+              $bad = @($bytes | Where-Object { $_ -gt 127 })
+              if ($bad.Count -gt 0) {
+                  $failed = $true
+                  Write-Error ("BF-709 BLOCKED: {0} contains {1} non-ASCII byte(s)." -f $file.FullName, $bad.Count)
+              }
+          }
+          if ($failed) { exit 1 }
+          Write-Host ("ASCII-only Windows source gate passed for {0} file(s)." -f $files.Count)
+
+      - name: Exercise BF-707 staging transform under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $coreSource = (Resolve-Path '.\scripts\butler-app-shell-core-single.ps1').Path
+          $outerSource = (Resolve-Path '.\scripts\butler-app-shell-core.ps1').Path
+          $original = 'if ($proxied.ContentType -match ''^text/html'') {'
+          $replacement = 'if ($proxied.StatusCode -ge 200 -and $proxied.StatusCode -lt 300 -and $proxied.ContentType -match ''^text/html'') {'
+
+          $coreText = [System.IO.File]::ReadAllText($coreSource)
+          $matchCount = [regex]::Matches($coreText, [regex]::Escape($original)).Count
+          if ($matchCount -lt 1) {
+              Write-Error 'BF-709 BLOCKED: governed dashboard navigation staging source contract is missing.'
+              exit 1
+          }
+
+          $outerText = [System.IO.File]::ReadAllText($outerSource)
+          if ($outerText.Contains('LastIndexOf($coreSingleNavigationOriginal')) {
+              Write-Error 'BF-709 BLOCKED: BF-707 single-match staging guard has returned.'
+              exit 1
+          }
+          if (-not $outerText.Contains('$navigationMatchCount = [regex]::Matches($coreSingleText, [regex]::Escape($coreSingleNavigationOriginal)).Count')) {
+              Write-Error 'BF-709 BLOCKED: production staging no longer uses the multi-site navigation contract.'
+              exit 1
+          }
+
+          $stagedText = $coreText.Replace($original, $replacement)
+          if ($stagedText.Contains($original)) {
+              Write-Error 'BF-709 BLOCKED: staging left an unguarded navigation injection site.'
+              exit 1
+          }
+          $replacementCount = [regex]::Matches($stagedText, [regex]::Escape($replacement)).Count
+          if ($replacementCount -ne $matchCount) {
+              Write-Error ("BF-709 BLOCKED: staging replacement count mismatch source={0} staged={1}." -f $matchCount, $replacementCount)
+              exit 1
+          }
+
+          $temp = Join-Path $env:RUNNER_TEMP 'butler-app-shell-core-single.staged.ps1'
+          [System.IO.File]::WriteAllText($temp, $stagedText, [System.Text.UTF8Encoding]::new($false))
           $tokens = $null
           $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
+          [System.Management.Automation.Language.Parser]::ParseFile($temp, [ref]$tokens, [ref]$errors) | Out-Null
           if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error ("{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+              $errors | ForEach-Object { Write-Error ("staged:{0}:{1}: {2}" -f $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
               exit 1
           }
-          Write-Host 'Windows PowerShell 5.1 parser accepted scripts/butler-dashboard.ps1'
-
-      - name: Enforce ASCII-only dashboard source
-        shell: powershell
-        run: |
-          $path = (Resolve-Path '.\scripts\butler-dashboard.ps1').Path
-          $bytes = [System.IO.File]::ReadAllBytes($path)
-          $bad = @($bytes | Where-Object { $_ -gt 127 })
-          if ($bad.Count -gt 0) {
-              Write-Error ("BF-650 BLOCKED: dashboard contains {0} non-ASCII byte(s); Windows PowerShell 5.1 may mojibake UTF-8-without-BOM literals" -f $bad.Count)
-              exit 1
-          }
-          Write-Host 'BF-650 ASCII-only dashboard source gate passed'
+          Write-Host ("BF-707 staging transform passed on Windows PowerShell 5.1 across {0} navigation site(s)." -f $matchCount)
