@@ -22,11 +22,13 @@ $detail = Join-Path $scriptDir 'butler-decision-detail.ps1'
 $decisionRefresh = Join-Path $scriptDir 'butler-decision-refresh.ps1'
 $decisionRefreshRunner = Join-Path $scriptDir 'sleeper-live-waiver-no-transaction-refresh.ps1'
 $requestWorker = Join-Path $scriptDir 'butler-app-request-worker.ps1'
+$requestWorkerImplementation = $requestWorker
+$requestWorker = Join-Path $scriptDir 'butler-app-request-worker-cache.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 
-foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $requestWorker, $gradle)) {
+foreach ($required in @($coreShell, $tradeHost, $tradeLab, $history, $detail, $decisionRefresh, $decisionRefreshRunner, $requestWorkerImplementation, $requestWorker, $gradle)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-670 BLOCKED: required Butler app component not found at $required"
     }
