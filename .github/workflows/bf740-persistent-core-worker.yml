@@ -1,4 +1,4 @@
-name: BF-742 Shared Dashboard Worker
+name: BF-743 Worker Database Warmup
 
 on:
   push:
@@ -6,12 +6,15 @@ on:
       - main
     paths:
       - 'scripts/butler-core-bf742-transform.ps1'
+      - 'scripts/butler-dashboard-bf743-transform.ps1'
       - 'scripts/butler-persistent-core-worker.ps1'
       - 'scripts/butler-dashboard-bf715-transform.ps1'
       - 'scripts/butler-app-shell-core-single.ps1'
       - 'scripts/butler-dashboard.ps1'
       - 'scripts/butler-acceptance.cmd'
+      - 'bet/bet-cli/src/main/java/io/butler/bet/data/Database.java'
       - 'bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java'
+      - 'bet/bet-cli/src/test/java/io/butler/bet/data/DatabaseInitializationLockTest.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerReadOnlyJvmWorkerBf740Test.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerPersistentCoreWorkerCanaryBf740Test.java'
       - '.github/workflows/bf740-persistent-core-worker.yml'
@@ -20,18 +23,21 @@ on:
       - main
     paths:
       - 'scripts/butler-core-bf742-transform.ps1'
+      - 'scripts/butler-dashboard-bf743-transform.ps1'
       - 'scripts/butler-persistent-core-worker.ps1'
       - 'scripts/butler-dashboard-bf715-transform.ps1'
       - 'scripts/butler-app-shell-core-single.ps1'
       - 'scripts/butler-dashboard.ps1'
       - 'scripts/butler-acceptance.cmd'
+      - 'bet/bet-cli/src/main/java/io/butler/bet/data/Database.java'
       - 'bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java'
+      - 'bet/bet-cli/src/test/java/io/butler/bet/data/DatabaseInitializationLockTest.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerReadOnlyJvmWorkerBf740Test.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerPersistentCoreWorkerCanaryBf740Test.java'
       - '.github/workflows/bf740-persistent-core-worker.yml'
 
 concurrency:
-  group: bf742-shared-dashboard-worker-${{ github.event.pull_request.number || github.ref }}
+  group: bf743-worker-database-warmup-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -46,13 +52,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Exercise BF-742 default shared-worker staging under Windows PowerShell 5.1
+      - name: Exercise BF-743 default warmup staging under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'bf742-default-runtime'
-          if (Test-Path -LiteralPath $root) {
-              Remove-Item -LiteralPath $root -Recurse -Force
-          }
+          $root = Join-Path $env:RUNNER_TEMP 'bf743-default-runtime'
+          if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
           New-Item -ItemType Directory -Path $root -Force | Out-Null
 
           $dashboard = Join-Path $root 'butler-dashboard.ps1'
@@ -60,83 +64,119 @@ jobs:
           Copy-Item '.\scripts\butler-dashboard.ps1' $dashboard -Force
           Copy-Item '.\scripts\butler-app-shell-core-single.ps1' $core -Force
 
-          $previous = $env:BUTLER_APP_PERSISTENT_CORE_WORKER
+          $previousWorker = $env:BUTLER_APP_PERSISTENT_CORE_WORKER
+          $previousWarmup = $env:BUTLER_APP_WORKER_DATABASE_WARMUP
           try {
               Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue
+              Remove-Item Env:BUTLER_APP_WORKER_DATABASE_WARMUP -ErrorAction SilentlyContinue
               & '.\scripts\butler-dashboard-bf715-transform.ps1' -DashboardPath $dashboard
           }
           finally {
-              if ($null -eq $previous) {
-                  Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue
-              }
-              else {
-                  $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previous
-              }
+              if ($null -eq $previousWorker) { Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue }
+              else { $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previousWorker }
+              if ($null -eq $previousWarmup) { Remove-Item Env:BUTLER_APP_WORKER_DATABASE_WARMUP -ErrorAction SilentlyContinue }
+              else { $env:BUTLER_APP_WORKER_DATABASE_WARMUP = $previousWarmup }
           }
 
           $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
           if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-              Write-Error 'BF-742 BLOCKED: default staging did not copy the persistent worker helper.'
+              Write-Error 'BF-743 BLOCKED: default staging did not copy the persistent worker helper.'
               exit 1
           }
 
           $coreText = [System.IO.File]::ReadAllText($core)
           $dashboardText = [System.IO.File]::ReadAllText($dashboard)
-
-          foreach ($required in @(
-              'New-Bf742DashboardToken',
-              'BUTLER_APP_INTERNAL_DASHBOARD_TOKEN',
-              'X-Butler-Internal-Token',
-              '/__butler/internal/team-bundle',
-              '/__butler/internal/league-overview'
-          )) {
+          foreach ($required in @('New-Bf742DashboardToken','BUTLER_APP_INTERNAL_DASHBOARD_TOKEN','X-Butler-Internal-Token','/__butler/internal/team-bundle','/__butler/internal/league-overview')) {
               if (-not $coreText.Contains($required)) {
-                  Write-Error ("BF-742 BLOCKED: staged core is missing {0}." -f $required)
+                  Write-Error ("BF-743 BLOCKED: staged core is missing BF-742 contract {0}." -f $required)
                   exit 1
               }
           }
           if ($coreText.Contains('Start-Bf740PersistentCoreWorker') -or $coreText.Contains('Stop-Bf740PersistentCoreWorker')) {
-              Write-Error 'BF-742 BLOCKED: staged core still owns a JVM worker.'
+              Write-Error 'BF-743 BLOCKED: staged core still owns a JVM worker.'
               exit 1
           }
-
           foreach ($required in @(
               '$script:Bf740PersistentCoreWorkerCanary = $true',
               "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
               "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
               "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
-              'Start-Bf740PersistentCoreWorker',
-              'Stop-Bf740PersistentCoreWorker',
-              'X-Butler-Internal-Token',
-              '/__butler/internal/team-bundle',
-              '/__butler/internal/league-overview',
-              'StatusCode 403'
+              'Start-Bf740PersistentCoreWorker','Stop-Bf740PersistentCoreWorker','X-Butler-Internal-Token',
+              '/__butler/internal/team-bundle','/__butler/internal/league-overview','StatusCode 403',
+              "BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE = '1'"
           )) {
               if (-not $dashboardText.Contains($required)) {
-                  Write-Error ("BF-742 BLOCKED: staged dashboard is missing {0}." -f $required)
+                  Write-Error ("BF-743 BLOCKED: staged dashboard is missing {0}." -f $required)
                   exit 1
               }
           }
 
           foreach ($file in @($dashboard, $core, $helper)) {
-              $tokens = $null
-              $errors = $null
+              $tokens = $null; $errors = $null
               [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
               if ($errors.Count -gt 0) {
                   $errors | ForEach-Object { Write-Error ("{0}:{1}:{2}: {3}" -f $file, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
                   exit 1
               }
           }
+          Write-Host 'BF-743 default staging retained BF-742 routing and enabled production-worker database warmup.'
 
-          Write-Host 'BF-742 default staging produced one dashboard-owned worker with authenticated parent-core access.'
-
-      - name: Exercise BF-742 emergency opt-out under Windows PowerShell 5.1
+      - name: Exercise BF-743 warmup-only opt-out under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'bf742-disabled-runtime'
-          if (Test-Path -LiteralPath $root) {
-              Remove-Item -LiteralPath $root -Recurse -Force
+          $root = Join-Path $env:RUNNER_TEMP 'bf743-warmup-disabled-runtime'
+          if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+
+          $dashboard = Join-Path $root 'butler-dashboard.ps1'
+          $core = Join-Path $root 'butler-app-shell-core-single.ps1'
+          Copy-Item '.\scripts\butler-dashboard.ps1' $dashboard -Force
+          Copy-Item '.\scripts\butler-app-shell-core-single.ps1' $core -Force
+
+          $previousWorker = $env:BUTLER_APP_PERSISTENT_CORE_WORKER
+          $previousWarmup = $env:BUTLER_APP_WORKER_DATABASE_WARMUP
+          try {
+              Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue
+              $env:BUTLER_APP_WORKER_DATABASE_WARMUP = '0'
+              & '.\scripts\butler-dashboard-bf715-transform.ps1' -DashboardPath $dashboard
           }
+          finally {
+              if ($null -eq $previousWorker) { Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue }
+              else { $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previousWorker }
+              if ($null -eq $previousWarmup) { Remove-Item Env:BUTLER_APP_WORKER_DATABASE_WARMUP -ErrorAction SilentlyContinue }
+              else { $env:BUTLER_APP_WORKER_DATABASE_WARMUP = $previousWarmup }
+          }
+
+          $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
+          if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+              Write-Error 'BF-743 BLOCKED: warmup opt-out incorrectly disabled the BF-742 worker.'
+              exit 1
+          }
+          $coreText = [System.IO.File]::ReadAllText($core)
+          $dashboardText = [System.IO.File]::ReadAllText($dashboard)
+          if (-not $coreText.Contains('/__butler/internal/team-bundle') -or -not $dashboardText.Contains('Start-Bf740PersistentCoreWorker')) {
+              Write-Error 'BF-743 BLOCKED: warmup-only opt-out did not preserve BF-742 shared-worker routing.'
+              exit 1
+          }
+          if ($dashboardText.Contains("BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE = '1'")) {
+              Write-Error 'BF-743 BLOCKED: warmup-only opt-out still staged database preinitialization.'
+              exit 1
+          }
+          foreach ($file in @($dashboard, $core, $helper)) {
+              $tokens = $null; $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+              if ($errors.Count -gt 0) {
+                  $errors | ForEach-Object { Write-Error ("{0}:{1}:{2}: {3}" -f $file, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+                  exit 1
+              }
+          }
+          Write-Host 'BF-743 warmup-only opt-out preserved BF-742 shared-worker routing without database warmup.'
+
+      - name: Exercise BF-742 full worker opt-out under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'bf743-worker-disabled-runtime'
+          if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
           New-Item -ItemType Directory -Path $root -Force | Out-Null
 
           $dashboard = Join-Path $root 'butler-dashboard.ps1'
@@ -150,46 +190,33 @@ jobs:
               & '.\scripts\butler-dashboard-bf715-transform.ps1' -DashboardPath $dashboard
           }
           finally {
-              if ($null -eq $previous) {
-                  Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue
-              }
-              else {
-                  $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previous
-              }
+              if ($null -eq $previous) { Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue }
+              else { $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previous }
           }
 
           $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
           if (Test-Path -LiteralPath $helper) {
-              Write-Error 'BF-742 BLOCKED: explicit opt-out still copied the persistent worker helper.'
+              Write-Error 'BF-743 BLOCKED: full worker opt-out still copied the persistent worker helper.'
               exit 1
           }
-
           $coreText = [System.IO.File]::ReadAllText($core)
           $dashboardText = [System.IO.File]::ReadAllText($dashboard)
-          foreach ($forbidden in @(
-              'Bf742DashboardToken',
-              'X-Butler-Internal-Token',
-              '/__butler/internal/team-bundle',
-              'Start-Bf740PersistentCoreWorker'
-          )) {
+          foreach ($forbidden in @('Bf742DashboardToken','X-Butler-Internal-Token','/__butler/internal/team-bundle','Start-Bf740PersistentCoreWorker','BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE')) {
               if ($coreText.Contains($forbidden) -or $dashboardText.Contains($forbidden)) {
-                  Write-Error ("BF-742 BLOCKED: explicit opt-out still staged shared-worker contract {0}." -f $forbidden)
+                  Write-Error ("BF-743 BLOCKED: full worker opt-out still staged {0}." -f $forbidden)
                   exit 1
               }
           }
           if (-not $dashboardText.Contains('Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
-              Write-Error 'BF-742 BLOCKED: worker opt-out incorrectly disabled independent BF-715 waiver staging.'
+              Write-Error 'BF-743 BLOCKED: full worker opt-out incorrectly disabled independent BF-715 waiver staging.'
               exit 1
           }
-
           foreach ($file in @($dashboard, $core)) {
-              $tokens = $null
-              $errors = $null
+              $tokens = $null; $errors = $null
               [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
               if ($errors.Count -gt 0) {
                   $errors | ForEach-Object { Write-Error ("{0}:{1}:{2}: {3}" -f $file, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
                   exit 1
               }
           }
-
-          Write-Host 'BF-742 emergency opt-out preserved the pre-worker core while retaining BF-715 waiver staging.'
+          Write-Host 'BF-742 full worker opt-out still preserves the pre-worker core and BF-715 waiver staging.'
