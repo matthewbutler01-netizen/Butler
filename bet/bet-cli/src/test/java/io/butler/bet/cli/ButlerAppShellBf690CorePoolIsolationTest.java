@@ -34,7 +34,7 @@ class ButlerAppShellBf690CorePoolIsolationTest {
     @Test
     void corePoolPreservesFiniteRequestAndLoopbackBoundaries() throws Exception {
         String core = script("scripts/butler-app-shell-core.ps1");
-        String worker = script("scripts/butler-app-core-pool-worker.ps1");
+        String worker = script("scripts/butler-app-core-pool-worker-impl.ps1");
 
         assertTrue(core.contains("[System.Net.IPAddress]::Parse('127.0.0.1')"));
         assertTrue(core.contains("[System.Net.Sockets.TcpListener]::new($loopback, $Port)"));
@@ -90,6 +90,7 @@ class ButlerAppShellBf690CorePoolIsolationTest {
         assertAscii(script("scripts/butler-app-shell-core.ps1"));
         assertAscii(script("scripts/butler-app-shell-core-single.ps1"));
         assertAscii(script("scripts/butler-app-core-pool-worker.ps1"));
+        assertAscii(script("scripts/butler-app-core-pool-worker-impl.ps1"));
     }
 
     private static void assertAscii(String text) {
