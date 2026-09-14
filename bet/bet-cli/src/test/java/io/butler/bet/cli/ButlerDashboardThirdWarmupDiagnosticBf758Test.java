@@ -18,11 +18,11 @@ class ButlerDashboardThirdWarmupDiagnosticBf758Test {
 
         String waiverUrl = "http://127.0.0.1:$BackendPort/waivers";
         String teamUrl = "http://127.0.0.1:$BackendPort/team";
-        String dashboardUrl = "http://127.0.0.1:$BackendPort/";
+        String dashboardCreate = "Create(\"http://127.0.0.1:$BackendPort/\")";
         assertEquals(1, occurrences(warmup, waiverUrl));
         assertEquals(1, occurrences(warmup, teamUrl));
         assertTrue(warmup.indexOf(waiverUrl) < warmup.indexOf(teamUrl));
-        assertEquals(0, occurrences(warmup, dashboardUrl));
+        assertFalse(warmup.contains(dashboardCreate));
         assertFalse(warmup.contains("/refresh"));
     }
 
