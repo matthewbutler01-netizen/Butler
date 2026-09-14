@@ -1,38 +1,44 @@
-name: BF-741 Persistent Core Worker
+name: BF-742 Shared Dashboard Worker
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'scripts/butler-core-bf740-transform.ps1'
+      - 'scripts/butler-core-bf742-transform.ps1'
       - 'scripts/butler-persistent-core-worker.ps1'
       - 'scripts/butler-dashboard-bf715-transform.ps1'
       - 'scripts/butler-app-shell-core-single.ps1'
+      - 'scripts/butler-dashboard.ps1'
       - 'scripts/butler-acceptance.cmd'
+      - 'bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java'
+      - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerReadOnlyJvmWorkerBf740Test.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerPersistentCoreWorkerCanaryBf740Test.java'
       - '.github/workflows/bf740-persistent-core-worker.yml'
   pull_request:
     branches:
       - main
     paths:
-      - 'scripts/butler-core-bf740-transform.ps1'
+      - 'scripts/butler-core-bf742-transform.ps1'
       - 'scripts/butler-persistent-core-worker.ps1'
       - 'scripts/butler-dashboard-bf715-transform.ps1'
       - 'scripts/butler-app-shell-core-single.ps1'
+      - 'scripts/butler-dashboard.ps1'
       - 'scripts/butler-acceptance.cmd'
+      - 'bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java'
+      - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerReadOnlyJvmWorkerBf740Test.java'
       - 'bet/bet-cli/src/test/java/io/butler/bet/cli/ButlerPersistentCoreWorkerCanaryBf740Test.java'
       - '.github/workflows/bf740-persistent-core-worker.yml'
 
 concurrency:
-  group: bf741-persistent-core-worker-${{ github.event.pull_request.number || github.ref }}
+  group: bf742-shared-dashboard-worker-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  staged-core:
+  staged-runtime:
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -40,10 +46,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Exercise BF-741 default staging under Windows PowerShell 5.1
+      - name: Exercise BF-742 default shared-worker staging under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'bf741-default-runtime'
+          $root = Join-Path $env:RUNNER_TEMP 'bf742-default-runtime'
           if (Test-Path -LiteralPath $root) {
               Remove-Item -LiteralPath $root -Recurse -Force
           }
@@ -70,30 +76,46 @@ jobs:
 
           $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
           if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
-              Write-Error 'BF-741 BLOCKED: default staging did not copy the persistent worker helper.'
+              Write-Error 'BF-742 BLOCKED: default staging did not copy the persistent worker helper.'
               exit 1
           }
 
           $coreText = [System.IO.File]::ReadAllText($core)
-          if (-not $coreText.Contains('$script:Bf740PersistentCoreWorkerCanary = $true')) {
-              Write-Error 'BF-741 BLOCKED: staged core did not default the proven worker state on.'
+          $dashboardText = [System.IO.File]::ReadAllText($dashboard)
+
+          foreach ($required in @(
+              'New-Bf742DashboardToken',
+              'BUTLER_APP_INTERNAL_DASHBOARD_TOKEN',
+              'X-Butler-Internal-Token',
+              '/__butler/internal/team-bundle',
+              '/__butler/internal/league-overview'
+          )) {
+              if (-not $coreText.Contains($required)) {
+                  Write-Error ("BF-742 BLOCKED: staged core is missing {0}." -f $required)
+                  exit 1
+              }
+          }
+          if ($coreText.Contains('Start-Bf740PersistentCoreWorker') -or $coreText.Contains('Stop-Bf740PersistentCoreWorker')) {
+              Write-Error 'BF-742 BLOCKED: staged core still owns a JVM worker.'
               exit 1
           }
-          if (-not $coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'TEAM_BUNDLE'")) {
-              Write-Error 'BF-741 BLOCKED: staged core is missing TEAM_BUNDLE worker routing.'
-              exit 1
-          }
-          if (-not $coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'LEAGUE_OVERVIEW'")) {
-              Write-Error 'BF-741 BLOCKED: staged core is missing LEAGUE_OVERVIEW worker routing.'
-              exit 1
-          }
-          if (-not $coreText.Contains('Start-Bf740PersistentCoreWorker')) {
-              Write-Error 'BF-741 BLOCKED: staged core does not own worker startup.'
-              exit 1
-          }
-          if (-not $coreText.Contains('Stop-Bf740PersistentCoreWorker')) {
-              Write-Error 'BF-741 BLOCKED: staged core does not own worker cleanup.'
-              exit 1
+
+          foreach ($required in @(
+              '$script:Bf740PersistentCoreWorkerCanary = $true',
+              "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
+              "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
+              "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
+              'Start-Bf740PersistentCoreWorker',
+              'Stop-Bf740PersistentCoreWorker',
+              'X-Butler-Internal-Token',
+              '/__butler/internal/team-bundle',
+              '/__butler/internal/league-overview',
+              'StatusCode 403'
+          )) {
+              if (-not $dashboardText.Contains($required)) {
+                  Write-Error ("BF-742 BLOCKED: staged dashboard is missing {0}." -f $required)
+                  exit 1
+              }
           }
 
           foreach ($file in @($dashboard, $core, $helper)) {
@@ -106,12 +128,12 @@ jobs:
               }
           }
 
-          Write-Host 'BF-741 default staging produced a valid PowerShell 5.1 runtime core with only the proven worker routes.'
+          Write-Host 'BF-742 default staging produced one dashboard-owned worker with authenticated parent-core access.'
 
-      - name: Exercise BF-741 emergency opt-out under Windows PowerShell 5.1
+      - name: Exercise BF-742 emergency opt-out under Windows PowerShell 5.1
         shell: powershell
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'bf741-disabled-runtime'
+          $root = Join-Path $env:RUNNER_TEMP 'bf742-disabled-runtime'
           if (Test-Path -LiteralPath $root) {
               Remove-Item -LiteralPath $root -Recurse -Force
           }
@@ -138,22 +160,25 @@ jobs:
 
           $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
           if (Test-Path -LiteralPath $helper) {
-              Write-Error 'BF-741 BLOCKED: explicit opt-out still copied the persistent worker helper.'
+              Write-Error 'BF-742 BLOCKED: explicit opt-out still copied the persistent worker helper.'
               exit 1
           }
 
           $coreText = [System.IO.File]::ReadAllText($core)
-          if ($coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'TEAM_BUNDLE'") -or
-              $coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'LEAGUE_OVERVIEW'") -or
-              $coreText.Contains('Start-Bf740PersistentCoreWorker') -or
-              $coreText.Contains('$script:Bf740PersistentCoreWorkerCanary = $true')) {
-              Write-Error 'BF-741 BLOCKED: explicit opt-out still transformed the staged core.'
-              exit 1
-          }
-
           $dashboardText = [System.IO.File]::ReadAllText($dashboard)
+          foreach ($forbidden in @(
+              'Bf742DashboardToken',
+              'X-Butler-Internal-Token',
+              '/__butler/internal/team-bundle',
+              'Start-Bf740PersistentCoreWorker'
+          )) {
+              if ($coreText.Contains($forbidden) -or $dashboardText.Contains($forbidden)) {
+                  Write-Error ("BF-742 BLOCKED: explicit opt-out still staged shared-worker contract {0}." -f $forbidden)
+                  exit 1
+              }
+          }
           if (-not $dashboardText.Contains('Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
-              Write-Error 'BF-741 BLOCKED: worker opt-out incorrectly disabled the independent BF-715 waiver transform.'
+              Write-Error 'BF-742 BLOCKED: worker opt-out incorrectly disabled independent BF-715 waiver staging.'
               exit 1
           }
 
@@ -167,4 +192,4 @@ jobs:
               }
           }
 
-          Write-Host 'BF-741 emergency opt-out preserved the pre-worker core while retaining BF-715 waiver staging.'
+          Write-Host 'BF-742 emergency opt-out preserved the pre-worker core while retaining BF-715 waiver staging.'
