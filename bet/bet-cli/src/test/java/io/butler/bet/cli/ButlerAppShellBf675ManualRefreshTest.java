@@ -28,7 +28,7 @@ class ButlerAppShellBf675ManualRefreshTest {
     @Test
     void dashboardLinksToGetConfirmationAndOnlyExactPostRefreshCanWrite() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker.ps1");
+        String worker = script("scripts/butler-app-request-worker-impl.ps1");
         String refresh = script("scripts/butler-decision-refresh.ps1");
 
         assertTrue(shell.contains("butler-decision-refresh.ps1"));
@@ -51,7 +51,7 @@ class ButlerAppShellBf675ManualRefreshTest {
 
     @Test
     void postUsesCryptographicOneUseTokenAndInvalidatesBeforeRunner() throws Exception {
-        String worker = script("scripts/butler-app-request-worker.ps1");
+        String worker = script("scripts/butler-app-request-worker-impl.ps1");
         String refresh = script("scripts/butler-decision-refresh.ps1");
 
         assertTrue(refresh.contains("RandomNumberGenerator]::Create()"));
@@ -111,7 +111,7 @@ class ButlerAppShellBf675ManualRefreshTest {
     @Test
     void browserBoundaryHasNoArbitraryCommandOrSleeperTransactionExecution() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker.ps1");
+        String worker = script("scripts/butler-app-request-worker-impl.ps1");
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
@@ -135,7 +135,7 @@ class ButlerAppShellBf675ManualRefreshTest {
     @Test
     void bf675FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
-        assertAscii(script("scripts/butler-app-request-worker.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker-impl.ps1"));
         assertAscii(script("scripts/butler-decision-refresh.ps1"));
         assertAscii(script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1"));
     }
