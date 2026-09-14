@@ -7,8 +7,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -cne '1') {
-    throw 'BF-740 BLOCKED: persistent core worker transform is authorized only in explicit canary mode.'
+if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -ceq '0') {
+    throw 'BF-741 BLOCKED: persistent core worker transform is explicitly disabled by BUTLER_APP_PERSISTENT_CORE_WORKER=0.'
 }
 if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
     throw "BF-740 BLOCKED: staged app core not found at $CorePath"
@@ -29,6 +29,8 @@ if (-not (Test-Path -LiteralPath $dashboard)) {
 $bootstrapReplacement = @'
 $loopback = [System.Net.IPAddress]::Parse("127.0.0.1")
 . (Join-Path $scriptDir 'butler-persistent-core-worker.ps1')
+# BF-741: staging is default-on; the outer staging gate omits this transform only for explicit opt-out (=0).
+$script:Bf740PersistentCoreWorkerCanary = $true
 
 if (-not (Test-Path -LiteralPath $dashboard)) {
 '@

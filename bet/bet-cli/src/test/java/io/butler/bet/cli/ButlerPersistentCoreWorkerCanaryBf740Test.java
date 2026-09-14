@@ -12,13 +12,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerPersistentCoreWorkerCanaryBf740Test {
     @Test
-    void canaryTransformTargetsOnlyTeamAndLeagueCoreReads() throws Exception {
+    void persistentTransformTargetsOnlyTeamAndLeagueCoreReads() throws Exception {
         String transform = source("scripts/butler-core-bf740-transform.ps1");
         String helper = source("scripts/butler-persistent-core-worker.ps1");
         String core = source("scripts/butler-app-shell-core-single.ps1");
         String dashboard = source("scripts/butler-dashboard.ps1");
 
         assertTrue(transform.contains("BUTLER_APP_PERSISTENT_CORE_WORKER"));
+        assertTrue(transform.contains("-ceq '0'"));
+        assertTrue(transform.contains("$script:Bf740PersistentCoreWorkerCanary = $true"));
         assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'TEAM_BUNDLE'"));
         assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'LEAGUE_OVERVIEW'"));
         assertTrue(transform.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
@@ -55,32 +57,39 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
     }
 
     @Test
-    void dashboardStagingInvokesCoreTransformOnlyWhenCanaryIsExplicitlyEnabled() throws Exception {
+    void dashboardStagingDefaultsWorkerOnWithSiblingCoreAndRetainsExplicitOptOut() throws Exception {
         String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
+        String transform = source("scripts/butler-core-bf740-transform.ps1");
         int writeDashboard = staging.indexOf("WriteAllText($DashboardPath");
-        int canaryCheck = staging.indexOf("BUTLER_APP_PERSISTENT_CORE_WORKER");
+        int defaultGate = staging.indexOf("-cne '0'");
         int coreTransform = staging.indexOf("butler-core-bf740-transform.ps1");
 
         assertTrue(writeDashboard >= 0);
-        assertTrue(canaryCheck > writeDashboard);
-        assertTrue(coreTransform > canaryCheck);
-        assertTrue(staging.contains("-ceq '1'"));
+        assertTrue(defaultGate > writeDashboard);
+        assertTrue(coreTransform > defaultGate);
         assertTrue(staging.contains("butler-app-shell-core-single.ps1"));
+        assertTrue(staging.contains("Test-Path -LiteralPath $stagedCore -PathType Leaf"));
+        assertTrue(staging.contains("-cne '0'"));
+        assertTrue(staging.contains("-ceq '1'"));
+        assertTrue(transform.contains("-ceq '0'"));
+        assertTrue(transform.contains("explicitly disabled by BUTLER_APP_PERSISTENT_CORE_WORKER=0"));
     }
 
     @Test
-    void acceptanceScopesCanaryToOwnedBf698RunAndClearsItBeforeDiagnostics() throws Exception {
+    void acceptanceExercisesDefaultWorkerThenDisablesItBeforeStandaloneDiagnostics() throws Exception {
         String command = source("scripts/butler-acceptance.cmd");
-        int enable = command.indexOf("set \"BUTLER_APP_PERSISTENT_CORE_WORKER=1\"");
+        int defaultUnset = command.indexOf("set \"BUTLER_APP_PERSISTENT_CORE_WORKER=\"");
         int acceptance = command.indexOf("butler-acceptance.ps1");
-        int clear = command.indexOf("set \"BUTLER_APP_PERSISTENT_CORE_WORKER=\"");
+        int diagnosticDisable = command.indexOf("set \"BUTLER_APP_PERSISTENT_CORE_WORKER=0\"");
         int slowDiagnostic = command.indexOf("butler-slow-route-stage-diagnostic.ps1");
 
-        assertTrue(enable >= 0);
-        assertTrue(acceptance > enable);
-        assertTrue(clear > acceptance);
-        assertTrue(slowDiagnostic > clear);
-        assertTrue(command.contains("normal app launch remains unchanged"));
+        assertTrue(defaultUnset >= 0);
+        assertTrue(acceptance > defaultUnset);
+        assertTrue(diagnosticDisable > acceptance);
+        assertTrue(slowDiagnostic > diagnosticDisable);
+        assertTrue(command.contains("BF-741 default"));
+        assertTrue(command.contains("emergency opt-out"));
+        assertFalse(command.contains("BF-740 canary:"));
     }
 
     @Test
