@@ -17,7 +17,7 @@ function Get-Bf740JavaExecutable {
         return [string]$command.Source
     }
     catch {
-        throw 'BF-740 BLOCKED: Java executable is unavailable for the persistent core worker.'
+        throw 'BF-740 BLOCKED: Java executable is unavailable for the persistent read worker.'
     }
 }
 
@@ -47,7 +47,7 @@ function Read-Bf740WorkerLine {
     )
 
     if ($Worker.HasExited) {
-        throw "BF-740 BLOCKED: persistent core worker exited before $Context$(Get-Bf740WorkerFailureDetail)"
+        throw "BF-740 BLOCKED: persistent read worker exited before $Context$(Get-Bf740WorkerFailureDetail)"
     }
 
     $task = $Worker.StandardOutput.ReadLineAsync()
@@ -60,12 +60,12 @@ function Read-Bf740WorkerLine {
         }
         catch {
         }
-        throw "BF-740 BLOCKED: persistent core worker timed out during $Context and was terminated to prevent protocol desynchronization."
+        throw "BF-740 BLOCKED: persistent read worker timed out during $Context and was terminated to prevent protocol desynchronization."
     }
 
     $line = [string]$task.Result
     if ($null -eq $task.Result) {
-        throw "BF-740 BLOCKED: persistent core worker closed stdout during $Context$(Get-Bf740WorkerFailureDetail)"
+        throw "BF-740 BLOCKED: persistent read worker closed stdout during $Context$(Get-Bf740WorkerFailureDetail)"
     }
     return $line
 }
@@ -73,7 +73,7 @@ function Read-Bf740WorkerLine {
 function Start-Bf740PersistentCoreWorker {
     if (-not $script:Bf740PersistentCoreWorkerCanary) { return $null }
     if ($null -ne $script:Bf740PersistentCoreWorkerProcess) {
-        throw 'BF-740 BLOCKED: persistent core worker was started more than once for one preserved core.'
+        throw 'BF-740 BLOCKED: persistent read worker was started more than once for one preserved core.'
     }
 
     $runtimeLib = [string]$env:BUTLER_APP_RUNTIME_LIB
@@ -105,7 +105,7 @@ function Start-Bf740PersistentCoreWorker {
     $worker.StartInfo = $start
     if (-not $worker.Start()) {
         $worker.Dispose()
-        throw 'BF-740 BLOCKED: unable to start persistent core worker.'
+        throw 'BF-740 BLOCKED: unable to start persistent read worker.'
     }
 
     $worker.StandardInput.AutoFlush = $true
@@ -115,7 +115,7 @@ function Start-Bf740PersistentCoreWorker {
     try {
         $ready = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 10000 -Context 'startup readiness'
         if ($ready -cne "READY`tBF739`t1") {
-            throw "BF-740 BLOCKED: persistent core worker readiness frame was invalid: $ready"
+            throw "BF-740 BLOCKED: persistent read worker readiness frame was invalid: $ready"
         }
     }
     catch {
@@ -132,27 +132,43 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'WAIVER_DASHBOARD_BUNDLE', 'EXPLANATION_LOOKUP')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string]$BoundaryName
+        [string]$BoundaryName,
+
+        [string]$AuditId
     )
 
     if (-not $script:Bf740PersistentCoreWorkerCanary) {
-        throw "$BoundaryName BLOCKED: BF-740 persistent worker invocation was requested outside canary mode."
+        throw "$BoundaryName BLOCKED: BF-742 persistent worker invocation was requested outside enabled runtime staging."
     }
     $worker = $script:Bf740PersistentCoreWorkerProcess
     if ($null -eq $worker -or $worker.HasExited) {
-        throw "$BoundaryName BLOCKED: BF-740 persistent core worker is unavailable$(Get-Bf740WorkerFailureDetail)"
+        throw "$BoundaryName BLOCKED: BF-742 persistent read worker is unavailable$(Get-Bf740WorkerFailureDetail)"
     }
     if ([string]::IsNullOrWhiteSpace([string]$LeagueId) -or [string]$LeagueId -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
-        throw "$BoundaryName BLOCKED: BF-740 league id does not satisfy the exact canonical Butler UUID contract."
+        throw "$BoundaryName BLOCKED: BF-742 league id does not satisfy the exact canonical Butler UUID contract."
+    }
+
+    if ($Operation -ceq 'EXPLANATION_LOOKUP') {
+        if ([string]::IsNullOrWhiteSpace($AuditId) -or $AuditId -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
+            throw "$BoundaryName BLOCKED: BF-742 explanation lookup audit id is missing or malformed."
+        }
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($AuditId)) {
+        throw "$BoundaryName BLOCKED: BF-742 audit id is authorized only for EXPLANATION_LOOKUP."
     }
 
     $requestId = [Guid]::NewGuid().ToString('N')
-    $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId")
+    if ($Operation -ceq 'EXPLANATION_LOOKUP') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$AuditId")
+    }
+    else {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId")
+    }
     $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
     $fields = @($line -split "`t", 5)
 
@@ -163,10 +179,10 @@ function Invoke-Bf740PersistentCoreWorker {
         catch {
             $detail = 'invalid rejection payload'
         }
-        throw "$BoundaryName BLOCKED: BF-740 worker rejected the authorized request: $detail"
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
     }
     if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
-        throw "$BoundaryName BLOCKED: BF-740 worker returned an invalid result frame."
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
     }
 
     try {
@@ -174,7 +190,7 @@ function Invoke-Bf740PersistentCoreWorker {
         $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
     }
     catch {
-        throw "$BoundaryName BLOCKED: BF-740 worker returned an invalid Base64 result payload."
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
     }
 
     if ($fields[2] -cne '0') {
@@ -193,7 +209,7 @@ function Stop-Bf740PersistentCoreWorker {
             $worker.StandardInput.WriteLine('QUIT')
             $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
             if ($bye -cne "BYE`tBF739") {
-                throw "BF-740 BLOCKED: persistent core worker shutdown frame was invalid: $bye"
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
             }
             if (-not $worker.WaitForExit(3000)) {
                 $worker.Kill()

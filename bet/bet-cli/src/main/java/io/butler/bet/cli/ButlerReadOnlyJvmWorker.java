@@ -12,9 +12,9 @@ import java.util.Base64;
 import java.util.regex.Pattern;
 
 /**
- * Long-lived read-only Butler JVM worker. BF-739 proved help-only reuse; BF-740 adds only the two
- * exact app-core read surfaces required by My Team and League. The worker remains single-requested
- * by its owning preserved core and exposes no generic CLI execution surface.
+ * Long-lived read-only Butler JVM worker. BF-739 proved JVM reuse, BF-740 added the exact My Team
+ * and League reads, and BF-742 adds only the exact dashboard reads needed to share one worker per
+ * preserved core. The protocol exposes no generic CLI or task execution surface.
  */
 public final class ButlerReadOnlyJvmWorker {
     static final String READY = "READY\tBF739\t1";
@@ -22,6 +22,7 @@ public final class ButlerReadOnlyJvmWorker {
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final Pattern LEAGUE_ID = Pattern.compile(
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    private static final Pattern AUDIT_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
 
     private ButlerReadOnlyJvmWorker() {}
 
@@ -47,9 +48,10 @@ public final class ButlerReadOnlyJvmWorker {
             CommandRequest request = parse(line);
             if (request == null) {
                 reject(protocol,
-                    "BF-740 BLOCKED: worker accepts only HELP<TAB><request-id>, "
-                        + "LEAGUE_OVERVIEW<TAB><request-id><TAB><league-id>, "
-                        + "TEAM_BUNDLE<TAB><request-id><TAB><league-id>, or QUIT.");
+                    "BF-742 BLOCKED: worker accepts only HELP<TAB><request-id>, "
+                        + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, or WAIVER_DASHBOARD_BUNDLE "
+                        + "with <request-id><TAB><league-id>, EXPLANATION_LOOKUP with "
+                        + "<request-id><TAB><league-id><TAB><audit-id>, or QUIT.");
                 continue;
             }
 
@@ -70,17 +72,26 @@ public final class ButlerReadOnlyJvmWorker {
         if (fields.length == 2
             && fields[0].equals("HELP")
             && REQUEST_ID.matcher(fields[1]).matches()) {
-            return new CommandRequest(Operation.HELP, fields[1], null);
+            return new CommandRequest(Operation.HELP, fields[1], null, null);
         }
         if (fields.length == 3
             && REQUEST_ID.matcher(fields[1]).matches()
             && LEAGUE_ID.matcher(fields[2]).matches()) {
-            if (fields[0].equals("LEAGUE_OVERVIEW")) {
-                return new CommandRequest(Operation.LEAGUE_OVERVIEW, fields[1], fields[2]);
-            }
-            if (fields[0].equals("TEAM_BUNDLE")) {
-                return new CommandRequest(Operation.TEAM_BUNDLE, fields[1], fields[2]);
-            }
+            return switch (fields[0]) {
+                case "LEAGUE_OVERVIEW" -> new CommandRequest(Operation.LEAGUE_OVERVIEW, fields[1], fields[2], null);
+                case "TEAM_BUNDLE" -> new CommandRequest(Operation.TEAM_BUNDLE, fields[1], fields[2], null);
+                case "LATEST_SUMMARY" -> new CommandRequest(Operation.LATEST_SUMMARY, fields[1], fields[2], null);
+                case "WAIVER_DASHBOARD_BUNDLE" ->
+                    new CommandRequest(Operation.WAIVER_DASHBOARD_BUNDLE, fields[1], fields[2], null);
+                default -> null;
+            };
+        }
+        if (fields.length == 4
+            && fields[0].equals("EXPLANATION_LOOKUP")
+            && REQUEST_ID.matcher(fields[1]).matches()
+            && LEAGUE_ID.matcher(fields[2]).matches()
+            && AUDIT_ID.matcher(fields[3]).matches()) {
+            return new CommandRequest(Operation.EXPLANATION_LOOKUP, fields[1], fields[2], fields[3]);
         }
         return null;
     }
@@ -92,6 +103,12 @@ public final class ButlerReadOnlyJvmWorker {
                 new String[] {"league", "overview", request.leagueId()}));
             case TEAM_BUNDLE -> executeCaptured(() -> ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(
                 new String[] {request.leagueId(), "--team-bundle"}));
+            case LATEST_SUMMARY -> executeCaptured(() -> ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main(
+                new String[] {request.leagueId()}));
+            case WAIVER_DASHBOARD_BUNDLE -> executeCaptured(() -> ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(
+                new String[] {request.leagueId(), "--waiver-dashboard-bundle"}));
+            case EXPLANATION_LOOKUP -> executeCaptured(() -> ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main(
+                new String[] {request.leagueId(), request.argument()}));
         };
     }
 
@@ -132,10 +149,13 @@ public final class ButlerReadOnlyJvmWorker {
     enum Operation {
         HELP,
         LEAGUE_OVERVIEW,
-        TEAM_BUNDLE
+        TEAM_BUNDLE,
+        LATEST_SUMMARY,
+        WAIVER_DASHBOARD_BUNDLE,
+        EXPLANATION_LOOKUP
     }
 
-    record CommandRequest(Operation operation, String requestId, String leagueId) {}
+    record CommandRequest(Operation operation, String requestId, String leagueId, String argument) {}
 
     @FunctionalInterface
     interface CommandExecutor {
