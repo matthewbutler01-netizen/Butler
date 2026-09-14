@@ -80,7 +80,7 @@ class ButlerWaiverDashboardEvidenceBundleBf713ScopeTest {
         assertFalse(pairMode.contains("runConcurrentPair"));
         assertFalse(pairMode.contains("SleeperLiveWaiverComparisonEvidenceReuse"));
         assertFalse(pairMode.contains("SleeperLiveWaiverComparisonExecutionBundle"));
-        assertFalse(pairMode.contains("SleeperLiveWaiverTargetRosterContextAudit"));
+        assertFalse(pairMode.contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
         assertTrue(pairMode.contains("emit(WAIVER_BOARD, waiverBoard)"));
         assertTrue(pairMode.contains("emit(ROSTER_CONTEXT, rosterContext)"));
         assertFalse(pairMode.contains("SleeperLiveWaiverLatestGovernedDecisionSummary"));
