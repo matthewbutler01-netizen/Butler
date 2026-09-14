@@ -197,7 +197,7 @@ function Invoke-PreservedCoreWarmup {
         return
     }
 
-    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/league")
+    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/waivers")
     $request.Method = 'GET'
     $request.Timeout = 3000
     $request.ReadWriteTimeout = 3000
