@@ -190,6 +190,41 @@ function Wait-PreservedCore {
     throw "BF-690 BLOCKED: preserved inner core on port $BackendPort did not become healthy."
 }
 
+function Invoke-PreservedCoreWarmup {
+    param([Parameter(Mandatory = $true)][int]$BackendPort)
+
+    if ([string]$env:BUTLER_APP_CORE_POOL_WARMUP -ceq '0') {
+        return
+    }
+
+    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/league")
+    $request.Method = 'GET'
+    $request.Timeout = 3000
+    $request.ReadWriteTimeout = 3000
+    $request.Proxy = $null
+    $request.KeepAlive = $false
+    $response = $null
+    try {
+        $response = $request.GetResponse()
+        if ([int]$response.StatusCode -ne 200) {
+            throw "HTTP $([int]$response.StatusCode)"
+        }
+        $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+        try {
+            [void]$reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    catch {
+        Write-Warning ("BF-751 preserved-core warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+    }
+    finally {
+        if ($null -ne $response) { $response.Close() }
+    }
+}
+
 function Stop-OwnedProcessTree {
     param([AllowNull()]$Process)
 
@@ -293,6 +328,7 @@ try {
             Process = $process
         })
         Wait-PreservedCore -BackendPort $backendPort -Process $process
+        Invoke-PreservedCoreWarmup -BackendPort $backendPort
     }
 
     $requestPool.Open()
