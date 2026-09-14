@@ -116,6 +116,12 @@ if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -cne '0' -and (Test-Path -Lit
         throw "BF-742 BLOCKED: shared-worker staging transform not found at $bf742Transform"
     }
     & $bf742Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    $bf743Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf743-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf743Transform -PathType Leaf)) {
+        throw "BF-743 BLOCKED: database warmup staging transform not found at $bf743Transform"
+    }
+    & $bf743Transform -DashboardPath $DashboardPath
 }
 elseif ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -ceq '1') {
     throw "BF-742 BLOCKED: explicit persistent worker staging requested but staged core was not found at $stagedCore"
