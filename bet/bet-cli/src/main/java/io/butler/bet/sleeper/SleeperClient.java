@@ -12,19 +12,46 @@ import java.util.Objects;
 
 public final class SleeperClient {
     private static final URI DEFAULT_BASE_URI = URI.create("https://api.sleeper.app/v1/");
+    private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration MAX_PREWARM_TIMEOUT = Duration.ofSeconds(5);
+    private static final HttpClient SHARED_HTTP_CLIENT = HttpClient.newBuilder()
+        .connectTimeout(DEFAULT_CONNECT_TIMEOUT)
+        .build();
 
     private final HttpClient httpClient;
     private final URI baseUri;
 
     public SleeperClient() {
-        this(HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .build(), DEFAULT_BASE_URI);
+        this(SHARED_HTTP_CLIENT, DEFAULT_BASE_URI);
     }
 
     SleeperClient(HttpClient httpClient, URI baseUri) {
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient must not be null");
         this.baseUri = Objects.requireNonNull(baseUri, "baseUri must not be null");
+    }
+
+    /**
+     * Warms only the process-scoped read-only Sleeper HTTP transport. The response is discarded and
+     * no provider payload is cached or reused by later requests.
+     */
+    public static boolean prewarmSharedTransportBestEffort(Duration requestTimeout) {
+        Objects.requireNonNull(requestTimeout, "requestTimeout must not be null");
+        if (requestTimeout.isZero()
+            || requestTimeout.isNegative()
+            || requestTimeout.compareTo(MAX_PREWARM_TIMEOUT) > 0) {
+            throw new IllegalArgumentException("requestTimeout must be greater than zero and at most 5 seconds");
+        }
+
+        try {
+            new SleeperClient(SHARED_HTTP_CLIENT, DEFAULT_BASE_URI).get("state/nfl", requestTimeout);
+            return true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
     }
 
     public String getLeague(String leagueId) throws IOException, InterruptedException {
@@ -101,8 +128,12 @@ public final class SleeperClient {
     }
 
     private String get(String relativePath) throws IOException, InterruptedException {
+        return get(relativePath, DEFAULT_REQUEST_TIMEOUT);
+    }
+
+    private String get(String relativePath, Duration requestTimeout) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(baseUri.resolve(relativePath))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(requestTimeout)
                 .header("Accept", "application/json")
                 .GET()
                 .build();
