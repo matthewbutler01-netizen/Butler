@@ -27,6 +27,16 @@ class ButlerDashboardThirdWarmupDiagnosticBf758Test {
     }
 
     @Test
+    void productionHasDistinctStartupAndRecoveryWarmupCalls() throws Exception {
+        String source = source("scripts/butler-app-shell-core.ps1");
+
+        String startupWarmup = "Invoke-PreservedCoreWarmup -BackendPort $backendPort";
+        String recoveryWarmup = "Invoke-PreservedCoreWarmup -BackendPort $replacementPort";
+        assertEquals(1, occurrences(source, startupWarmup));
+        assertEquals(1, occurrences(source, recoveryWarmup));
+    }
+
+    @Test
     void diagnosticAddsOneBoundedDashboardGetAfterBothProductionWarmupCallSites() throws Exception {
         String source = source("scripts/butler-dashboard-third-warmup-diagnostic.ps1");
 
@@ -37,8 +47,9 @@ class ButlerDashboardThirdWarmupDiagnosticBf758Test {
         assertTrue(source.contains("$request.ReadWriteTimeout = 3000"));
         assertTrue(source.contains("$request.Proxy = $null"));
         assertTrue(source.contains("$request.KeepAlive = $false"));
-        assertTrue(source.contains("expected exactly two production warmup call sites (startup and BF-757 recovery)"));
+        assertTrue(source.contains("expected one startup warmup call and one BF-757 recovery warmup call"));
         assertTrue(source.contains("Invoke-Bf758PreservedCoreDashboardWarmup -BackendPort `$backendPort"));
+        assertTrue(source.contains("Invoke-Bf758PreservedCoreDashboardWarmup -BackendPort `$replacementPort"));
         assertTrue(source.contains("including BF-757 replacement-core recovery"));
         assertFalse(source.contains("Start-Job"));
         assertFalse(source.contains("-Parallel"));
