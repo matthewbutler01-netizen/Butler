@@ -15,7 +15,7 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
 
     @Test
     void companionOwnersShareOneFiniteGateAfterRouteCacheMiss() throws Exception {
-        String worker = source("scripts/butler-app-request-worker.ps1");
+        String worker = source("scripts/butler-app-request-worker-impl.ps1");
         int functionStart = worker.indexOf("function Invoke-ExpensiveReadSingleFlightGet");
         int functionEnd = worker.indexOf("function Send-HttpResponse", functionStart);
         assertTrue(functionStart >= 0 && functionEnd > functionStart);
@@ -34,7 +34,7 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
 
     @Test
     void teamAndNonHeavyRoutesStayOutsideCompanionGate() throws Exception {
-        String worker = source("scripts/butler-app-request-worker.ps1");
+        String worker = source("scripts/butler-app-request-worker-impl.ps1");
         int teamStart = worker.indexOf("function Invoke-TeamSingleFlightGet");
         int teamEnd = worker.indexOf("function Get-ExpensiveReadSingleFlightKey", teamStart);
         String teamBlock = worker.substring(teamStart, teamEnd);
@@ -55,7 +55,8 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
 
     @Test
     void predecessorSingleFlightsRefreshBoundaryAndRecoveredInnerWorkerRemain() throws Exception {
-        String worker = source("scripts/butler-app-request-worker.ps1");
+        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String workerWrapper = source("scripts/butler-app-request-worker.ps1");
         String inner = source("scripts/butler-app-core-pool-worker-impl.ps1");
         String innerWrapper = source("scripts/butler-app-core-pool-worker.ps1");
 
@@ -65,6 +66,7 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         assertTrue(worker.contains("AddSeconds(5).Ticks"));
         assertTrue(worker.contains("Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken"));
         assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
+        assertTrue(workerWrapper.contains("butler-app-request-worker-impl.ps1"));
         assertFalse(inner.contains("Butler.Companion.Heavy"));
         assertTrue(inner.contains("$proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget"));
         assertTrue(innerWrapper.contains("butler-app-core-pool-worker-impl.ps1"));
@@ -75,9 +77,12 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
 
     @Test
     void bf694WorkerRemainsAsciiOnly() throws Exception {
-        String worker = source("scripts/butler-app-request-worker.ps1");
+        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String workerWrapper = source("scripts/butler-app-request-worker.ps1");
         byte[] encoded = worker.getBytes(StandardCharsets.US_ASCII);
         assertEquals(worker, new String(encoded, StandardCharsets.US_ASCII));
+        byte[] wrapperEncoded = workerWrapper.getBytes(StandardCharsets.US_ASCII);
+        assertEquals(workerWrapper, new String(wrapperEncoded, StandardCharsets.US_ASCII));
     }
 
     private static String source(String relativePath) throws IOException {
