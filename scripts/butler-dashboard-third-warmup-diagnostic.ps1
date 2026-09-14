@@ -146,16 +146,21 @@ try {
         throw "BF-758 BLOCKED: expected exactly one helper insertion marker, found $functionMarkerCount."
     }
 
-    $warmCall = '        Invoke-PreservedCoreWarmup -BackendPort $backendPort'
-    $warmCallCount = [regex]::Matches($source, [regex]::Escape($warmCall)).Count
-    if ($warmCallCount -ne 2) {
-        throw "BF-758 BLOCKED: expected exactly two production warmup call sites (startup and BF-757 recovery), found $warmCallCount."
+    $startupWarmCall = '        Invoke-PreservedCoreWarmup -BackendPort $backendPort'
+    $recoveryWarmCall = '        Invoke-PreservedCoreWarmup -BackendPort $replacementPort'
+    $startupWarmCallCount = [regex]::Matches($source, [regex]::Escape($startupWarmCall)).Count
+    $recoveryWarmCallCount = [regex]::Matches($source, [regex]::Escape($recoveryWarmCall)).Count
+    if ($startupWarmCallCount -ne 1 -or $recoveryWarmCallCount -ne 1) {
+        throw "BF-758 BLOCKED: expected one startup warmup call and one BF-757 recovery warmup call; found startup=$startupWarmCallCount recovery=$recoveryWarmCallCount."
     }
 
     $patched = $source.Replace($functionMarker, $dashboardWarmupFunction + $functionMarker)
     $patched = $patched.Replace(
-        $warmCall,
-        $warmCall + "`r`n        Invoke-Bf758PreservedCoreDashboardWarmup -BackendPort `$backendPort")
+        $startupWarmCall,
+        $startupWarmCall + "`r`n        Invoke-Bf758PreservedCoreDashboardWarmup -BackendPort `$backendPort")
+    $patched = $patched.Replace(
+        $recoveryWarmCall,
+        $recoveryWarmCall + "`r`n        Invoke-Bf758PreservedCoreDashboardWarmup -BackendPort `$replacementPort")
     [System.IO.File]::WriteAllText($corePath, $patched, [System.Text.UTF8Encoding]::new($false))
     $corePatched = $true
 
