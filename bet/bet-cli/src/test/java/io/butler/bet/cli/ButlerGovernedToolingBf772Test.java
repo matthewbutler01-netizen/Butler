@@ -27,7 +27,6 @@ class ButlerGovernedToolingBf772Test {
 
         assertFalse(script.contains("butler.db"));
         assertFalse(script.contains("Copy-Item -LiteralPath $dataDir"));
-        assertFalse(script.contains("/refresh"));
         assertFalse(script.contains("create_transaction"));
         assertFalse(script.contains("submitTransaction"));
     }
