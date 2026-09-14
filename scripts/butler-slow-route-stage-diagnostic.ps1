@@ -51,7 +51,7 @@ Push-Location $betCliDir
 try {
     try {
         $ErrorActionPreference = 'Continue'
-        $lines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classpath 'io.butler.bet.cli.ButlerSlowRouteStageDiagnosticCli' $leagueId 2>&1
+        $lines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classpath 'io.butler.bet.cli.ButlerWarmedSlowRouteStageDiagnosticCli' $leagueId 2>&1
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -69,8 +69,19 @@ if ($exitCode -ne 0) {
     if ($tail.Length -gt 1200) {
         $tail = '...' + $tail.Substring($tail.Length - 1200)
     }
-    throw "BF-733 BLOCKED: slow-route read-only timing diagnostic exited with code $exitCode; output=$tail"
+    throw "BF-760 BLOCKED: warmed slow-route read-only timing diagnostic exited with code $exitCode; output=$tail"
 }
+
+$prewarmLines = @($textLines | Where-Object { $_ -match '^===BUTLER_SLOW_ROUTE_TRANSPORT_PREWARM:.*===$' })
+if ($prewarmLines.Count -ne 1) {
+    throw "BF-760 BLOCKED: expected exactly one Sleeper transport prewarm marker but found $($prewarmLines.Count)."
+}
+$prewarmPattern = '^===BUTLER_SLOW_ROUTE_TRANSPORT_PREWARM:state=SUCCESS;elapsed_ms=(?<elapsed>\d+)===$'
+$prewarmMatch = [regex]::Match($prewarmLines[0], $prewarmPattern)
+if (-not $prewarmMatch.Success) {
+    throw 'BF-760 BLOCKED: Sleeper transport prewarm marker does not match the expected success contract.'
+}
+$prewarmElapsedMs = [long]$prewarmMatch.Groups['elapsed'].Value
 
 $timingLines = @($textLines | Where-Object { $_ -match '^===BUTLER_SLOW_ROUTE_TIMING:.*===$' })
 if ($timingLines.Count -ne 1) {
@@ -85,5 +96,7 @@ if (-not $match.Success) {
 
 $payload = $match.Groups['payload'].Value.Replace(';', '; ')
 Write-Host ''
-Write-Host ('Slow-route stage timing (diagnostic, outside BF-688): ' + $payload)
+Write-Host ("BF-760 Sleeper transport prewarm (same JVM, outside target_ms): state=SUCCESS; elapsed_ms={0}" -f $prewarmElapsedMs)
+Write-Host ('Slow-route stage timing (warmed-transport diagnostic, outside BF-688): ' + $payload)
+Write-Host 'BF-760 diagnostic boundary: BF-748-equivalent shared Sleeper transport is prewarmed once in the same JVM before unchanged BF-623 verification; response discarded; no provider payload caching or concurrency; /refresh excluded; no Butler or Sleeper write path is invoked.'
 Write-Host 'BF-736 comparison diagnostic boundary: read-only existing evidence only; BF-615 source order preserved; /refresh excluded; no Butler or Sleeper write path is invoked.'
