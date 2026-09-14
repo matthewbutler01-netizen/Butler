@@ -94,7 +94,7 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         String targetService = source("bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
 
         int marker = warmup.indexOf("BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE = '1'");
-        int start = warmup.indexOf("Start-Bf740PersistentCoreWorker");
+        int start = warmup.indexOf("Start-Bf740PersistentCoreWorker", marker);
         assertTrue(marker >= 0);
         assertTrue(start > marker);
         assertTrue(worker.contains("BF743_DATABASE_WARMUP_ENV"));
