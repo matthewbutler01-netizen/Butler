@@ -16,6 +16,9 @@ butler.db
 *.jks
 *.keystore
 
+# Generated release artifacts
+release-output/
+
 # Gradle
 .gradle/
 **/build/
