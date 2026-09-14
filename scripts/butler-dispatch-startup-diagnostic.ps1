@@ -36,12 +36,15 @@ if ([string]::IsNullOrWhiteSpace($comspec) -or -not (Test-Path -LiteralPath $com
     throw 'BF-738 BLOCKED: cmd.exe could not be resolved.'
 }
 
-$tempRoot = Join-Path (Join-Path $localAppData 'Butler') ("dispatch-diagnostic-{0}" -f $PID)
+$butlerTempRoot = Join-Path $localAppData 'Butler'
+$tempRoot = Join-Path $butlerTempRoot ("dispatch-diagnostic-{0}" -f $PID)
+$tempDataDir = Join-Path $butlerTempRoot ("dispatch-diagnostic-data-{0}" -f $PID)
 $tempScripts = Join-Path $tempRoot 'scripts'
 $tempProxy = Join-Path $tempRoot 'gradlew.bat'
 $tempDispatch = Join-Path $tempScripts 'butler-direct-java-dispatch.ps1'
 $originalRuntimeLib = $env:BUTLER_APP_RUNTIME_LIB
 $originalRepoRoot = $env:BUTLER_APP_REPO_ROOT
+$originalDataDir = $env:BUTLER_APP_DATA_DIR
 
 function Restore-DiagnosticEnvironment {
     if ($null -eq $originalRuntimeLib) { Remove-Item Env:BUTLER_APP_RUNTIME_LIB -ErrorAction SilentlyContinue }
@@ -49,6 +52,9 @@ function Restore-DiagnosticEnvironment {
 
     if ($null -eq $originalRepoRoot) { Remove-Item Env:BUTLER_APP_REPO_ROOT -ErrorAction SilentlyContinue }
     else { $env:BUTLER_APP_REPO_ROOT = $originalRepoRoot }
+
+    if ($null -eq $originalDataDir) { Remove-Item Env:BUTLER_APP_DATA_DIR -ErrorAction SilentlyContinue }
+    else { $env:BUTLER_APP_DATA_DIR = $originalDataDir }
 }
 
 function New-ProbeStartInfo {
@@ -59,7 +65,7 @@ function New-ProbeStartInfo {
         $classPath = Join-Path $runtimeLibDir '*'
         $start.FileName = $java
         $start.Arguments = "--enable-native-access=ALL-UNNAMED -cp `"$classPath`" io.butler.bet.cli.ButlerCommandRouter help"
-        $start.WorkingDirectory = $betCliDir
+        $start.WorkingDirectory = $tempDataDir
     }
     else {
         $start.FileName = $comspec
@@ -139,14 +145,18 @@ function Get-P50Ms {
 }
 
 try {
-    if (Test-Path -LiteralPath $tempRoot) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction Stop
+    foreach ($ownedPath in @($tempRoot, $tempDataDir)) {
+        if (Test-Path -LiteralPath $ownedPath) {
+            Remove-Item -LiteralPath $ownedPath -Recurse -Force -ErrorAction Stop
+        }
     }
     New-Item -ItemType Directory -Path $tempScripts -Force | Out-Null
+    New-Item -ItemType Directory -Path $tempDataDir -Force | Out-Null
     Copy-Item -LiteralPath $dispatchSource -Destination $tempDispatch -Force
     Copy-Item -LiteralPath $proxySource -Destination $tempProxy -Force
     $env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir
     $env:BUTLER_APP_REPO_ROOT = $repoRoot
+    $env:BUTLER_APP_DATA_DIR = $tempDataDir
 
     # Warm OS/JAR file cache without touching Butler data or any provider.
     [void](Invoke-ProbeBatch -Mode RAW_JAVA -Count 1)
@@ -175,11 +185,13 @@ try {
     Write-Host ("Dispatch startup timing (diagnostic): raw_java_seq_p50_ms={0}; proxy_chain_seq_p50_ms={1}; raw_java_c6_p50_ms={2}; proxy_chain_c6_p50_ms={3}; proxy_wrapper_seq_overhead_ms={4}; proxy_wrapper_c6_overhead_ms={5}; raw_java_c6_wall_ms={6}; proxy_chain_c6_wall_ms={7}" -f
         $rawSequentialP50, $proxySequentialP50, $rawConcurrentP50, $proxyConcurrentP50,
         $proxySequentialOverhead, $proxyConcurrentOverhead, $rawConcurrent.WallMs, $proxyConcurrent.WallMs)
-    Write-Host 'BF-738 diagnostic boundary: Butler global help only; no database or provider read, no /refresh, and no Butler or Sleeper write is invoked.'
+    Write-Host 'BF-738 diagnostic boundary: owned temporary governed data directory; Butler global help only; no database or provider read, no /refresh, and no Butler or Sleeper write is invoked.'
 }
 finally {
     Restore-DiagnosticEnvironment
-    if (Test-Path -LiteralPath $tempRoot) {
-        try { Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction Stop } catch {}
+    foreach ($ownedPath in @($tempRoot, $tempDataDir)) {
+        if (Test-Path -LiteralPath $ownedPath) {
+            try { Remove-Item -LiteralPath $ownedPath -Recurse -Force -ErrorAction Stop } catch {}
+        }
     }
 }
