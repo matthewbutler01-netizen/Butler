@@ -20,6 +20,26 @@ function Restore-Bf752EnvironmentValue {
     }
 }
 
+function Invoke-Bf752Git {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $git @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+        return [pscustomobject]@{
+            Output = @($output)
+            ExitCode = $exitCode
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $gitCommand = Get-Command git.exe -ErrorAction Stop
@@ -27,6 +47,7 @@ $git = $gitCommand.Source
 $tempRoot = [System.IO.Path]::GetTempPath()
 $worktreePath = Join-Path $tempRoot ("Butler-bf752-{0}-{1}" -f $PID, [Guid]::NewGuid().ToString('N'))
 $worktreeAdded = $false
+$worktreeAddAttempted = $false
 $locationPushed = $false
 
 $originalPersistentWorker = [Environment]::GetEnvironmentVariable('BUTLER_APP_PERSISTENT_CORE_WORKER', [EnvironmentVariableTarget]::Process)
@@ -36,12 +57,12 @@ $originalCoreWarmup = [Environment]::GetEnvironmentVariable('BUTLER_APP_CORE_POO
 try {
     Push-Location $repoRoot
     $locationPushed = $true
-    $worktreeOutput = & $git worktree add --detach $worktreePath HEAD 2>&1
-    $worktreeExit = $LASTEXITCODE
+    $worktreeAddAttempted = $true
+    $worktreeResult = Invoke-Bf752Git -Arguments @('worktree', 'add', '--detach', $worktreePath, 'HEAD')
     Pop-Location
     $locationPushed = $false
-    if ($worktreeExit -ne 0) {
-        throw "BF-752 BLOCKED: unable to create detached diagnostic worktree. $($worktreeOutput -join ' ')"
+    if ($worktreeResult.ExitCode -ne 0) {
+        throw "BF-752 BLOCKED: unable to create detached diagnostic worktree. $($worktreeResult.Output -join ' ')"
     }
     $worktreeAdded = $true
 
@@ -93,12 +114,12 @@ finally {
     Restore-Bf752EnvironmentValue -Name 'BUTLER_APP_SLEEPER_TRANSPORT_PREWARM' -Value $originalTransportPrewarm
     Restore-Bf752EnvironmentValue -Name 'BUTLER_APP_CORE_POOL_WARMUP' -Value $originalCoreWarmup
 
-    if ($worktreeAdded) {
+    if ($worktreeAdded -or $worktreeAddAttempted -or (Test-Path -LiteralPath $worktreePath)) {
         try {
             Push-Location $repoRoot
             try {
-                & $git worktree remove --force $worktreePath 2>$null | Out-Null
-                & $git worktree prune 2>$null | Out-Null
+                [void](Invoke-Bf752Git -Arguments @('worktree', 'remove', '--force', $worktreePath))
+                [void](Invoke-Bf752Git -Arguments @('worktree', 'prune'))
             }
             finally {
                 Pop-Location
