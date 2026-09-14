@@ -35,6 +35,9 @@ class SleeperLiveWaiverProductionCoverageAuditTest {
         assertEquals(1, report.sourceCoverage().get("NFLVERSE").candidateObservations());
         assertEquals("2025-09-03", report.sourceCoverage().get("NFLVERSE").latestAsOf().toString());
         assertEquals(1, report.sourceCoverage().get("SLEEPER_PROVIDER_NATIVE").candidateObservations());
+        assertEquals(
+            List.of("A", "C", "B"),
+            report.candidates().stream().map(candidate -> candidate.market().sleeperPlayerId()).toList());
 
         var a = report.candidates().stream()
             .filter(candidate -> candidate.market().sleeperPlayerId().equals("A"))
@@ -50,6 +53,8 @@ class SleeperLiveWaiverProductionCoverageAuditTest {
         assertEquals(2, a.production().size());
         assertEquals("NFLVERSE", a.production().get(0).source());
         assertEquals("2025-09-03", a.production().get(0).asOfDate().toString());
+        assertEquals("SLEEPER_PROVIDER_NATIVE", a.production().get(1).source());
+        assertEquals("2025-09-02", a.production().get(1).asOfDate().toString());
         assertEquals(SleeperLiveWaiverProductionCoverageAudit.CoverageState.MAPPED_NO_2025_PRODUCTION, b.state());
         assertEquals(SleeperLiveWaiverProductionCoverageAudit.CoverageState.UNMAPPED_CANONICAL, c.state());
     }
