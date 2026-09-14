@@ -15,6 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerReadOnlyJvmWorkerBf740Test {
+    private static final String LEAGUE_ID = "8f5f6f8a-9f8c-4b68-8f2b-7f7cbe64d291";
+
     @Test
     void exactCoreOperationsAreFramedAndCarryOnlyValidatedLeagueId() throws Exception {
         List<ButlerReadOnlyJvmWorker.CommandRequest> requests = new ArrayList<>();
@@ -26,8 +28,8 @@ class ButlerReadOnlyJvmWorkerBf740Test {
 
         StringWriter output = new StringWriter();
         try (BufferedReader input = new BufferedReader(new StringReader(
-                "LEAGUE_OVERVIEW\toverview-1\t123456789012345678\n"
-                    + "TEAM_BUNDLE\tteam-1\t123456789012345678\n"
+                "LEAGUE_OVERVIEW\toverview-1\t" + LEAGUE_ID + "\n"
+                    + "TEAM_BUNDLE\tteam-1\t" + LEAGUE_ID + "\n"
                     + "QUIT\n"));
              PrintWriter protocol = new PrintWriter(output, true)) {
             ButlerReadOnlyJvmWorker.serve(input, protocol, executor);
@@ -38,14 +40,14 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         assertEquals(ButlerReadOnlyJvmWorker.READY, lines.get(0));
         assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(3));
 
-        assertResult(lines.get(1), "overview-1", "LEAGUE_OVERVIEW:123456789012345678");
-        assertResult(lines.get(2), "team-1", "TEAM_BUNDLE:123456789012345678");
+        assertResult(lines.get(1), "overview-1", "LEAGUE_OVERVIEW:" + LEAGUE_ID);
+        assertResult(lines.get(2), "team-1", "TEAM_BUNDLE:" + LEAGUE_ID);
 
         assertEquals(2, requests.size());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LEAGUE_OVERVIEW, requests.get(0).operation());
-        assertEquals("123456789012345678", requests.get(0).leagueId());
+        assertEquals(LEAGUE_ID, requests.get(0).leagueId());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.TEAM_BUNDLE, requests.get(1).operation());
-        assertEquals("123456789012345678", requests.get(1).leagueId());
+        assertEquals(LEAGUE_ID, requests.get(1).leagueId());
     }
 
     @Test
@@ -58,22 +60,23 @@ class ButlerReadOnlyJvmWorkerBf740Test {
 
         StringWriter output = new StringWriter();
         try (BufferedReader input = new BufferedReader(new StringReader(
-                "RUN\tr1\t123456\n"
-                    + "LEAGUE_OVERVIEW\tr2\tnot-a-league\n"
-                    + "TEAM_BUNDLE\tr3\t123456\textra\n"
-                    + "LEAGUE_OVERVIEW\tbad request\t123456\n"
+                "RUN\tr1\t" + LEAGUE_ID + "\n"
+                    + "LEAGUE_OVERVIEW\tr2\t123456789012345678\n"
+                    + "TEAM_BUNDLE\tr3\t" + LEAGUE_ID + "\textra\n"
+                    + "LEAGUE_OVERVIEW\tbad request\t" + LEAGUE_ID + "\n"
+                    + "TEAM_BUNDLE\tr4\t8F5F6F8A-9F8C-4B68-8F2B-7F7CBE64D291\n"
                     + "QUIT\n"));
              PrintWriter protocol = new PrintWriter(output, true)) {
             ButlerReadOnlyJvmWorker.serve(input, protocol, executor);
         }
 
         List<String> lines = output.toString().lines().toList();
-        assertEquals(6, lines.size());
+        assertEquals(7, lines.size());
         assertEquals(ButlerReadOnlyJvmWorker.READY, lines.get(0));
-        for (int index = 1; index <= 4; index++) {
+        for (int index = 1; index <= 5; index++) {
             assertReject(lines.get(index));
         }
-        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(5));
+        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(6));
         assertTrue(requests.isEmpty());
     }
 
