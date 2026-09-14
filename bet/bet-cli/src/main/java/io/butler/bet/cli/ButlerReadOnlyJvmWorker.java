@@ -1,5 +1,7 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.data.Database;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,17 +10,20 @@ import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.regex.Pattern;
 
 /**
  * Long-lived read-only Butler JVM worker. BF-739 proved JVM reuse, BF-740 added the exact My Team
- * and League reads, and BF-742 adds only the exact dashboard reads needed to share one worker per
- * preserved core. The protocol exposes no generic CLI or task execution surface.
+ * and League reads, BF-742 shares one worker per preserved core, and BF-743 optionally warms only
+ * database schema initialization for the production worker without retaining request evidence.
+ * The protocol exposes no generic CLI or task execution surface.
  */
 public final class ButlerReadOnlyJvmWorker {
     static final String READY = "READY\tBF739\t1";
     static final String BYE = "BYE\tBF739";
+    static final String BF743_DATABASE_WARMUP_ENV = "BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE";
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final Pattern LEAGUE_ID = Pattern.compile(
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -27,9 +32,21 @@ public final class ButlerReadOnlyJvmWorker {
     private ButlerReadOnlyJvmWorker() {}
 
     public static void main(String[] args) throws IOException {
+        preinitializeDatabaseIfAuthorized(System.getenv(BF743_DATABASE_WARMUP_ENV));
         BufferedReader input = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
         PrintWriter protocol = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
         serve(input, protocol);
+    }
+
+    static void preinitializeDatabaseIfAuthorized(String authorization) throws IOException {
+        if (!"1".equals(authorization)) {
+            return;
+        }
+        try {
+            Database.initializeReadOnlyWorker(Path.of("butler.db"));
+        } catch (Exception e) {
+            throw new IOException("BF-743 BLOCKED: read-only worker database preinitialization failed.", e);
+        }
     }
 
     static void serve(BufferedReader input, PrintWriter protocol) throws IOException {
