@@ -28,11 +28,11 @@ class ButlerAppPublicUiModuleCacheBf766Test {
 
         int tradeHost = wrapper.indexOf("ButlerBf766TradeHostScriptBlock");
         int tradeLab = wrapper.indexOf("ButlerBf766TradeLabScriptBlock");
-        int history = wrapper.indexOf("ButlerBf766HistoryScriptBlock");
+        int history = wrapper.lastIndexOf("ButlerBf766HistoryScriptBlock");
         int detail = wrapper.indexOf("ButlerBf766DetailScriptBlock");
-        int refresh = wrapper.indexOf("ButlerBf766DecisionRefreshScriptBlock");
+        int refresh = wrapper.lastIndexOf("ButlerBf766DecisionRefreshScriptBlock");
         assertTrue(tradeHost >= 0 && tradeLab > tradeHost && history > tradeLab && detail > history && refresh > detail,
-            "BF-766 must preserve TradeHost -> TradeLab -> History -> Detail -> DecisionRefresh execution order");
+            "BF-766 full module path must preserve TradeHost -> TradeLab -> History -> Detail -> DecisionRefresh execution order");
     }
 
     @Test
