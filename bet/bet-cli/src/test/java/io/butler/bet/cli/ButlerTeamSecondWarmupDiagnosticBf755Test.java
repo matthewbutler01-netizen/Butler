@@ -43,12 +43,15 @@ class ButlerTeamSecondWarmupDiagnosticBf755Test {
     }
 
     @Test
-    void productionWarmupRemainsWaiverOnlyUntilDiagnosticProvesSecondRead() throws Exception {
+    void productionWarmupNowIncludesProvenWaiverThenTeamProfile() throws Exception {
         String core = source("scripts/butler-app-shell-core.ps1");
         String warmup = between(core, "function Invoke-PreservedCoreWarmup {", "function Stop-OwnedProcessTree {");
 
-        assertTrue(warmup.contains("http://127.0.0.1:$BackendPort/waivers"));
-        assertFalse(warmup.contains("http://127.0.0.1:$BackendPort/team"));
+        String waiverUrl = "http://127.0.0.1:$BackendPort/waivers";
+        String teamUrl = "http://127.0.0.1:$BackendPort/team";
+        assertTrue(warmup.contains(waiverUrl));
+        assertTrue(warmup.contains(teamUrl));
+        assertTrue(warmup.indexOf(waiverUrl) < warmup.indexOf(teamUrl));
         assertFalse(warmup.contains("/refresh"));
 
         String diagnostic = source("scripts/butler-team-second-warmup-diagnostic.ps1");
