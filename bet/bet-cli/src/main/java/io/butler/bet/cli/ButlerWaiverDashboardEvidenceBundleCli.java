@@ -1,7 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
-import io.butler.bet.sleeper.SleeperLiveWaiverComparisonExecutionBundle;
+import io.butler.bet.sleeper.SleeperLiveWaiverComparisonEvidenceReuse;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
@@ -63,7 +63,7 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
                 var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
                 return new SummaryEvidence(summary, convergence);
             },
-            () -> new SleeperLiveWaiverComparisonExecutionBundle(database)
+            () -> new SleeperLiveWaiverComparisonEvidenceReuse(database)
                 .run(leagueId, target.sleeperUserId()),
             () -> new SleeperLiveWaiverTargetRosterContextAudit(database)
                 .audit(leagueId, target.sleeperUserId()));
@@ -88,7 +88,7 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
         String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
 
         var reports = runConcurrentPair(
-            () -> new SleeperLiveWaiverComparisonExecutionBundle(database)
+            () -> new SleeperLiveWaiverComparisonEvidenceReuse(database)
                 .run(leagueId, target.sleeperUserId()),
             () -> new SleeperLiveWaiverTargetRosterContextAudit(database)
                 .audit(leagueId, target.sleeperUserId()));
