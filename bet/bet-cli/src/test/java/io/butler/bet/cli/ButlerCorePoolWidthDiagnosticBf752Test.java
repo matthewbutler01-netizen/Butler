@@ -16,18 +16,32 @@ class ButlerCorePoolWidthDiagnosticBf752Test {
 
         assertTrue(source.contains("[ValidateRange(2, 6)]"));
         assertTrue(source.contains("[int]$CoreWorkers = 4"));
-        assertTrue(source.contains("worktree add --detach"));
+        assertTrue(source.contains("worktree', 'add', '--detach"));
         assertTrue(source.contains("$worktreeCore = Join-Path $worktreePath 'scripts\\butler-app-shell-core.ps1'"));
         assertTrue(source.contains("$needle = '$maxCoreWorkers = 6'"));
         assertTrue(source.contains("$replacement = '$maxCoreWorkers = ' + $CoreWorkers"));
         assertTrue(source.contains("expected exactly one preserved-core width contract"));
         assertTrue(source.contains("scripts\\butler-acceptance.cmd"));
-        assertTrue(source.contains("worktree remove --force"));
-        assertTrue(source.contains("worktree prune"));
+        assertTrue(source.contains("worktree', 'remove', '--force"));
+        assertTrue(source.contains("worktree', 'prune'"));
         assertTrue(source.contains("finally {"));
         assertTrue(source.contains("production checkout is not modified"));
         assertFalse(source.contains("BUTLER_APP_CORE_POOL_SIZE"));
         assertFalse(source.contains("/refresh" + "?"));
+    }
+
+    @Test
+    void nativeGitProgressDoesNotBecomeTerminatingPowerShellErrorAndEarlyAddStillCleansUp() throws Exception {
+        String source = source("scripts/butler-core-pool-width-diagnostic.ps1");
+
+        assertTrue(source.contains("function Invoke-Bf752Git"));
+        assertTrue(source.contains("$ErrorActionPreference = 'Continue'"));
+        assertTrue(source.contains("$exitCode = $LASTEXITCODE"));
+        assertTrue(source.contains("$ErrorActionPreference = $previousPreference"));
+        assertTrue(source.contains("$worktreeAddAttempted = $true"));
+        assertTrue(source.contains("$worktreeAdded -or $worktreeAddAttempted -or (Test-Path -LiteralPath $worktreePath)"));
+        assertTrue(source.contains("Invoke-Bf752Git -Arguments @('worktree', 'remove', '--force', $worktreePath)"));
+        assertTrue(source.contains("Invoke-Bf752Git -Arguments @('worktree', 'prune')"));
     }
 
     @Test
