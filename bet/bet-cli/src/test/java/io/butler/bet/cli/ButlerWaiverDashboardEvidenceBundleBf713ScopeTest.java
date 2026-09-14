@@ -75,7 +75,8 @@ class ButlerWaiverDashboardEvidenceBundleBf713ScopeTest {
         String pairMode = bundle.substring(start, end);
 
         assertTrue(pairMode.contains("runConcurrentPair"));
-        assertTrue(pairMode.contains("SleeperLiveWaiverComparisonExecutionBundle"));
+        assertTrue(pairMode.contains("SleeperLiveWaiverComparisonEvidenceReuse"));
+        assertFalse(pairMode.contains("SleeperLiveWaiverComparisonExecutionBundle"));
         assertTrue(pairMode.contains("SleeperLiveWaiverTargetRosterContextAudit"));
         assertTrue(pairMode.contains("emit(WAIVER_BOARD, waiverBoard)"));
         assertTrue(pairMode.contains("emit(ROSTER_CONTEXT, rosterContext)"));

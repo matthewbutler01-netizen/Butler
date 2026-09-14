@@ -1,6 +1,7 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.sleeper.SleeperLiveWaiverComparisonEvidenceReuse;
 import io.butler.bet.sleeper.SleeperLiveWaiverComparisonExecutionBundle;
 
 import java.nio.file.Path;
@@ -22,7 +23,7 @@ public final class ButlerSleeperLiveWaiverComparisonBundleCli {
             database.initialize();
             var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
             ButlerPersonalizedTargetCliSupport.printVerified(target);
-            print(new SleeperLiveWaiverComparisonExecutionBundle(database)
+            print(new SleeperLiveWaiverComparisonEvidenceReuse(database)
                 .run(leagueId, target.sleeperUserId()));
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
