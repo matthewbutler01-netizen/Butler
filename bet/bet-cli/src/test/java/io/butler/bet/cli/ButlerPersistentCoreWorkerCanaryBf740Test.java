@@ -28,7 +28,8 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
 
         assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE')"));
         assertTrue(helper.contains("TimeoutMs 180000"));
-        assertTrue(helper.contains("^\\d{1,32}$"));
+        assertTrue(helper.contains("^[0-9]{1,32}$"));
+        assertTrue(helper.contains("terminated to prevent protocol desynchronization"));
         assertFalse(helper.contains("sleeperLiveWaiverComparisonBundle"));
         assertFalse(helper.contains("production-refresh"));
         assertFalse(helper.contains("/refresh"));
