@@ -129,14 +129,14 @@ try {
 
     $waiverTarget = 'http://127.0.0.1:$BackendPort/waivers'
     $teamTarget = 'http://127.0.0.1:$BackendPort/team'
-    $dashboardTarget = 'http://127.0.0.1:$BackendPort/'
+    $dashboardCreate = '[System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/")'
     if ([regex]::Matches($warmupSource, [regex]::Escape($waiverTarget)).Count -ne 1) {
         throw 'BF-758 BLOCKED: production warmup must contain exactly one /waivers target.'
     }
     if ([regex]::Matches($warmupSource, [regex]::Escape($teamTarget)).Count -ne 1) {
         throw 'BF-758 BLOCKED: production warmup must contain exactly one /team target.'
     }
-    if ([regex]::Matches($warmupSource, [regex]::Escape($dashboardTarget)).Count -ne 0) {
+    if ([regex]::Matches($warmupSource, [regex]::Escape($dashboardCreate)).Count -ne 0) {
         throw 'BF-758 BLOCKED: production warmup already contains a dashboard root target.'
     }
 
