@@ -64,8 +64,19 @@ public final class SleeperLiveWaiverComparisonEvidenceReuse {
         long candidateMs = elapsedMs(candidateStarted);
 
         long rosterStarted = System.nanoTime();
-        RosterEvidence rosterEvidence = Objects.requireNonNull(
-            rosterEvidenceSource.load(normalizedLeagueId, normalizedOwnerId), "BF-737 roster evidence must not be null");
+        RosterEvidence rosterEvidence;
+        if (candidateEvidence.reusableReadiness() == null) {
+            rosterEvidence = Objects.requireNonNull(
+                rosterEvidenceSource.load(normalizedLeagueId, normalizedOwnerId),
+                "BF-737 roster evidence must not be null");
+        } else {
+            rosterEvidence = Objects.requireNonNull(
+                SleeperLiveWaiverPregameEvidenceReadinessAudit.withScopedReuse(
+                    candidateEvidence.reusableReadiness(),
+                    normalizedLeagueId,
+                    () -> rosterEvidenceSource.load(normalizedLeagueId, normalizedOwnerId)),
+                "BF-737 roster evidence must not be null");
+        }
         long rosterMs = elapsedMs(rosterStarted);
 
         long methodologyStarted = System.nanoTime();
@@ -169,7 +180,7 @@ public final class SleeperLiveWaiverComparisonEvidenceReuse {
         var comparisonFrame = new SleeperLiveWaiverComparisonExecutionBundle.CandidateFrame(
             report.leagueId(), report.marketSnapshotId(), report.candidateCount(),
             comparisonEntries.size(), List.copyOf(comparisonEntries));
-        return new CandidateEvidence(readinessFrame, comparisonFrame);
+        return new CandidateEvidence(readinessFrame, comparisonFrame, report);
     }
 
     static RosterEvidence rosterEvidence(
@@ -249,10 +260,25 @@ public final class SleeperLiveWaiverComparisonEvidenceReuse {
 
     record CandidateEvidence(
         SleeperLiveWaiverCandidateRosterComparisonReadinessAudit.CandidateFrame readinessFrame,
-        SleeperLiveWaiverComparisonExecutionBundle.CandidateFrame comparisonFrame) {
+        SleeperLiveWaiverComparisonExecutionBundle.CandidateFrame comparisonFrame,
+        SleeperLiveWaiverPregameEvidenceReadinessAudit.ReadinessReport reusableReadiness) {
+        CandidateEvidence(
+            SleeperLiveWaiverCandidateRosterComparisonReadinessAudit.CandidateFrame readinessFrame,
+            SleeperLiveWaiverComparisonExecutionBundle.CandidateFrame comparisonFrame) {
+            this(readinessFrame, comparisonFrame, null);
+        }
+
         CandidateEvidence {
             Objects.requireNonNull(readinessFrame, "readinessFrame must not be null");
             Objects.requireNonNull(comparisonFrame, "comparisonFrame must not be null");
+            if (reusableReadiness != null) {
+                if (!SleeperLiveWaiverPregameEvidenceReadinessAudit.POLICY_ID.equals(reusableReadiness.policyId())) {
+                    throw new IllegalArgumentException("BF-761 reusable readiness has an unexpected BF-609 policy");
+                }
+                if (!readinessFrame.leagueId().equals(reusableReadiness.leagueId())) {
+                    throw new IllegalArgumentException("BF-761 reusable readiness league does not match candidate frame");
+                }
+            }
         }
     }
 
