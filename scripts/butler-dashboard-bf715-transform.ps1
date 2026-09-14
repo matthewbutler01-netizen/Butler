@@ -108,7 +108,8 @@ if (-not $text.Contains('Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 
-if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -ceq '1') {
+# BF-741 default: stage the proven BF-740 core worker unless an operator explicitly opts out with =0.
+if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -cne '0') {
     $bf740Transform = Join-Path $PSScriptRoot 'butler-core-bf740-transform.ps1'
     if (-not (Test-Path -LiteralPath $bf740Transform -PathType Leaf)) {
         throw "BF-740 BLOCKED: staged core transform not found at $bf740Transform"
