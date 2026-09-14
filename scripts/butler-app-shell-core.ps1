@@ -223,6 +223,33 @@ function Invoke-PreservedCoreWarmup {
     finally {
         if ($null -ne $response) { $response.Close() }
     }
+
+    $teamRequest = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/team")
+    $teamRequest.Method = 'GET'
+    $teamRequest.Timeout = 3000
+    $teamRequest.ReadWriteTimeout = 3000
+    $teamRequest.Proxy = $null
+    $teamRequest.KeepAlive = $false
+    $teamResponse = $null
+    try {
+        $teamResponse = $teamRequest.GetResponse()
+        if ([int]$teamResponse.StatusCode -ne 200) {
+            throw "HTTP $([int]$teamResponse.StatusCode)"
+        }
+        $teamReader = [System.IO.StreamReader]::new($teamResponse.GetResponseStream(), [System.Text.Encoding]::UTF8)
+        try {
+            [void]$teamReader.ReadToEnd()
+        }
+        finally {
+            $teamReader.Dispose()
+        }
+    }
+    catch {
+        Write-Warning ("BF-756 preserved-core team warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+    }
+    finally {
+        if ($null -ne $teamResponse) { $teamResponse.Close() }
+    }
 }
 
 function Stop-OwnedProcessTree {
