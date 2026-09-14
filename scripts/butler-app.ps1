@@ -13,6 +13,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent $scriptDir
 $appShell = Join-Path $scriptDir "butler-app-shell.ps1"
 $launcherPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
 $appShellPath = [IO.Path]::GetFullPath($appShell)
@@ -55,6 +56,30 @@ function Read-ConfiguredLeagueId {
     catch {
         throw "BF-666 BLOCKED: Butler app league configuration is invalid. Run scripts\butler-app.cmd -ResetLeague and configure it again."
     }
+}
+
+function Resolve-ButlerAppDataDir {
+    $configured = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($configured)) {
+        $candidate = Join-Path $configDir "data"
+    }
+    else {
+        if (-not [IO.Path]::IsPathRooted($configured)) {
+            throw "BF-770 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path."
+        }
+        $candidate = $configured
+    }
+
+    $resolved = [IO.Path]::GetFullPath($candidate)
+    $sourceRoot = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\')
+    $sourcePrefix = $sourceRoot + '\'
+    if ($resolved.Equals($sourceRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $resolved.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "BF-770 BLOCKED: Butler runtime data directory must be outside the source/package tree."
+    }
+
+    [IO.Directory]::CreateDirectory($resolved) | Out-Null
+    return $resolved
 }
 
 function Remove-StaleRunState {
@@ -237,47 +262,72 @@ if ($null -eq $selectedLeagueId) {
     throw "BF-666 BLOCKED: Butler app is not configured. Run: scripts\butler-app.cmd -LeagueId <butler-league-id>"
 }
 
-if ($null -eq $configuredLeagueId) {
-    [IO.Directory]::CreateDirectory($configDir) | Out-Null
-    [IO.File]::WriteAllText($configPath, $selectedLeagueId + "`r`n", [Text.Encoding]::ASCII)
-    Write-Host "Butler app league selection saved."
-}
-elseif ($null -ne $requestedLeagueId) {
-    Write-Host "Butler app league selection already matches."
-}
-
-$liveRunState = Test-LiveButlerRunState
-$portState = Get-AppPortState -RequestedPort $Port
-$ownedByButlerProcess = $false
-if ($portState -ceq "OCCUPIED_OTHER") {
-    $ownedByButlerProcess = Test-PortOwnedByButlerProcess -RequestedPort $Port
-}
-if (($liveRunState -or $ownedByButlerProcess) -and $portState -ceq "OCCUPIED_OTHER") {
-    $portState = "OCCUPIED_BUTLER"
-}
-if ($liveRunState -and $portState -ceq "FREE") {
-    throw "BF-669 BLOCKED: Butler is already starting on port $Port. Wait for the existing Butler window to finish launching before trying again."
-}
-if ($portState -ceq "OCCUPIED_BUTLER") {
-    throw "BF-669 BLOCKED: Butler is already running on port $Port. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
-}
-if ($portState -ceq "OCCUPIED_OTHER") {
-    throw "BF-669 BLOCKED: local port $Port is already in use by another process. Butler will not stop it automatically. Stop that process yourself or launch Butler with -Port <free-port>."
-}
-
-Write-ButlerRunState -SelectedLeagueId $selectedLeagueId
-try {
-    Write-Host "Butler App"
-    Write-Host "League: $selectedLeagueId"
-    Write-Host "Launching Butler app shell on port $Port."
-
-    if ($NoBrowser) {
-        & $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser
+$dataDir = Resolve-ButlerAppDataDir
+$databasePath = Join-Path $dataDir "butler.db"
+$legacyDatabasePath = Join-Path $repoRoot "bet\bet-cli\butler.db"
+if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+    if (Test-Path -LiteralPath $legacyDatabasePath -PathType Leaf) {
+        throw "BF-770 BLOCKED: legacy Butler database remains in the source tree. Run scripts\butler-migrate-runtime-data.ps1 before launching Butler."
     }
-    else {
-        & $appShell -LeagueId $selectedLeagueId -Port $Port
+    if ($null -ne $configuredLeagueId) {
+        throw "BF-770 BLOCKED: configured Butler runtime database is missing at $databasePath. Restore or migrate the database before launching."
+    }
+}
+
+$originalDataDir = [string]$env:BUTLER_APP_DATA_DIR
+$env:BUTLER_APP_DATA_DIR = $dataDir
+try {
+    if ($null -eq $configuredLeagueId) {
+        [IO.Directory]::CreateDirectory($configDir) | Out-Null
+        [IO.File]::WriteAllText($configPath, $selectedLeagueId + "`r`n", [Text.Encoding]::ASCII)
+        Write-Host "Butler app league selection saved."
+    }
+    elseif ($null -ne $requestedLeagueId) {
+        Write-Host "Butler app league selection already matches."
+    }
+
+    $liveRunState = Test-LiveButlerRunState
+    $portState = Get-AppPortState -RequestedPort $Port
+    $ownedByButlerProcess = $false
+    if ($portState -ceq "OCCUPIED_OTHER") {
+        $ownedByButlerProcess = Test-PortOwnedByButlerProcess -RequestedPort $Port
+    }
+    if (($liveRunState -or $ownedByButlerProcess) -and $portState -ceq "OCCUPIED_OTHER") {
+        $portState = "OCCUPIED_BUTLER"
+    }
+    if ($liveRunState -and $portState -ceq "FREE") {
+        throw "BF-669 BLOCKED: Butler is already starting on port $Port. Wait for the existing Butler window to finish launching before trying again."
+    }
+    if ($portState -ceq "OCCUPIED_BUTLER") {
+        throw "BF-669 BLOCKED: Butler is already running on port $Port. Use the existing browser window, or stop its PowerShell window with Ctrl+C before relaunching newly pulled code."
+    }
+    if ($portState -ceq "OCCUPIED_OTHER") {
+        throw "BF-669 BLOCKED: local port $Port is already in use by another process. Butler will not stop it automatically. Stop that process yourself or launch Butler with -Port <free-port>."
+    }
+
+    Write-ButlerRunState -SelectedLeagueId $selectedLeagueId
+    try {
+        Write-Host "Butler App"
+        Write-Host "League: $selectedLeagueId"
+        Write-Host "Data: $dataDir"
+        Write-Host "Launching Butler app shell on port $Port."
+
+        if ($NoBrowser) {
+            & $appShell -LeagueId $selectedLeagueId -Port $Port -NoBrowser
+        }
+        else {
+            & $appShell -LeagueId $selectedLeagueId -Port $Port
+        }
+    }
+    finally {
+        Remove-OwnButlerRunState
     }
 }
 finally {
-    Remove-OwnButlerRunState
+    if ([string]::IsNullOrWhiteSpace($originalDataDir)) {
+        Remove-Item Env:BUTLER_APP_DATA_DIR -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:BUTLER_APP_DATA_DIR = $originalDataDir
+    }
 }
