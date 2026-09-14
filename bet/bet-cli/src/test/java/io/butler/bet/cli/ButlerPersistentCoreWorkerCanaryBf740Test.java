@@ -64,16 +64,18 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
     }
 
     @Test
-    void dashboardStagingInvokesBf742OnlyWithSiblingCoreAndRetainsOptOut() throws Exception {
+    void dashboardStagingInvokesBf742ThenBf743OnlyWithSiblingCoreAndRetainsOptOut() throws Exception {
         String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
         String transform = source("scripts/butler-core-bf742-transform.ps1");
         int writeDashboard = staging.indexOf("WriteAllText($DashboardPath");
         int defaultGate = staging.indexOf("-cne '0'");
         int bf742Transform = staging.indexOf("butler-core-bf742-transform.ps1");
+        int bf743Transform = staging.indexOf("butler-dashboard-bf743-transform.ps1");
 
         assertTrue(writeDashboard >= 0);
         assertTrue(defaultGate > writeDashboard);
         assertTrue(bf742Transform > defaultGate);
+        assertTrue(bf743Transform > bf742Transform);
         assertTrue(staging.contains("butler-app-shell-core-single.ps1"));
         assertTrue(staging.contains("Test-Path -LiteralPath $stagedCore -PathType Leaf"));
         assertTrue(staging.contains("-cne '0'"));
@@ -81,6 +83,31 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(staging.contains("-DashboardPath $DashboardPath"));
         assertTrue(transform.contains("-ceq '0'"));
         assertTrue(transform.contains("explicitly disabled by BUTLER_APP_PERSISTENT_CORE_WORKER=0"));
+    }
+
+    @Test
+    void bf743WarmsOnlyDatabaseInitializationForProductionWorkerAndRetainsLiveTargetVerification() throws Exception {
+        String warmup = source("scripts/butler-dashboard-bf743-transform.ps1");
+        String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
+        String database = source("bet/bet-cli/src/main/java/io/butler/bet/data/Database.java");
+        String targetSupport = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerPersonalizedTargetCliSupport.java");
+        String targetService = source("bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
+
+        int marker = warmup.indexOf("BUTLER_READ_ONLY_WORKER_PREINITIALIZE_DATABASE = '1'");
+        int start = warmup.indexOf("Start-Bf740PersistentCoreWorker");
+        assertTrue(marker >= 0);
+        assertTrue(start > marker);
+        assertTrue(worker.contains("BF743_DATABASE_WARMUP_ENV"));
+        assertTrue(worker.contains("Database.initializeReadOnlyWorker(Path.of(\"butler.db\"))"));
+        assertTrue(database.contains("READ_ONLY_WORKER_INITIALIZED_DATABASES"));
+        assertTrue(database.contains("public static Database initializeReadOnlyWorker(Path databasePath)"));
+        assertTrue(database.contains("DriverManager.getConnection(jdbcUrl)"));
+        assertTrue(targetSupport.contains("return new SleeperPersonalizedTargetService(database).verifyBoundTarget(butlerLeagueId);"));
+        assertTrue(targetService.contains("DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
+        assertTrue(targetService.contains("private final SleeperClient client = new SleeperClient();"));
+        assertFalse(worker.contains("VerifiedTarget"));
+        assertFalse(worker.contains("SleeperClient"));
+        assertFalse(worker.contains("SleeperPersonalizedTargetService"));
     }
 
     @Test
@@ -140,6 +167,6 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
             }
             current = current.getParent();
         }
-        throw new IOException("BF-742 test could not locate " + relativePath);
+        throw new IOException("BF-743 test could not locate " + relativePath);
     }
 }
