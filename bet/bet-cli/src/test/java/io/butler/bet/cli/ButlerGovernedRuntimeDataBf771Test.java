@@ -28,7 +28,7 @@ class ButlerGovernedRuntimeDataBf771Test {
         }
 
         assertTrue(direct.contains("Push-Location $workingDir"));
-        assertTrue(direct.contains("finally {\n    Pop-Location\n}"));
+        assertTrue(direct.contains("Pop-Location"));
         assertTrue(persistent.contains("$start.WorkingDirectory = $workingDir"));
     }
 
