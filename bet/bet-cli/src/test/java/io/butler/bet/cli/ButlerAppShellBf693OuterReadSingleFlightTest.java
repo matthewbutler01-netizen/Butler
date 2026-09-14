@@ -93,11 +93,13 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
     @Test
     void innerCoreWorkerRemainsRecoveredAndBf693OuterWorkerIsAsciiOnly() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
-        String inner = source("scripts/butler-app-core-pool-worker.ps1");
+        String inner = source("scripts/butler-app-core-pool-worker-impl.ps1");
+        String innerWrapper = source("scripts/butler-app-core-pool-worker.ps1");
 
         assertFalse(inner.contains("Get-CoreReadSingleFlightKey"));
         assertFalse(inner.contains("Invoke-PreservedCoreSingleFlightGet"));
         assertTrue(inner.contains("$proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget"));
+        assertTrue(innerWrapper.contains("butler-app-core-pool-worker-impl.ps1"));
         assertTrue(worker.contains("Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken"));
         assertFalse(worker.contains("create_transaction"));
         assertFalse(worker.contains("submitTransaction"));
