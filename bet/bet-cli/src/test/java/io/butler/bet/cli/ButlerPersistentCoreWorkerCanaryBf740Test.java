@@ -28,7 +28,7 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
 
         assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE')"));
         assertTrue(helper.contains("TimeoutMs 180000"));
-        assertTrue(helper.contains("^[0-9]{1,32}$"));
+        assertTrue(helper.contains("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
         assertTrue(helper.contains("terminated to prevent protocol desynchronization"));
         assertFalse(helper.contains("sleeperLiveWaiverComparisonBundle"));
         assertFalse(helper.contains("production-refresh"));
@@ -37,6 +37,21 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertFalse(core.contains("Bf740PersistentCoreWorkerCanary"));
         assertFalse(dashboard.contains("Bf740PersistentCoreWorkerCanary"));
         assertTrue(dashboard.contains(":bet:bet-cli:sleeperLiveWaiverComparisonBundle"));
+    }
+
+    @Test
+    void workerLeagueIdContractMatchesAppNormalizedUuidBoundary() throws Exception {
+        String helper = source("scripts/butler-persistent-core-worker.ps1");
+        String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
+        String app = source("scripts/butler-app.ps1");
+
+        String uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+        assertTrue(app.contains("[Guid]::TryParse($candidate, [ref]$parsed)"));
+        assertTrue(app.contains("$parsed.ToString(\"D\").ToLowerInvariant()"));
+        assertTrue(helper.contains("^" + uuidPattern + "$"));
+        assertTrue(worker.contains("\"" + uuidPattern + "\""));
+        assertFalse(helper.contains("^[0-9]{1,32}$"));
+        assertFalse(worker.contains("Pattern.compile(\"[0-9]{1,32}\")"));
     }
 
     @Test
