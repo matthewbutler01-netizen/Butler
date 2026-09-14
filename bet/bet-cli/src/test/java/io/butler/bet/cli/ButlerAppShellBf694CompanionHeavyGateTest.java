@@ -56,7 +56,8 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
     @Test
     void predecessorSingleFlightsRefreshBoundaryAndRecoveredInnerWorkerRemain() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
-        String inner = source("scripts/butler-app-core-pool-worker.ps1");
+        String inner = source("scripts/butler-app-core-pool-worker-impl.ps1");
+        String innerWrapper = source("scripts/butler-app-core-pool-worker.ps1");
 
         assertTrue(worker.contains("Local\\Butler.Team.Read.{0}"));
         assertTrue(worker.contains("Local\\Butler.Expensive.Read.{0}.{1}"));
@@ -66,6 +67,7 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
         assertFalse(inner.contains("Butler.Companion.Heavy"));
         assertTrue(inner.contains("$proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget"));
+        assertTrue(innerWrapper.contains("butler-app-core-pool-worker-impl.ps1"));
         assertFalse(worker.contains("create_transaction"));
         assertFalse(worker.contains("submitTransaction"));
         assertFalse(worker.contains("waiver_budget"));
