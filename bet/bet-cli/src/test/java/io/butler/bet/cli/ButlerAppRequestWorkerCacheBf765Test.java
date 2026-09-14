@@ -15,10 +15,10 @@ class ButlerAppRequestWorkerCacheBf765Test {
 
     @Test
     void wrapperCachesOneParsedImplementationPerPersistentRunspace() throws Exception {
-        String wrapper = source("scripts/butler-app-request-worker.ps1");
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
 
         assertTrue(wrapper.contains("ButlerBf765PublicRequestWorkerScriptBlock"));
-        assertTrue(wrapper.contains("butler-app-request-worker-impl.ps1"));
+        assertTrue(wrapper.contains("butler-app-request-worker.ps1"));
         assertTrue(wrapper.contains("[scriptblock]::Create($implementation)"));
         assertTrue(wrapper.contains("Set-Variable -Name $cacheName -Scope Global -Value $worker"));
         assertTrue(wrapper.contains("$worker -isnot [scriptblock]"));
@@ -47,14 +47,14 @@ class ButlerAppRequestWorkerCacheBf765Test {
     }
 
     @Test
-    void canonicalImplementationRetainsPublicRoutingAndSafetyContracts() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+    void canonicalImplementationRetainsPublicRoutingAndSafetyContractsAtHistoricalPath() throws Exception {
+        String worker = source("scripts/butler-app-request-worker.ps1");
 
         assertTrue(worker.contains("Local\\Butler.Team.Read.{0}"));
         assertTrue(worker.contains("Local\\Butler.Expensive.Read.{0}.{1}"));
         assertTrue(worker.contains("Local\\Butler.Companion.Heavy.{0}"));
         assertTrue(worker.contains("Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken"));
-        assertTrue(worker.contains("BUTLER_APP_SHELL_VERIFIED"));
+        assertTrue(worker.contains("\"service\":\"butler-app-shell\""));
         assertTrue(worker.contains("if ($path -eq '/refresh')"));
         assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
         assertTrue(worker.contains("Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget"));
@@ -64,10 +64,15 @@ class ButlerAppRequestWorkerCacheBf765Test {
     }
 
     @Test
-    void publicShellKeepsExistingEightRunspaceSchedulerAndWrapperEntrypoint() throws Exception {
+    void publicShellKeepsExistingEightRunspaceSchedulerAndUsesCachedEntrypoint() throws Exception {
         String shell = source("scripts/butler-app-shell.ps1");
 
-        assertTrue(shell.contains("$requestWorker = Join-Path $scriptDir 'butler-app-request-worker.ps1'"));
+        String historicalPath = "$requestWorker = Join-Path $scriptDir 'butler-app-request-worker.ps1'";
+        String cachedPath = "$requestWorker = Join-Path $scriptDir 'butler-app-request-worker-cache.ps1'";
+        assertTrue(shell.contains(historicalPath));
+        assertTrue(shell.contains("$requestWorkerImplementation = $requestWorker"));
+        assertTrue(shell.contains(cachedPath));
+        assertTrue(shell.indexOf(cachedPath) > shell.indexOf(historicalPath));
         assertTrue(shell.contains("$maxRequestWorkers = 8"));
         assertTrue(shell.contains("CreateRunspacePool(1, $maxRequestWorkers)"));
         assertTrue(shell.contains("$powerShell.AddCommand($requestWorker)"));
@@ -78,7 +83,8 @@ class ButlerAppRequestWorkerCacheBf765Test {
     @Test
     void bf765WindowsSourcesRemainAsciiOnly() throws Exception {
         assertAscii(source("scripts/butler-app-request-worker.ps1"));
-        assertAscii(source("scripts/butler-app-request-worker-impl.ps1"));
+        assertAscii(source("scripts/butler-app-request-worker-cache.ps1"));
+        assertAscii(source("scripts/butler-app-shell.ps1"));
     }
 
     private static void assertAscii(String text) {
