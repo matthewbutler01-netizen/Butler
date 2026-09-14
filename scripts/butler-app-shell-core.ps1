@@ -248,6 +248,34 @@ function Stop-OwnedProcessTree {
     try { $Process.Kill() } catch {}
 }
 
+function Restart-PreservedCore {
+    param([Parameter(Mandatory = $true)][int]$BackendIndex)
+
+    $previousBackend = $backendProcesses[$BackendIndex]
+    $previousPort = [int]$previousBackend.Port
+    do {
+        $replacementPort = Get-FreeLoopbackPort
+    } while ($backendPorts -contains $replacementPort)
+
+    $replacementProcess = Start-PreservedCore -BackendPort $replacementPort
+    try {
+        Wait-PreservedCore -BackendPort $replacementPort -Process $replacementProcess
+        Invoke-PreservedCoreWarmup -BackendPort $replacementPort
+    }
+    catch {
+        Stop-OwnedProcessTree -Process $replacementProcess
+        throw
+    }
+
+    $backendPorts[$BackendIndex] = $replacementPort
+    $backendProcesses[$BackendIndex] = [pscustomobject]@{
+        Port = $replacementPort
+        Process = $replacementProcess
+    }
+    Write-Warning ("BF-757 recovered preserved core from port {0} to {1}." -f $previousPort, $replacementPort)
+    return [int]$replacementPort
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
@@ -305,10 +333,28 @@ function Remove-CompletedCoreJobs {
 
 function Get-FreeBackendPort {
     $busyPorts = @($activeRequests | ForEach-Object { [int]$_.BackendPort })
-    foreach ($candidate in $backendPorts) {
-        if ($busyPorts -notcontains ([int]$candidate)) { return [int]$candidate }
+    for ($index = 0; $index -lt $backendProcesses.Count; $index++) {
+        $candidate = [int]$backendPorts[$index]
+        if ($busyPorts -contains $candidate) { continue }
+
+        $backend = $backendProcesses[$index]
+        $hasExited = $true
+        try {
+            $hasExited = [bool]$backend.Process.HasExited
+        }
+        catch {
+            $hasExited = $true
+        }
+        if (-not $hasExited) { return $candidate }
+
+        try {
+            return (Restart-PreservedCore -BackendIndex $index)
+        }
+        catch {
+            Write-Warning ("BF-757 preserved-core recovery failed for port {0}: {1}" -f $candidate, $_.Exception.Message)
+        }
     }
-    throw 'BF-690 BLOCKED: no preserved inner-core worker is available.'
+    return $null
 }
 
 try {
@@ -340,7 +386,16 @@ try {
             Remove-CompletedCoreJobs -WaitForOne
         }
 
-        $backendPort = Get-FreeBackendPort
+        $backendPort = $null
+        while ($null -eq $backendPort) {
+            $backendPort = Get-FreeBackendPort
+            if ($null -ne $backendPort) { break }
+            if ($activeRequests.Count -eq 0) {
+                throw 'BF-757 BLOCKED: no healthy preserved inner-core worker is available.'
+            }
+            Remove-CompletedCoreJobs -WaitForOne
+        }
+
         $client = $listener.AcceptTcpClient()
         $client.ReceiveTimeout = 3000
         $client.SendTimeout = 10000
