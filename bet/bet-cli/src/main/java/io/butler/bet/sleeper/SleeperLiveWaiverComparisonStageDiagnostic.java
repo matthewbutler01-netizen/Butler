@@ -1,7 +1,6 @@
 package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
-import io.butler.bet.data.PlayerSeasonProductionRepository;
 import io.butler.bet.domain.PlayerSeasonProduction;
 
 import java.io.IOException;
@@ -14,6 +13,7 @@ import java.util.Set;
 
 /** BF-736 read-only one-pass timing around the existing BF-615 comparison bundle sources. */
 public final class SleeperLiveWaiverComparisonStageDiagnostic {
+    private final SleeperLiveWaiverComparisonEvidenceReuse evidenceReuse;
     private final SleeperLiveWaiverComparisonExecutionBundle.MethodologySource methodologySource;
     private final SleeperLiveWaiverComparisonExecutionBundle.CandidateSource candidateSource;
     private final SleeperLiveWaiverComparisonExecutionBundle.RosterSource rosterSource;
@@ -21,14 +21,11 @@ public final class SleeperLiveWaiverComparisonStageDiagnostic {
 
     public SleeperLiveWaiverComparisonStageDiagnostic(Database database) {
         Objects.requireNonNull(database, "database must not be null");
-        PlayerSeasonProductionRepository productionRepository = new PlayerSeasonProductionRepository(database);
-        this.methodologySource = (leagueId, ownerId) ->
-            new SleeperLiveWaiverCandidateRosterComparisonMethodology(database).audit(leagueId, ownerId);
-        this.candidateSource = leagueId -> candidateFrame(
-            new SleeperLiveWaiverPregameEvidenceReadinessAudit(database).audit(leagueId));
-        this.rosterSource = (leagueId, ownerId) -> rosterFrame(
-            new SleeperLiveWaiverTargetRosterProductionComparabilityAudit(database).audit(leagueId, ownerId));
-        this.batchProductionSource = productionRepository::findByPlayerIdsAndSeason;
+        this.evidenceReuse = new SleeperLiveWaiverComparisonEvidenceReuse(database);
+        this.methodologySource = null;
+        this.candidateSource = null;
+        this.rosterSource = null;
+        this.batchProductionSource = null;
     }
 
     SleeperLiveWaiverComparisonStageDiagnostic(
@@ -36,6 +33,7 @@ public final class SleeperLiveWaiverComparisonStageDiagnostic {
         SleeperLiveWaiverComparisonExecutionBundle.CandidateSource candidateSource,
         SleeperLiveWaiverComparisonExecutionBundle.RosterSource rosterSource,
         SleeperLiveWaiverComparisonExecutionBundle.BatchProductionSource batchProductionSource) {
+        this.evidenceReuse = null;
         this.methodologySource = Objects.requireNonNull(methodologySource, "methodologySource must not be null");
         this.candidateSource = Objects.requireNonNull(candidateSource, "candidateSource must not be null");
         this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
@@ -46,6 +44,24 @@ public final class SleeperLiveWaiverComparisonStageDiagnostic {
         throws SQLException, IOException, InterruptedException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");
         String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
+        if (evidenceReuse != null) {
+            var measured = evidenceReuse.runMeasured(normalizedLeagueId, normalizedOwnerId);
+            var timing = measured.timing();
+            return new DiagnosticReport(
+                measured.bundle(),
+                new StageTiming(
+                    timing.methodologyMs(),
+                    timing.candidateEvidenceMs(),
+                    timing.rosterEvidenceMs(),
+                    timing.productionLoadMs(),
+                    timing.residualMs(),
+                    timing.totalMs()));
+        }
+        return measureLegacy(normalizedLeagueId, normalizedOwnerId);
+    }
+
+    private DiagnosticReport measureLegacy(String normalizedLeagueId, String normalizedOwnerId)
+        throws SQLException, IOException, InterruptedException {
         MutableTiming timing = new MutableTiming();
 
         SleeperLiveWaiverComparisonExecutionBundle bundle = new SleeperLiveWaiverComparisonExecutionBundle(
