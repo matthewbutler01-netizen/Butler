@@ -7,9 +7,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$sourceZipExplicit = $PSBoundParameters.ContainsKey('SourceZip')
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $releaseOutput = Join-Path $repoRoot 'release-output'
+$releaseBuilder = Join-Path $scriptDir 'butler-release-bundle.ps1'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
@@ -34,7 +36,7 @@ if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     throw 'BF-770 BLOCKED: Butler league configuration is missing; packaged launch requires the existing configured app target.'
 }
 
-if ([string]::IsNullOrWhiteSpace($SourceZip)) {
+if (-not $sourceZipExplicit) {
     $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
     if ($null -eq $gitCommand) { $gitCommand = Get-Command git -ErrorAction SilentlyContinue }
     if ($null -eq $gitCommand) { throw 'BF-770 BLOCKED: Git is required to resolve the current release artifact.' }
@@ -51,9 +53,21 @@ if ([string]::IsNullOrWhiteSpace($SourceZip)) {
         throw 'BF-770 BLOCKED: unable to resolve exact current HEAD short SHA.'
     }
     $SourceZip = Join-Path $releaseOutput ("Butler-source-{0}.zip" -f $shortSha)
+    if (-not (Test-Path -LiteralPath $SourceZip -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $releaseBuilder -PathType Leaf)) {
+            throw "BF-772 BLOCKED: BF-769 release builder not found at $releaseBuilder"
+        }
+        Write-Host "BF-772: current HEAD release artifact is absent; building exact BF-769 code-only bundle for $shortSha."
+        & $releaseBuilder -Force
+    }
 }
-elseif (-not [IO.Path]::IsPathRooted($SourceZip)) {
-    $SourceZip = Join-Path $repoRoot $SourceZip
+else {
+    if ([string]::IsNullOrWhiteSpace($SourceZip)) {
+        throw 'BF-772 BLOCKED: explicit -SourceZip must not be blank.'
+    }
+    if (-not [IO.Path]::IsPathRooted($SourceZip)) {
+        $SourceZip = Join-Path $repoRoot $SourceZip
+    }
 }
 $SourceZip = [IO.Path]::GetFullPath($SourceZip)
 if (-not (Test-Path -LiteralPath $SourceZip -PathType Leaf)) {
