@@ -397,6 +397,18 @@ try {
         }
 
         $client = $listener.AcceptTcpClient()
+
+        $backendPort = $null
+        while ($null -eq $backendPort) {
+            $backendPort = Get-FreeBackendPort
+            if ($null -ne $backendPort) { break }
+            if ($activeRequests.Count -eq 0) {
+                try { $client.Close() } catch {}
+                throw 'BF-757 BLOCKED: no healthy preserved inner-core worker is available after accept.'
+            }
+            Remove-CompletedCoreJobs -WaitForOne
+        }
+
         $client.ReceiveTimeout = 3000
         $client.SendTimeout = 10000
         $powerShell = [System.Management.Automation.PowerShell]::Create()
