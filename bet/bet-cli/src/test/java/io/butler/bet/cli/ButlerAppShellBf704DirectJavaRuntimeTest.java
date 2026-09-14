@@ -51,10 +51,12 @@ class ButlerAppShellBf704DirectJavaRuntimeTest {
         assertTrue(dispatch.contains("[string]$ArgumentRemainder = ''"));
         assertTrue(dispatch.contains("if ($normalizedArguments -ceq '--args')"));
         assertTrue(dispatch.contains("BF-710 BLOCKED: Gradle-compatible --args token was split but no argument value followed it."));
-        assertTrue(dispatch.contains("$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT"));
-        assertTrue(dispatch.contains("$workingDir = Join-Path $repoRoot 'bet\\bet-cli'"));
+        assertTrue(dispatch.contains("$dataDir = [string]$env:BUTLER_APP_DATA_DIR"));
+        assertTrue(dispatch.contains("[IO.Path]::IsPathRooted($dataDir)"));
+        assertTrue(dispatch.contains("$workingDir = [IO.Path]::GetFullPath($dataDir)"));
         assertTrue(dispatch.contains("Push-Location $workingDir"));
         assertTrue(dispatch.contains("& $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass @mainArguments"));
+        assertFalse(dispatch.contains("BUTLER_APP_REPO_ROOT"));
         assertFalse(dispatch.contains("Push-Location $repoRoot"));
         assertFalse(dispatch.contains("gradlew"));
         assertFalse(dispatch.contains("/refresh"));

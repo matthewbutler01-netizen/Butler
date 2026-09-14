@@ -18,29 +18,19 @@ if ([string]::IsNullOrWhiteSpace($runtimeLib) -or -not (Test-Path -LiteralPath $
     [Console]::Error.WriteLine('BF-704 BLOCKED: prepared Butler runtime library directory is unavailable.')
     exit 2
 }
-$repoRoot = [string]$env:BUTLER_APP_REPO_ROOT
-if ([string]::IsNullOrWhiteSpace($repoRoot) -or -not (Test-Path -LiteralPath $repoRoot -PathType Container)) {
-    [Console]::Error.WriteLine('BF-704 BLOCKED: Butler repository root is unavailable.')
-    exit 2
-}
 $dataDir = [string]$env:BUTLER_APP_DATA_DIR
 if ([string]::IsNullOrWhiteSpace($dataDir)) {
-    $workingDir = Join-Path $repoRoot 'bet\bet-cli'
-    if (-not (Test-Path -LiteralPath $workingDir -PathType Container)) {
-        [Console]::Error.WriteLine('BF-705 BLOCKED: Butler bet-cli working directory is unavailable.')
-        exit 2
-    }
+    [Console]::Error.WriteLine('BF-771 BLOCKED: BUTLER_APP_DATA_DIR is required for Butler Java execution.')
+    exit 2
 }
-else {
-    if (-not [IO.Path]::IsPathRooted($dataDir)) {
-        [Console]::Error.WriteLine('BF-770 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.')
-        exit 2
-    }
-    $workingDir = [IO.Path]::GetFullPath($dataDir)
-    if (-not (Test-Path -LiteralPath $workingDir -PathType Container)) {
-        [Console]::Error.WriteLine('BF-770 BLOCKED: governed Butler app data directory is unavailable.')
-        exit 2
-    }
+if (-not [IO.Path]::IsPathRooted($dataDir)) {
+    [Console]::Error.WriteLine('BF-771 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.')
+    exit 2
+}
+$workingDir = [IO.Path]::GetFullPath($dataDir)
+if (-not (Test-Path -LiteralPath $workingDir -PathType Container)) {
+    [Console]::Error.WriteLine('BF-771 BLOCKED: governed Butler app data directory is unavailable.')
+    exit 2
 }
 
 $java = $null

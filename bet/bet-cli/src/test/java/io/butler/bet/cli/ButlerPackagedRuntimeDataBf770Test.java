@@ -32,7 +32,7 @@ class ButlerPackagedRuntimeDataBf770Test {
     }
 
     @Test
-    void bothJavaExecutionPathsHonorGovernedDataDirWithLegacyDiagnosticFallback() throws Exception {
+    void bothJavaExecutionPathsRequireGovernedExternalDataDir() throws Exception {
         String direct = source("scripts/butler-direct-java-dispatch.ps1");
         String persistent = source("scripts/butler-persistent-core-worker.ps1");
 
@@ -40,9 +40,10 @@ class ButlerPackagedRuntimeDataBf770Test {
             assertTrue(text.contains("$dataDir = [string]$env:BUTLER_APP_DATA_DIR"));
             assertTrue(text.contains("[IO.Path]::IsPathRooted($dataDir)"));
             assertTrue(text.contains("$workingDir = [IO.Path]::GetFullPath($dataDir)"));
+            assertTrue(text.contains("BF-771 BLOCKED"));
             assertTrue(text.contains("governed Butler app data directory is unavailable"));
-            assertTrue(text.contains("$workingDir = Join-Path $repoRoot 'bet\\bet-cli'"),
-                "unset BF-770 env must preserve lower-level legacy diagnostic behavior");
+            assertFalse(text.contains("BUTLER_APP_REPO_ROOT"));
+            assertFalse(text.contains("Join-Path $repoRoot 'bet\\bet-cli'"));
         }
         assertTrue(direct.contains("Push-Location $workingDir"));
         assertTrue(persistent.contains("$start.WorkingDirectory = $workingDir"));
