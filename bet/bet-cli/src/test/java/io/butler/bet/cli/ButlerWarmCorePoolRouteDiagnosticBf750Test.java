@@ -48,13 +48,17 @@ class ButlerWarmCorePoolRouteDiagnosticBf750Test {
 
         String choose = "$backendPort = Get-FreeBackendPort";
         String accept = "$client = $listener.AcceptTcpClient()";
-        int chooseIndex = corePool.indexOf(choose);
-        int acceptIndex = corePool.indexOf(accept, chooseIndex);
-        assertTrue(chooseIndex >= 0, "BF-750 core-pool backend selection contract is missing");
-        assertTrue(acceptIndex > chooseIndex,
+        int firstChoose = corePool.indexOf(choose);
+        int acceptIndex = corePool.indexOf(accept, firstChoose);
+        int secondChoose = corePool.indexOf(choose, firstChoose + choose.length());
+        assertTrue(firstChoose >= 0, "BF-750 core-pool backend selection contract is missing");
+        assertTrue(acceptIndex > firstChoose,
             "BF-750 requires backend selection before blocking accept, which causes sequential two-core alternation");
+        assertTrue(secondChoose > acceptIndex,
+            "BF-757 may revalidate after accept, but BF-750's pre-accept alternation premise must remain true");
         assertTrue(corePool.contains("$busyPorts = @($activeRequests | ForEach-Object { [int]$_.BackendPort })"));
-        assertTrue(corePool.contains("if ($busyPorts -notcontains ([int]$candidate)) { return [int]$candidate }"));
+        assertTrue(corePool.contains("if ($busyPorts -contains $candidate) { continue }"));
+        assertTrue(corePool.contains("if (-not $hasExited) { return $candidate }"));
     }
 
     @Test
