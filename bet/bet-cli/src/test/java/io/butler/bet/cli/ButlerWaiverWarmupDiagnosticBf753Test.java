@@ -41,7 +41,7 @@ class ButlerWaiverWarmupDiagnosticBf753Test {
     }
 
     @Test
-    void diagnosticBoundaryRemainsReadOnlyAndProductionWarmupRemainsLeagueByDefault() throws Exception {
+    void diagnosticBoundaryRemainsReadOnlyAndProductionWarmupIsWaiversAfterPromotion() throws Exception {
         String diagnostic = source("scripts/butler-waiver-warmup-diagnostic.ps1");
         String core = source("scripts/butler-app-shell-core.ps1");
 
@@ -50,8 +50,8 @@ class ButlerWaiverWarmupDiagnosticBf753Test {
         assertTrue(diagnostic.contains("no Butler or Sleeper write path is invoked"));
         assertFalse(diagnostic.contains("/refresh?"));
 
-        assertTrue(core.contains("http://127.0.0.1:$BackendPort/league"));
-        assertFalse(core.contains("http://127.0.0.1:$BackendPort/waivers"));
+        assertTrue(core.contains("http://127.0.0.1:$BackendPort/waivers"));
+        assertFalse(core.contains("http://127.0.0.1:$BackendPort/league"));
     }
 
     @Test
