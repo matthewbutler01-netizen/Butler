@@ -63,7 +63,7 @@ if ($null -eq $worker) {
     # Only the parsed per-request execution copy is changed: the five existing
     # dot-sourced UI modules are parsed once per persistent runspace and then
     # dot-sourced from cached ScriptBlocks in the same order on every request.
-    $moduleLoadPattern = '(?m)^    \. \$TradeHost\r?\n    \. \$TradeLab\r?\n    \. \$History\r?\n    \. \$Detail\r?\n    \. \$DecisionRefresh$'
+    $moduleLoadPattern = '(?m)^    \. \$TradeHost\r?\n    \. \$TradeLab\r?\n    \. \$History\r?\n    \. \$Detail\r?\n    \. \$DecisionRefresh\r?$'
     $moduleLoadMatches = [regex]::Matches($implementation, $moduleLoadPattern)
     if ($moduleLoadMatches.Count -ne 1) {
         try { $Client.Close() } catch {}
