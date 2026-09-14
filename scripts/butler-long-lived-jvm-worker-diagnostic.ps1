@@ -27,6 +27,21 @@ $classPath = Join-Path $runtimeLibDir '*'
 $workerClass = 'io.butler.bet.cli.ButlerReadOnlyJvmWorker'
 $workers = New-Object System.Collections.Generic.List[object]
 
+function Read-Bf739ProtocolLine {
+    param(
+        [Parameter(Mandatory = $true)]$Worker,
+        [Parameter(Mandatory = $true)][string]$Boundary,
+        [ValidateRange(1, 60000)][int]$TimeoutMs = 10000
+    )
+
+    $readTask = $Worker.StandardOutput.ReadLineAsync()
+    if (-not $readTask.Wait($TimeoutMs)) {
+        try { if (-not $Worker.HasExited) { $Worker.Kill() } } catch {}
+        throw "BF-739 BLOCKED: timed out after ${TimeoutMs}ms waiting for $Boundary."
+    }
+    return [string]$readTask.Result
+}
+
 function Start-Bf739Worker {
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $java
@@ -44,7 +59,7 @@ function Start-Bf739Worker {
         throw 'BF-739 BLOCKED: unable to start long-lived JVM worker.'
     }
     $process.StandardInput.AutoFlush = $true
-    $ready = $process.StandardOutput.ReadLine()
+    $ready = Read-Bf739ProtocolLine -Worker $process -Boundary 'worker readiness' -TimeoutMs 10000
     if ($ready -cne "READY`tBF739`t1") {
         try { if (-not $process.HasExited) { $process.Kill() } } catch {}
         try { $process.Dispose() } catch {}
@@ -59,8 +74,8 @@ function Read-Bf739WorkerResult {
         [Parameter(Mandatory = $true)][string]$RequestId
     )
 
-    $line = $Worker.StandardOutput.ReadLine()
-    if ($null -eq $line) {
+    $line = Read-Bf739ProtocolLine -Worker $Worker -Boundary ("request {0}" -f $RequestId) -TimeoutMs 10000
+    if ([string]::IsNullOrEmpty($line)) {
         throw "BF-739 BLOCKED: worker ended before request $RequestId returned."
     }
     $fields = @($line -split "`t", 5)
@@ -102,7 +117,7 @@ function Stop-Bf739Worker {
     try {
         if (-not $Worker.HasExited) {
             $Worker.StandardInput.WriteLine('QUIT')
-            $bye = $Worker.StandardOutput.ReadLine()
+            $bye = Read-Bf739ProtocolLine -Worker $Worker -Boundary 'worker shutdown' -TimeoutMs 2000
             if ($bye -cne "BYE`tBF739") {
                 throw "BF-739 BLOCKED: worker shutdown frame was invalid: $bye"
             }
