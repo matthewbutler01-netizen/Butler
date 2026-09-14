@@ -69,7 +69,7 @@ if ($exitCode -ne 0) {
     if ($tail.Length -gt 1200) {
         $tail = '...' + $tail.Substring($tail.Length - 1200)
     }
-    throw "BF-760 BLOCKED: warmed slow-route read-only timing diagnostic exited with code $exitCode; output=$tail"
+    throw "BF-763 BLOCKED: steady-state slow-route read-only timing diagnostic exited with code $exitCode; output=$tail"
 }
 
 $prewarmLines = @($textLines | Where-Object { $_ -match '^===BUTLER_SLOW_ROUTE_TRANSPORT_PREWARM:.*===$' })
@@ -82,6 +82,17 @@ if (-not $prewarmMatch.Success) {
     throw 'BF-760 BLOCKED: Sleeper transport prewarm marker does not match the expected success contract.'
 }
 $prewarmElapsedMs = [long]$prewarmMatch.Groups['elapsed'].Value
+
+$pipelineWarmupLines = @($textLines | Where-Object { $_ -match '^===BUTLER_SLOW_ROUTE_PIPELINE_WARMUP:.*===$' })
+if ($pipelineWarmupLines.Count -ne 1) {
+    throw "BF-763 BLOCKED: expected exactly one same-JVM slow-route pipeline warmup marker but found $($pipelineWarmupLines.Count)."
+}
+$pipelineWarmupPattern = '^===BUTLER_SLOW_ROUTE_PIPELINE_WARMUP:state=SUCCESS;elapsed_ms=(?<elapsed>\d+)===$'
+$pipelineWarmupMatch = [regex]::Match($pipelineWarmupLines[0], $pipelineWarmupPattern)
+if (-not $pipelineWarmupMatch.Success) {
+    throw 'BF-763 BLOCKED: slow-route pipeline warmup marker does not match the expected success contract.'
+}
+$pipelineWarmupElapsedMs = [long]$pipelineWarmupMatch.Groups['elapsed'].Value
 
 $timingLines = @($textLines | Where-Object { $_ -match '^===BUTLER_SLOW_ROUTE_TIMING:.*===$' })
 if ($timingLines.Count -ne 1) {
@@ -97,6 +108,7 @@ if (-not $match.Success) {
 $payload = $match.Groups['payload'].Value.Replace(';', '; ')
 Write-Host ''
 Write-Host ("BF-760 Sleeper transport prewarm (same JVM, outside target_ms): state=SUCCESS; elapsed_ms={0}" -f $prewarmElapsedMs)
-Write-Host ('Slow-route stage timing (warmed-transport diagnostic, outside BF-688): ' + $payload)
-Write-Host 'BF-760 diagnostic boundary: BF-748-equivalent shared Sleeper transport is prewarmed once in the same JVM before unchanged BF-623 verification; response discarded; no provider payload caching or concurrency; /refresh excluded; no Butler or Sleeper write path is invoked.'
+Write-Host ("BF-763 slow-route same-JVM warmup (discarded, outside reported timing): state=SUCCESS; elapsed_ms={0}" -f $pipelineWarmupElapsedMs)
+Write-Host ('Slow-route stage timing (warmed-transport diagnostic, steady-state after one same-JVM warmup, outside BF-688): ' + $payload)
+Write-Host 'BF-763 diagnostic boundary: BF-748-equivalent shared Sleeper transport is prewarmed once, then one complete read-only slow-route execution is discarded before the reported same-JVM timing; unchanged BF-623 verification still runs on warmup and measured passes; response discarded; no provider payload caching or concurrency; /refresh excluded; no Butler or Sleeper write path is invoked.'
 Write-Host 'BF-736 comparison diagnostic boundary: read-only existing evidence only; BF-615 source order preserved; /refresh excluded; no Butler or Sleeper write path is invoked.'
