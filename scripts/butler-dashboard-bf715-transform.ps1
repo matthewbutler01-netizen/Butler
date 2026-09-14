@@ -108,15 +108,15 @@ if (-not $text.Contains('Invoke-ButlerReadOnlyWaiverEvidenceBundle')) {
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 
-# BF-741 default: when app-shell staging provides its sibling core, stage the proven BF-740 worker unless explicitly opted out with =0.
+# BF-742 default: app-shell staging consolidates one worker into the sibling dashboard unless explicitly opted out with =0.
 $stagedCore = Join-Path (Split-Path -Parent $DashboardPath) 'butler-app-shell-core-single.ps1'
 if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -cne '0' -and (Test-Path -LiteralPath $stagedCore -PathType Leaf)) {
-    $bf740Transform = Join-Path $PSScriptRoot 'butler-core-bf740-transform.ps1'
-    if (-not (Test-Path -LiteralPath $bf740Transform -PathType Leaf)) {
-        throw "BF-740 BLOCKED: staged core transform not found at $bf740Transform"
+    $bf742Transform = Join-Path $PSScriptRoot 'butler-core-bf742-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf742Transform -PathType Leaf)) {
+        throw "BF-742 BLOCKED: shared-worker staging transform not found at $bf742Transform"
     }
-    & $bf740Transform -CorePath $stagedCore
+    & $bf742Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 elseif ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -ceq '1') {
-    throw "BF-740 BLOCKED: explicit persistent worker staging requested but staged core was not found at $stagedCore"
+    throw "BF-742 BLOCKED: explicit persistent worker staging requested but staged core was not found at $stagedCore"
 }
