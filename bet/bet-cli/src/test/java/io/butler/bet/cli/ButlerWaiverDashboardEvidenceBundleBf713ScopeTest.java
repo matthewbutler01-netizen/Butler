@@ -67,17 +67,20 @@ class ButlerWaiverDashboardEvidenceBundleBf713ScopeTest {
     }
 
     @Test
-    void pairModeKeepsOnlyComparisonAndRosterSections() throws Exception {
+    void comparisonRosterOnlyModeKeepsOnlyCoalescedComparisonAndRosterSections() throws Exception {
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerWaiverDashboardEvidenceBundleCli.java");
         int start = bundle.indexOf("private static void runComparisonRosterOnly");
         int end = bundle.indexOf("private static Database initializedDatabase", start);
         assertTrue(start >= 0 && end > start);
         String pairMode = bundle.substring(start, end);
 
-        assertTrue(pairMode.contains("runConcurrentPair"));
-        assertTrue(pairMode.contains("SleeperLiveWaiverComparisonEvidenceReuse"));
+        assertTrue(pairMode.contains("SleeperLiveWaiverCoalescedComparisonEvidence"));
+        assertTrue(pairMode.contains("report.bundle()"));
+        assertTrue(pairMode.contains("report.rosterContext()"));
+        assertFalse(pairMode.contains("runConcurrentPair"));
+        assertFalse(pairMode.contains("SleeperLiveWaiverComparisonEvidenceReuse"));
         assertFalse(pairMode.contains("SleeperLiveWaiverComparisonExecutionBundle"));
-        assertTrue(pairMode.contains("SleeperLiveWaiverTargetRosterContextAudit"));
+        assertFalse(pairMode.contains("SleeperLiveWaiverTargetRosterContextAudit"));
         assertTrue(pairMode.contains("emit(WAIVER_BOARD, waiverBoard)"));
         assertTrue(pairMode.contains("emit(ROSTER_CONTEXT, rosterContext)"));
         assertFalse(pairMode.contains("SleeperLiveWaiverLatestGovernedDecisionSummary"));
