@@ -29,6 +29,27 @@ $worktreePath = Join-Path $tempRoot ("Butler-bf752-{0}-{1}" -f $PID, [Guid]::New
 $worktreeAdded = $false
 $locationPushed = $false
 
+function Invoke-Bf752Git {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+    $previousPreference = $ErrorActionPreference
+    $output = $null
+    $exitCode = $null
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $git @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
+    return [pscustomobject]@{
+        ExitCode = [int]$exitCode
+        Output = @($output | ForEach-Object { "$_" })
+    }
+}
+
 $originalPersistentWorker = [Environment]::GetEnvironmentVariable('BUTLER_APP_PERSISTENT_CORE_WORKER', [EnvironmentVariableTarget]::Process)
 $originalTransportPrewarm = [Environment]::GetEnvironmentVariable('BUTLER_APP_SLEEPER_TRANSPORT_PREWARM', [EnvironmentVariableTarget]::Process)
 $originalCoreWarmup = [Environment]::GetEnvironmentVariable('BUTLER_APP_CORE_POOL_WARMUP', [EnvironmentVariableTarget]::Process)
@@ -36,12 +57,17 @@ $originalCoreWarmup = [Environment]::GetEnvironmentVariable('BUTLER_APP_CORE_POO
 try {
     Push-Location $repoRoot
     $locationPushed = $true
-    $worktreeOutput = & $git worktree add --detach $worktreePath HEAD 2>&1
-    $worktreeExit = $LASTEXITCODE
+
+    $pruneBefore = Invoke-Bf752Git -Arguments @('worktree', 'prune')
+    if ($pruneBefore.ExitCode -ne 0) {
+        throw "BF-752 BLOCKED: unable to prune stale diagnostic worktree metadata. $($pruneBefore.Output -join ' ')"
+    }
+
+    $worktreeResult = Invoke-Bf752Git -Arguments @('worktree', 'add', '--detach', $worktreePath, 'HEAD')
     Pop-Location
     $locationPushed = $false
-    if ($worktreeExit -ne 0) {
-        throw "BF-752 BLOCKED: unable to create detached diagnostic worktree. $($worktreeOutput -join ' ')"
+    if ($worktreeResult.ExitCode -ne 0) {
+        throw "BF-752 BLOCKED: unable to create detached diagnostic worktree. $($worktreeResult.Output -join ' ')"
     }
     $worktreeAdded = $true
 
@@ -76,8 +102,15 @@ try {
 
     Push-Location $worktreePath
     $locationPushed = $true
-    & $acceptance
-    $acceptanceExit = $LASTEXITCODE
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $acceptance
+        $acceptanceExit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
     Pop-Location
     $locationPushed = $false
     if ($acceptanceExit -ne 0) {
@@ -97,8 +130,10 @@ finally {
         try {
             Push-Location $repoRoot
             try {
-                & $git worktree remove --force $worktreePath 2>$null | Out-Null
-                & $git worktree prune 2>$null | Out-Null
+                $removeResult = Invoke-Bf752Git -Arguments @('worktree', 'remove', '--force', $worktreePath)
+                if ($removeResult.ExitCode -ne 0) {
+                    Write-Warning ("BF-752 cleanup warning: git worktree remove failed for {0}: {1}" -f $worktreePath, ($removeResult.Output -join ' '))
+                }
             }
             finally {
                 Pop-Location
@@ -113,5 +148,21 @@ finally {
         try { Remove-Item -LiteralPath $worktreePath -Recurse -Force -ErrorAction Stop } catch {
             Write-Warning ("BF-752 cleanup warning: temporary directory remains at {0}: {1}" -f $worktreePath, $_.Exception.Message)
         }
+    }
+
+    try {
+        Push-Location $repoRoot
+        try {
+            $pruneAfter = Invoke-Bf752Git -Arguments @('worktree', 'prune')
+            if ($pruneAfter.ExitCode -ne 0) {
+                Write-Warning ("BF-752 cleanup warning: git worktree prune failed: {0}" -f ($pruneAfter.Output -join ' '))
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    catch {
+        Write-Warning ("BF-752 cleanup warning: unable to prune Git worktree metadata: {0}" -f $_.Exception.Message)
     }
 }
