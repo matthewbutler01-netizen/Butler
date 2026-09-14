@@ -60,9 +60,12 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
         assertEquals(2, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
         assertTrue(bundle.contains("Executors.newFixedThreadPool(3)"));
         assertTrue(bundle.contains("new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target)"));
-        assertTrue(bundle.contains("new SleeperLiveWaiverComparisonEvidenceReuse(database)"));
+        assertTrue(bundle.contains("new SleeperLiveWaiverCoalescedComparisonEvidence(database)"));
+        assertFalse(bundle.contains("new SleeperLiveWaiverComparisonEvidenceReuse(database)"));
         assertFalse(bundle.contains("new SleeperLiveWaiverComparisonExecutionBundle(database)"));
-        assertTrue(bundle.contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
+        assertFalse(bundle.contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
+        assertTrue(bundle.contains("reports.second().bundle()"));
+        assertTrue(bundle.contains("reports.second().rosterContext()"));
         assertTrue(bundle.contains("emit(SUMMARY, summary)"));
         assertTrue(bundle.contains("emit(WAIVER_BOARD, waiverBoard)"));
         assertTrue(bundle.contains("emit(ROSTER_CONTEXT, rosterContext)"));

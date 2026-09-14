@@ -4,17 +4,16 @@ import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.FranchiseValueRankingAnalyzer;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueValueMoverAnalyzer;
-import io.butler.bet.sleeper.SleeperLiveWaiverComparisonStageDiagnostic;
+import io.butler.bet.sleeper.SleeperLiveWaiverCoalescedComparisonEvidence;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
-import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 
 import java.nio.file.Path;
 
 /**
- * BF-733/BF-736 read-only timing diagnostic for the slow app-route evidence pipelines.
+ * BF-733/BF-736/BF-762 read-only timing diagnostic for the slow app-route evidence pipelines.
  *
- * <p>This intentionally reuses the existing BF-712 three-worker Waiver Board composition after
+ * <p>This reuses the production-equivalent BF-762 two-worker Waiver Board composition after
  * one exact BF-623 target verification. It does not refresh evidence, weaken target verification,
  * change analyzer order, or execute any Butler/Sleeper write path.</p>
  */
@@ -57,22 +56,21 @@ public final class ButlerSlowRouteStageDiagnosticCli {
         long targetMs = elapsedMs(targetStarted);
 
         long waiverWallStarted = System.nanoTime();
-        var waiverStages = ButlerWaiverDashboardEvidenceBundleCli.runConcurrent(
+        var waiverStages = ButlerWaiverDashboardEvidenceBundleCli.runConcurrentPair(
             () -> timed(() -> {
                 var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
                 new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
                 return summary;
             }),
-            () -> timed(() -> new SleeperLiveWaiverComparisonStageDiagnostic(database)
-                .measure(normalizedLeagueId, target.sleeperUserId())),
-            () -> timed(() -> new SleeperLiveWaiverTargetRosterContextAudit(database)
-                .audit(normalizedLeagueId, target.sleeperUserId())));
+            () -> timed(() -> new SleeperLiveWaiverCoalescedComparisonEvidence(database)
+                .runMeasured(normalizedLeagueId, target.sleeperUserId())));
         long waiverWallMs = elapsedMs(waiverWallStarted);
 
         long summaryMs = waiverStages.first().elapsedMs();
         long comparisonMs = waiverStages.second().elapsedMs();
-        var comparisonTiming = waiverStages.second().value().timing();
-        long rosterContextMs = waiverStages.third().elapsedMs();
+        var coalesced = waiverStages.second().value();
+        var comparisonTiming = coalesced.timing();
+        long rosterContextMs = coalesced.rosterContextMs();
 
         long leagueStarted = System.nanoTime();
         Timed<LeagueActionPlanAnalyzer.ActionPlan> actionPlan = timed(() ->
@@ -106,8 +104,8 @@ public final class ButlerSlowRouteStageDiagnosticCli {
             summaryMs,
             comparisonMs,
             comparisonTiming.methodologyMs(),
-            comparisonTiming.candidateFrameMs(),
-            comparisonTiming.rosterFrameMs(),
+            comparisonTiming.candidateEvidenceMs(),
+            comparisonTiming.rosterEvidenceMs(),
             comparisonTiming.productionLoadMs(),
             comparisonTiming.residualMs(),
             rosterContextMs,
