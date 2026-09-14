@@ -60,9 +60,11 @@ if ($null -eq $worker) {
     }
 
     # BF-766 preserves the historical worker source and its health fast path.
-    # Only the parsed per-request execution copy is changed: the five existing
-    # dot-sourced UI modules are parsed once per persistent runspace and then
-    # dot-sourced from cached ScriptBlocks in the same order on every request.
+    # Only the parsed per-request execution copy is changed: UI modules are
+    # parsed once per persistent runspace and then dot-sourced from cached
+    # ScriptBlocks. BF-767 route-scopes that cache use: exact core proxied reads
+    # need only History and DecisionRefresh, while every other non-health route
+    # retains the historical five-module execution order.
     $moduleLoadPattern = '(?m)^    \. \$TradeHost\r?\n    \. \$TradeLab\r?\n    \. \$History\r?\n    \. \$Detail\r?\n    \. \$DecisionRefresh\r?$'
     $moduleLoadMatches = [regex]::Matches($implementation, $moduleLoadPattern)
     if ($moduleLoadMatches.Count -ne 1) {
@@ -71,13 +73,27 @@ if ($null -eq $worker) {
     }
 
     $moduleLoadReplacement = @'
-    $bf766ModuleSpecs = @(
-        [pscustomobject]@{ Name = 'TradeHost'; Path = $TradeHost; CacheName = 'ButlerBf766TradeHostScriptBlock' },
-        [pscustomobject]@{ Name = 'TradeLab'; Path = $TradeLab; CacheName = 'ButlerBf766TradeLabScriptBlock' },
-        [pscustomobject]@{ Name = 'History'; Path = $History; CacheName = 'ButlerBf766HistoryScriptBlock' },
-        [pscustomobject]@{ Name = 'Detail'; Path = $Detail; CacheName = 'ButlerBf766DetailScriptBlock' },
-        [pscustomobject]@{ Name = 'DecisionRefresh'; Path = $DecisionRefresh; CacheName = 'ButlerBf766DecisionRefreshScriptBlock' }
-    )
+    $bf767CoreRead = $requestTarget -ceq '/' -or
+        $requestTarget -ceq '/team' -or
+        $requestTarget -ceq '/waivers' -or
+        $requestTarget -ceq '/league'
+
+    $bf766ModuleSpecs = if ($bf767CoreRead) {
+        @(
+            [pscustomobject]@{ Name = 'History'; Path = $History; CacheName = 'ButlerBf766HistoryScriptBlock' },
+            [pscustomobject]@{ Name = 'DecisionRefresh'; Path = $DecisionRefresh; CacheName = 'ButlerBf766DecisionRefreshScriptBlock' }
+        )
+    }
+    else {
+        @(
+            [pscustomobject]@{ Name = 'TradeHost'; Path = $TradeHost; CacheName = 'ButlerBf766TradeHostScriptBlock' },
+            [pscustomobject]@{ Name = 'TradeLab'; Path = $TradeLab; CacheName = 'ButlerBf766TradeLabScriptBlock' },
+            [pscustomobject]@{ Name = 'History'; Path = $History; CacheName = 'ButlerBf766HistoryScriptBlock' },
+            [pscustomobject]@{ Name = 'Detail'; Path = $Detail; CacheName = 'ButlerBf766DetailScriptBlock' },
+            [pscustomobject]@{ Name = 'DecisionRefresh'; Path = $DecisionRefresh; CacheName = 'ButlerBf766DecisionRefreshScriptBlock' }
+        )
+    }
+
     foreach ($bf766ModuleSpec in $bf766ModuleSpecs) {
         $bf766PathCacheName = $bf766ModuleSpec.CacheName + 'Path'
         $bf766Module = Get-Variable -Name $bf766ModuleSpec.CacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
