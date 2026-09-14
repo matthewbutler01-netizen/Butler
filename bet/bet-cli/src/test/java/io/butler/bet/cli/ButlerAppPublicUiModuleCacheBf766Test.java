@@ -41,6 +41,8 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
         assertTrue(wrapper.contains("$moduleLoadMatches = [regex]::Matches($implementation, $moduleLoadPattern)"));
+        assertTrue(wrapper.contains("\\$DecisionRefresh\\r?$'"),
+            "BF-766 transform must match both LF and CRLF on the final module line");
         assertTrue(wrapper.contains("if ($moduleLoadMatches.Count -ne 1)"));
         assertTrue(wrapper.contains("expected exactly 1"));
         assertTrue(wrapper.contains("$moduleLoadMatch = $moduleLoadMatches[0]"));
