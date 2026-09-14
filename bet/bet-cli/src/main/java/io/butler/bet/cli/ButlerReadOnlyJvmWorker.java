@@ -1,5 +1,7 @@
 package io.butler.bet.cli;
 
+import io.butler.bet.sleeper.SleeperClient;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,6 +10,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.regex.Pattern;
 
@@ -19,6 +22,8 @@ import java.util.regex.Pattern;
 public final class ButlerReadOnlyJvmWorker {
     static final String READY = "READY\tBF739\t1";
     static final String BYE = "BYE\tBF739";
+    private static final String SLEEPER_TRANSPORT_PREWARM_ENV = "BUTLER_APP_SLEEPER_TRANSPORT_PREWARM";
+    private static final Duration SLEEPER_TRANSPORT_PREWARM_TIMEOUT = Duration.ofSeconds(2);
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
     private static final Pattern LEAGUE_ID = Pattern.compile(
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -33,11 +38,24 @@ public final class ButlerReadOnlyJvmWorker {
     }
 
     static void serve(BufferedReader input, PrintWriter protocol) throws IOException {
-        serve(input, protocol, ButlerReadOnlyJvmWorker::execute);
+        serve(
+            input,
+            protocol,
+            ButlerReadOnlyJvmWorker::execute,
+            ButlerReadOnlyJvmWorker::prewarmSharedSleeperTransportBestEffort);
     }
 
     static void serve(BufferedReader input, PrintWriter protocol, CommandExecutor executor) throws IOException {
+        serve(input, protocol, executor, () -> {});
+    }
+
+    static void serve(
+        BufferedReader input,
+        PrintWriter protocol,
+        CommandExecutor executor,
+        WarmupAction warmup) throws IOException {
         protocol.println(READY);
+        boolean warmupAttempted = false;
         String line;
         while ((line = input.readLine()) != null) {
             if (line.equals("QUIT")) {
@@ -55,6 +73,11 @@ public final class ButlerReadOnlyJvmWorker {
                 continue;
             }
 
+            if (!warmupAttempted && request.operation() != Operation.HELP) {
+                warmupAttempted = true;
+                warmup.run();
+            }
+
             Execution execution = executor.execute(request);
             protocol.print("RESULT\t");
             protocol.print(request.requestId());
@@ -65,6 +88,17 @@ public final class ButlerReadOnlyJvmWorker {
             protocol.print('\t');
             protocol.println(encode(execution.stderr()));
         }
+    }
+
+    static boolean sleeperTransportPrewarmEnabled(String value) {
+        return !"0".equals(value);
+    }
+
+    private static void prewarmSharedSleeperTransportBestEffort() {
+        if (!sleeperTransportPrewarmEnabled(System.getenv(SLEEPER_TRANSPORT_PREWARM_ENV))) {
+            return;
+        }
+        SleeperClient.prewarmSharedTransportBestEffort(SLEEPER_TRANSPORT_PREWARM_TIMEOUT);
     }
 
     private static CommandRequest parse(String line) {
@@ -160,6 +194,11 @@ public final class ButlerReadOnlyJvmWorker {
     @FunctionalInterface
     interface CommandExecutor {
         Execution execute(CommandRequest request);
+    }
+
+    @FunctionalInterface
+    interface WarmupAction {
+        void run();
     }
 
     record Execution(int exitCode, String stdout, String stderr) {}
