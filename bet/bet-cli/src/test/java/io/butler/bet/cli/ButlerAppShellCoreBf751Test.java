@@ -12,12 +12,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerAppShellCoreBf751Test {
     @Test
-    void preservedCoresWarmSequentiallyWithOneBoundedLeagueReadBeforePublicListener() throws Exception {
+    void preservedCoresWarmSequentiallyWithOneBoundedWaiverReadBeforePublicListener() throws Exception {
         String source = source("scripts/butler-app-shell-core.ps1");
         String warmup = between(source, "function Invoke-PreservedCoreWarmup {", "function Stop-OwnedProcessTree {");
 
         assertTrue(warmup.contains("BUTLER_APP_CORE_POOL_WARMUP -ceq '0'"));
-        assertTrue(warmup.contains("http://127.0.0.1:$BackendPort/league"));
+        assertTrue(warmup.contains("http://127.0.0.1:$BackendPort/waivers"));
         assertTrue(warmup.contains("$request.Method = 'GET'"));
         assertTrue(warmup.contains("$request.Timeout = 3000"));
         assertTrue(warmup.contains("$request.ReadWriteTimeout = 3000"));
@@ -26,7 +26,7 @@ class ButlerAppShellCoreBf751Test {
         assertTrue(warmup.contains("Write-Warning"));
         assertFalse(warmup.contains("/refresh"));
         assertFalse(warmup.contains("/team"));
-        assertFalse(warmup.contains("/waivers"));
+        assertFalse(warmup.contains("/league"));
         assertFalse(warmup.contains("BeginInvoke"));
         assertFalse(warmup.contains("Start-Job"));
         assertFalse(warmup.contains("-Parallel"));
@@ -37,7 +37,7 @@ class ButlerAppShellCoreBf751Test {
         int warm = source.indexOf(warmCall);
         int publicListener = source.indexOf("$requestPool.Open()", warm);
         assertTrue(wait >= 0 && warm > wait && publicListener > warm,
-            "BF-751 must warm each core after health and before the public pool listener opens");
+            "BF-751/BF-754 must warm each core after health and before the public pool listener opens");
         assertEquals(1, occurrences(source, warmCall));
     }
 
@@ -59,7 +59,7 @@ class ButlerAppShellCoreBf751Test {
     void productionPowerShellSourceRemainsAsciiOnly() throws Exception {
         byte[] bytes = Files.readAllBytes(locate("scripts/butler-app-shell-core.ps1"));
         for (byte value : bytes) {
-            assertTrue((value & 0xff) <= 0x7f, "BF-751 PowerShell source must remain ASCII-only");
+            assertTrue((value & 0xff) <= 0x7f, "BF-751/BF-754 PowerShell source must remain ASCII-only");
         }
     }
 
@@ -78,7 +78,7 @@ class ButlerAppShellCoreBf751Test {
         int start = source.indexOf(begin);
         int finish = source.indexOf(end, start + begin.length());
         if (start < 0 || finish < 0 || finish <= start) {
-            throw new IllegalStateException("BF-751 test could not locate warmup source boundaries");
+            throw new IllegalStateException("BF-751/BF-754 test could not locate warmup source boundaries");
         }
         return source.substring(start, finish);
     }
@@ -94,6 +94,6 @@ class ButlerAppShellCoreBf751Test {
             if (Files.isRegularFile(candidate)) return candidate;
             current = current.getParent();
         }
-        throw new IllegalStateException("BF-751 test could not locate " + relativePath);
+        throw new IllegalStateException("BF-751/BF-754 test could not locate " + relativePath);
     }
 }
