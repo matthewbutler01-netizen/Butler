@@ -4,7 +4,7 @@ import io.butler.bet.data.Database;
 import io.butler.bet.intelligence.FranchiseValueRankingAnalyzer;
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueValueMoverAnalyzer;
-import io.butler.bet.sleeper.SleeperLiveWaiverComparisonExecutionBundle;
+import io.butler.bet.sleeper.SleeperLiveWaiverComparisonStageDiagnostic;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
@@ -12,7 +12,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 import java.nio.file.Path;
 
 /**
- * BF-733 read-only timing diagnostic for the slow app-route evidence pipelines.
+ * BF-733/BF-736 read-only timing diagnostic for the slow app-route evidence pipelines.
  *
  * <p>This intentionally reuses the existing BF-712 three-worker Waiver Board composition after
  * one exact BF-623 target verification. It does not refresh evidence, weaken target verification,
@@ -63,14 +63,15 @@ public final class ButlerSlowRouteStageDiagnosticCli {
                 new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
                 return summary;
             }),
-            () -> timed(() -> new SleeperLiveWaiverComparisonExecutionBundle(database)
-                .run(normalizedLeagueId, target.sleeperUserId())),
+            () -> timed(() -> new SleeperLiveWaiverComparisonStageDiagnostic(database)
+                .measure(normalizedLeagueId, target.sleeperUserId())),
             () -> timed(() -> new SleeperLiveWaiverTargetRosterContextAudit(database)
                 .audit(normalizedLeagueId, target.sleeperUserId())));
         long waiverWallMs = elapsedMs(waiverWallStarted);
 
         long summaryMs = waiverStages.first().elapsedMs();
         long comparisonMs = waiverStages.second().elapsedMs();
+        var comparisonTiming = waiverStages.second().value().timing();
         long rosterContextMs = waiverStages.third().elapsedMs();
 
         long leagueStarted = System.nanoTime();
@@ -104,6 +105,11 @@ public final class ButlerSlowRouteStageDiagnosticCli {
             targetMs,
             summaryMs,
             comparisonMs,
+            comparisonTiming.methodologyMs(),
+            comparisonTiming.candidateFrameMs(),
+            comparisonTiming.rosterFrameMs(),
+            comparisonTiming.productionLoadMs(),
+            comparisonTiming.residualMs(),
             rosterContextMs,
             waiverWallMs,
             homeEvidenceMs,
@@ -121,6 +127,11 @@ public final class ButlerSlowRouteStageDiagnosticCli {
             + ";target_ms=" + timing.targetMs()
             + ";summary_ms=" + timing.summaryMs()
             + ";comparison_ms=" + timing.comparisonMs()
+            + ";comparison_methodology_ms=" + timing.comparisonMethodologyMs()
+            + ";comparison_candidate_frame_ms=" + timing.comparisonCandidateFrameMs()
+            + ";comparison_roster_frame_ms=" + timing.comparisonRosterFrameMs()
+            + ";comparison_production_load_ms=" + timing.comparisonProductionLoadMs()
+            + ";comparison_residual_ms=" + timing.comparisonResidualMs()
             + ";roster_context_ms=" + timing.rosterContextMs()
             + ";waiver_wall_ms=" + timing.waiverWallMs()
             + ";home_evidence_ms=" + timing.homeEvidenceMs()
@@ -155,6 +166,11 @@ public final class ButlerSlowRouteStageDiagnosticCli {
         long targetMs,
         long summaryMs,
         long comparisonMs,
+        long comparisonMethodologyMs,
+        long comparisonCandidateFrameMs,
+        long comparisonRosterFrameMs,
+        long comparisonProductionLoadMs,
+        long comparisonResidualMs,
         long rosterContextMs,
         long waiverWallMs,
         long homeEvidenceMs,
