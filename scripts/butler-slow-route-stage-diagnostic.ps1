@@ -77,13 +77,13 @@ if ($timingLines.Count -ne 1) {
     throw "BF-733 BLOCKED: expected exactly one slow-route timing marker but found $($timingLines.Count)."
 }
 
-$pattern = '^===BUTLER_SLOW_ROUTE_TIMING:(?<payload>database_ms=\d+;target_ms=\d+;summary_ms=\d+;comparison_ms=\d+;roster_context_ms=\d+;waiver_wall_ms=\d+;home_evidence_ms=\d+;waiver_evidence_ms=\d+;league_action_plan_ms=\d+;league_rankings_ms=\d+;league_movement_ms=\d+;league_evidence_ms=\d+;total_ms=\d+)===$'
+$pattern = '^===BUTLER_SLOW_ROUTE_TIMING:(?<payload>database_ms=\d+;target_ms=\d+;summary_ms=\d+;comparison_ms=\d+;comparison_methodology_ms=\d+;comparison_candidate_frame_ms=\d+;comparison_roster_frame_ms=\d+;comparison_production_load_ms=\d+;comparison_residual_ms=\d+;roster_context_ms=\d+;waiver_wall_ms=\d+;home_evidence_ms=\d+;waiver_evidence_ms=\d+;league_action_plan_ms=\d+;league_rankings_ms=\d+;league_movement_ms=\d+;league_evidence_ms=\d+;total_ms=\d+)===$'
 $match = [regex]::Match($timingLines[0], $pattern)
 if (-not $match.Success) {
-    throw 'BF-733 BLOCKED: slow-route timing marker does not match the expected contract.'
+    throw 'BF-736 BLOCKED: slow-route timing marker does not match the expected comparison-substage contract.'
 }
 
 $payload = $match.Groups['payload'].Value.Replace(';', '; ')
 Write-Host ''
 Write-Host ('Slow-route stage timing (diagnostic, outside BF-688): ' + $payload)
-Write-Host 'BF-733 diagnostic boundary: read-only existing evidence only; /refresh excluded; no Butler or Sleeper write path is invoked.'
+Write-Host 'BF-736 comparison diagnostic boundary: read-only existing evidence only; BF-615 source order preserved; /refresh excluded; no Butler or Sleeper write path is invoked.'
