@@ -20,7 +20,8 @@ public final class ButlerReadOnlyJvmWorker {
     static final String READY = "READY\tBF739\t1";
     static final String BYE = "BYE\tBF739";
     private static final Pattern REQUEST_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
-    private static final Pattern LEAGUE_ID = Pattern.compile("[0-9]{1,32}");
+    private static final Pattern LEAGUE_ID = Pattern.compile(
+        "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
 
     private ButlerReadOnlyJvmWorker() {}
 
