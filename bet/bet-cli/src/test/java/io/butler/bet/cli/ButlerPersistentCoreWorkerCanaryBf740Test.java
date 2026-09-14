@@ -12,32 +12,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerPersistentCoreWorkerCanaryBf740Test {
     @Test
-    void persistentTransformTargetsOnlyTeamAndLeagueCoreReads() throws Exception {
-        String transform = source("scripts/butler-core-bf740-transform.ps1");
+    void sharedWorkerTransformKeepsOneDashboardOwnedWorkerPerCore() throws Exception {
+        String transform = source("scripts/butler-core-bf742-transform.ps1");
         String helper = source("scripts/butler-persistent-core-worker.ps1");
         String core = source("scripts/butler-app-shell-core-single.ps1");
         String dashboard = source("scripts/butler-dashboard.ps1");
 
         assertTrue(transform.contains("BUTLER_APP_PERSISTENT_CORE_WORKER"));
         assertTrue(transform.contains("-ceq '0'"));
+        assertTrue(transform.contains("BUTLER_APP_INTERNAL_DASHBOARD_TOKEN"));
+        assertTrue(transform.contains("X-Butler-Internal-Token"));
+        assertTrue(transform.contains("/__butler/internal/team-bundle"));
+        assertTrue(transform.contains("/__butler/internal/league-overview"));
         assertTrue(transform.contains("$script:Bf740PersistentCoreWorkerCanary = $true"));
-        assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'TEAM_BUNDLE'"));
-        assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'LEAGUE_OVERVIEW'"));
-        assertTrue(transform.contains(":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit"));
-        assertTrue(transform.contains("$Arguments -ceq \"$LeagueId --team-bundle\""));
+        assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'"));
+        assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'"));
+        assertTrue(transform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'"));
         assertTrue(transform.contains("Start-Bf740PersistentCoreWorker"));
         assertTrue(transform.contains("Stop-Bf740PersistentCoreWorker"));
+        assertTrue(transform.contains("staged core still owns a JVM worker"));
 
-        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE')"));
+        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'WAIVER_DASHBOARD_BUNDLE', 'EXPLANATION_LOOKUP')"));
         assertTrue(helper.contains("TimeoutMs 180000"));
         assertTrue(helper.contains("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
+        assertTrue(helper.contains("^[A-Za-z0-9._:-]{1,128}$"));
         assertTrue(helper.contains("terminated to prevent protocol desynchronization"));
         assertFalse(helper.contains("sleeperLiveWaiverComparisonBundle"));
         assertFalse(helper.contains("production-refresh"));
         assertFalse(helper.contains("/refresh"));
 
-        assertFalse(core.contains("Bf740PersistentCoreWorkerCanary"));
+        assertFalse(core.contains("Bf742DashboardToken"));
+        assertFalse(core.contains("X-Butler-Internal-Token"));
         assertFalse(dashboard.contains("Bf740PersistentCoreWorkerCanary"));
+        assertFalse(dashboard.contains("/__butler/internal/team-bundle"));
         assertTrue(dashboard.contains(":bet:bet-cli:sleeperLiveWaiverComparisonBundle"));
     }
 
@@ -57,26 +64,45 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
     }
 
     @Test
-    void dashboardStagingDefaultsWorkerOnWithSiblingCoreAndRetainsExplicitOptOut() throws Exception {
+    void dashboardStagingInvokesBf742OnlyWithSiblingCoreAndRetainsOptOut() throws Exception {
         String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
-        String transform = source("scripts/butler-core-bf740-transform.ps1");
+        String transform = source("scripts/butler-core-bf742-transform.ps1");
         int writeDashboard = staging.indexOf("WriteAllText($DashboardPath");
         int defaultGate = staging.indexOf("-cne '0'");
-        int coreTransform = staging.indexOf("butler-core-bf740-transform.ps1");
+        int bf742Transform = staging.indexOf("butler-core-bf742-transform.ps1");
 
         assertTrue(writeDashboard >= 0);
         assertTrue(defaultGate > writeDashboard);
-        assertTrue(coreTransform > defaultGate);
+        assertTrue(bf742Transform > defaultGate);
         assertTrue(staging.contains("butler-app-shell-core-single.ps1"));
         assertTrue(staging.contains("Test-Path -LiteralPath $stagedCore -PathType Leaf"));
         assertTrue(staging.contains("-cne '0'"));
         assertTrue(staging.contains("-ceq '1'"));
+        assertTrue(staging.contains("-DashboardPath $DashboardPath"));
         assertTrue(transform.contains("-ceq '0'"));
         assertTrue(transform.contains("explicitly disabled by BUTLER_APP_PERSISTENT_CORE_WORKER=0"));
     }
 
     @Test
-    void acceptanceExercisesDefaultWorkerThenDisablesItBeforeStandaloneDiagnostics() throws Exception {
+    void sharedDashboardEndpointsRequirePerCoreSecretAndAreNotPublicRoutes() throws Exception {
+        String transform = source("scripts/butler-core-bf742-transform.ps1");
+        String core = source("scripts/butler-app-shell-core-single.ps1");
+        String dashboard = source("scripts/butler-dashboard.ps1");
+
+        assertTrue(transform.contains("RandomNumberGenerator"));
+        assertTrue(transform.contains("New-Object byte[] 32"));
+        assertTrue(transform.contains("BUTLER_APP_INTERNAL_DASHBOARD_TOKEN"));
+        assertTrue(transform.contains("X-Butler-Internal-Token"));
+        assertTrue(transform.contains("StatusCode 403"));
+        assertTrue(transform.contains("-cne $script:Bf742DashboardToken"));
+        assertFalse(core.contains("/__butler/internal/team-bundle"));
+        assertFalse(core.contains("/__butler/internal/league-overview"));
+        assertFalse(dashboard.contains("/__butler/internal/team-bundle"));
+        assertFalse(dashboard.contains("/__butler/internal/league-overview"));
+    }
+
+    @Test
+    void acceptanceExercisesSharedDefaultThenDisablesWorkerBeforeStandaloneDiagnostics() throws Exception {
         String command = source("scripts/butler-acceptance.cmd");
         int defaultUnset = command.indexOf("set \"BUTLER_APP_PERSISTENT_CORE_WORKER=\"");
         int acceptance = command.indexOf("butler-acceptance.ps1");
@@ -87,7 +113,6 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(acceptance > defaultUnset);
         assertTrue(diagnosticDisable > acceptance);
         assertTrue(slowDiagnostic > diagnosticDisable);
-        assertTrue(command.contains("BF-741 default"));
         assertTrue(command.contains("emergency opt-out"));
         assertFalse(command.contains("BF-740 canary:"));
     }
@@ -97,8 +122,11 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
 
         assertTrue(worker.contains("new String[] {\"league\", \"overview\", request.leagueId()}"));
-        assertTrue(worker.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
         assertTrue(worker.contains("new String[] {request.leagueId(), \"--team-bundle\"}"));
+        assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
+        assertTrue(worker.contains("new String[] {request.leagueId(), \"--waiver-dashboard-bundle\"}"));
+        assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
+        assertTrue(worker.contains("new String[] {request.leagueId(), request.argument()}"));
         assertFalse(worker.contains("Class.forName"));
         assertFalse(worker.contains("ProcessBuilder"));
     }
@@ -112,6 +140,6 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
             }
             current = current.getParent();
         }
-        throw new IOException("BF-740 test could not locate " + relativePath);
+        throw new IOException("BF-742 test could not locate " + relativePath);
     }
 }
