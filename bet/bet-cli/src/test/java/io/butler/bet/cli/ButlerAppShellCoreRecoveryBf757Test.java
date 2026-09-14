@@ -49,17 +49,27 @@ class ButlerAppShellCoreRecoveryBf757Test {
     }
 
     @Test
-    void schedulerWaitsForHealthyCapacityAndFailsClosedOnlyWhenNoneRemain() throws Exception {
+    void schedulerRevalidatesAfterAcceptAndFailsClosedOnlyWhenNoCapacityRemains() throws Exception {
         String source = source("scripts/butler-app-shell-core.ps1");
         String dispatch = between(source, "    $requestPool.Open()", "}\nfinally {");
 
-        assertTrue(dispatch.contains("$backendPort = $null"));
+        String accept = "$client = $listener.AcceptTcpClient()";
+        String selector = "$backendPort = Get-FreeBackendPort";
+        int acceptIndex = dispatch.indexOf(accept);
+        int firstSelection = dispatch.indexOf(selector);
+        int secondSelection = dispatch.indexOf(selector, firstSelection + selector.length());
+
+        assertTrue(firstSelection >= 0 && acceptIndex > firstSelection,
+            "BF-757 must preserve pre-accept capacity selection");
+        assertTrue(secondSelection > acceptIndex,
+            "BF-757 must revalidate the backend after accept before dispatch");
         assertTrue(dispatch.contains("while ($null -eq $backendPort)"));
-        assertTrue(dispatch.contains("$backendPort = Get-FreeBackendPort"));
         assertTrue(dispatch.contains("if ($activeRequests.Count -eq 0)"));
         assertTrue(dispatch.contains("BF-757 BLOCKED: no healthy preserved inner-core worker is available."));
+        assertTrue(dispatch.contains("BF-757 BLOCKED: no healthy preserved inner-core worker is available after accept."));
         assertTrue(dispatch.contains("Remove-CompletedCoreJobs -WaitForOne"));
-        assertEquals(1, occurrences(source, "$client = $listener.AcceptTcpClient()"));
+        assertEquals(2, occurrences(dispatch, selector));
+        assertEquals(1, occurrences(source, accept));
     }
 
     @Test
