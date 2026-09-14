@@ -1,0 +1,104 @@
+name: BF-740 Persistent Core Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-core-bf740-transform.ps1'
+      - 'scripts/butler-persistent-core-worker.ps1'
+      - 'scripts/butler-dashboard-bf715-transform.ps1'
+      - 'scripts/butler-app-shell-core-single.ps1'
+      - 'scripts/butler-acceptance.cmd'
+      - '.github/workflows/bf740-persistent-core-worker.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-core-bf740-transform.ps1'
+      - 'scripts/butler-persistent-core-worker.ps1'
+      - 'scripts/butler-dashboard-bf715-transform.ps1'
+      - 'scripts/butler-app-shell-core-single.ps1'
+      - 'scripts/butler-acceptance.cmd'
+      - '.github/workflows/bf740-persistent-core-worker.yml'
+
+concurrency:
+  group: bf740-persistent-core-worker-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  staged-core:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Exercise BF-740 canary staging under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'bf740-staged-runtime'
+          if (Test-Path -LiteralPath $root) {
+              Remove-Item -LiteralPath $root -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+
+          $dashboard = Join-Path $root 'butler-dashboard.ps1'
+          $core = Join-Path $root 'butler-app-shell-core-single.ps1'
+          Copy-Item '.\scripts\butler-dashboard.ps1' $dashboard -Force
+          Copy-Item '.\scripts\butler-app-shell-core-single.ps1' $core -Force
+
+          $previous = $env:BUTLER_APP_PERSISTENT_CORE_WORKER
+          try {
+              $env:BUTLER_APP_PERSISTENT_CORE_WORKER = '1'
+              & '.\scripts\butler-dashboard-bf715-transform.ps1' -DashboardPath $dashboard
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+              if ($null -eq $previous) {
+                  Remove-Item Env:BUTLER_APP_PERSISTENT_CORE_WORKER -ErrorAction SilentlyContinue
+              }
+              else {
+                  $env:BUTLER_APP_PERSISTENT_CORE_WORKER = $previous
+              }
+          }
+
+          $helper = Join-Path $root 'butler-persistent-core-worker.ps1'
+          if (-not (Test-Path -LiteralPath $helper -PathType Leaf)) {
+              Write-Error 'BF-740 BLOCKED: staged persistent worker helper was not copied.'
+              exit 1
+          }
+
+          $coreText = [System.IO.File]::ReadAllText($core)
+          if (-not $coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'TEAM_BUNDLE'")) {
+              Write-Error 'BF-740 BLOCKED: staged core is missing TEAM_BUNDLE worker routing.'
+              exit 1
+          }
+          if (-not $coreText.Contains("Invoke-Bf740PersistentCoreWorker -Operation 'LEAGUE_OVERVIEW'")) {
+              Write-Error 'BF-740 BLOCKED: staged core is missing LEAGUE_OVERVIEW worker routing.'
+              exit 1
+          }
+          if (-not $coreText.Contains('Start-Bf740PersistentCoreWorker')) {
+              Write-Error 'BF-740 BLOCKED: staged core does not own worker startup.'
+              exit 1
+          }
+          if (-not $coreText.Contains('Stop-Bf740PersistentCoreWorker')) {
+              Write-Error 'BF-740 BLOCKED: staged core does not own worker cleanup.'
+              exit 1
+          }
+
+          foreach ($file in @($dashboard, $core, $helper)) {
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$errors) | Out-Null
+              if ($errors.Count -gt 0) {
+                  $errors | ForEach-Object { Write-Error ("{0}:{1}:{2}: {3}" -f $file, $_.Extent.StartLineNumber, $_.Extent.StartColumnNumber, $_.Message) }
+                  exit 1
+              }
+          }
+
+          Write-Host 'BF-740 canary staging transform produced a valid PowerShell 5.1 runtime core.'
