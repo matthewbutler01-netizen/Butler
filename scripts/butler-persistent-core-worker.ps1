@@ -147,8 +147,8 @@ function Invoke-Bf740PersistentCoreWorker {
     if ($null -eq $worker -or $worker.HasExited) {
         throw "$BoundaryName BLOCKED: BF-740 persistent core worker is unavailable$(Get-Bf740WorkerFailureDetail)"
     }
-    if ([string]::IsNullOrWhiteSpace([string]$LeagueId) -or [string]$LeagueId -notmatch '^[0-9]{1,32}$') {
-        throw "$BoundaryName BLOCKED: BF-740 league id does not satisfy the exact worker argument contract."
+    if ([string]::IsNullOrWhiteSpace([string]$LeagueId) -or [string]$LeagueId -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw "$BoundaryName BLOCKED: BF-740 league id does not satisfy the exact canonical Butler UUID contract."
     }
 
     $requestId = [Guid]::NewGuid().ToString('N')
