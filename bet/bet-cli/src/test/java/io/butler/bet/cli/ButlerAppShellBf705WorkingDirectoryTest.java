@@ -14,14 +14,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppShellBf705WorkingDirectoryTest {
 
     @Test
-    void directJavaRestoresBetCliRelativeDatabaseSemantics() throws Exception {
+    void directJavaRestoresRelativeDatabaseSemanticsFromGovernedDataDir() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
         assertTrue(bundle.contains("Path.of(\"butler.db\")"));
-        assertTrue(dispatch.contains("$workingDir = Join-Path $repoRoot 'bet\\bet-cli'"));
+        assertTrue(dispatch.contains("$dataDir = [string]$env:BUTLER_APP_DATA_DIR"));
+        assertTrue(dispatch.contains("[IO.Path]::IsPathRooted($dataDir)"));
+        assertTrue(dispatch.contains("$workingDir = [IO.Path]::GetFullPath($dataDir)"));
         assertTrue(dispatch.contains("Test-Path -LiteralPath $workingDir -PathType Container"));
         assertTrue(dispatch.contains("Push-Location $workingDir"));
+        assertFalse(dispatch.contains("BUTLER_APP_REPO_ROOT"));
+        assertFalse(dispatch.contains("Join-Path $repoRoot 'bet\\bet-cli'"));
         assertFalse(dispatch.contains("Push-Location $repoRoot"));
     }
 
