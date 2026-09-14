@@ -11,9 +11,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** BF-611 read-only governed 2025 production comparability for the exact BF-610 target roster. */
 public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
@@ -21,8 +23,8 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
         "sleeper-live-waiver-target-roster-production-comparability-v1-bf610-exact-2025-read-only";
     public static final int PRODUCTION_SEASON = 2025;
 
-    private final Database database;
     private final ContextSource contextSource;
+    private final BatchProductionSource productionSource;
 
     public SleeperLiveWaiverTargetRosterProductionComparabilityAudit(Database database) {
         this(database, (leagueId, ownerId) ->
@@ -32,8 +34,17 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
     SleeperLiveWaiverTargetRosterProductionComparabilityAudit(
         Database database,
         ContextSource contextSource) {
-        this.database = Objects.requireNonNull(database, "database must not be null");
+        Objects.requireNonNull(database, "database must not be null");
         this.contextSource = Objects.requireNonNull(contextSource, "contextSource must not be null");
+        PlayerSeasonProductionRepository productionRepository = new PlayerSeasonProductionRepository(database);
+        this.productionSource = productionRepository::findByPlayerIdsAndSeason;
+    }
+
+    SleeperLiveWaiverTargetRosterProductionComparabilityAudit(
+        ContextSource contextSource,
+        BatchProductionSource productionSource) {
+        this.contextSource = Objects.requireNonNull(contextSource, "contextSource must not be null");
+        this.productionSource = Objects.requireNonNull(productionSource, "productionSource must not be null");
     }
 
     public AuditReport audit(String leagueId, String sleeperOwnerId)
@@ -45,8 +56,16 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
             contextSource.audit(normalizedLeagueId, normalizedOwnerId);
         validateContext(context, normalizedLeagueId, normalizedOwnerId);
 
-        PlayerSeasonProductionRepository productionRepository =
-            new PlayerSeasonProductionRepository(database);
+        LinkedHashSet<String> targetButlerPlayerIds = new LinkedHashSet<>();
+        for (var target : context.targetPlayers()) {
+            targetButlerPlayerIds.add(requireText(target.butlerPlayerId(), "BF-610 target Butler player id"));
+        }
+        List<PlayerSeasonProduction> productionRows = Objects.requireNonNull(
+            productionSource.load(Collections.unmodifiableSet(targetButlerPlayerIds), PRODUCTION_SEASON),
+            "BF-735 production rows must not be null");
+        Map<String, List<PlayerSeasonProduction>> productionByPlayer = groupProductionByPlayer(
+            productionRows, targetButlerPlayerIds);
+
         List<TargetPlayerCoverage> players = new ArrayList<>();
         Map<String, MutableSourceCoverage> sourceAccumulator = new LinkedHashMap<>();
         int present = 0;
@@ -55,7 +74,7 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
         for (var target : context.targetPlayers()) {
             String butlerPlayerId = requireText(target.butlerPlayerId(), "BF-610 target Butler player id");
             List<ProductionObservation> observations = latestProductionPerSource(
-                productionRepository.findByPlayerId(butlerPlayerId), PRODUCTION_SEASON);
+                productionByPlayer.getOrDefault(butlerPlayerId, List.of()), PRODUCTION_SEASON);
             CoverageState state;
             if (observations.isEmpty()) {
                 state = CoverageState.PRIOR_PRODUCTION_MISSING;
@@ -108,6 +127,25 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
             missing,
             Collections.unmodifiableMap(new LinkedHashMap<>(sourceCoverage)),
             List.copyOf(players));
+    }
+
+    private static Map<String, List<PlayerSeasonProduction>> groupProductionByPlayer(
+        List<PlayerSeasonProduction> rows,
+        Set<String> requestedPlayerIds) {
+        Map<String, List<PlayerSeasonProduction>> mutable = new LinkedHashMap<>();
+        for (PlayerSeasonProduction row : rows) {
+            Objects.requireNonNull(row, "BF-735 production row must not be null");
+            if (row.season() != PRODUCTION_SEASON || !requestedPlayerIds.contains(row.playerId())) {
+                throw new IllegalStateException(
+                    "BF-735 BLOCKED: batch production source returned an unrequested player/season row");
+            }
+            mutable.computeIfAbsent(row.playerId(), ignored -> new ArrayList<>()).add(row);
+        }
+        Map<String, List<PlayerSeasonProduction>> grouped = new LinkedHashMap<>();
+        for (Map.Entry<String, List<PlayerSeasonProduction>> entry : mutable.entrySet()) {
+            grouped.put(entry.getKey(), List.copyOf(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(grouped);
     }
 
     private static void validateContext(
@@ -171,6 +209,11 @@ public final class SleeperLiveWaiverTargetRosterProductionComparabilityAudit {
     interface ContextSource {
         SleeperLiveWaiverTargetRosterContextAudit.AuditReport audit(String leagueId, String ownerId)
             throws SQLException, IOException, InterruptedException;
+    }
+
+    @FunctionalInterface
+    interface BatchProductionSource {
+        List<PlayerSeasonProduction> load(Set<String> butlerPlayerIds, int season) throws SQLException;
     }
 
     public enum CoverageState {
