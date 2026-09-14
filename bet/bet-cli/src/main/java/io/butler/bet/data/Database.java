@@ -10,12 +10,10 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class Database {
     private static final ConcurrentHashMap<Path, Object> INITIALIZATION_MONITORS = new ConcurrentHashMap<>();
-    private static final Set<Path> READ_ONLY_WORKER_INITIALIZED_DATABASES = ConcurrentHashMap.newKeySet();
 
     private final Path databasePath;
     private final String jdbcUrl;
@@ -36,28 +34,9 @@ public final class Database {
         return connection;
     }
 
-    /**
-     * BF-743 read-only worker bootstrap. The full schema verification runs once before the worker
-     * becomes ready; later Database instances for the exact same path in that JVM may reuse only
-     * that initialization proof. Connections, queries, targets, provider state, and evidence are
-     * never cached by this mechanism.
-     */
-    public static Database initializeReadOnlyWorker(Path databasePath) throws SQLException {
-        Database database = new Database(databasePath);
-        database.initialize();
-        READ_ONLY_WORKER_INITIALIZED_DATABASES.add(database.databasePath);
-        return database;
-    }
-
     public void initialize() throws SQLException {
-        if (READ_ONLY_WORKER_INITIALIZED_DATABASES.contains(databasePath)) {
-            return;
-        }
         Object monitor = INITIALIZATION_MONITORS.computeIfAbsent(databasePath, ignored -> new Object());
         synchronized (monitor) {
-            if (READ_ONLY_WORKER_INITIALIZED_DATABASES.contains(databasePath)) {
-                return;
-            }
             Path lockPath = databasePath.resolveSibling(databasePath.getFileName() + ".init.lock");
             try (FileChannel lockChannel = FileChannel.open(
                     lockPath,
