@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +16,7 @@ import java.util.Objects;
 public final class SleeperLiveWaiverPregameEvidenceReadinessAudit {
     public static final String POLICY_ID =
         "sleeper-live-waiver-pregame-readiness-v1-bf608-evidence-strata-read-only";
+    private static final ThreadLocal<ReadinessReport> SCOPED_REUSE = new ThreadLocal<>();
 
     private final Database database;
 
@@ -23,7 +25,39 @@ public final class SleeperLiveWaiverPregameEvidenceReadinessAudit {
     }
 
     public ReadinessReport audit(String leagueId) throws SQLException {
+        ReadinessReport reused = scopedReadiness(leagueId);
+        if (reused != null) return reused;
         return classify(new SleeperLiveWaiverPregameEvidenceDossier(database).audit(leagueId));
+    }
+
+    static <T> T withScopedReuse(ReadinessReport report, String leagueId, ScopedAction<T> action)
+        throws SQLException, IOException, InterruptedException {
+        Objects.requireNonNull(report, "BF-761 readiness report must not be null");
+        Objects.requireNonNull(action, "BF-761 scoped action must not be null");
+        if (!POLICY_ID.equals(report.policyId())) {
+            throw new IllegalStateException("BF-761 BLOCKED: scoped readiness has an unexpected BF-609 policy");
+        }
+        if (!Objects.equals(report.leagueId(), leagueId)) {
+            throw new IllegalStateException("BF-761 BLOCKED: scoped BF-609 readiness does not match requested league");
+        }
+        if (SCOPED_REUSE.get() != null) {
+            throw new IllegalStateException("BF-761 BLOCKED: nested BF-609 readiness reuse is not allowed");
+        }
+        SCOPED_REUSE.set(report);
+        try {
+            return action.run();
+        } finally {
+            SCOPED_REUSE.remove();
+        }
+    }
+
+    static ReadinessReport scopedReadiness(String leagueId) {
+        ReadinessReport report = SCOPED_REUSE.get();
+        if (report == null) return null;
+        if (!Objects.equals(report.leagueId(), leagueId)) {
+            throw new IllegalStateException("BF-761 BLOCKED: scoped BF-609 readiness league drifted inside reuse boundary");
+        }
+        return report;
     }
 
     public static ReadinessReport classify(SleeperLiveWaiverPregameEvidenceDossier.DossierReport dossier) {
@@ -202,6 +236,11 @@ public final class SleeperLiveWaiverPregameEvidenceReadinessAudit {
             }
             if (total != candidateCount) throw new IllegalArgumentException("stratum totals must reconcile");
         }
+    }
+
+    @FunctionalInterface
+    interface ScopedAction<T> {
+        T run() throws SQLException, IOException, InterruptedException;
     }
 
     private static final class MutableSummary {
