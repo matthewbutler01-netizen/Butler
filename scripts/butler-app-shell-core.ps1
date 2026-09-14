@@ -197,31 +197,37 @@ function Invoke-PreservedCoreWarmup {
         return
     }
 
-    $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/waivers")
-    $request.Method = 'GET'
-    $request.Timeout = 3000
-    $request.ReadWriteTimeout = 3000
-    $request.Proxy = $null
-    $request.KeepAlive = $false
-    $response = $null
-    try {
-        $response = $request.GetResponse()
-        if ([int]$response.StatusCode -ne 200) {
-            throw "HTTP $([int]$response.StatusCode)"
-        }
-        $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+    $warmupTargets = @(
+        "http://127.0.0.1:$BackendPort/waivers",
+        "http://127.0.0.1:$BackendPort/team"
+    )
+    foreach ($warmupTarget in $warmupTargets) {
+        $request = [System.Net.HttpWebRequest]::Create($warmupTarget)
+        $request.Method = 'GET'
+        $request.Timeout = 3000
+        $request.ReadWriteTimeout = 3000
+        $request.Proxy = $null
+        $request.KeepAlive = $false
+        $response = $null
         try {
-            [void]$reader.ReadToEnd()
+            $response = $request.GetResponse()
+            if ([int]$response.StatusCode -ne 200) {
+                throw "HTTP $([int]$response.StatusCode)"
+            }
+            $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+            try {
+                [void]$reader.ReadToEnd()
+            }
+            finally {
+                $reader.Dispose()
+            }
+        }
+        catch {
+            Write-Warning ("BF-756 preserved-core warmup skipped for {0} on port {1}: {2}" -f $warmupTarget, $BackendPort, $_.Exception.Message)
         }
         finally {
-            $reader.Dispose()
+            if ($null -ne $response) { $response.Close() }
         }
-    }
-    catch {
-        Write-Warning ("BF-751 preserved-core warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
-    }
-    finally {
-        if ($null -ne $response) { $response.Close() }
     }
 }
 
