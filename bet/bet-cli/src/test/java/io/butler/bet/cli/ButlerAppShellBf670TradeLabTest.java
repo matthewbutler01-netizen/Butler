@@ -16,7 +16,7 @@ class ButlerAppShellBf670TradeLabTest {
     @Test
     void publicShellOwnsTradeRouteAndKeepsGetOnlyBoundary() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String host = script("scripts/butler-trade-lab-host.ps1");
 
         assertTrue(shell.contains("butler-app-shell-core.ps1"));
@@ -37,7 +37,7 @@ class ButlerAppShellBf670TradeLabTest {
 
     @Test
     void firstTradeNavigationPaintsBeforeGovernedGradleReads() throws Exception {
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String host = script("scripts/butler-trade-lab-host.ps1");
 
         assertTrue(worker.contains("$requestTarget -ceq '/trade'"));
@@ -98,7 +98,7 @@ class ButlerAppShellBf670TradeLabTest {
     void tradeLabDoesNotExposeMutationCounterOrExecutionCommands() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertFalse(trade.contains("trade counter-proposal"));
         assertFalse(trade.contains("trade counter-authorize"));
@@ -120,7 +120,7 @@ class ButlerAppShellBf670TradeLabTest {
     @Test
     void tradeLabFilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
-        assertAscii(script("scripts/butler-app-request-worker-impl.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-app-shell-core.ps1"));
         assertAscii(script("scripts/butler-app-shell-core-single.ps1"));
         assertAscii(script("scripts/butler-trade-lab-host.ps1"));

@@ -16,7 +16,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void publicShellOwnsNativeHistoryRouteWithImmediateFirstPaint() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
         String history = script("scripts/butler-decision-history.ps1");
 
         assertTrue(shell.contains("butler-decision-history.ps1"));
@@ -55,7 +55,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void historyNavigationCoexistsWithExistingAppPages() throws Exception {
         String history = script("scripts/butler-decision-history.ps1");
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(history.contains("href=`\"/`\">Dashboard"));
         assertTrue(history.contains("href=`\"/team`\">My Team"));
@@ -70,7 +70,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void historyPagePreservesReadOnlyBoundaryAndEmptyState() throws Exception {
         String history = script("scripts/butler-decision-history.ps1");
-        String worker = script("scripts/butler-app-request-worker-impl.ps1");
+        String worker = script("scripts/butler-app-request-worker.ps1");
 
         assertTrue(history.contains("BF-628 reports no immutable governed waiver audits"));
         assertTrue(history.contains("BF-671 displays BF-628 history only"));
@@ -89,7 +89,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
     @Test
     void bf671FilesRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-shell.ps1"));
-        assertAscii(script("scripts/butler-app-request-worker-impl.ps1"));
+        assertAscii(script("scripts/butler-app-request-worker.ps1"));
         assertAscii(script("scripts/butler-decision-history.ps1"));
     }
 

@@ -15,7 +15,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
 
     @Test
     void exactRootWaiversAndLeagueReadsUseIndependentOuterSingleFlights() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
 
         assertTrue(worker.contains("function Get-ExpensiveReadSingleFlightKey"));
         assertTrue(worker.contains("switch -CaseSensitive ($RequestTarget)"));
@@ -36,7 +36,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
 
     @Test
     void teamKeepsPredecessorSingleFlightAndIsNotMovedIntoBf693Helper() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
         int bf693KeyStart = worker.indexOf("function Get-ExpensiveReadSingleFlightKey");
         int bf693InvokeStart = worker.indexOf("function Invoke-ExpensiveReadSingleFlightGet", bf693KeyStart);
         assertTrue(bf693KeyStart >= 0 && bf693InvokeStart > bf693KeyStart);
@@ -53,7 +53,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
 
     @Test
     void queryDetailTradeHistoryHealthAndRefreshAreNotBf693Eligible() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
         int keyStart = worker.indexOf("function Get-ExpensiveReadSingleFlightKey");
         int keyEnd = worker.indexOf("function Invoke-ExpensiveReadSingleFlightGet", keyStart);
         assertTrue(keyStart >= 0 && keyEnd > keyStart);
@@ -74,7 +74,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
 
     @Test
     void failuresDoNotCacheAndAlwaysReleaseBf693RouteMutex() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
         int singleFlight = worker.indexOf("function Invoke-ExpensiveReadSingleFlightGet");
         int release = worker.indexOf("$mutex.ReleaseMutex()", singleFlight);
         int dispose = worker.indexOf("$mutex.Dispose()", singleFlight);
@@ -92,8 +92,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
 
     @Test
     void innerCoreWorkerRemainsRecoveredAndBf693OuterWorkerIsAsciiOnly() throws Exception {
-        String worker = source("scripts/butler-app-request-worker-impl.ps1");
-        String workerWrapper = source("scripts/butler-app-request-worker.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
         String inner = source("scripts/butler-app-core-pool-worker-impl.ps1");
         String innerWrapper = source("scripts/butler-app-core-pool-worker.ps1");
 
@@ -102,15 +101,12 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
         assertTrue(inner.contains("$proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget"));
         assertTrue(innerWrapper.contains("butler-app-core-pool-worker-impl.ps1"));
         assertTrue(worker.contains("Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken"));
-        assertTrue(workerWrapper.contains("butler-app-request-worker-impl.ps1"));
         assertFalse(worker.contains("create_transaction"));
         assertFalse(worker.contains("submitTransaction"));
         assertFalse(worker.contains("waiver_budget"));
 
         byte[] encoded = worker.getBytes(StandardCharsets.US_ASCII);
         assertEquals(worker, new String(encoded, StandardCharsets.US_ASCII));
-        byte[] wrapperEncoded = workerWrapper.getBytes(StandardCharsets.US_ASCII);
-        assertEquals(workerWrapper, new String(wrapperEncoded, StandardCharsets.US_ASCII));
     }
 
     private static String source(String relativePath) throws IOException {
