@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DatabaseInitializationLockTest {
@@ -50,5 +51,23 @@ class DatabaseInitializationLockTest {
             assertTrue(result.next());
             assertEquals(1, result.getInt(1));
         }
+    }
+
+    @Test
+    void readOnlyWorkerReuseIsExplicitAndScopedToExactNormalizedPath() throws Exception {
+        Path workerPath = tempDir.resolve("worker.db");
+        Path ordinaryPath = tempDir.resolve("ordinary.db");
+
+        Database.initializeReadOnlyWorker(workerPath);
+        assertTrue(Files.isRegularFile(workerPath));
+
+        Files.delete(workerPath);
+        new Database(workerPath.resolveSibling(".").resolve("worker.db")).initialize();
+        assertFalse(Files.exists(workerPath),
+            "exact normalized worker path should reuse the successful initialization proof");
+
+        new Database(ordinaryPath).initialize();
+        assertTrue(Files.isRegularFile(ordinaryPath),
+            "unregistered database paths must retain normal initialization behavior");
     }
 }
