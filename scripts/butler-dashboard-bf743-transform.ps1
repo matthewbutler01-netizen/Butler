@@ -10,6 +10,9 @@ $ErrorActionPreference = 'Stop'
 if (-not (Test-Path -LiteralPath $DashboardPath -PathType Leaf)) {
     throw "BF-743 BLOCKED: staged dashboard not found at $DashboardPath"
 }
+if ([string]$env:BUTLER_APP_WORKER_DATABASE_WARMUP -ceq '0') {
+    return
+}
 
 $startupOriginal = @'
 try {
