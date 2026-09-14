@@ -23,7 +23,7 @@ class SleeperPersonalizedTargetStageDiagnosticBf744Test {
         assertTrue(script.contains("io.butler.bet.sleeper.SleeperPersonalizedTargetStageDiagnostic"));
         assertTrue(script.contains("===BUTLER_TARGET_STAGE_TIMING:"));
         assertTrue(script.contains("unchanged serial BF-623 verification only"));
-        assertFalse(script.contains("/refresh" + " "));
+        assertTrue(script.contains("/refresh excluded"));
         assertFalse(script.contains("production-refresh"));
 
         assertTrue(service.contains("DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
