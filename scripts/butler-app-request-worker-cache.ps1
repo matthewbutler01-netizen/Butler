@@ -47,7 +47,7 @@ $ErrorActionPreference = 'Stop'
 $cacheName = 'ButlerBf765PublicRequestWorkerScriptBlock'
 $worker = Get-Variable -Name $cacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
 if ($null -eq $worker) {
-    $implementationPath = Join-Path $PSScriptRoot 'butler-app-request-worker-impl.ps1'
+    $implementationPath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
     if (-not (Test-Path -LiteralPath $implementationPath -PathType Leaf)) {
         try { $Client.Close() } catch {}
         throw "BF-765 BLOCKED: public request-worker implementation is unavailable at $implementationPath"
