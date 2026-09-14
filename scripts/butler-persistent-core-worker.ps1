@@ -52,7 +52,15 @@ function Read-Bf740WorkerLine {
 
     $task = $Worker.StandardOutput.ReadLineAsync()
     if (-not $task.Wait($TimeoutMs)) {
-        throw "BF-740 BLOCKED: persistent core worker timed out during $Context."
+        try {
+            if (-not $Worker.HasExited) {
+                $Worker.Kill()
+                [void]$Worker.WaitForExit(3000)
+            }
+        }
+        catch {
+        }
+        throw "BF-740 BLOCKED: persistent core worker timed out during $Context and was terminated to prevent protocol desynchronization."
     }
 
     $line = [string]$task.Result
@@ -139,7 +147,7 @@ function Invoke-Bf740PersistentCoreWorker {
     if ($null -eq $worker -or $worker.HasExited) {
         throw "$BoundaryName BLOCKED: BF-740 persistent core worker is unavailable$(Get-Bf740WorkerFailureDetail)"
     }
-    if ([string]::IsNullOrWhiteSpace([string]$LeagueId) -or [string]$LeagueId -notmatch '^\d{1,32}$') {
+    if ([string]::IsNullOrWhiteSpace([string]$LeagueId) -or [string]$LeagueId -notmatch '^[0-9]{1,32}$') {
         throw "$BoundaryName BLOCKED: BF-740 league id does not satisfy the exact worker argument contract."
     }
 
