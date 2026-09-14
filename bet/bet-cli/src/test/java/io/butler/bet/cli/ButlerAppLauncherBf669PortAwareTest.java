@@ -53,7 +53,7 @@ class ButlerAppLauncherBf669PortAwareTest {
         assertTrue(script.contains("$liveRunState -or $ownedByButlerProcess"));
         assertTrue(script.contains("$portState = \"OCCUPIED_BUTLER\""));
         assertTrue(script.contains("Butler is already starting on port $Port"));
-        assertTrue(script.contains("finally {\n    Remove-OwnButlerRunState\n}"));
+        assertTrue(script.matches("(?s).*finally \\{\\s*Remove-OwnButlerRunState\\s*\\}.*"));
     }
 
     @Test
