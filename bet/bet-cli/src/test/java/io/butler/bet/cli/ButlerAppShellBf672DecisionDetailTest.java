@@ -16,7 +16,7 @@ class ButlerAppShellBf672DecisionDetailTest {
     @Test
     void shellLoadsDetailAfterHistoryAndPassesExactRequestTarget() throws Exception {
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker.ps1");
+        String worker = script("scripts/butler-app-request-worker-impl.ps1");
 
         assertTrue(shell.contains("butler-decision-detail.ps1"));
         assertTrue(shell.indexOf(". $history") >= 0);
@@ -71,7 +71,7 @@ class ButlerAppShellBf672DecisionDetailTest {
     void bf672RemainsReadOnlyAndAsciiOnly() throws Exception {
         String detail = script("scripts/butler-decision-detail.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
-        String worker = script("scripts/butler-app-request-worker.ps1");
+        String worker = script("scripts/butler-app-request-worker-impl.ps1");
 
         assertFalse(detail.contains("sleeperLiveWaiverRecommendationAuditCapture"));
         assertFalse(detail.contains("sleeperLiveWaiverGovernedExplanationCapture"));
