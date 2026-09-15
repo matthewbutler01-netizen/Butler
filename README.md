@@ -52,17 +52,25 @@ Butler-release-<shortsha>.verified.txt
 
 The BF-777 verification record contains release metadata only: the exact commit, runtime artifact name, SHA-256, manifest name, acceptance marker, and no-runtime-data boundaries. It does not contain the Butler database, credentials, provider payloads, or user runtime data.
 
+### Deployment boundary
+
+`Butler-runtime-<shortsha>.zip` is code/runtime-only deployment or update material for a machine that already has governed Butler runtime data. It is not a complete fresh-machine installer and it does not contain, export, restore, or recreate `butler.db`, credentials, provider payloads, or other user runtime data.
+
+Normal packaged deployment therefore assumes that the target machine already has a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Supplying `-LeagueId` selects which persisted Butler league the app should use; the league UUID does not recreate that league's database or evidence.
+
+BF-770 `scripts\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database into the governed external data location without overwriting an existing governed database. It is not a portable backup/export/restore or cross-machine transfer design. Portable Butler data backup/restore and fresh-machine data transfer are intentionally deferred to a separate future objective.
+
 ### Run a packaged release
 
 After the runtime ZIP has been verified, extract `Butler-runtime-<shortsha>.zip` into its own directory outside the Git worktree.
 
-On a fresh host, or after deliberately resetting the saved league selection, the first launch must supply the Butler league id:
+On a machine that already has governed Butler runtime data but has no saved league selection, the first launch must supply the Butler league id:
 
 ```text
 .\scripts\butler-app.cmd -LeagueId <butler-league-id>
 ```
 
-`<butler-league-id>` is Butler's exact league UUID, not the Sleeper league id. The launcher validates the UUID and saves the selection under `%LOCALAPPDATA%\Butler\app-league.txt` for later launches.
+`<butler-league-id>` is Butler's exact league UUID, not the Sleeper league id. The launcher validates the UUID and saves the selection under `%LOCALAPPDATA%\Butler\app-league.txt` for later launches. This configuration selects existing persisted Butler state; it does not create or restore the league database.
 
 Once a league is configured, subsequent launches use the saved selection:
 
