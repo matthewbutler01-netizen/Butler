@@ -47,6 +47,18 @@ class FantasyProsWeeklyProjectionProviderBf800Test {
     }
 
     @Test
+    void explicitPprFieldAuthorizesRequestedBasisWhenResponseMetadataDiffers() throws Exception {
+        String providerMetadataStd = SAMPLE.replace("\"scoring\": \"PPR\"", "\"scoring\": \"STD\"");
+        var provider = new FantasyProsWeeklyProjectionProvider((season, week, scoring) -> providerMetadataStd);
+
+        var snapshot = provider.load(2026, 2, FantasyProsWeeklyProjectionProvider.ScoringBasis.PPR);
+
+        assertEquals(FantasyProsWeeklyProjectionProvider.ScoringBasis.PPR, snapshot.scoring());
+        assertEquals(new BigDecimal("15.0"), snapshot.projections().get(0).projectedPoints());
+        assertEquals(new BigDecimal("21.75"), snapshot.projections().get(1).projectedPoints());
+    }
+
+    @Test
     void selectsHalfAndStandardReceptionProjectionFields() throws Exception {
         String half = SAMPLE.replace("\"PPR\"", "\"HALF\"");
         var halfProvider = new FantasyProsWeeklyProjectionProvider((season, week, scoring) -> half);
