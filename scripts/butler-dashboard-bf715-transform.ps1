@@ -120,3 +120,13 @@ if ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -cne '0' -and (Test-Path -Lit
 elseif ([string]$env:BUTLER_APP_PERSISTENT_CORE_WORKER -ceq '1') {
     throw "BF-742 BLOCKED: explicit persistent worker staging requested but staged core was not found at $stagedCore"
 }
+
+# BF-800: add the read-only My Team AutoFill preview only after prior staged-core transforms complete.
+if (-not (Test-Path -LiteralPath $stagedCore -PathType Leaf)) {
+    throw "BF-800 BLOCKED: staged app core was not found at $stagedCore"
+}
+$bf800Transform = Join-Path $PSScriptRoot 'butler-app-bf800-autofill-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf800Transform -PathType Leaf)) {
+    throw "BF-800 BLOCKED: AutoFill staging transform not found at $bf800Transform"
+}
+& $bf800Transform -CorePath $stagedCore
