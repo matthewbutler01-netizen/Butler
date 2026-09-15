@@ -1,0 +1,46 @@
+name: BF-787 Release Evidence
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-release-evidence-bundle.ps1'
+      - 'scripts/butler-release-evidence-bundle-acceptance.ps1'
+      - 'scripts/butler-release-verification-check.ps1'
+      - '.github/workflows/bf787-release-evidence.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/butler-release-evidence-bundle.ps1'
+      - 'scripts/butler-release-evidence-bundle-acceptance.ps1'
+      - 'scripts/butler-release-verification-check.ps1'
+      - '.github/workflows/bf787-release-evidence.yml'
+
+concurrency:
+  group: bf787-release-evidence-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-archive:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Exercise BF-787 portable release evidence packaging
+        shell: powershell
+        run: |
+          try {
+              & '.\scripts\butler-release-evidence-bundle-acceptance.ps1'
+          }
+          catch {
+              Write-Error $_
+              exit 1
+          }
