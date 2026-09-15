@@ -1,20 +1,82 @@
 # Butler
 
-Bootstrap project for Butler Forge.
+Butler is a governed fantasy-football decision-support application. On Windows, the supported runtime/release path is the prebuilt runtime package and release tooling below. Operators do not need to generate a Gradle wrapper to run a packaged Butler release.
 
-## Next Step
+## Windows Runtime and Release Quick Start
 
-Generate the Gradle Wrapper:
+### Prerequisites
 
-Windows:
+- Windows PowerShell 5.1.
+- Java 25 available to the host. The packaged runtime contains Butler's application JARs and dependencies, but it intentionally does not contain the Gradle wrapper or Gradle toolchain.
+- Git, used to bind release artifacts and verification evidence to one exact commit.
+- Runtime data outside the source/package tree. Butler defaults to `%LOCALAPPDATA%\Butler\data`. `BUTLER_APP_DATA_DIR` may override that location only with an absolute path outside the source/package tree.
+
+Butler's SQLite runtime data, local credentials, build output, IDE state, and Git metadata are not part of the release package.
+
+### Create and verify an exact-HEAD release
+
+From the repository root on an exact, clean `main`:
+
 ```text
-gradle wrapper
+git checkout main
+git pull --ff-only origin main
+git status --short
+.\scripts\butler-release-acceptance.cmd
 ```
 
-Then build:
+`git status --short` should be empty before release creation. `butler-release-acceptance.cmd` is the authoritative one-command Windows release gate. It fails closed and, in order:
+
+1. Creates the exact-HEAD code-only source bundle (BF-769).
+2. Creates the prebuilt read-runtime bundle with no runtime data or Gradle toolchain (BF-773).
+3. Extracts and launches that packaged runtime, then runs the BF-768 release-security smoke checks.
+4. Runs the existing Butler Windows acceptance and diagnostics, including the GET-only BF-688 workload.
+5. Writes the BF-777 release verification record only after those acceptance layers pass.
+6. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
+7. Reports `BF-780 RELEASE SELF-VERIFICATION: PASS` only after the saved record independently verifies.
+
+The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
+
+### Release artifacts
+
+Generated release evidence is written under the ignored `release-output\` directory and is named by the exact short commit:
+
 ```text
-.\gradlew.bat build
+Butler-source-<shortsha>.zip
+Butler-source-<shortsha>.zip.sha256
+Butler-source-<shortsha>.manifest.txt
+Butler-runtime-<shortsha>.zip
+Butler-runtime-<shortsha>.zip.sha256
+Butler-runtime-<shortsha>.manifest.txt
+Butler-release-<shortsha>.verified.txt
 ```
+
+The BF-777 verification record contains release metadata only: the exact commit, runtime artifact name, SHA-256, manifest name, acceptance marker, and no-runtime-data boundaries. It does not contain the Butler database, credentials, provider payloads, or user runtime data.
+
+### Run a packaged release
+
+After the runtime ZIP has been verified, extract `Butler-runtime-<shortsha>.zip` into its own directory outside the Git worktree. From the root of that extracted package, start Butler with:
+
+```text
+.\scripts\butler-app.cmd
+```
+
+The packaged launcher uses the prebuilt runtime JARs. The Gradle wrapper/toolchain remains absent from the package; its fail-closed `gradlew.bat` shim only authorizes the exact internal startup probe. Runtime data remains external at `%LOCALAPPDATA%\Butler\data` unless an absolute external `BUTLER_APP_DATA_DIR` is supplied.
+
+### Verify a saved release later
+
+BF-778 can independently verify a saved BF-777 record without launching Butler or reading runtime data. This also works for a historical release after repository HEAD has advanced:
+
+```text
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\scripts\butler-release-verification-check.ps1" -RecordPath ".\release-output\Butler-release-<shortsha>.verified.txt"
+```
+
+A successful check ends with:
+
+```text
+BF-778 RELEASE VERIFICATION CHECK: PASS
+```
+
+The verifier requires the record, runtime ZIP, checksum sidecar, and BF-773 runtime manifest to agree on the saved commit, artifact name, SHA-256, and governed no-runtime-data boundary.
 
 ## League Intelligence Quick Start
 
