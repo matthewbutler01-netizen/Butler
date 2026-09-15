@@ -265,6 +265,23 @@ function ConvertTo-ButlerUserFacingHtml {
         'comparable provider snapshots' = 'comparable value snapshots'
         'provider snapshots' = 'value snapshots'
         'INCONCLUSIVE' = 'No clear recommendation'
+        'The final method did not produce one unique evidence-supported add/drop pair. Cross-position ties or incompatible evidence remain unresolved; Butler will not manufacture a tiebreaker.' = 'Several waiver options were too close to separate confidently, so Butler did not recommend a move. When the evidence does not clearly favor one add/drop combination, Butler would rather make no recommendation than guess.'
+        'Persisted BF-653 explanation for this immutable BF-627 audit. This dashboard does not rerun recommendation or evidence selection.' = 'This explanation was saved with the decision. Butler is showing the original result, not recalculating it now.'
+        'Governed interpretation' = 'What it means'
+        'Newcomer review remains explicitly nonnumeric. Butler does not fabricate a production score or rank this player against historical candidates.' = 'Butler does not have enough comparable history to rank this player confidently yet. The player stays under review without a made-up score.'
+        'NOT A RANKING. This page inspects one exact authorized candidate. It does not change Butler''s current recommendation.' = 'PLAYER REVIEW. This page explains why Butler is watching this player. It does not change the current waiver recommendation.'
+        'BF-616 lane' = 'Review type'
+        'Capture future value snapshot' = 'Check again after the next value update'
+        'Capture a later provider value snapshot when available; movement analysis needs two source snapshots.' = 'Butler needs another value update before it can show a meaningful trend. Check back after the next snapshot is available.'
+        'Comparator traceability' = 'Advanced comparison details'
+        'Technical details' = 'Advanced technical record'
+        'Show decision details' = 'Advanced technical record'
+        'Decision details' = 'Advanced technical record'
+        'BF-603 market:' = 'Value snapshot ID:'
+        'BF-602 waiver:' = 'Waiver snapshot ID:'
+        'ADD / DROP Sleeper ids:' = 'Player IDs (add / drop):'
+        'READ ONLY &middot; EXACT ID ONLY.' = 'READ ONLY.'
+        'READ ONLY &middot; NOT A RANKING.' = 'READ ONLY.'
     }
     foreach ($key in $copy.Keys) {
         $result = $result.Replace([string]$key, [string]$copy[$key])
@@ -278,6 +295,29 @@ function ConvertTo-ButlerUserFacingHtml {
     $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*drafting\s*/\s*\d+(\s*<)', '$1 / Drafting$2')
     $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*complete\s*/\s*\d+(\s*<)', '$1 / Complete$2')
     $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*post_season\s*/\s*\d+(\s*<)', '$1 / Post-season$2')
+
+    # BF-793 keeps implementation traces out of the normal scan path. Exact
+    # ids and commands remain available, but only behind explicitly advanced
+    # disclosures that are collapsed by default.
+    $result = $result.Replace(
+        '<details open><summary>Advanced comparison details</summary>',
+        '<details><summary>Advanced comparison details</summary><p class="subtle">Troubleshooting data only. It does not change Butler''s recommendation.</p>'
+    )
+    $result = $result.Replace(
+        '<details><summary>Advanced technical record</summary>',
+        '<details><summary>Advanced technical record</summary><p class="subtle">Troubleshooting data only. You do not need these IDs to use Butler.</p>'
+    )
+    $result = [regex]::Replace(
+        $result,
+        '(<input class="command" readonly value="[^"]*">)',
+        '<details><summary>Advanced manual command</summary><p class="subtle">Only needed for manual maintenance. Butler will never run it from this page.</p>$1</details>'
+    )
+    $result = [regex]::Replace(
+        $result,
+        '(?i)<strong>Market attention:</strong>\s*add\s+(-?\d+)\s*/\s*drop\s+(-?\d+)\s*/\s*net\s+(-?\d+)',
+        '<strong>Recent Sleeper activity:</strong> $1 adds &middot; $2 drops &middot; net $3'
+    )
+    $result = [regex]::Replace($result, '(?i)\s*&middot;\s*Sleeper\s+\d+', '')
 
     # Evidence-gate statuses use READY/BLOCKED internally. Their UI meaning is
     # simply whether enough information is available for that part of the call.
