@@ -102,6 +102,12 @@ $appJars = @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' })
 if ($appJars.Count -ne 1) {
     throw "BF-773 BLOCKED: prepared runtime must contain exactly one bet-cli application JAR; found $($appJars.Count)."
 }
+$appJar = $appJars[0]
+$appJarName = [string]$appJar.Name
+if ([string]::IsNullOrWhiteSpace($appJarName)) {
+    throw 'BF-775 BLOCKED: prepared bet-cli application JAR resolved without a filename.'
+}
+$requiredAppJarEntry = $packagedRuntimePrefix + $appJarName
 
 [IO.Directory]::CreateDirectory($outputDir) | Out-Null
 & $sourceBuilder -Force
@@ -186,7 +192,7 @@ try {
         'scripts/butler-app.ps1',
         'scripts/butler-app-shell-core.ps1',
         'gradlew.bat',
-        $packagedRuntimePrefix + $appJars[0].Name
+        $requiredAppJarEntry
     )) {
         if ($entries -cnotcontains $required) {
             throw "BF-773 BLOCKED: runtime release archive is missing required entry $required"
