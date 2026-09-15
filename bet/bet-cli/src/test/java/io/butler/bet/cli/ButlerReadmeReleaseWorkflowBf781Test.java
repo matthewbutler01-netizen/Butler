@@ -24,6 +24,8 @@ class ButlerReadmeReleaseWorkflowBf781Test {
         assertTrue(readme.contains("BF-780 RELEASE SELF-VERIFICATION: PASS"));
         assertTrue(readme.contains("release-output\\"));
         assertTrue(readme.contains("Butler-release-<shortsha>.verified.txt"));
+        assertTrue(readme.contains("### Run a packaged release"));
+        assertTrue(readme.contains(".\\scripts\\butler-app.cmd"));
         assertTrue(readme.contains("butler-release-verification-check.ps1"));
         assertTrue(readme.contains("historical release after repository HEAD has advanced"));
     }
@@ -36,6 +38,7 @@ class ButlerReadmeReleaseWorkflowBf781Test {
         assertTrue(readme.contains("does not execute a Butler or Sleeper transaction write"));
         assertTrue(readme.contains("does not contain the Butler database, credentials, provider payloads, or user runtime data"));
         assertTrue(readme.contains("does not contain the Gradle wrapper or Gradle toolchain"));
+        assertTrue(readme.contains("Runtime data remains external"));
     }
 
     @Test
