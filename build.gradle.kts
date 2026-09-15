@@ -9,7 +9,7 @@ plugins {
 
 allprojects {
     group = "io.butler"
-    version = "0.1.0-SNAPSHOT"
+    version = "0.1.0-rc.1"
 
     configurations.configureEach {
         withDependencies {
