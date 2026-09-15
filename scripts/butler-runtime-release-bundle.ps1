@@ -11,6 +11,7 @@ $outputDir = Join-Path $repoRoot 'release-output'
 $sourceBuilder = Join-Path $scriptDir 'butler-release-bundle.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $runtimeLibSource = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+$packagedRuntimePrefix = 'bet/bet-cli/build/install/bet-cli/lib/'
 
 $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
 if ($null -eq $gitCommand) {
@@ -129,10 +130,33 @@ try {
     [IO.Directory]::CreateDirectory($tempRoot) | Out-Null
     Expand-Archive -LiteralPath $sourceZip -DestinationPath $tempRoot -Force
 
-    $packagedRuntimeLib = Join-Path $tempRoot 'runtime\lib'
+    $packagedRuntimeLib = Join-Path $tempRoot 'bet\bet-cli\build\install\bet-cli\lib'
     [IO.Directory]::CreateDirectory($packagedRuntimeLib) | Out-Null
     foreach ($jar in $runtimeJars) {
         Copy-Item -LiteralPath $jar.FullName -Destination (Join-Path $packagedRuntimeLib $jar.Name) -Force
+    }
+
+    $packagedGradle = Join-Path $tempRoot 'gradlew.bat'
+    $shim = @(
+        '@echo off',
+        'setlocal',
+        'if /I not "%~1"=="--no-daemon" goto :blocked',
+        'if /I not "%~2"==":bet:bet-cli:installDist" goto :blocked',
+        'if not "%~3"=="" goto :blocked',
+        'exit /b 0',
+        ':blocked',
+        'echo BF-773 BLOCKED: runtime package Gradle shim only authorizes the prebuilt installDist startup probe. 1>&2',
+        'exit /b 77'
+    ) -join "`r`n"
+    [IO.File]::WriteAllText($packagedGradle, ($shim + "`r`n"), [Text.Encoding]::ASCII)
+
+    $wrapperDir = Join-Path $tempRoot 'gradle'
+    if (Test-Path -LiteralPath $wrapperDir) {
+        Remove-Item -LiteralPath $wrapperDir -Recurse -Force
+    }
+    $unixGradle = Join-Path $tempRoot 'gradlew'
+    if (Test-Path -LiteralPath $unixGradle) {
+        Remove-Item -LiteralPath $unixGradle -Force
     }
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -161,11 +185,15 @@ try {
         'scripts/butler-app.cmd',
         'scripts/butler-app.ps1',
         'scripts/butler-app-shell-core.ps1',
-        'runtime/lib/' + $appJars[0].Name
+        'gradlew.bat',
+        $packagedRuntimePrefix + $appJars[0].Name
     )) {
         if ($entries -cnotcontains $required) {
             throw "BF-773 BLOCKED: runtime release archive is missing required entry $required"
         }
+    }
+    if ($entries -contains 'gradle/wrapper/gradle-wrapper.jar' -or $entries -contains 'gradlew') {
+        throw 'BF-773 BLOCKED: runtime release must not contain the Gradle wrapper toolchain.'
     }
 
     foreach ($entry in $entries) {
@@ -173,6 +201,7 @@ try {
         $lower = $entry.ToLowerInvariant()
         $name = [IO.Path]::GetFileName($entry).ToLowerInvariant()
         $segments = @($lower -split '/')
+        $isPackagedRuntimeJar = $lower.StartsWith($packagedRuntimePrefix, [System.StringComparison]::Ordinal) -and $name.EndsWith('.jar')
 
         $forbidden = $false
         if ($name -ceq 'butler.db' -or
@@ -199,8 +228,10 @@ try {
         elseif ($segments -contains '.git' -or
                 $segments -contains '.gradle' -or
                 $segments -contains '.idea' -or
-                $segments -contains 'build' -or
                 $segments -contains 'release-output') {
+            $forbidden = $true
+        }
+        elseif (($segments -contains 'build') -and -not $isPackagedRuntimeJar) {
             $forbidden = $true
         }
 
@@ -223,9 +254,11 @@ $manifestLines = @(
     "artifact=$artifactName",
     "sha256=$hash",
     'boundary=CODE_PLUS_PREBUILT_READ_RUNTIME_NO_RUNTIME_DATA',
-    'source=BF-769 git archive HEAD plus Gradle installDist runtime/lib',
-    'startup_gradle=NOT_REQUIRED_WHEN_RUNTIME_LIB_PRESENT',
-    'refresh_toolchain=UNCHANGED_SOURCE_GRADLE_PATH',
+    'source=BF-769 git archive HEAD plus exact Gradle installDist JAR library',
+    'packaged_runtime=bet/bet-cli/build/install/bet-cli/lib',
+    'gradle_wrapper=REMOVED',
+    'startup_gradle=FAIL_CLOSED_SHIM_EXACT_INSTALLDIST_PROBE_ONLY',
+    'refresh_toolchain=BLOCKED_FAIL_CLOSED_IN_RUNTIME_PACKAGE',
     'host_java=REQUIRED',
     'runtime_data=EXTERNAL_GOVERNED_ONLY'
 )
@@ -238,5 +271,5 @@ Write-Host "SHA-256: $hash"
 Write-Host "Checksum: $checksumPath"
 Write-Host "Manifest: $manifestPath"
 Write-Host "Runtime JARs: $($runtimeJars.Count)"
-Write-Host 'Boundary: CODE_PLUS_PREBUILT_READ_RUNTIME_NO_RUNTIME_DATA; read-only app startup can use packaged runtime/lib without Gradle; runtime database remains external.'
+Write-Host 'Boundary: CODE_PLUS_PREBUILT_READ_RUNTIME_NO_RUNTIME_DATA; Gradle wrapper/toolchain absent; fail-closed shim authorizes only the exact prebuilt installDist startup probe; runtime database remains external.'
 Write-Host 'BF-773 RUNTIME RELEASE BUNDLE: PASS'
