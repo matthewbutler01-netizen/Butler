@@ -34,7 +34,7 @@ git status --short
 6. Writes the BF-777 release verification record only after those acceptance layers pass.
 7. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
 8. Packages exactly the four BF-778-verified runtime evidence files into the BF-787 portable release-evidence archive and emits its SHA-256 sidecar.
-9. Reports the final BF-780 self-verification and BF-787 evidence-archive PASS markers only after the complete gate succeeds.
+9. Reports `BF-780 RELEASE SELF-VERIFICATION: PASS` and `BF-787 RELEASE EVIDENCE ARCHIVE: PASS` only after the complete gate succeeds.
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
