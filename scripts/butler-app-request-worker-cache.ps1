@@ -208,6 +208,8 @@ function ConvertTo-ButlerUserFacingHtml {
         'Immutable governed waiver audits' = 'Waiver decision history'
         'Governed decision history' = 'Decision history'
         'Immutable audit' = 'Decision record'
+        'Immutable Butler audit captured' = 'Saved decision'
+        'Every governed recommendation remains traceable even after your roster changes.' = 'This recommendation stays saved even if your roster changes.'
         'History state' = 'History status'
         'Audit records' = 'Saved decisions'
         'Target roster' = 'Roster'
