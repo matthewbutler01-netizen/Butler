@@ -72,7 +72,7 @@ $requiredKeys = @(
 $record = @{}
 for ($i = 1; $i -lt $recordLines.Count; $i++) {
     $line = $recordLines[$i]
-    if ($line -notmatch '^([a-z_]+)=(.+)$') {
+    if ($line -notmatch '^([a-z0-9_]+)=(.+)$') {
         throw "BF-778 BLOCKED: malformed verification record line: $line"
     }
     $key = $matches[1]
