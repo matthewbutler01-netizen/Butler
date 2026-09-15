@@ -13,37 +13,61 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAutoFillPresentationBf800Test {
 
     @Test
-    void myTeamBundlePublishesContainedAutoFillSectionWithoutWritePath() throws Exception {
+    void normalTeamBundleRemainsProviderFreeAndAutoFillRequiresExplicitFlag() throws Exception {
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
         String renderer = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerAutoFillLineupRecommendationCli.java");
 
         assertTrue(bundle.contains("static final String AUTOFILL = \"AUTOFILL\";"));
-        assertTrue(bundle.contains("autoFillSafely(database, rosterContextReport)"));
-        assertTrue(bundle.contains("emit(AUTOFILL, autoFill);"));
-        assertTrue(bundle.contains("no Butler or Sleeper lineup write is executed"));
+        assertTrue(bundle.contains("boolean includeAutoFill = validAutoFillArgs(args);"));
+        assertTrue(bundle.contains("includeAutoFill\n                    ? autoFillSafely(database, rosterContextReport)\n                    : null"));
+        assertTrue(bundle.contains("if (includeAutoFill) emit(AUTOFILL, autoFill);"));
+        assertTrue(bundle.contains("normal My Team remains read-only and provider-free for BF-800 AutoFill"));
         assertTrue(renderer.contains("AutoFill is preview-only"));
         assertTrue(renderer.contains("No Butler or Sleeper lineup write was executed"));
         assertFalse(bundle.contains("submit lineup"));
         assertFalse(renderer.contains("HttpRequest"));
+
+        assertTrue(ButlerMyTeamEvidenceBundleCli.validAutoFillArgs(new String[]{"league", "--autofill"}));
+        assertFalse(ButlerMyTeamEvidenceBundleCli.validAutoFillArgs(new String[]{"league"}));
+        assertFalse(ButlerMyTeamEvidenceBundleCli.validAutoFillArgs(new String[]{"league", "--anything-else"}));
     }
 
     @Test
-    void stagedMyTeamPresentationBindsAutoFillAndCreditsProjectionProvider() throws Exception {
+    void outerDispatchSeparatesNormalAndAutoFillTeamBundles() {
+        assertTrue(ButlerSleeperLiveWaiverTargetRosterContextAuditCli.isTeamBundle(
+            new String[]{"league", "--team-bundle"}));
+        assertFalse(ButlerSleeperLiveWaiverTargetRosterContextAuditCli.isTeamAutoFillBundle(
+            new String[]{"league", "--team-bundle"}));
+
+        assertTrue(ButlerSleeperLiveWaiverTargetRosterContextAuditCli.isTeamAutoFillBundle(
+            new String[]{"league", "--team-bundle-autofill"}));
+        assertFalse(ButlerSleeperLiveWaiverTargetRosterContextAuditCli.isTeamBundle(
+            new String[]{"league", "--team-bundle-autofill"}));
+    }
+
+    @Test
+    void stagedMyTeamPresentationMakesFantasyProsExplicitGetOnlyAction() throws Exception {
         String transform = source("scripts/butler-app-bf800-autofill-transform.ps1");
         String core = source("scripts/butler-app-shell-core-single.ps1");
         String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
 
+        assertTrue(transform.contains("function New-AutoFillIdleView"));
         assertTrue(transform.contains("function ConvertTo-AutoFillView"));
         assertTrue(transform.contains("function ConvertTo-AutoFillHtml"));
+        assertTrue(transform.contains("href=\"/team/autofill\""));
+        assertTrue(transform.contains("if ($path -eq \"/team/autofill\")"));
+        assertTrue(transform.contains("$LeagueId --team-bundle-autofill"));
         assertTrue(transform.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"AUTOFILL\""));
-        assertTrue(transform.contains("<summary>AutoFill Roster</summary>"));
+        assertTrue(transform.contains("$autoFill = New-AutoFillIdleView"));
+        assertTrue(transform.contains("FantasyPros is contacted only when you choose AutoFill"));
         assertTrue(transform.contains("Projection data:"));
         assertTrue(transform.contains("Butler did not submit a lineup to Sleeper"));
         assertFalse(transform.contains("Method = \"POST\""));
         assertFalse(transform.contains(".POST"));
 
         assertTrue(core.contains("function ConvertTo-TeamHtml {"));
-        assertTrue(core.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"FUTURE_CAPITAL\""));
+        assertTrue(core.contains("-Arguments \"$LeagueId --team-bundle\" -BoundaryName \"BF-692\""));
+        assertFalse(core.contains("--team-bundle-autofill"));
         assertTrue(core.contains("It does not create a new score, recommend a lineup"));
 
         int bf742 = staging.indexOf("& $bf742Transform -CorePath $stagedCore -DashboardPath $DashboardPath");
