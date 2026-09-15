@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerUserInformationHierarchyBf793Test {
@@ -21,8 +22,8 @@ class ButlerUserInformationHierarchyBf793Test {
         assertTrue(cache.contains("Troubleshooting data only. It does not change Butler''s recommendation."));
         assertTrue(cache.contains("BF-794 removes technical record disclosures from normal user-facing HTML"));
         assertTrue(cache.contains("<summary>Advanced technical record</summary>.*?</details>"));
-        assertTrue(cache.contains("Advanced manual command"));
-        assertTrue(cache.contains("Butler will never run it from this page."));
+        assertTrue(cache.contains("BF-799 keeps maintenance commands out of the normal fantasy-manager UI."));
+        assertFalse(cache.contains("Advanced manual command"));
         assertTrue(cache.contains("Recent Sleeper activity:"));
         assertTrue(cache.contains("Review type"));
         assertTrue(cache.contains("Check again after the next value update"));
@@ -50,7 +51,8 @@ class ButlerUserInformationHierarchyBf793Test {
         assertTrue(cache.contains("'<details open><summary>Advanced comparison details</summary>'"));
         assertTrue(cache.contains("'<details><summary>Advanced comparison details</summary><p class=\"subtle\">"));
         assertTrue(cache.contains("'(<input class=\"command\" readonly value=\"[^\"]*\">)'"));
-        assertTrue(cache.contains("'<details><summary>Advanced manual command</summary>"));
+        assertTrue(cache.contains("Source commands remain available to operators and backend diagnostics."));
+        assertFalse(cache.contains("'<details><summary>Advanced manual command</summary>"));
     }
 
     private static String source(String relativePath) throws IOException {
