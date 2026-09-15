@@ -19,8 +19,8 @@ class ButlerUserInformationHierarchyBf793Test {
         assertTrue(cache.contains("This explanation was saved with the decision"));
         assertTrue(cache.contains("Advanced comparison details"));
         assertTrue(cache.contains("Troubleshooting data only. It does not change Butler''s recommendation."));
-        assertTrue(cache.contains("Advanced technical record"));
-        assertTrue(cache.contains("You do not need these IDs to use Butler."));
+        assertTrue(cache.contains("BF-794 removes technical record disclosures from normal user-facing HTML"));
+        assertTrue(cache.contains("<summary>Advanced technical record</summary>.*?</details>"));
         assertTrue(cache.contains("Advanced manual command"));
         assertTrue(cache.contains("Butler will never run it from this page."));
         assertTrue(cache.contains("Recent Sleeper activity:"));

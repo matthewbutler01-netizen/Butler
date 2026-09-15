@@ -303,10 +303,16 @@ function ConvertTo-ButlerUserFacingHtml {
         '<details open><summary>Advanced comparison details</summary>',
         '<details><summary>Advanced comparison details</summary><p class="subtle">Troubleshooting data only. It does not change Butler''s recommendation.</p>'
     )
-    $result = $result.Replace(
-        '<details><summary>Advanced technical record</summary>',
-        '<details><summary>Advanced technical record</summary><p class="subtle">Troubleshooting data only. You do not need these IDs to use Butler.</p>'
+
+    # BF-794 removes technical record disclosures from normal user-facing HTML.
+    # Exact audit/snapshot identifiers remain in source records and backend
+    # diagnostics; they are not part of the fantasy-manager product surface.
+    $result = [regex]::Replace(
+        $result,
+        '(?is)<details(?:\s+open)?><summary>Advanced technical record</summary>.*?</details>',
+        ''
     )
+
     $result = [regex]::Replace(
         $result,
         '(<input class="command" readonly value="[^"]*">)',
