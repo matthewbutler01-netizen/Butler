@@ -22,6 +22,8 @@ import java.util.Set;
 
 /**
  * BF-800 read-only FantasyPros weekly projection provider.
+ * BF-802 validates the requested scoring basis from explicit per-player projection fields rather
+ * than treating response-level scoring metadata as authoritative.
  *
  * <p>The API key is supplied only through {@value #API_KEY_ENV}. It is never stored in Butler,
  * included in a URI, or copied into an exception message.</p>
@@ -77,10 +79,14 @@ public final class FantasyProsWeeklyProjectionProvider {
             throw new IllegalStateException("FantasyPros projection week does not match requested week");
         }
 
+        // BF-802: FantasyPros projection rows expose explicit points, points_half, and points_ppr
+        // fields. Those fields are the evidence Butler actually consumes. The response-level
+        // `scoring` value is provider metadata and may describe the canonical `points` field even
+        // when a different scoring basis was requested. Do not reject a valid requested-basis
+        // field solely because this metadata label differs.
         String returnedScoring = text(root.get("scoring"));
-        if (returnedScoring != null && !returnedScoring.isBlank()
-            && !scoring.name().equalsIgnoreCase(returnedScoring.trim())) {
-            throw new IllegalStateException("FantasyPros projection scoring basis does not match requested basis");
+        if (returnedScoring != null && returnedScoring.isBlank()) {
+            returnedScoring = null;
         }
 
         JsonNode players = root.get("players");
@@ -108,7 +114,8 @@ public final class FantasyProsWeeklyProjectionProvider {
             String pointsField = pointsField(scoring, position);
             JsonNode pointsNode = stats.get(pointsField);
             if ((pointsNode == null || !pointsNode.isNumber()) && !"points".equals(pointsField)) {
-                // Reception scoring does not alter QB/K/DST scoring and FantasyPros may expose only points.
+                // Reception scoring does not alter QB/K/DST scoring in Butler's BF-800 provider
+                // contract, and FantasyPros may expose only the canonical points field there.
                 if (!isReceptionScoredPosition(position)) pointsNode = stats.get("points");
             }
             if (pointsNode == null || !pointsNode.isNumber()) {
