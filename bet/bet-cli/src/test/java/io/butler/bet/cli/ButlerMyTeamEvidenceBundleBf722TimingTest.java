@@ -33,25 +33,29 @@ class ButlerMyTeamEvidenceBundleBf722TimingTest {
     }
 
     @Test
-    void timingMarkerRemainsOutsideTheSixGovernedSections() throws Exception {
+    void timingMarkerRemainsOutsideGovernedSectionsAndAutoFillIsConditional() throws Exception {
         String bundle = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerMyTeamEvidenceBundleCli.java");
 
         int emitRoster = bundle.indexOf("emit(ROSTER_CONTEXT, rosterContext);");
+        int emitAutoFill = bundle.indexOf("if (includeAutoFill) emit(AUTOFILL, autoFill);", emitRoster);
         int emitTeam = bundle.indexOf("emit(TEAM_CONTEXT, teamContext);", emitRoster);
         int emitStrength = bundle.indexOf("emit(ROSTER_STRENGTH, rosterStrength);", emitTeam);
         int emitPressure = bundle.indexOf("emit(POSITIONAL_PRESSURE, positionalPressure);", emitStrength);
         int emitPosture = bundle.indexOf("emit(TEAM_POSTURE, teamPosture);", emitPressure);
         int emitCapital = bundle.indexOf("emit(FUTURE_CAPITAL, futureCapital);", emitPosture);
         int timing = bundle.indexOf("System.out.println(timingMarker(", emitCapital);
-        int boundary = bundle.indexOf("Boundary: BF-699", timing);
+        int boundary = bundle.indexOf("System.out.println(includeAutoFill", timing);
 
-        assertTrue(emitRoster >= 0 && emitTeam > emitRoster && emitStrength > emitTeam);
+        assertTrue(emitRoster >= 0 && emitAutoFill > emitRoster && emitAutoFill < emitTeam,
+            "BF-800 AutoFill must remain an explicit conditional section between roster and normal team evidence");
+        assertTrue(emitTeam > emitRoster && emitStrength > emitTeam);
         assertTrue(emitPressure > emitStrength && emitPosture > emitPressure && emitCapital > emitPosture);
-        assertTrue(timing > emitCapital, "timing diagnostics must remain outside all six governed sections");
-        assertTrue(boundary > timing);
+        assertTrue(timing > emitCapital, "timing diagnostics must remain outside all governed sections");
+        assertTrue(boundary > timing, "read-only boundary must remain after timing diagnostics");
         assertTrue(bundle.contains("System.nanoTime()"));
         assertTrue(bundle.contains("ConcurrentHashMap"));
         assertTrue(bundle.contains("POST_ROSTER_WORKERS = 5"));
+        assertTrue(bundle.contains("normal My Team remains read-only and provider-free for BF-800 AutoFill"));
         assertFalse(bundle.contains("create_transaction"));
         assertFalse(bundle.contains("submitTransaction"));
     }

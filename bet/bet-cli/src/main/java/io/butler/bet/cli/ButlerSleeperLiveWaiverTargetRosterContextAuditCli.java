@@ -10,6 +10,10 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
     private ButlerSleeperLiveWaiverTargetRosterContextAuditCli() {}
 
     public static void main(String[] args) {
+        if (isTeamAutoFillBundle(args)) {
+            ButlerMyTeamEvidenceBundleCli.main(new String[]{args[0].trim(), "--autofill"});
+            return;
+        }
         if (isTeamBundle(args)) {
             ButlerMyTeamEvidenceBundleCli.main(new String[]{args[0].trim()});
             return;
@@ -40,6 +44,14 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    static boolean isTeamAutoFillBundle(String[] args) {
+        return args != null
+            && args.length == 2
+            && args[0] != null
+            && !args[0].isBlank()
+            && "--team-bundle-autofill".equals(args[1]);
     }
 
     static boolean isTeamBundle(String[] args) {
