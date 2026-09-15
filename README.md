@@ -7,7 +7,7 @@ Butler is a governed fantasy-football decision-support application. On Windows, 
 ### Prerequisites
 
 - Windows PowerShell 5.1.
-- Java 25 available to the host. The packaged runtime contains Butler's application JARs and dependencies, but it intentionally does not contain the Gradle wrapper or Gradle toolchain.
+- Java 25 or newer available to the host. The packaged runtime contains Butler's application JARs and dependencies, but it intentionally does not contain the Gradle wrapper or Gradle toolchain.
 - Git, used to bind release artifacts and verification evidence to one exact commit.
 - Runtime data outside the source/package tree. Butler defaults to `%LOCALAPPDATA%\Butler\data`. `BUTLER_APP_DATA_DIR` may override that location only with an absolute path outside the source/package tree.
 
