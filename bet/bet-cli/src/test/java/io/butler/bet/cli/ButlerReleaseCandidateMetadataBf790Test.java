@@ -43,7 +43,7 @@ class ButlerReleaseCandidateMetadataBf790Test {
         assertTrue(doc.contains("exact POST `/refresh` remains excluded"));
         assertTrue(doc.contains("no Butler or Sleeper transaction write is added"));
         assertTrue(doc.contains("does not create a Git tag"));
-        assertTrue(doc.contains("does not create a GitHub Release"));
+        assertTrue(doc.contains("create or modify a GitHub Release"));
     }
 
     private static String rootSource(String relativePath) throws IOException {
