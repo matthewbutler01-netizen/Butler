@@ -140,6 +140,206 @@ if ($null -eq $worker) {
         $moduleLoadReplacement +
         $implementation.Substring($moduleLoadMatch.Index + $moduleLoadMatch.Length)
 
+    # BF-791 creates one presentation boundary for every public HTML route.
+    # Internal state, audit data, and service contracts remain unchanged; only
+    # rendered HTML is translated into user-facing fantasy-football language.
+    $sendMarker = 'function Send-HttpResponse {'
+    $sendMarkerMatches = [regex]::Matches($implementation, [regex]::Escape($sendMarker))
+    if ($sendMarkerMatches.Count -ne 1) {
+        try { $Client.Close() } catch {}
+        throw "BF-791 BLOCKED: public response boundary count was $($sendMarkerMatches.Count), expected exactly 1."
+    }
+
+    $presentationFunctions = @'
+function ConvertTo-ButlerDisplayToken {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $labels = @{
+        'HISTORY_INTEGRITY_VERIFIED' = 'Verified'
+        'LINEAGE_AND_IDENTITY_VERIFIED' = 'Verified'
+        'NO_HISTORICAL_FINALIST' = 'No prior recommendation'
+        'NO_GOVERNED_TRANSACTION' = 'No move recommended'
+        'RECOMMEND_ADD_DROP' = 'Add / drop recommended'
+        'NOT_EVALUATED' = 'Not checked'
+        'FLEXIBLE_BALANCED' = 'Balanced'
+        'READY_CONTEXT_ONLY' = 'Ready'
+        'BOUND_TARGET_LIVE_VERIFIED' = 'Verified'
+        'LIVE_ACTIONABLE_VERIFIED' = 'Verified'
+        'AUDITED_TRANSACTION_COMPLETE' = 'Move completed'
+        'AUDITED_TRANSACTION_PENDING' = 'Move pending'
+        'NO_TRANSACTION_TO_REVALIDATE' = 'No move to recheck'
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED' = 'Up to date'
+        'CURRENT_AND_ACTIONABLE' = 'Ready to act'
+        'TRANSACTION_ALREADY_COMPLETE' = 'Move completed'
+        'TRANSACTION_PENDING_DO_NOT_DUPLICATE' = 'Move pending'
+        'CURRENT_REFRESH_RECOMMENDED' = 'Refresh recommended'
+        'STALE_DO_NOT_ACT' = 'Do not act'
+        'NO_TRANSACTION_TO_ACT_ON' = 'No move recommended'
+        'MANUAL_REFRESH_PLAN_READY' = 'Refresh ready'
+        'POST_TRANSACTION_ROSTER_CONVERGED' = 'Roster updated'
+    }
+    if ($labels.ContainsKey($Value)) { return [string]$labels[$Value] }
+
+    $words = $Value.Replace('_', ' ').ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($words)) { return $Value }
+    return $words.Substring(0, 1).ToUpperInvariant() + $words.Substring(1)
+}
+
+function ConvertTo-ButlerUserFacingHtml {
+    param([Parameter(Mandatory = $true)][string]$Html)
+
+    if ([string]::IsNullOrWhiteSpace($Html)) { return $Html }
+
+    # Keep exact raw command/diagnostic material available behind technical
+    # disclosures while normal visible copy is normalized.
+    $preBlocks = New-Object System.Collections.Generic.List[string]
+    $preEvaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        $index = $preBlocks.Count
+        $preBlocks.Add($match.Value)
+        return "@@butler-pre-$index@@"
+    }
+    $result = [regex]::Replace($Html, '(?is)<pre\b[^>]*>.*?</pre>', $preEvaluator)
+
+    $copy = [ordered]@{
+        'BF-628 integrity-verified history for the exact BF-623-bound league and roster. This page does not rerun recommendations.' = 'Past waiver recommendations for this team. Butler does not rerun decisions on this page.'
+        'Loading Butler''s BF-628 integrity-verified immutable waiver audit trail.' = 'Loading your saved waiver decisions.'
+        'This view reads existing audit history only. It does not capture, refresh, rerank, or submit anything.' = 'This page only shows saved decisions. It does not refresh data or submit moves.'
+        'Immutable governed waiver audits' = 'Waiver decision history'
+        'Governed decision history' = 'Decision history'
+        'Immutable audit' = 'Decision record'
+        'History state' = 'History status'
+        'Audit records' = 'Saved decisions'
+        'Target roster' = 'Roster'
+        'Provider frame' = 'Season / week'
+        'Selection state' = 'Decision status'
+        'Audit and evidence lineage' = 'Decision details'
+        'Show audit details' = 'Show decision details'
+        'Governed trade evaluation' = 'Trade evaluation'
+        'Package recommendation:' = 'Butler recommendation:'
+        'Perspective is always your exact bound team.' = 'This is evaluated from your team''s perspective.'
+        'INCOMPLETE EVIDENCE' = 'Missing information'
+        'COMPLETE EVIDENCE' = 'Ready'
+        'Strategic veto' = 'Deal-breaker check'
+        'Flexible pressure' = 'Roster flexibility'
+        'Pressure transition' = 'Roster impact'
+        '<strong>Market direction</strong>' = '<strong>Market</strong>'
+        '<strong>Posture</strong>' = '<strong>Team strategy</strong>'
+        '<strong>Future capital</strong>' = '<strong>Draft capital</strong>'
+        '<strong>Position pressure</strong>' = '<strong>Position need</strong>'
+        'Material-loss veto evidence' = 'Deal-breakers'
+        'No governed material-loss veto reason was returned.' = 'No deal-breaker found.'
+        'Technical governed output' = 'Technical details'
+        'Butler''s existing governed v5 trade recommendation, brought into a read-only app workspace. No new trade score is created here.' = 'Compare a potential trade using Butler''s current recommendation model. This page does not make roster changes or submit trades.'
+        'Select exact persisted assets. Butler validates current ownership again before evaluation.' = 'Select the players and picks on each side. Butler checks current ownership before evaluating the deal.'
+        'Butler''s existing governed league overview, presented as an app view without adding a new ranking or strategy model.' = 'A snapshot of league strength, value movement, and what needs attention.'
+        'Safe franchise context' = 'League standings'
+        'Shown only when Butler''s existing franchise-readiness gate authorizes rankings.' = 'Based on the latest complete league data Butler has available.'
+        'Comparable history' = 'Value trends'
+        'Governed guidance' = 'What to do next'
+        'These are Butler''s existing deterministic league-health actions. Commands are displayed for manual use only and are never executed by this page.' = 'Recommended next steps based on the league data Butler has available.'
+        'My team intelligence' = 'My Team'
+        'Butler''s existing governed team evidence composed into one read-only app screen. No new team score or strategy model is created here.' = 'A snapshot of your roster, strengths, needs, and future draft capital.'
+        'LIVE VERIFIED' = 'Up to date'
+        'Governed dimensions' = 'Team outlook'
+        'Team posture' = 'Team direction'
+        'Lineup-aware pressure' = 'Position needs'
+        'These are Butler''s existing positional-pressure tiers. FLEX/SUPERFLEX remain separate governed context; this page does not turn them into start/sit advice.' = 'See where your roster is strong, balanced, or thin by position. FLEX and SUPERFLEX are considered without turning this into start/sit advice.'
+        'Future flexibility' = 'Draft capital'
+        'Exact BF-623-bound live roster context from BF-610. Players are grouped for readability only, not ranked.' = 'Your current Sleeper roster, grouped by position.'
+        'Governed posture unavailable' = 'Team direction unavailable'
+        'No governed player' = 'No player'
+        'latest governed evidence' = 'latest verified information'
+        'exact governed transaction' = 'exact move'
+        'This governed move' = 'This move'
+        'new governed result' = 'new recommendation'
+        'governed evaluation' = 'evaluation'
+        'No governed transaction' = 'No move recommended'
+        'governed transaction' = 'recommended move'
+        'currently governed add/drop action' = 'current add/drop recommendation'
+        'Evidence lineage verified' = 'Recommendation data verified'
+        'Evidence lineage not current' = 'Recommendation data needs refresh'
+        'governed evidence refresh' = 'data refresh'
+        'No governed next action' = 'No next action'
+        'governed movement window' = 'value-trend window'
+        'comparable provider snapshots' = 'comparable value snapshots'
+        'provider snapshots' = 'value snapshots'
+        'INCONCLUSIVE' = 'No clear recommendation'
+    }
+    foreach ($key in $copy.Keys) {
+        $result = $result.Replace([string]$key, [string]$copy[$key])
+    }
+
+    # Evidence-gate statuses use READY/BLOCKED internally. Their UI meaning is
+    # simply whether enough information is available for that part of the call.
+    $result = $result.Replace('<span>READY</span>', '<span>Ready</span>')
+    $result = $result.Replace('<span>BLOCKED</span>', '<span>Missing</span>')
+    $result = $result.Replace('<span class="danger">BLOCKED</span>', '<span class="danger">Deal-breaker found</span>')
+    $result = $result.Replace('<span class="done">NOT_EVALUATED</span>', '<span class="done">Not checked</span>')
+
+    # The normal app never needs engineering ticket numbers or Butler-internal
+    # UUIDs in its headers/cards. Functional ids in form values/links are left
+    # untouched because these patterns target visible HTML containers only.
+    if ($result -match '<title>Butler - Decision History</title>') {
+        $result = [regex]::Replace($result, '(?is)<div class="target">.*?</div>', '<div class="target">Decision history</div>')
+    }
+    $result = [regex]::Replace($result, '(?i)\s*&middot;\s*roster\s+\d+(?=</div>)', '')
+    $result = [regex]::Replace($result, '(?i)(<div class="target">[^<]*?)\s*&middot;\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(</div>)', '$1$2')
+    $result = [regex]::Replace($result, '(?i)<div class="meta">Team ID\s+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}</div>', '')
+
+    # Replace known and future enum-shaped state names with readable labels.
+    $enumEvaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        return ConvertTo-ButlerDisplayToken -Value $match.Value
+    }
+    $result = [regex]::Replace($result, '\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b', $enumEvaluator)
+
+    # Remaining engineering vocabulary is presentation-only cleanup. Raw `<pre>`
+    # output was protected above and therefore still carries the exact source.
+    $result = [regex]::Replace($result, '(?i)\bBF-\d+(?:-bound)?\b', '')
+    $result = [regex]::Replace($result, '(?i)\bevidence lineage\b', 'recommendation data')
+    $result = [regex]::Replace($result, '(?i)\blineage\b', 'source data')
+    $result = [regex]::Replace($result, '(?i)\bgoverned\s+', '')
+    $result = [regex]::Replace($result, '(?i)\bpersisted\b', 'saved')
+    $result = [regex]::Replace($result, '(?i)\bbound\b', 'linked')
+    $result = [regex]::Replace($result, '(?i)\bdeterministic\s+', '')
+    $result = [regex]::Replace($result, '(?i)\baudited\b', 'recorded')
+    $result = [regex]::Replace($result, '(?i)\baudit history\b', 'decision history')
+    $result = [regex]::Replace($result, '(?i)\baudit records?\b', 'saved decisions')
+
+    # Standardize the promise at the bottom of every normal read-only screen.
+    $result = [regex]::Replace(
+        $result,
+        '(?is)<section class="panel boundary"><span class="lock">READ ONLY\.</span>.*?</section>',
+        '<section class="panel boundary"><span class="lock">READ ONLY.</span> Butler will never make roster changes or submit a Sleeper transaction from this screen.</section>'
+    )
+
+    for ($index = 0; $index -lt $preBlocks.Count; $index++) {
+        $result = $result.Replace("@@butler-pre-$index@@", $preBlocks[$index])
+    }
+    return $result
+}
+'@
+
+    $sendMarkerIndex = $sendMarkerMatches[0].Index
+    $implementation = $implementation.Substring(0, $sendMarkerIndex) +
+        $presentationFunctions + "`r`n`r`n" +
+        $implementation.Substring($sendMarkerIndex)
+
+    $bodyEncodingLine = '    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)'
+    $bodyEncodingMatches = [regex]::Matches($implementation, [regex]::Escape($bodyEncodingLine))
+    if ($bodyEncodingMatches.Count -ne 1) {
+        try { $Client.Close() } catch {}
+        throw "BF-791 BLOCKED: public HTML encoding boundary count was $($bodyEncodingMatches.Count), expected exactly 1."
+    }
+    $bodyEncodingReplacement = @'
+    if ($ContentType -match '^text/html') {
+        $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+    }
+    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
+'@
+    $implementation = $implementation.Replace($bodyEncodingLine, $bodyEncodingReplacement.TrimEnd())
+
     $worker = [scriptblock]::Create($implementation)
     Set-Variable -Name $cacheName -Scope Global -Value $worker
 }
