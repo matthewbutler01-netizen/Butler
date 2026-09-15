@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerPackagedFirstLaunchDocsBf783Test {
 
     @Test
-    void readmeDocumentsFreshAndSubsequentPackagedLaunches() throws Exception {
+    void readmeDocumentsFirstAndSubsequentPackagedLaunches() throws Exception {
         String readme = source("README.md");
 
-        assertTrue(readme.contains("On a fresh host, or after deliberately resetting the saved league selection"));
+        assertTrue(readme.contains("the first launch must supply the Butler league id"));
         assertTrue(readme.contains(".\\scripts\\butler-app.cmd -LeagueId <butler-league-id>"));
         assertTrue(readme.contains("Butler's exact league UUID, not the Sleeper league id"));
         assertTrue(readme.contains("%LOCALAPPDATA%\\Butler\\app-league.txt"));
