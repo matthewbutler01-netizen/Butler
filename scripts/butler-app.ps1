@@ -269,9 +269,7 @@ if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
     if (Test-Path -LiteralPath $legacyDatabasePath -PathType Leaf) {
         throw "BF-770 BLOCKED: legacy Butler database remains in the source tree. Run scripts\butler-migrate-runtime-data.ps1 before launching Butler."
     }
-    if ($null -ne $configuredLeagueId) {
-        throw "BF-770 BLOCKED: configured Butler runtime database is missing at $databasePath. Restore or migrate the database before launching."
-    }
+    throw "BF-785 BLOCKED: governed Butler runtime database is missing at $databasePath. The Butler runtime package is code/runtime-only; restore or migrate an existing governed Butler database before launching."
 }
 
 $originalDataDir = [string]$env:BUTLER_APP_DATA_DIR
