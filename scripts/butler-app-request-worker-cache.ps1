@@ -289,6 +289,13 @@ function ConvertTo-ButlerUserFacingHtml {
         $result = $result.Replace([string]$key, [string]$copy[$key])
     }
 
+    # BF-799 keeps the saved-decision title and description visually separate
+    # regardless of inherited dashboard display styles.
+    $result = $result.Replace(
+        '<div class="lineage-copy"><strong>Saved decision</strong><span>',
+        '<div class="lineage-copy"><strong style="display:block;margin-bottom:6px">Saved decision</strong><span style="display:block">'
+    )
+
     # BF-792 keeps provider lifecycle names out of normal fantasy-football UI.
     # Match only visible season/status/leg text frames; persisted provider values
     # and raw technical <pre> diagnostics remain exact.
@@ -318,7 +325,9 @@ function ConvertTo-ButlerUserFacingHtml {
     $result = [regex]::Replace(
         $result,
         '(<input class="command" readonly value="[^"]*">)',
-        '<details><summary>Advanced manual command</summary><p class="subtle">Only needed for manual maintenance. Butler will never run it from this page.</p>$1</details>'
+        # BF-799 keeps maintenance commands out of the normal fantasy-manager UI.
+        # Source commands remain available to operators and backend diagnostics.
+        ''
     )
     $result = [regex]::Replace(
         $result,
@@ -340,6 +349,19 @@ function ConvertTo-ButlerUserFacingHtml {
     if ($result -match '<title>Butler - Decision History</title>') {
         $result = [regex]::Replace($result, '(?is)<div class="target">.*?</div>', '<div class="target">Decision history</div>')
     }
+    if ($result -match '<title>Butler - Decision Detail</title>') {
+        $result = [regex]::Replace(
+            $result,
+            '(?is)<div class="target">.*?</div>',
+            '<div class="target">Decision history</div>'
+        )
+        $result = [regex]::Replace(
+            $result,
+            '(?is)<div class="detail-item"><strong>Explanation id</strong><span>.*?</span></div>',
+            ''
+        )
+    }
+
     $result = [regex]::Replace($result, '(?i)\s*&middot;\s*roster\s+\d+(?=</div>)', '')
     $result = [regex]::Replace($result, '(?i)(<div class="target">[^<]*?)\s*&middot;\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(</div>)', '$1$2')
     $result = [regex]::Replace($result, '(?i)<div class="meta">Team ID\s+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}</div>', '')
