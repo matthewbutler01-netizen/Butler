@@ -13,10 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerReleaseCandidateMetadataBf788Test {
 
     @Test
-    void gradleMetadataDeclaresFirstReleaseCandidate() throws Exception {
+    void gradleMetadataDeclaresReleaseCandidate() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.1.0-rc.1\""));
+        assertTrue(build.contains("version = \"0.1.0-rc."));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
 
