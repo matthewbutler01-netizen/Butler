@@ -54,10 +54,27 @@ The BF-777 verification record contains release metadata only: the exact commit,
 
 ### Run a packaged release
 
-After the runtime ZIP has been verified, extract `Butler-runtime-<shortsha>.zip` into its own directory outside the Git worktree. From the root of that extracted package, start Butler with:
+After the runtime ZIP has been verified, extract `Butler-runtime-<shortsha>.zip` into its own directory outside the Git worktree.
+
+On a fresh host, or after deliberately resetting the saved league selection, the first launch must supply the Butler league id:
+
+```text
+.\scripts\butler-app.cmd -LeagueId <butler-league-id>
+```
+
+`<butler-league-id>` is Butler's exact league UUID, not the Sleeper league id. The launcher validates the UUID and saves the selection under `%LOCALAPPDATA%\Butler\app-league.txt` for later launches.
+
+Once a league is configured, subsequent launches use the saved selection:
 
 ```text
 .\scripts\butler-app.cmd
+```
+
+To intentionally change the packaged app to a different Butler league, reset the saved selection and then launch again with the new Butler league UUID:
+
+```text
+.\scripts\butler-app.cmd -ResetLeague
+.\scripts\butler-app.cmd -LeagueId <new-butler-league-id>
 ```
 
 The packaged launcher uses the prebuilt runtime JARs. The Gradle wrapper/toolchain remains absent from the package; its fail-closed `gradlew.bat` shim only authorizes the exact internal startup probe. Runtime data remains external at `%LOCALAPPDATA%\Butler\data` unless an absolute external `BUTLER_APP_DATA_DIR` is supplied.
