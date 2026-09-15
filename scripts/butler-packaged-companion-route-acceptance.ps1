@@ -240,7 +240,7 @@ try {
         -Port $port `
         -Process $process `
         -RequestTarget '/trade?load=1' `
-        -ExpectedMarker 'Governed trade intelligence' `
+        -ExpectedMarker 'Evaluate a trade' `
         -BoundaryName 'fully loaded Trade Lab'
 
     Invoke-PackagedReadRoute `
