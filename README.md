@@ -52,6 +52,16 @@ Butler-release-<shortsha>.verified.txt
 
 The BF-777 verification record contains release metadata only: the exact commit, runtime artifact name, SHA-256, manifest name, acceptance marker, and no-runtime-data boundaries. It does not contain the Butler database, credentials, provider payloads, or user runtime data.
 
+### Run a packaged release
+
+After the runtime ZIP has been verified, extract `Butler-runtime-<shortsha>.zip` into its own directory outside the Git worktree. From the root of that extracted package, start Butler with:
+
+```text
+.\scripts\butler-app.cmd
+```
+
+The packaged launcher uses the prebuilt runtime JARs. The Gradle wrapper/toolchain remains absent from the package; its fail-closed `gradlew.bat` shim only authorizes the exact internal startup probe. Runtime data remains external at `%LOCALAPPDATA%\Butler\data` unless an absolute external `BUTLER_APP_DATA_DIR` is supplied.
+
 ### Verify a saved release later
 
 BF-778 can independently verify a saved BF-777 record without launching Butler or reading runtime data. This also works for a historical release after repository HEAD has advanced:
