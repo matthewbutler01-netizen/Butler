@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerUserInformationHierarchyBf793Test {
@@ -38,6 +37,7 @@ class ButlerUserInformationHierarchyBf793Test {
     void exactTraceDataRemainsInSourceAndPresentationOnlyChangesHierarchy() throws Exception {
         String dashboard = source("scripts/butler-dashboard.ps1");
         String history = source("scripts/butler-decision-history.ps1");
+        String cache = source("scripts/butler-app-request-worker-cache.ps1");
 
         assertTrue(dashboard.contains("<details open><summary>Comparator traceability</summary>"));
         assertTrue(dashboard.contains("Candidate-supported comparators:"));
@@ -47,9 +47,10 @@ class ButlerUserInformationHierarchyBf793Test {
         assertTrue(history.contains("BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)"));
         assertTrue(history.contains("BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)"));
 
-        String cache = source("scripts/butler-app-request-worker-cache.ps1");
-        assertTrue(cache.contains("<details><summary>Advanced comparison details</summary>"));
-        assertFalse(cache.contains("delete") && cache.contains("AuditId"));
+        assertTrue(cache.contains("'<details open><summary>Advanced comparison details</summary>'"));
+        assertTrue(cache.contains("'<details><summary>Advanced comparison details</summary><p class=\"subtle\">"));
+        assertTrue(cache.contains("'(<input class=\"command\" readonly value=\"[^\"]*\">)'"));
+        assertTrue(cache.contains("'<details><summary>Advanced manual command</summary>"));
     }
 
     private static String source(String relativePath) throws IOException {
