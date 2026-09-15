@@ -76,6 +76,17 @@ jobs:
           if ($failed) { exit 1 }
           Write-Host ("ASCII-only Windows source gate passed for {0} file(s)." -f $files.Count)
 
+      - name: Exercise BF-786 missing runtime database acceptance
+        shell: powershell
+        run: |
+          try {
+              & '.\scripts\butler-missing-runtime-db-acceptance.ps1'
+          }
+          catch {
+              Write-Error $_
+              exit 1
+          }
+
       - name: Exercise BF-707 staging transform under Windows PowerShell 5.1
         shell: powershell
         run: |
