@@ -180,7 +180,7 @@ if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($artifactPath)
 try {
-    $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\\', '/') })
+    $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
     foreach ($required in @(
         'scripts/butler-app.cmd',
         'scripts/butler-app.ps1',
