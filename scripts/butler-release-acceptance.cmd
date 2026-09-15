@@ -13,6 +13,10 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0butler-rel
 set "BF777_RECORD_ERROR=%ERRORLEVEL%"
 set "BUTLER_BF776_ACCEPTANCE_VERIFIED="
 if not "%BF777_RECORD_ERROR%"=="0" exit /b %BF777_RECORD_ERROR%
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0butler-release-verification-check.ps1"
+set "BF778_VERIFY_ERROR=%ERRORLEVEL%"
+if not "%BF778_VERIFY_ERROR%"=="0" exit /b %BF778_VERIFY_ERROR%
 echo BF-776 RELEASE ACCEPTANCE: PASS
 echo BF-777 RELEASE VERIFICATION RECORD: PASS
+echo BF-780 RELEASE SELF-VERIFICATION: PASS
 exit /b 0
