@@ -18,8 +18,12 @@ $loopback = [System.Net.IPAddress]::Parse("127.0.0.1")
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appLauncher = Join-Path $scriptDir "butler-app.ps1"
+$javaPreflight = Join-Path $scriptDir "butler-java-preflight.ps1"
 if (-not (Test-Path -LiteralPath $appLauncher)) {
     throw "BF-669 BLOCKED: Butler app launcher not found at $appLauncher"
+}
+if (-not (Test-Path -LiteralPath $javaPreflight -PathType Leaf)) {
+    throw "BF-782 BLOCKED: Butler Java preflight not found at $javaPreflight"
 }
 
 function Invoke-ButlerLauncher {
@@ -61,6 +65,8 @@ if ($ResetLeague) {
     Invoke-ButlerLauncher
     exit 0
 }
+
+& $javaPreflight
 
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
