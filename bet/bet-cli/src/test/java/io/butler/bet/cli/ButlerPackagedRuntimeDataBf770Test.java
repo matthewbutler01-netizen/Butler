@@ -23,7 +23,7 @@ class ButlerPackagedRuntimeDataBf770Test {
         assertTrue(app.contains("runtime data directory must be outside the source/package tree"));
         assertTrue(app.contains("Join-Path $repoRoot \"bet\\bet-cli\\butler.db\""));
         assertTrue(app.contains("legacy Butler database remains in the source tree"));
-        assertTrue(app.contains("configured Butler runtime database is missing"));
+        assertTrue(app.contains("governed Butler runtime database is missing"));
         assertTrue(app.contains("$env:BUTLER_APP_DATA_DIR = $dataDir"));
         assertTrue(app.contains("Write-Host \"Data: $dataDir\""));
 
