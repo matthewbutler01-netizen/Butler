@@ -270,6 +270,15 @@ function ConvertTo-ButlerUserFacingHtml {
         $result = $result.Replace([string]$key, [string]$copy[$key])
     }
 
+    # BF-792 keeps provider lifecycle names out of normal fantasy-football UI.
+    # Match only visible season/status/leg text frames; persisted provider values
+    # and raw technical <pre> diagnostics remain exact.
+    $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*in_season\s*/\s*(\d+)(\s*<)', '$1 / Week $2$3')
+    $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*pre_draft\s*/\s*\d+(\s*<)', '$1 / Pre-draft$2')
+    $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*drafting\s*/\s*\d+(\s*<)', '$1 / Drafting$2')
+    $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*complete\s*/\s*\d+(\s*<)', '$1 / Complete$2')
+    $result = [regex]::Replace($result, '(?i)(>\s*\d{4})\s*/\s*post_season\s*/\s*\d+(\s*<)', '$1 / Post-season$2')
+
     # Evidence-gate statuses use READY/BLOCKED internally. Their UI meaning is
     # simply whether enough information is available for that part of the call.
     $result = $result.Replace('<span>READY</span>', '<span>Ready</span>')
