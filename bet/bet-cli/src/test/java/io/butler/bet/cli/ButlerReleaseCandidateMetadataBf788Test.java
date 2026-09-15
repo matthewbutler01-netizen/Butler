@@ -14,7 +14,7 @@ class ButlerReleaseCandidateMetadataBf788Test {
 
     @Test
     void gradleMetadataDeclaresFirstReleaseCandidate() throws Exception {
-        String build = source("build.gradle.kts");
+        String build = rootSource("build.gradle.kts");
 
         assertTrue(build.contains("version = \"0.1.0-rc.1\""));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
@@ -37,8 +37,8 @@ class ButlerReleaseCandidateMetadataBf788Test {
         assertTrue(record > windowsAcceptance);
         assertTrue(verifier > record);
         assertTrue(evidence > verifier);
-        assertTrue(readme.contains("BF-780 self-verification"));
-        assertTrue(readme.contains("BF-787 evidence-archive PASS markers"));
+        assertTrue(readme.contains("BF-780 RELEASE SELF-VERIFICATION: PASS"));
+        assertTrue(readme.contains("BF-787 RELEASE EVIDENCE ARCHIVE: PASS"));
     }
 
     @Test
@@ -60,6 +60,20 @@ class ButlerReleaseCandidateMetadataBf788Test {
         assertTrue(evidence.contains("BF-787 RELEASE EVIDENCE ARCHIVE: PASS"));
         assertTrue(evidence.contains("does not upload anything, create a Git tag, or create a GitHub Release"));
         assertTrue(evidence.contains("contains no Butler database, credentials, provider payloads, logs, or user runtime data"));
+    }
+
+    private static String rootSource(String relativePath) throws IOException {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (int depth = 0; depth < 7 && current != null; depth++) {
+            if (Files.isRegularFile(current.resolve("settings.gradle.kts"))) {
+                Path candidate = current.resolve(relativePath);
+                if (Files.isRegularFile(candidate)) {
+                    return Files.readString(candidate, StandardCharsets.UTF_8);
+                }
+            }
+            current = current.getParent();
+        }
+        throw new IOException("BF-788 test could not locate repository-root " + relativePath);
     }
 
     private static String source(String relativePath) throws IOException {
