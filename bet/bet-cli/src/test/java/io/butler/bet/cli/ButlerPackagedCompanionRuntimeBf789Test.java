@@ -49,7 +49,7 @@ class ButlerPackagedCompanionRuntimeBf789Test {
         assertTrue(acceptance.contains("'/trade?load=1'"));
         assertTrue(acceptance.contains("'/history?load=1'"));
         assertTrue(acceptance.contains("'Evaluate a trade'"));
-        assertTrue(acceptance.contains("'Immutable governed waiver audits'"));
+        assertTrue(acceptance.contains("'Immutable waiver audits'"));
         assertTrue(acceptance.contains("post-{0} health"));
         assertTrue(acceptance.contains("BF-789 PACKAGED COMPANION ROUTES: PASS"));
         assertTrue(acceptance.contains("GET_ONLY; /refresh EXCLUDED; NO_BUTLER_OR_SLEEPER_TRANSACTION_WRITE"));
