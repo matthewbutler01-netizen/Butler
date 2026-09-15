@@ -247,7 +247,7 @@ try {
         -Port $port `
         -Process $process `
         -RequestTarget '/history?load=1' `
-        -ExpectedMarker 'Immutable governed waiver audits' `
+        -ExpectedMarker 'Immutable waiver audits' `
         -BoundaryName 'fully loaded Decision History'
 
     Write-Host 'Butler packaged companion-route acceptance (BF-789)'
