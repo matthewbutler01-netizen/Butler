@@ -29,10 +29,12 @@ git status --short
 1. Creates the exact-HEAD code-only source bundle (BF-769).
 2. Creates the prebuilt read-runtime bundle with no runtime data or Gradle toolchain (BF-773).
 3. Extracts and launches that packaged runtime, then runs the BF-768 release-security smoke checks.
-4. Runs the existing Butler Windows acceptance and diagnostics, including the GET-only BF-688 workload.
-5. Writes the BF-777 release verification record only after those acceptance layers pass.
-6. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
-7. Reports `BF-780 RELEASE SELF-VERIFICATION: PASS` only after the saved record independently verifies.
+4. Runs the isolated BF-786 missing-runtime-database probe, proving a package with no governed external `butler.db` fails closed without creating the database or saving league selection.
+5. Runs the existing Butler Windows acceptance and diagnostics, including the GET-only BF-688 workload.
+6. Writes the BF-777 release verification record only after those acceptance layers pass.
+7. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
+8. Packages exactly the four BF-778-verified runtime evidence files into the BF-787 portable release-evidence archive and emits its SHA-256 sidecar.
+9. Reports the final BF-780 self-verification and BF-787 evidence-archive PASS markers only after the complete gate succeeds.
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
@@ -48,9 +50,13 @@ Butler-runtime-<shortsha>.zip
 Butler-runtime-<shortsha>.zip.sha256
 Butler-runtime-<shortsha>.manifest.txt
 Butler-release-<shortsha>.verified.txt
+Butler-release-evidence-<shortsha>.zip
+Butler-release-evidence-<shortsha>.zip.sha256
 ```
 
 The BF-777 verification record contains release metadata only: the exact commit, runtime artifact name, SHA-256, manifest name, acceptance marker, and no-runtime-data boundaries. It does not contain the Butler database, credentials, provider payloads, or user runtime data.
+
+BF-787 packages only the BF-778-verified runtime ZIP, runtime checksum, runtime manifest, and BF-777 verification record. It does not add runtime data or publish anything. See `docs/release-evidence.md` for the portable evidence boundary and historical verification workflow.
 
 ### Deployment boundary
 
