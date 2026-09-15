@@ -83,7 +83,7 @@ try {
     $zip = [IO.Compression.ZipFile]::OpenRead($evidencePath)
     try {
         $entryNames = @($zip.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) } | ForEach-Object { $_.FullName })
-        $expectedNames = @($runtimeName, $runtimeName + '.sha256', $manifestName, $recordName)
+        $expectedNames = @($runtimeName, ($runtimeName + '.sha256'), $manifestName, $recordName)
         if ($entryNames.Count -ne 4) {
             throw "BF-787 BLOCKED: synthetic evidence archive contains $($entryNames.Count) files instead of exactly 4."
         }
