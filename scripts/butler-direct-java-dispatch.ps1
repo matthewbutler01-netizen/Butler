@@ -57,6 +57,7 @@ $mainClass = switch ($Task) {
     ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli'; break }
     ':bet:bet-cli:sleeperLiveWaiverComparisonBundle' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'; break }
     ':bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverGovernedExplanationLookupCli'; break }
+    ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditHistory' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditHistoryCli'; break }
     default { $null }
 }
 

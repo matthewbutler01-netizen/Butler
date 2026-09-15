@@ -73,6 +73,14 @@ if ($null -eq $worker) {
     }
 
     $moduleLoadReplacement = @'
+    # BF-789 keeps companion reads on the same prebuilt Java runtime as the
+    # packaged app. The release Gradle shim remains fail-closed and is never
+    # widened to authorize Trade Lab or History tasks.
+    $gradle = Join-Path $RepoRoot 'scripts\butler-companion-read-proxy.cmd'
+    if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
+        throw "BF-789 BLOCKED: companion read proxy is unavailable at $gradle"
+    }
+
     $bf767CoreRead = $requestTarget -ceq '/' -or
         $requestTarget -ceq '/team' -or
         $requestTarget -ceq '/waivers' -or
