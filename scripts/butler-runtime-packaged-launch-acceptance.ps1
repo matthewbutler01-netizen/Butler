@@ -136,7 +136,7 @@ function Wait-ButlerHealth {
     $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($Process.HasExited) {
-            throw 'BF-773 BLOCKED: packaged Butler exited during no-Gradle startup.'
+            throw 'BF-773 BLOCKED: packaged Butler exited during prebuilt-runtime startup.'
         }
         $response = $null
         try {
@@ -173,31 +173,31 @@ try {
 
     $packagedLauncher = Join-Path $tempRoot 'scripts\butler-app.ps1'
     $securityCheck = Join-Path $tempRoot 'scripts\butler-release-security-check.ps1'
-    $runtimeLib = Join-Path $tempRoot 'runtime\lib'
+    $runtimeLib = Join-Path $tempRoot 'bet\bet-cli\build\install\bet-cli\lib'
+    $packagedGradle = Join-Path $tempRoot 'gradlew.bat'
+    $wrapperDir = Join-Path $tempRoot 'gradle'
+    $unixGradle = Join-Path $tempRoot 'gradlew'
     if (-not (Test-Path -LiteralPath $packagedLauncher -PathType Leaf) -or
         -not (Test-Path -LiteralPath $securityCheck -PathType Leaf) -or
-        -not (Test-Path -LiteralPath $runtimeLib -PathType Container)) {
-        throw 'BF-773 BLOCKED: extracted runtime package is missing launcher, security, or runtime/lib entrypoints.'
+        -not (Test-Path -LiteralPath $runtimeLib -PathType Container) -or
+        -not (Test-Path -LiteralPath $packagedGradle -PathType Leaf)) {
+        throw 'BF-773 BLOCKED: extracted runtime package is missing launcher, security, prebuilt installDist library, or startup shim.'
     }
+    if (Test-Path -LiteralPath $wrapperDir -or Test-Path -LiteralPath $unixGradle) {
+        throw 'BF-773 BLOCKED: extracted runtime package still contains the Gradle wrapper toolchain.'
+    }
+
+    $shimText = [IO.File]::ReadAllText($packagedGradle, [Text.Encoding]::ASCII)
+    if ($shimText.IndexOf('runtime package Gradle shim only authorizes the prebuilt installDist startup probe', [System.StringComparison]::Ordinal) -lt 0 -or
+        $shimText.IndexOf(':bet:bet-cli:installDist', [System.StringComparison]::Ordinal) -lt 0 -or
+        $shimText.IndexOf('exit /b 77', [System.StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-773 BLOCKED: extracted gradlew.bat is not the governed fail-closed BF-773 startup shim.'
+    }
+
     $runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLib -Filter '*.jar' -File -ErrorAction Stop)
     $appJars = @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' })
     if ($runtimeJars.Count -eq 0 -or $appJars.Count -ne 1) {
         throw 'BF-773 BLOCKED: extracted runtime package does not contain one valid bet-cli prebuilt runtime.'
-    }
-
-    $packagedGradle = Join-Path $tempRoot 'gradlew.bat'
-    if (-not (Test-Path -LiteralPath $packagedGradle -PathType Leaf)) {
-        throw 'BF-773 BLOCKED: extracted source package is missing the launcher sentinel target gradlew.bat.'
-    }
-    $sentinel = "@echo off`r`necho BF-773 BLOCKED: packaged read startup attempted Gradle. 1>&2`r`nexit /b 77`r`n"
-    [IO.File]::WriteAllText($packagedGradle, $sentinel, [Text.Encoding]::ASCII)
-    $wrapperDir = Join-Path $tempRoot 'gradle'
-    if (Test-Path -LiteralPath $wrapperDir) {
-        Remove-Item -LiteralPath $wrapperDir -Recurse -Force
-    }
-    $unixGradle = Join-Path $tempRoot 'gradlew'
-    if (Test-Path -LiteralPath $unixGradle) {
-        Remove-Item -LiteralPath $unixGradle -Force
     }
 
     $port = Get-FreeLoopbackPort
@@ -235,8 +235,8 @@ try {
     Write-Host "Extracted package: $tempRoot"
     Write-Host "Runtime JARs: $($runtimeJars.Count)"
     Write-Host "Runtime data: $dataDir"
-    Write-Host 'Gradle proof: wrapper directory removed; gradlew.bat replaced by fail-closed sentinel; Butler became healthy without invoking it.'
-    Write-Host 'Boundary: EXTRACTED_RUNTIME_PACKAGE; PREBUILT_READ_RUNTIME; SQLITE_RUNTIME_DATA_EXTERNAL; STARTUP_GRADLE_NOT_INVOKED'
+    Write-Host 'Gradle proof: wrapper/toolchain absent; fail-closed gradlew.bat shim authorizes only the exact installDist startup probe; Butler became healthy from prebuilt JARs.'
+    Write-Host 'Boundary: EXTRACTED_RUNTIME_PACKAGE; PREBUILT_READ_RUNTIME; SQLITE_RUNTIME_DATA_EXTERNAL; GRADLE_TOOLCHAIN_ABSENT'
     Write-Host 'BF-773 PREBUILT RUNTIME PACKAGED LAUNCH: PASS'
 }
 finally {
