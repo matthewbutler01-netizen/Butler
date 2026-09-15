@@ -7,6 +7,7 @@ import io.butler.bet.intelligence.LeaguePositionalPressureAnalyzer;
 import io.butler.bet.intelligence.LeagueRosterStrengthTierAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamPostureAnalyzer;
+import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 
 import java.io.ByteArrayOutputStream;
@@ -28,10 +29,13 @@ import java.util.concurrent.Future;
  * BF-716 overlaps BF-610 roster analysis with the four analyzers that do not need its season.
  * BF-717 reuses the existing roster-strength report when composing team posture.
  * BF-722 records monotonic diagnostic timings without changing evidence or rendering.
- * This class adds no analyzer, score, recommendation, mutation, or evidence synthesis.
+ * BF-800 adds one read-only weekly AutoFill recommendation from exact BF-610 roster evidence and
+ * FantasyPros projections. AutoFill failure is contained to its bundle section and cannot create
+ * a Butler or Sleeper write path.
  */
 public final class ButlerMyTeamEvidenceBundleCli {
     static final String ROSTER_CONTEXT = "ROSTER_CONTEXT";
+    static final String AUTOFILL = "AUTOFILL";
     static final String TEAM_CONTEXT = "TEAM_CONTEXT";
     static final String ROSTER_STRENGTH = "ROSTER_STRENGTH";
     static final String POSITIONAL_PRESSURE = "POSITIONAL_PRESSURE";
@@ -89,6 +93,8 @@ public final class ButlerMyTeamEvidenceBundleCli {
                     measureEvidence(evidenceTimings, TEAM_POSTURE, () ->
                         teamPostureAnalyzer.analyzeCompetitiveEvidence(leagueId, season)));
 
+                SleeperLiveAutoFillLineupRecommendation.RecommendationReport autoFillReport =
+                    autoFillSafely(database, rosterContextReport);
                 LeagueTeamContextAnalyzer.TeamContextReport teamContextReport = await(teamContextFuture);
                 LeagueRosterStrengthTierAnalyzer.RosterStrengthReport rosterStrengthReport = await(rosterStrengthFuture);
                 LeaguePositionalPressureAnalyzer.PositionalPressureReport positionalPressureReport = await(positionalPressureFuture);
@@ -104,6 +110,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
                     ButlerPersonalizedTargetCliSupport.printVerified(target);
                     ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(rosterContextReport);
                 });
+                String autoFill = capture(() -> ButlerAutoFillLineupRecommendationCli.print(autoFillReport));
                 String teamContext = capture(() -> ButlerMain.printLeagueTeamContext(teamContextReport));
                 String rosterStrength = capture(() -> ButlerLeagueRosterStrengthCli.print(rosterStrengthReport));
                 String positionalPressure = capture(() -> ButlerLeaguePositionalPressureCli.print(positionalPressureReport));
@@ -112,6 +119,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
                 long renderMs = elapsedMillis(renderStarted);
 
                 emit(ROSTER_CONTEXT, rosterContext);
+                emit(AUTOFILL, autoFill);
                 emit(TEAM_CONTEXT, teamContext);
                 emit(ROSTER_STRENGTH, rosterStrength);
                 emit(POSITIONAL_PRESSURE, positionalPressure);
@@ -119,7 +127,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
                 emit(FUTURE_CAPITAL, futureCapital);
                 long totalMs = elapsedMillis(totalStarted);
                 System.out.println(timingMarker(databaseMs, targetMs, analysisWallMs, evidenceTimings, renderMs, totalMs));
-                System.out.println("Boundary: BF-699 reuses one initialized database for the existing read-only My Team evidence only; no Butler or Sleeper write is executed.");
+                System.out.println("Boundary: BF-800 adds a read-only weekly AutoFill preview to the existing My Team evidence bundle; no Butler or Sleeper lineup write is executed.");
             } finally {
                 executor.shutdownNow();
             }
@@ -127,6 +135,25 @@ public final class ButlerMyTeamEvidenceBundleCli {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    private static SleeperLiveAutoFillLineupRecommendation.RecommendationReport autoFillSafely(
+        Database database,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContextReport) {
+        try {
+            return new SleeperLiveAutoFillLineupRecommendation(database).recommend(rosterContextReport);
+        } catch (Exception e) {
+            return SleeperLiveAutoFillLineupRecommendation.RecommendationReport.unavailable(
+                rosterContextReport.providerSeason(),
+                rosterContextReport.providerLeg(),
+                null,
+                "AutoFill evidence is unavailable: " + safeMessage(e));
+        }
+    }
+
+    private static String safeMessage(Exception e) {
+        String message = e.getMessage();
+        return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
     }
 
     private static Database initializedDatabase() throws Exception {
