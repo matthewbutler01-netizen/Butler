@@ -183,7 +183,7 @@ try {
         -not (Test-Path -LiteralPath $packagedGradle -PathType Leaf)) {
         throw 'BF-773 BLOCKED: extracted runtime package is missing launcher, security, prebuilt installDist library, or startup shim.'
     }
-    if (Test-Path -LiteralPath $wrapperDir -or Test-Path -LiteralPath $unixGradle) {
+    if ((Test-Path -LiteralPath $wrapperDir) -or (Test-Path -LiteralPath $unixGradle)) {
         throw 'BF-773 BLOCKED: extracted runtime package still contains the Gradle wrapper toolchain.'
     }
 
