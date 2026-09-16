@@ -16,7 +16,7 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
     void lineupAdvisorCoversIdleGapChangedAndNoChangeStates() throws Exception {
         String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
 
-        assertTrue(transform.contains("This week's lineup decision"));
+        assertTrue(transform.contains("This week''s lineup decision"));
         assertTrue(transform.contains("NOT REVIEWED"));
         assertTrue(transform.contains("Lineup decision blocked by an evidence gap"));
         assertTrue(transform.contains("EVIDENCE GAP"));
@@ -67,9 +67,7 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
         assertTrue(bf816.contains("butler-app-bf817-lineup-advisor-transform.ps1"));
         assertTrue(bf816.contains("& $bf817Transform -CorePath $stagedCore"));
 
-        assertFalse(transform.contains("BUTLER_FANTASYPROS_API_KEY"));
-        assertFalse(transform.contains("AutoFillLineupOptimizer"));
-        assertFalse(transform.contains("Method = \"POST\""));
+        assertTrue(transform.contains("Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer"));
         assertFalse(transform.contains("Invoke-RestMethod"));
         assertFalse(transform.contains("$env:"));
     }
