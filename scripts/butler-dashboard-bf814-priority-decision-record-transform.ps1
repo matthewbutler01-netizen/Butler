@@ -123,3 +123,11 @@ if ($text -notmatch '\$primaryRecordHtml') {
 }
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+# BF-815: after the detailed priority-aware record is installed, add a compact summary
+# that lets the manager scan decision, trust frame, next action, and record as one package.
+$bf815Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf815-unified-decision-package-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf815Transform -PathType Leaf)) {
+    throw "BF-815 BLOCKED: unified decision package transform not found at $bf815Transform"
+}
+& $bf815Transform -DashboardPath $DashboardPath
