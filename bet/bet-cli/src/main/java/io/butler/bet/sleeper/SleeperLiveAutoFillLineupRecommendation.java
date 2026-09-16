@@ -8,6 +8,7 @@ import io.butler.bet.intelligence.AutoFillLineupOptimizer;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -149,7 +150,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,
-            snapshot.sourceName(), snapshot.sourceSurface(), mappedActivePlayers,
+            snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation);
     }
 
@@ -193,6 +194,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         SleeperWeeklyProjectionProvider.ScoringBasis scoringBasis,
         String sourceName,
         String sourceSurface,
+        Instant projectionObservedAt,
         int mappedActivePlayers,
         BigDecimal currentProjectedTotal,
         BigDecimal projectedGain,
@@ -206,6 +208,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 Objects.requireNonNull(scoringBasis, "ready report requires scoringBasis");
                 sourceName = requireText(sourceName, "sourceName");
                 sourceSurface = requireText(sourceSurface, "sourceSurface");
+                Objects.requireNonNull(projectionObservedAt, "ready report requires projectionObservedAt");
                 if (mappedActivePlayers <= 0) throw new IllegalArgumentException("mappedActivePlayers must be positive");
                 Objects.requireNonNull(currentProjectedTotal, "currentProjectedTotal must not be null");
                 Objects.requireNonNull(projectedGain, "projectedGain must not be null");
@@ -213,7 +216,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 if (!recommendation.ready()) throw new IllegalArgumentException("ready report requires ready recommendation");
             } else {
                 reason = requireText(reason, "reason");
-                if (sourceName != null || sourceSurface != null || mappedActivePlayers != 0
+                if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
@@ -227,7 +230,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, 0, null, null, null);
+                null, null, null, 0, null, null, null);
         }
 
         public static RecommendationReport ready(
@@ -236,13 +239,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             SleeperWeeklyProjectionProvider.ScoringBasis scoringBasis,
             String sourceName,
             String sourceSurface,
+            Instant projectionObservedAt,
             int mappedActivePlayers,
             BigDecimal currentProjectedTotal,
             BigDecimal projectedGain,
             AutoFillLineupOptimizer.Recommendation recommendation) {
             return new RecommendationReport(
                 POLICY_ID, true, null, season, week, scoringBasis,
-                sourceName, sourceSurface, mappedActivePlayers,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation);
         }
     }
