@@ -36,7 +36,8 @@ class ButlerCommandCenterPolishBf805Test {
         assertTrue(transform.contains("Butler could not identify one clear add/drop move supported strongly enough by the current evidence"));
         assertTrue(transform.contains("Butler found one add/drop move that passed the current governed checks"));
         assertTrue(transform.contains("supporting evidence is old enough that refreshing it first is recommended"));
-        assertFalse(transform.contains("$whyCopy = if ($explanation.Ready)"));
+        assertTrue(transform.contains("$text = $text.Replace($oldWhy, $newWhy)"));
+        assertTrue(transform.contains("$whyCopy = switch ($state)"));
         assertFalse(transform.contains("final method"));
         assertFalse(transform.contains("cross-position ties"));
     }
