@@ -101,16 +101,18 @@ function ConvertTo-AutoFillHtml {
 
 $core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillHtml {' -NextMarker 'function ConvertTo-TeamHtml {' -Replacement $autoFillReplacement -Contract 'Lineup Advisor decision summary'
 
-if ($core -notmatch 'This week''s lineup decision') {
+# These checks validate the raw generated PowerShell source. The idle HTML lives inside a
+# single-quoted generated string, so its apostrophe is represented by two apostrophes here.
+if (-not $autoFillReplacement.Contains("This week''s lineup decision")) {
     throw 'BF-817 BLOCKED: idle lineup decision summary is missing.'
 }
-if ($core -notmatch 'Lineup decision blocked by an evidence gap') {
+if (-not $autoFillReplacement.Contains('Lineup decision blocked by an evidence gap')) {
     throw 'BF-817 BLOCKED: evidence-gap lineup decision summary is missing.'
 }
-if ($core -notmatch 'Keep the current lineup') {
+if (-not $autoFillReplacement.Contains('Keep the current lineup')) {
     throw 'BF-817 BLOCKED: no-change lineup decision summary is missing.'
 }
-if ($core -notmatch 'Butler is not claiming a separate per-player delta') {
+if (-not $autoFillReplacement.Contains('Butler is not claiming a separate per-player delta')) {
     throw 'BF-817 BLOCKED: projection explanation boundary is missing.'
 }
 if ($core -notmatch 'Players by lineup state') {
