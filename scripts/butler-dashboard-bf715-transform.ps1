@@ -172,3 +172,13 @@ if (-not (Test-Path -LiteralPath $bf807Transform -PathType Leaf)) {
     throw "BF-807 BLOCKED: priority ordering transform not found at $bf807Transform"
 }
 & $bf807Transform -DashboardPath $DashboardPath
+
+# BF-808: preserve the result of the explicit read-only AutoFill request and let the
+# Command Center reuse that local snapshot without re-contacting FantasyPros on Dashboard load.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf808Transform = Join-Path $PSScriptRoot 'butler-bf808-autofill-command-center-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf808Transform -PathType Leaf)) {
+        throw "BF-808 BLOCKED: AutoFill Command Center transform not found at $bf808Transform"
+    }
+    & $bf808Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+}
