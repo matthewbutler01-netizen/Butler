@@ -200,3 +200,11 @@ if ($text -match 'FantasyProsApiClient|Invoke-RestMethod|BUTLER_FANTASYPROS_API_
 }
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+# BF-814: after Evidence Status is aligned to priority 01, align the Decision Record to the
+# same already-derived priority without introducing any new read, provider, optimizer, or write path.
+$bf814Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf814-priority-decision-record-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf814Transform -PathType Leaf)) {
+    throw "BF-814 BLOCKED: priority Decision Record transform not found at $bf814Transform"
+}
+& $bf814Transform -DashboardPath $DashboardPath
