@@ -48,7 +48,23 @@ function ConvertTo-AutoFillHtml {
 
     $frame = "Week $(ConvertTo-HtmlText $AutoFill.Week) &middot; $(ConvertTo-HtmlText $AutoFill.Scoring) scoring"
     if (-not $AutoFill.Ready) {
-        return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>Lineup decision blocked by an evidence gap</h2><p class=`"lede`">Butler could not prove a complete weekly lineup, so there is no recommendation to follow.</p></div><span class=`"status warn`">EVIDENCE GAP</span></div><div class=`"manager-summary`"><div class=`"summary-card`"><h3>Decision</h3><p>No lineup recommendation. Review the current starters manually while the evidence gap remains.</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $AutoFill.Reason)</p></div></div><div class=`"callout callout-danger`">$(ConvertTo-HtmlText $AutoFill.Reason)</div><div class=`"source-note`"><span>$frame &middot; Retry only after the missing projection or provider evidence becomes available.</span><div class=`"button-row`"><a class=`"btn btn-primary`" href=`"/team/autofill`">Retry AutoFill</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit a lineup to Sleeper.</p></section>"
+        $reason = [string]$AutoFill.Reason
+        $projectionGap = $reason.IndexOf('projection', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        if ($projectionGap) {
+            $gapTitle = 'Lineup recommendation needs current projections'
+            $gapLede = 'Butler has your current roster, but current weekly projection evidence is unavailable.'
+            $decisionCopy = 'No lineup recommendation until current weekly projections can be verified.'
+            $whyCopy = 'The roster is available, but Butler cannot prove a weekly START/SIT recommendation without current projection evidence.'
+            $retryLabel = 'Refresh Projections'
+        }
+        else {
+            $gapTitle = 'Lineup decision blocked by an evidence gap'
+            $gapLede = 'Butler could not prove a complete weekly lineup, so there is no recommendation to follow.'
+            $decisionCopy = 'No lineup recommendation. Review the current starters manually while the evidence gap remains.'
+            $whyCopy = 'A required roster, scoring, identity, eligibility, or weekly evidence check is incomplete.'
+            $retryLabel = 'Retry Lineup Review'
+        }
+        return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $gapTitle)</h2><p class=`"lede`">$(ConvertTo-HtmlText $gapLede)</p></div><span class=`"status warn`">EVIDENCE GAP</span></div><div class=`"manager-summary`"><div class=`"summary-card`"><h3>Decision</h3><p>$(ConvertTo-HtmlText $decisionCopy)</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $whyCopy)</p></div></div><details><summary>View evidence details</summary><div class=`"callout callout-danger`">$(ConvertTo-HtmlText $AutoFill.Reason)</div></details><div class=`"source-note`"><span>$frame &middot; Butler will not guess when required weekly evidence is missing.</span><div class=`"button-row`"><a class=`"btn btn-primary`" href=`"/team/autofill`">$(ConvertTo-HtmlText $retryLabel)</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit a lineup to Sleeper.</p></section>"
     }
 
     $rows = ''
@@ -101,13 +117,26 @@ function ConvertTo-AutoFillHtml {
 
 $core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillHtml {' -NextMarker 'function ConvertTo-TeamHtml {' -Replacement $autoFillReplacement -Contract 'Lineup Advisor decision summary'
 
+# BF-822: the team-level badge describes roster synchronization only. It must not imply
+# that weekly lineup projection evidence is also current.
+$upToDateCount = [regex]::Matches($core, '>UP TO DATE<').Count
+if ($upToDateCount -eq 1) {
+    $core = $core.Replace('>UP TO DATE<', '>ROSTER CURRENT<')
+}
+elseif ($upToDateCount -gt 1) {
+    throw "BF-822 BLOCKED: roster status badge is ambiguous ($upToDateCount matches)."
+}
+
 # These checks validate the raw generated PowerShell source. The idle HTML lives inside a
 # single-quoted generated string, so its apostrophe is represented by two apostrophes here.
 if (-not $autoFillReplacement.Contains("This week''s lineup decision")) {
     throw 'BF-817 BLOCKED: idle lineup decision summary is missing.'
 }
-if (-not $autoFillReplacement.Contains('Lineup decision blocked by an evidence gap')) {
-    throw 'BF-817 BLOCKED: evidence-gap lineup decision summary is missing.'
+if (-not $autoFillReplacement.Contains('Lineup recommendation needs current projections')) {
+    throw 'BF-822 BLOCKED: provider-neutral projection evidence-gap summary is missing.'
+}
+if (-not $autoFillReplacement.Contains('View evidence details')) {
+    throw 'BF-822 BLOCKED: evidence detail disclosure is missing.'
 }
 if (-not $autoFillReplacement.Contains('Keep the current lineup')) {
     throw 'BF-817 BLOCKED: no-change lineup decision summary is missing.'
@@ -119,10 +148,10 @@ if ($core -notmatch 'Players by lineup state') {
     throw 'BF-817 BLOCKED: existing starter and bench roster board regressed.'
 }
 
-# Validate only the BF-817 presentation block. Earlier governed transforms legitimately
-# contain provider credential and optimizer identifiers; BF-817 must not reject inherited code.
+# Validate only the presentation block. Earlier governed transforms may contain old provider
+# identifiers, but the manager-facing Lineup Advisor must remain provider-neutral and read-only.
 if ($autoFillReplacement -match 'Method = "POST"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer|Invoke-RestMethod') {
-    throw 'BF-817 BLOCKED: Lineup Advisor presentation introduced provider, optimizer, credential, or write behavior.'
+    throw 'BF-822 BLOCKED: Lineup Advisor presentation introduced credential, optimizer, or write behavior.'
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
