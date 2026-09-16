@@ -10,6 +10,13 @@ public final class ButlerSleeperLiveWaiverGovernedExplanationLookupCli {
     private ButlerSleeperLiveWaiverGovernedExplanationLookupCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         try {
             if (args == null || args.length != 2
                 || args[0] == null || args[0].isBlank()
@@ -24,9 +31,10 @@ public final class ButlerSleeperLiveWaiverGovernedExplanationLookupCli {
             var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
             ButlerPersonalizedTargetCliSupport.printVerified(target);
             print(new SleeperLiveWaiverGovernedExplanationLookup(database).lookup(target, auditId));
+            return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
