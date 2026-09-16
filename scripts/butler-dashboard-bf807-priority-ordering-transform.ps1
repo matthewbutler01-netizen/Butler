@@ -85,9 +85,10 @@ $orderingPrelude = @'
         $cardClass = if ($priorityIndex -eq 0) { "priority-card primary" } else { "priority-card" }
         $displayPriority = "{0:D2}" -f ($priorityIndex + 1)
         $extraHtml = [string]$signal.ExtraHtml
-        $priorityCardList.Add(@"
+        $cardHtml = @"
     <article class="$cardClass"><div class="priority-index">$displayPriority</div><div><div class="priority-type">$(ConvertTo-HtmlText $signal.Kind)</div><div class="priority-title">$(ConvertTo-HtmlText $signal.Title)</div><div class="priority-copy">$(ConvertTo-HtmlText $signal.Copy)</div>$extraHtml<div class="priority-actions">$($signal.ActionsHtml)</div></div><div class="status $($signal.StatusClass)">$(ConvertTo-HtmlText $signal.Status)</div></article>
-"@)
+"@
+        $priorityCardList.Add($cardHtml)
     }
     $priorityQueueHtml = $priorityCardList -join "`n"
 '@
