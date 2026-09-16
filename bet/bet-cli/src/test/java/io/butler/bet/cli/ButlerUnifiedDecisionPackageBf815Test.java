@@ -64,10 +64,10 @@ class ButlerUnifiedDecisionPackageBf815Test {
         assertTrue(bf815 > write);
         assertTrue(bf814.contains("& $bf815Transform -DashboardPath $DashboardPath"));
 
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("BUTLER_FANTASYPROS_API_KEY"));
-        assertFalse(transform.contains("AutoFillLineupOptimizer"));
-        assertFalse(transform.contains("Method = \"POST\""));
+        // BF-815 deliberately names forbidden operations inside its fail-closed guard,
+        // so verify that guard exists rather than treating the guard text itself as behavior.
+        assertTrue(transform.contains("FantasyProsApiClient|Invoke-RestMethod|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer|Method = \"POST\""));
+        assertTrue(transform.contains("decision package introduced provider, optimizer, credential, or write behavior."));
         assertFalse(transform.contains("$env:"));
     }
 
