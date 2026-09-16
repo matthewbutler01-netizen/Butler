@@ -30,12 +30,18 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
     private ButlerWaiverDashboardEvidenceBundleCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         if (args == null || args.length < 1 || args.length > 2
             || args[0] == null || args[0].isBlank()
             || (args.length == 2 && !COMPARISON_ROSTER_ONLY.equals(args[1]))) {
             System.err.println("Error: waiver dashboard evidence bundle requires one Butler league id and optional --comparison-roster-only.");
-            System.exit(2);
-            return;
+            return 2;
         }
 
         try {
@@ -45,9 +51,10 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
             } else {
                 runFullBundle(leagueId);
             }
+            return 0;
         } catch (Exception e) {
             System.err.println("Error: " + rootMessage(e));
-            System.exit(2);
+            return 2;
         }
     }
 
