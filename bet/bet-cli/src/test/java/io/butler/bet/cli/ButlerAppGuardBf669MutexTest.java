@@ -14,12 +14,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppGuardBf669MutexTest {
 
     @Test
-    void commandRoutesThroughNamedMutexGuard() throws Exception {
+    void commandRoutesThroughSupervisorAndNamedMutexGuard() throws Exception {
         String command = script("scripts/butler-app.cmd");
+        String supervisor = script("scripts/butler-app-supervisor.ps1");
         String guard = script("scripts/butler-app-guard.ps1");
 
-        assertTrue(command.contains("butler-app-guard.ps1"));
+        assertTrue(command.contains("butler-app-supervisor.ps1"));
         assertFalse(command.contains("-File \"%~dp0butler-app.ps1\""));
+        assertTrue(supervisor.contains("$guard = Join-Path $scriptDir 'butler-app-guard.ps1'"));
 
         assertTrue(guard.contains("Local\\Butler.App.Port.$Port"));
         assertTrue(guard.contains("[System.Threading.Mutex]::new($false, $mutexName, [ref]$createdNew)"));
@@ -55,8 +57,10 @@ class ButlerAppGuardBf669MutexTest {
     }
 
     @Test
-    void guardAndCommandRemainAsciiOnly() throws Exception {
+    void launcherChainRemainsAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app-guard.ps1"));
+        assertAscii(script("scripts/butler-app-supervisor.ps1"));
+        assertAscii(script("scripts/butler-child-tree-watchdog.ps1"));
         assertAscii(script("scripts/butler-app.cmd"));
     }
 
