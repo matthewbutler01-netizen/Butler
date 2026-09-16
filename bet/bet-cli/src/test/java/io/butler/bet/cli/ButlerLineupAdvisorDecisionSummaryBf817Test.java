@@ -67,9 +67,20 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
         assertTrue(bf816.contains("butler-app-bf817-lineup-advisor-transform.ps1"));
         assertTrue(bf816.contains("& $bf817Transform -CorePath $stagedCore"));
 
-        assertTrue(transform.contains("Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer"));
-        assertFalse(transform.contains("Invoke-RestMethod"));
+        assertTrue(transform.contains("$autoFillReplacement -match 'Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer|Invoke-RestMethod'"));
+        assertFalse(transform.contains("$core -match 'Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer'"));
         assertFalse(transform.contains("$env:"));
+    }
+
+    @Test
+    void inheritedBf808CredentialRedactionDoesNotTripBf817Guard() throws Exception {
+        String bf808 = source("scripts/butler-bf808-autofill-command-center-transform.ps1");
+        String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
+
+        assertTrue(bf808.contains("BUTLER_FANTASYPROS_API_KEY"));
+        assertTrue(transform.contains("Validate only the BF-817 presentation block"));
+        assertTrue(transform.contains("$autoFillReplacement -match"));
+        assertFalse(transform.contains("if ($core -match 'Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer')"));
     }
 
     private static String source(String relativePath) throws IOException {
