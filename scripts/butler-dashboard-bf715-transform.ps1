@@ -148,3 +148,11 @@ if (-not (Test-Path -LiteralPath $bf804Transform -PathType Leaf)) {
     throw "BF-804 BLOCKED: Command Center transform not found at $bf804Transform"
 }
 & $bf804Transform -DashboardPath $DashboardPath
+
+# BF-805: local visual acceptance found the dashboard header lagging the BF-803 manager shell
+# and the normal explanation still carrying implementation-heavy persisted wording.
+$bf805Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf805-command-center-polish-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf805Transform -PathType Leaf)) {
+    throw "BF-805 BLOCKED: Command Center polish transform not found at $bf805Transform"
+}
+& $bf805Transform -DashboardPath $DashboardPath
