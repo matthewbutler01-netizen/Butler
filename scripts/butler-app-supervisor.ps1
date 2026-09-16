@@ -75,28 +75,50 @@ function Start-ButlerWatchdog {
     return $process
 }
 
+function Get-GuardCoreChildren {
+    param([Parameter(Mandatory = $true)][int]$GuardProcessId)
+
+    try {
+        return @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $GuardProcessId" -ErrorAction Stop |
+            Where-Object {
+                $_.Name -ieq 'powershell.exe' -and
+                -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and
+                [string]$_.CommandLine -like '*butler-app-shell-core.ps1*'
+            })
+    }
+    catch {
+        return @()
+    }
+}
+
 function Stop-GuardTreeBestEffort {
     param([AllowNull()]$GuardProcess)
 
     if ($null -eq $GuardProcess) { return }
-    try {
-        if ($GuardProcess.HasExited) { return }
-    }
-    catch {
-        return
+
+    $guardProcessId = [int]$GuardProcess.Id
+    foreach ($core in @(Get-GuardCoreChildren -GuardProcessId $guardProcessId)) {
+        $corePid = [int]$core.ProcessId
+        if ($corePid -le 0) { continue }
+        if (Test-Path -LiteralPath $taskkill -PathType Leaf) {
+            try {
+                & $taskkill /PID $corePid /T /F 2>$null | Out-Null
+                continue
+            }
+            catch {
+            }
+        }
+        try { Stop-Process -Id $corePid -Force -ErrorAction SilentlyContinue } catch {}
     }
 
-    # This path is only used when the supervisor itself detects a launcher error.
-    # The independent watchdog remains the Ctrl+C fallback for abrupt termination.
-    if (Test-Path -LiteralPath $taskkill -PathType Leaf) {
-        try {
-            & $taskkill /PID $GuardProcess.Id /T /F 2>$null | Out-Null
-            return
-        }
-        catch {
+    try {
+        if (-not $GuardProcess.HasExited) {
+            $GuardProcess.Kill()
+            [void]$GuardProcess.WaitForExit(3000)
         }
     }
-    try { $GuardProcess.Kill() } catch {}
+    catch {
+    }
 }
 
 $guardProcess = $null
