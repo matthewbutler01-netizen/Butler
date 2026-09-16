@@ -35,10 +35,10 @@ class ButlerAutoFillRosterDriftRecoveryBf822Test {
 
         assertFalse(transform.contains(":bet:bet-cli:sleeperLiveWaiverSnapshotSync"));
         assertFalse(transform.contains(":bet:bet-cli:sleeperLiveWaiverMarketAttentionSync"));
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("create_transaction"));
-        assertFalse(transform.contains("submitTransaction"));
+        assertFalse(transform.contains("Invoke-DecisionRefreshRunner"));
+        assertFalse(transform.contains("& $gradle"));
         assertTrue(transform.contains("href=\"/refresh\""));
+        assertTrue(transform.contains("does not refresh evidence automatically"));
     }
 
     @Test
