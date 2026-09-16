@@ -31,7 +31,19 @@ class ButlerPriorityExplanationBf810Test {
 
         assertTrue(transform.contains("$(ConvertTo-HtmlText $primaryExplanationTitle)"));
         assertTrue(transform.contains("$(ConvertTo-HtmlText $primaryExplanationCopy)"));
-        assertFalse(transform.contains("<h2>Decision explanation</h2><div class=\"why-card\">$(ConvertTo-HtmlText $whyCopy)</div></section>'\n$whyNew"));
+        assertTrue(transform.contains("priority 01 explanation derivation"));
+        assertTrue(transform.contains("Command Center explanation panel"));
+    }
+
+    @Test
+    void stagingRunsAfterBf809ReaderHardening() throws Exception {
+        String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
+
+        int bf809 = staging.indexOf("& $bf809Transform -DashboardPath $DashboardPath");
+        int bf810 = staging.indexOf("& $bf810Transform -DashboardPath $DashboardPath");
+        assertTrue(bf809 >= 0, "BF-809 staging must remain present");
+        assertTrue(bf810 > bf809, "BF-810 must run after BF-809 establishes the final lineup signal");
+        assertTrue(staging.contains("butler-dashboard-bf810-priority-explanation-transform.ps1"));
     }
 
     @Test
