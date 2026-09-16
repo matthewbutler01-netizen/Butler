@@ -156,3 +156,11 @@ if (-not (Test-Path -LiteralPath $bf805Transform -PathType Leaf)) {
     throw "BF-805 BLOCKED: Command Center polish transform not found at $bf805Transform"
 }
 & $bf805Transform -DashboardPath $DashboardPath
+
+# BF-806: turn the single waiver-centric priority surface into a read-only manager queue
+# spanning waiver, lineup, and trade signals without adding new provider calls or decision semantics.
+$bf806Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf806-multi-signal-priorities-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf806Transform -PathType Leaf)) {
+    throw "BF-806 BLOCKED: multi-signal priorities transform not found at $bf806Transform"
+}
+& $bf806Transform -DashboardPath $DashboardPath
