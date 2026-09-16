@@ -190,11 +190,19 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf809Transform -DashboardPath $DashboardPath
 
-    # BF-810: the explanation panel must follow the already-ordered priority 01 signal
+    # BF-810/BF-811: explanation and next-action guidance must follow the already-ordered priority 01 signal
     # rather than always explaining the saved waiver decision.
     $bf810Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf810-priority-explanation-transform.ps1'
     if (-not (Test-Path -LiteralPath $bf810Transform -PathType Leaf)) {
         throw "BF-810 BLOCKED: priority explanation transform not found at $bf810Transform"
     }
     & $bf810Transform -DashboardPath $DashboardPath
+
+    # BF-813: evidence status follows the same priority 01 signal using only evidence already loaded
+    # by the Dashboard. Lineup uses the persisted AutoFill frame; waiver keeps the governed waiver cards.
+    $bf813Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf813-priority-evidence-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf813Transform -PathType Leaf)) {
+        throw "BF-813 BLOCKED: priority evidence transform not found at $bf813Transform"
+    }
+    & $bf813Transform -DashboardPath $DashboardPath
 }
