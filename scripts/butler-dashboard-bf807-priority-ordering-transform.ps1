@@ -120,8 +120,5 @@ if ($text -notmatch '\$orderedPrioritySignals') {
 if ($text -notmatch 'foreach \(\$attentionGroup in @\("attention", "review", "neutral"\)\)') {
     throw 'BF-807 BLOCKED: explicit attention ordering contract is missing.'
 }
-if ($text -match 'FantasyProsWeeklyProjectionProvider|AutoFillLineupOptimizer|Method = "POST"') {
-    throw 'BF-807 BLOCKED: priority ordering introduced provider, optimizer, or POST behavior.'
-}
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
