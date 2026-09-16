@@ -155,3 +155,11 @@ if ($text -match 'FantasyProsApiClient|Invoke-RestMethod|BUTLER_FANTASYPROS_API_
 }
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+# BF-816: polish healthy, neutral, and not-yet-evaluated Command Center states only after
+# the unified package and all detailed priority-01 sections have been installed.
+$bf816Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf816-healthy-state-polish-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf816Transform -PathType Leaf)) {
+    throw "BF-816 BLOCKED: healthy-state polish transform not found at $bf816Transform"
+}
+& $bf816Transform -DashboardPath $DashboardPath
