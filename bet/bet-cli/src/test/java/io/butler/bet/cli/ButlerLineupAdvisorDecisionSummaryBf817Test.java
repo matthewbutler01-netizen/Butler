@@ -60,6 +60,15 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
     }
 
     @Test
+    void rawGeneratedSourceCheckPreservesDoubledApostrophe() throws Exception {
+        String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
+
+        assertTrue(transform.contains("$autoFillReplacement.Contains(\"This week''s lineup decision\")"));
+        assertFalse(transform.contains("if ($core -notmatch 'This week''s lineup decision')"));
+        assertTrue(transform.contains("These checks validate the raw generated PowerShell source"));
+    }
+
+    @Test
     void bf816StagesBf817AndBf817RemainsPresentationOnly() throws Exception {
         String bf816 = source("scripts/butler-dashboard-bf816-healthy-state-polish-transform.ps1");
         String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
