@@ -35,7 +35,7 @@ class ButlerTeamStageDiagnosticBf722RuntimeDataTest {
         assertTrue(script.contains("io.butler.bet.cli.ButlerMyTeamEvidenceBundleCli"));
         assertTrue(script.contains("--enable-native-access=ALL-UNNAMED"));
         assertTrue(script.contains("read-only My Team evidence only"));
-        assertFalse(script.contains("/refresh"));
+        assertTrue(script.contains("no /refresh and no Butler or Sleeper write path is invoked"));
         assertFalse(script.contains("submitTransaction"));
         assertFalse(script.contains("create_transaction"));
 
