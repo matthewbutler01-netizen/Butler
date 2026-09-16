@@ -17,11 +17,11 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
     void recoveryRequiresExactBf610RosterDriftBeforeFirstWrite() throws Exception {
         String script = source("scripts/butler-recover-roster-drift.ps1");
 
-        int preflight = script.indexOf("$preflight = Invoke-ButlerGradleTask -Task $bf610Task");
+        int preflight = script.indexOf("$preflight = Invoke-ButlerRuntimeCommand -MainClass $bf610Class");
         int driftPrefix = script.indexOf("BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added=");
         int driftSuffix = script.indexOf("refresh BF-602/BF-603 and downstream live evidence before target-roster review");
         int exactGate = script.indexOf("$recoveryNeeded = $true", preflight);
-        int firstWrite = script.indexOf(":bet:bet-cli:sleeperLiveWaiverSnapshotSync", exactGate);
+        int firstWrite = script.indexOf("io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli", exactGate);
 
         assertTrue(preflight >= 0);
         assertTrue(driftPrefix >= 0 && driftSuffix > driftPrefix);
@@ -31,28 +31,46 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
     }
 
     @Test
+    void recoveryPinsCommandsToGovernedRuntimeDatabaseOutsideSourceTree() throws Exception {
+        String script = source("scripts/butler-recover-roster-drift.ps1");
+
+        assertTrue(script.contains("$env:BUTLER_APP_DATA_DIR"));
+        assertTrue(script.contains("Join-Path $configDir 'data'"));
+        assertTrue(script.contains("Butler runtime data directory must be outside the source/package tree"));
+        assertTrue(script.contains("$databasePath = Join-Path $dataDir 'butler.db'"));
+        assertTrue(script.contains("Push-Location $dataDir"));
+        assertTrue(script.contains("build\\install\\bet-cli\\lib"));
+        assertTrue(script.contains("'--enable-native-access=ALL-UNNAMED'"));
+        assertTrue(script.contains("Data: $dataDir"));
+
+        assertFalse(script.contains("Invoke-ButlerGradleTask"));
+        assertFalse(script.contains("& $gradle"));
+        assertFalse(script.contains("Push-Location $repoRoot"));
+    }
+
+    @Test
     void recoveryUsesOnlyTheFixedSixEvidenceStagesInGovernedOrder() throws Exception {
         String script = source("scripts/butler-recover-roster-drift.ps1");
 
-        String[] tasks = {
-            ":bet:bet-cli:sleeperLiveWaiverSnapshotSync",
-            ":bet:bet-cli:sleeperLiveWaiverMarketAttentionSync",
-            ":bet:bet-cli:sleeperLiveWaiverProductionHydration",
-            ":bet:bet-cli:sleeperLiveWaiverAvailabilitySync",
-            ":bet:bet-cli:sleeperLiveWaiverCurrentWeekStatSync",
-            ":bet:bet-cli:sleeperLiveWaiverTargetRosterProductionHydration"
+        String[] classes = {
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli",
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli",
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli",
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli",
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli",
+            "io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli"
         };
 
         int previous = -1;
-        for (String task : tasks) {
-            assertEquals(1, occurrences(script, task), task + " should appear exactly once in the fixed recovery list");
-            int at = script.indexOf(task);
-            assertTrue(at > previous, "recovery task order must remain governed and deterministic");
+        for (String className : classes) {
+            assertEquals(1, occurrences(script, className), className + " should appear exactly once in the fixed recovery list");
+            int at = script.indexOf(className);
+            assertTrue(at > previous, "recovery stage order must remain governed and deterministic");
             previous = at;
         }
 
-        assertFalse(script.contains(":bet:bet-cli:sleeperLiveWaiverFinalRecommendationBundle"));
-        assertFalse(script.contains(":bet:bet-cli:sleeperLiveWaiverRecommendationAuditCapture"));
+        assertFalse(script.contains("ButlerSleeperLiveWaiverFinalRecommendationBundleCli"));
+        assertFalse(script.contains("ButlerSleeperLiveWaiverRecommendationAuditCaptureCli"));
         assertFalse(script.contains("Invoke-Expression"));
         assertFalse(script.contains("create_transaction"));
         assertFalse(script.contains("submitTransaction"));
