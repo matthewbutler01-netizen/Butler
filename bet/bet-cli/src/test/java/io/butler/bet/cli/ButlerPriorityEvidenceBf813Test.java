@@ -62,7 +62,7 @@ class ButlerPriorityEvidenceBf813Test {
 
         assertTrue(transform.contains("$primaryEvidenceHtml"));
         assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("BUTLER_FANTASYPROS_API_KEY"));
+        assertFalse(transform.contains("$env:"));
         assertFalse(transform.contains("AutoFillLineupOptimizer"));
         assertFalse(transform.contains("Method = \"POST\""));
     }
