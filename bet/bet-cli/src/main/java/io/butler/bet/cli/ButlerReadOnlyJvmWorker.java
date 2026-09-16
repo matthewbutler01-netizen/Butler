@@ -135,8 +135,8 @@ public final class ButlerReadOnlyJvmWorker {
             case HELP -> executeCaptured(() -> ButlerCommandRouter.main(new String[] {"help"}));
             case LEAGUE_OVERVIEW -> executeCaptured(() -> ButlerCommandRouter.main(
                 new String[] {"league", "overview", request.leagueId()}));
-            case TEAM_BUNDLE -> executeCaptured(() -> ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(
-                new String[] {request.leagueId(), "--team-bundle"}));
+            case TEAM_BUNDLE -> executeCapturedWithExitCode(() -> ButlerMyTeamEvidenceBundleCli.runEmbedded(
+                new String[] {request.leagueId()}));
             case LATEST_SUMMARY -> executeCaptured(() -> ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main(
                 new String[] {request.leagueId()}));
             case WAIVER_DASHBOARD_BUNDLE -> executeCaptured(() -> ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(
@@ -159,6 +159,31 @@ public final class ButlerReadOnlyJvmWorker {
             try {
                 command.run();
                 return new Execution(0, stdout.toString(StandardCharsets.UTF_8), stderr.toString(StandardCharsets.UTF_8));
+            }
+            catch (RuntimeException | Error failure) {
+                failure.printStackTrace(capturedErr);
+                return new Execution(1, stdout.toString(StandardCharsets.UTF_8), stderr.toString(StandardCharsets.UTF_8));
+            }
+            finally {
+                System.setOut(originalOut);
+                System.setErr(originalErr);
+            }
+        }
+    }
+
+    static Execution executeCapturedWithExitCode(ExitCodeCommand command) {
+        PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        try (PrintStream capturedOut = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+             PrintStream capturedErr = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+            System.setOut(capturedOut);
+            System.setErr(capturedErr);
+            try {
+                int exitCode = command.run();
+                return new Execution(exitCode, stdout.toString(StandardCharsets.UTF_8), stderr.toString(StandardCharsets.UTF_8));
             }
             catch (RuntimeException | Error failure) {
                 failure.printStackTrace(capturedErr);
@@ -199,6 +224,11 @@ public final class ButlerReadOnlyJvmWorker {
     @FunctionalInterface
     interface WarmupAction {
         void run();
+    }
+
+    @FunctionalInterface
+    interface ExitCodeCommand {
+        int run();
     }
 
     record Execution(int exitCode, String stdout, String stderr) {}
