@@ -183,3 +183,11 @@ if ($setupNew -match 'Invoke-RestMethod|Invoke-ButlerReadOnly|Method = "POST"|sl
 }
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+# BF-819: after the dedicated Waiver Advisor is installed, simplify the Dashboard into
+# manager-first scan mode with the existing governed proof available on demand.
+$bf819Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf819-manager-proof-mode-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf819Transform -PathType Leaf)) {
+    throw "BF-819 BLOCKED: Manager/Proof Mode transform not found at $bf819Transform"
+}
+& $bf819Transform -DashboardPath $DashboardPath
