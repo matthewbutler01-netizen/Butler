@@ -113,14 +113,19 @@ $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
     -Contract 'unevaluated lineup Decision Record'
 
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
-    -Old '$decisionPackageTrust = "Current projection evidence"`r`n                        $decisionPackageRecord = "No-change result saved locally"' `
-    -New '$decisionPackageTrust = "Complete weekly projection evidence"`r`n                        $decisionPackageRecord = "Completed no-change review saved locally"' `
-    -Contract 'no-change decision package summary'
+    -Old '$decisionPackageRecord = "No-change result saved locally"' `
+    -New '$decisionPackageRecord = "Completed no-change review saved locally"' `
+    -Contract 'no-change decision package record'
 
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
-    -Old '$decisionPackageTrust = "No current AutoFill frame"`r`n                        $decisionPackageRecord = "No lineup review recorded"' `
-    -New '$decisionPackageTrust = "Lineup not evaluated yet"`r`n                        $decisionPackageRecord = "No lineup review requested"' `
-    -Contract 'unevaluated decision package summary'
+    -Old '$decisionPackageTrust = "No current AutoFill frame"' `
+    -New '$decisionPackageTrust = "Lineup not evaluated yet"' `
+    -Contract 'unevaluated decision package trust'
+
+$dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
+    -Old '$decisionPackageRecord = "No lineup review recorded"' `
+    -New '$decisionPackageRecord = "No lineup review requested"' `
+    -Contract 'unevaluated decision package record'
 
 # A no-move waiver outcome is a completed governed review, not absent data.
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
