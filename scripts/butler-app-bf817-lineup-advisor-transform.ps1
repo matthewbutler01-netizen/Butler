@@ -56,6 +56,7 @@ function ConvertTo-AutoFillHtml {
             $decisionCopy = 'No lineup recommendation until current weekly projections can be verified.'
             $whyCopy = 'The roster is available, but Butler cannot prove a weekly START/SIT recommendation without current projection evidence.'
             $retryLabel = 'Refresh Projections'
+            $gapStatus = 'PROJECTIONS NEEDED'
         }
         else {
             $gapTitle = 'Lineup decision blocked by an evidence gap'
@@ -63,8 +64,9 @@ function ConvertTo-AutoFillHtml {
             $decisionCopy = 'No lineup recommendation. Review the current starters manually while the evidence gap remains.'
             $whyCopy = 'A required roster, scoring, identity, eligibility, or weekly evidence check is incomplete.'
             $retryLabel = 'Retry Lineup Review'
+            $gapStatus = 'EVIDENCE GAP'
         }
-        return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $gapTitle)</h2><p class=`"lede`">$(ConvertTo-HtmlText $gapLede)</p></div><span class=`"status warn`">EVIDENCE GAP</span></div><div class=`"manager-summary`"><div class=`"summary-card`"><h3>Decision</h3><p>$(ConvertTo-HtmlText $decisionCopy)</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $whyCopy)</p></div></div><details><summary>View evidence details</summary><div class=`"callout callout-danger`">$(ConvertTo-HtmlText $AutoFill.Reason)</div></details><div class=`"source-note`"><span>$frame &middot; Butler will not guess when required weekly evidence is missing.</span><div class=`"button-row`"><a class=`"btn btn-primary`" href=`"/team/autofill`">$(ConvertTo-HtmlText $retryLabel)</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit a lineup to Sleeper.</p></section>"
+        return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $gapTitle)</h2><p class=`"lede`">$(ConvertTo-HtmlText $gapLede)</p></div><span class=`"status warn`">$(ConvertTo-HtmlText $gapStatus)</span></div><div class=`"manager-summary`"><div class=`"summary-card`"><h3>Decision</h3><p>$(ConvertTo-HtmlText $decisionCopy)</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $whyCopy)</p></div></div><details><summary>View evidence details</summary><div class=`"callout callout-danger`">$(ConvertTo-HtmlText $AutoFill.Reason)</div></details><div class=`"source-note`"><span>$frame &middot; Butler will not guess when required weekly evidence is missing.</span><div class=`"button-row`"><a class=`"btn btn-primary`" href=`"/team/autofill`">$(ConvertTo-HtmlText $retryLabel)</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit a lineup to Sleeper.</p></section>"
     }
 
     $rows = ''
@@ -134,6 +136,9 @@ if (-not $autoFillReplacement.Contains("This week''s lineup decision")) {
 }
 if (-not $autoFillReplacement.Contains('Lineup recommendation needs current projections')) {
     throw 'BF-822 BLOCKED: provider-neutral projection evidence-gap summary is missing.'
+}
+if (-not $autoFillReplacement.Contains('PROJECTIONS NEEDED')) {
+    throw 'BF-822 BLOCKED: projection-specific manager status is missing.'
 }
 if (-not $autoFillReplacement.Contains('View evidence details')) {
     throw 'BF-822 BLOCKED: evidence detail disclosure is missing.'
