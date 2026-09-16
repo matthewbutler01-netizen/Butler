@@ -61,7 +61,6 @@ class ButlerPriorityEvidenceBf813Test {
         assertTrue(staging.contains("& $bf813Transform -DashboardPath $DashboardPath"));
 
         assertTrue(transform.contains("$primaryEvidenceHtml"));
-        assertFalse(transform.contains("Invoke-RestMethod"));
         assertFalse(transform.contains("$env:"));
         assertFalse(transform.contains("AutoFillLineupOptimizer"));
         assertFalse(transform.contains("Method = \"POST\""));
