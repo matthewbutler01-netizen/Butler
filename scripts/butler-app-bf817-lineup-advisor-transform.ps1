@@ -116,8 +116,11 @@ if ($core -notmatch 'Butler is not claiming a separate per-player delta') {
 if ($core -notmatch 'Players by lineup state') {
     throw 'BF-817 BLOCKED: existing starter and bench roster board regressed.'
 }
-if ($core -match 'Method = "POST"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer') {
-    throw 'BF-817 BLOCKED: Lineup Advisor presentation introduced credential, optimizer, or write behavior.'
+
+# Validate only the BF-817 presentation block. Earlier governed transforms legitimately
+# contain provider credential and optimizer identifiers; BF-817 must not reject inherited code.
+if ($autoFillReplacement -match 'Method = "POST"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer|Invoke-RestMethod') {
+    throw 'BF-817 BLOCKED: Lineup Advisor presentation introduced provider, optimizer, credential, or write behavior.'
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
