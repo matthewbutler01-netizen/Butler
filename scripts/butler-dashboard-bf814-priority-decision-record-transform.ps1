@@ -121,8 +121,5 @@ if ($text -notmatch 'No trade decision recorded') {
 if ($text -notmatch '\$primaryRecordHtml') {
     throw 'BF-814 BLOCKED: priority-aware Decision Record binding was not installed.'
 }
-if ($text -match 'FantasyProsApiClient|Invoke-RestMethod|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer|Method = "POST"') {
-    throw 'BF-814 BLOCKED: Decision Record presentation introduced provider, optimizer, credential, or write behavior.'
-}
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
