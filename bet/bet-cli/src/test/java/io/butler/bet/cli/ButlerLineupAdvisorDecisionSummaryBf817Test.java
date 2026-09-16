@@ -13,11 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerLineupAdvisorDecisionSummaryBf817Test {
 
     @Test
-    void lineupAdvisorCoversIdleGapChangedAndNoChangeStates() throws Exception {
+    void lineupAdvisorCoversIdleProjectionGapGenericGapChangedAndNoChangeStates() throws Exception {
         String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
 
         assertTrue(transform.contains("This week''s lineup decision"));
         assertTrue(transform.contains("NOT REVIEWED"));
+        assertTrue(transform.contains("Lineup recommendation needs current projections"));
+        assertTrue(transform.contains("PROJECTIONS NEEDED"));
         assertTrue(transform.contains("Lineup decision blocked by an evidence gap"));
         assertTrue(transform.contains("EVIDENCE GAP"));
         assertTrue(transform.contains("Make $changedCount lineup $changeWord"));
@@ -41,11 +43,15 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
     }
 
     @Test
-    void evidenceGapPreservesExactReasonAndReadOnlyRecovery() throws Exception {
+    void projectionGapUsesProviderNeutralManagerCopyAndKeepsExactReasonInDetails() throws Exception {
         String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
 
+        assertTrue(transform.contains("Butler has your current roster, but current weekly projection evidence is unavailable."));
+        assertTrue(transform.contains("No lineup recommendation until current weekly projections can be verified."));
+        assertTrue(transform.contains("Refresh Projections"));
+        assertTrue(transform.contains("View evidence details"));
         assertTrue(transform.contains("$(ConvertTo-HtmlText $AutoFill.Reason)"));
-        assertTrue(transform.contains("Retry only after the missing projection or provider evidence becomes available."));
+        assertTrue(transform.contains("Butler will not guess when required weekly evidence is missing."));
         assertTrue(transform.contains("Butler did not submit a lineup to Sleeper."));
     }
 
@@ -87,7 +93,7 @@ class ButlerLineupAdvisorDecisionSummaryBf817Test {
         String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
 
         assertTrue(bf808.contains("BUTLER_FANTASYPROS_API_KEY"));
-        assertTrue(transform.contains("Validate only the BF-817 presentation block"));
+        assertTrue(transform.contains("Validate only the presentation block"));
         assertTrue(transform.contains("$autoFillReplacement -match"));
         assertFalse(transform.contains("if ($core -match 'Method = \"POST\"|BUTLER_FANTASYPROS_API_KEY|AutoFillLineupOptimizer')"));
     }
