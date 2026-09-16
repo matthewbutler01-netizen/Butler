@@ -36,8 +36,7 @@ function Get-Bf715WaiverBundleSection {
     $finish = $Text.IndexOf($end, $bodyStart, [System.StringComparison]::Ordinal)
     if ($finish -lt 0) { throw "BF-715 BLOCKED: waiver evidence bundle is missing $Name end marker." }
     $body = $Text.Substring($bodyStart, $finish - $bodyStart).Trim()
-    if ([string]::IsNullOrWhiteSpace($body)) { throw "BF-715 BLOCKED: waiver evidence bundle section $Name is empty."
-    }
+    if ([string]::IsNullOrWhiteSpace($body)) { throw "BF-715 BLOCKED: waiver evidence bundle section $Name is empty." }
     return $body
 }
 
