@@ -140,3 +140,11 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf803Transform -CorePath $stagedCore
 }
+
+# BF-804: Command Center is a dashboard-only presentation pass. Run it after the
+# worker/core staging chain so no later transform can accidentally restore operator-first markup.
+$bf804Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf804-command-center-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf804Transform -PathType Leaf)) {
+    throw "BF-804 BLOCKED: Command Center transform not found at $bf804Transform"
+}
+& $bf804Transform -DashboardPath $DashboardPath
