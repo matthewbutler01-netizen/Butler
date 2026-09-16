@@ -160,9 +160,20 @@ $evidenceDerivation = @'
 
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock -Old $evidenceDerivationAnchor.TrimEnd() -New $evidenceDerivation.TrimEnd() -Contract 'priority-aware evidence derivation'
 
-$evidencePanelOld = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Evidence status</div><h2>Can I trust this decision frame?</h2></div></div><div class="evidence-grid"><div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $rosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div><div class="evidence-card"><strong>Recommendation data</strong><div class="evidence-value">$(ConvertTo-HtmlText $lineageStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Lineage)</div></div><div class="evidence-card"><strong>Waiver market</strong><div class="evidence-value">$(ConvertTo-HtmlText $market.Human)</div><div class="evidence-note">Evidence age</div></div><div class="evidence-card"><strong>Roster / waiver</strong><div class="evidence-value">$(ConvertTo-HtmlText $waiver.Human)</div><div class="evidence-note">Evidence age</div></div></div></section>'
+$evidencePanelMarker = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Evidence status</div><h2>Can I trust this decision frame?</h2></div></div>'
+$evidencePanelStart = $dashboardBlock.IndexOf($evidencePanelMarker, [System.StringComparison]::Ordinal)
+if ($evidencePanelStart -lt 0) {
+    throw 'BF-813 BLOCKED: Command Center evidence panel start is missing.'
+}
+if ($dashboardBlock.IndexOf($evidencePanelMarker, $evidencePanelStart + $evidencePanelMarker.Length, [System.StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-813 BLOCKED: Command Center evidence panel start is ambiguous.'
+}
+$evidencePanelEnd = $dashboardBlock.IndexOf('<section class="panel">', $evidencePanelStart + $evidencePanelMarker.Length, [System.StringComparison]::Ordinal)
+if ($evidencePanelEnd -le $evidencePanelStart) {
+    throw 'BF-813 BLOCKED: Command Center evidence panel end is missing.'
+}
 $evidencePanelNew = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Evidence status</div><h2>Can I trust this decision frame?</h2></div></div>$primaryEvidenceHtml</section>'
-$dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock -Old $evidencePanelOld -New $evidencePanelNew -Contract 'Command Center evidence panel'
+$dashboardBlock = $dashboardBlock.Substring(0, $evidencePanelStart) + $evidencePanelNew + $dashboardBlock.Substring($evidencePanelEnd)
 
 $text = $text.Substring(0, $dashboardStart) + $dashboardBlock + $text.Substring($dashboardEnd)
 
