@@ -164,3 +164,11 @@ if (-not (Test-Path -LiteralPath $bf806Transform -PathType Leaf)) {
     throw "BF-806 BLOCKED: multi-signal priorities transform not found at $bf806Transform"
 }
 & $bf806Transform -DashboardPath $DashboardPath
+
+# BF-807: order the three already-derived signals by explicit attention state so priority 01
+# reflects what needs attention first without adding a hidden score or new evidence read.
+$bf807Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf807-priority-ordering-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf807Transform -PathType Leaf)) {
+    throw "BF-807 BLOCKED: priority ordering transform not found at $bf807Transform"
+}
+& $bf807Transform -DashboardPath $DashboardPath
