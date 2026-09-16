@@ -27,6 +27,18 @@ class ButlerPriorityEvidenceBf813Test {
     }
 
     @Test
+    void evidenceRenderingDoesNotDependOnLaterManagerStatusAssignments() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf813-priority-evidence-transform.ps1");
+
+        assertTrue(transform.contains("$evidenceRosterStatusText = if ($verification.RosterOk)"));
+        assertTrue(transform.contains("$evidenceLineageStatusText = if ($verification.LineageOk)"));
+        assertTrue(transform.contains("$(ConvertTo-HtmlText $evidenceRosterStatusText)"));
+        assertTrue(transform.contains("$(ConvertTo-HtmlText $evidenceLineageStatusText)"));
+        assertFalse(transform.contains("$(ConvertTo-HtmlText $rosterStatusText)"));
+        assertFalse(transform.contains("$(ConvertTo-HtmlText $lineageStatusText)"));
+    }
+
+    @Test
     void waiverPriorityPreservesExistingGovernedEvidenceCards() throws Exception {
         String transform = source("scripts/butler-dashboard-bf813-priority-evidence-transform.ps1");
 

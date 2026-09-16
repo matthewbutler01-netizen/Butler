@@ -62,10 +62,16 @@ $evidenceDerivation = @'
         }
     }
 
+    # BF-813 runs before the older BF-804 manager prelude assigns $rosterStatusText and
+    # $lineageStatusText. Derive the two display values here from verification directly so
+    # StrictMode never observes an uninitialized variable while interpolating evidence HTML.
+    $evidenceRosterStatusText = if ($verification.RosterOk) { "Verified" } else { "Needs attention" }
+    $evidenceLineageStatusText = if ($verification.LineageOk) { "Verified" } else { "Needs refresh" }
+
     $primaryEvidenceHtml = @"
 <div class="evidence-grid">
-  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $rosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
-  <div class="evidence-card"><strong>Recommendation data</strong><div class="evidence-value">$(ConvertTo-HtmlText $lineageStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Lineage)</div></div>
+  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $evidenceRosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
+  <div class="evidence-card"><strong>Recommendation data</strong><div class="evidence-value">$(ConvertTo-HtmlText $evidenceLineageStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Lineage)</div></div>
   <div class="evidence-card"><strong>Waiver market</strong><div class="evidence-value">$(ConvertTo-HtmlText $market.Human)</div><div class="evidence-note">Evidence age</div></div>
   <div class="evidence-card"><strong>Roster / waiver</strong><div class="evidence-value">$(ConvertTo-HtmlText $waiver.Human)</div><div class="evidence-note">Evidence age</div></div>
 </div>
@@ -137,7 +143,7 @@ $evidenceDerivation = @'
 
                 $primaryEvidenceHtml = @"
 <div class="evidence-grid">
-  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $rosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
+  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $evidenceRosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
   <div class="evidence-card"><strong>AutoFill snapshot</strong><div class="evidence-value">$(ConvertTo-HtmlText $snapshotValue)</div><div class="evidence-note">$(ConvertTo-HtmlText $snapshotNote)</div></div>
   <div class="evidence-card"><strong>Weekly frame</strong><div class="evidence-value">$(ConvertTo-HtmlText $frameValue)</div><div class="evidence-note">$(ConvertTo-HtmlText $frameNote)</div></div>
   <div class="evidence-card"><strong>Projection coverage</strong><div class="evidence-value">$(ConvertTo-HtmlText $coverageValue)</div><div class="evidence-note">$(ConvertTo-HtmlText $coverageNote)</div></div>
@@ -147,7 +153,7 @@ $evidenceDerivation = @'
             "Trade" {
                 $primaryEvidenceHtml = @"
 <div class="evidence-grid">
-  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $rosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
+  <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $evidenceRosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
   <div class="evidence-card"><strong>Trade review</strong><div class="evidence-value">On demand</div><div class="evidence-note">No specific trade is being evaluated from the Dashboard.</div></div>
   <div class="evidence-card"><strong>Trade evidence</strong><div class="evidence-value">Not loaded</div><div class="evidence-note">Open Trade Lab with a specific deal or target before relying on trade evidence.</div></div>
   <div class="evidence-card"><strong>Decision scope</strong><div class="evidence-value">Specific deal required</div><div class="evidence-note">Butler will not invent a trade trust frame without an evaluated proposal.</div></div>
