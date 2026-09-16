@@ -73,15 +73,16 @@ class ButlerAutoFillRosterDriftRecoveryBf822Test {
     }
 
     @Test
-    void bf817StagesRecoveryAfterCoreWriteAndBeforeWaiverAdvisor() throws Exception {
-        String transform = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
+    void bf818StagesRecoveryAfterLineupAdvisorAndBeforeManagerDashboardPass() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf818-waiver-advisor-transform.ps1");
 
-        int write = transform.indexOf("[System.IO.File]::WriteAllText($CorePath");
+        int write = transform.indexOf("[System.IO.File]::WriteAllText($DashboardPath");
         int bf822 = transform.indexOf("butler-app-bf822-autofill-roster-drift-recovery-transform.ps1");
-        int bf818 = transform.indexOf("butler-dashboard-bf818-waiver-advisor-transform.ps1");
+        int bf819 = transform.indexOf("butler-dashboard-bf819-manager-proof-mode-transform.ps1");
 
-        assertTrue(write >= 0 && bf822 > write && bf818 > bf822,
-            "BF-822 must run after BF-817 writes the core and before BF-818 dashboard staging");
+        assertTrue(write >= 0 && bf822 > write && bf819 > bf822,
+            "BF-822 must run after BF-818 writes the dashboard and before BF-819 final dashboard staging");
+        assertTrue(transform.contains("'butler-app-shell-core-single.ps1'"));
     }
 
     @Test
