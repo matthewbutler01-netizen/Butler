@@ -137,12 +137,15 @@ public final class ButlerReadOnlyJvmWorker {
                 new String[] {"league", "overview", request.leagueId()}));
             case TEAM_BUNDLE -> executeCapturedWithExitCode(() -> ButlerMyTeamEvidenceBundleCli.runEmbedded(
                 new String[] {request.leagueId()}));
-            case LATEST_SUMMARY -> executeCaptured(() -> ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main(
-                new String[] {request.leagueId()}));
-            case WAIVER_DASHBOARD_BUNDLE -> executeCaptured(() -> ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main(
-                new String[] {request.leagueId(), "--waiver-dashboard-bundle"}));
-            case EXPLANATION_LOOKUP -> executeCaptured(() -> ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main(
-                new String[] {request.leagueId(), request.argument()}));
+            case LATEST_SUMMARY -> executeCapturedWithExitCode(() ->
+                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded(
+                    new String[] {request.leagueId()}));
+            case WAIVER_DASHBOARD_BUNDLE -> executeCapturedWithExitCode(() ->
+                ButlerWaiverDashboardEvidenceBundleCli.runEmbedded(
+                    new String[] {request.leagueId()}));
+            case EXPLANATION_LOOKUP -> executeCapturedWithExitCode(() ->
+                ButlerSleeperLiveWaiverGovernedExplanationLookupCli.runEmbedded(
+                    new String[] {request.leagueId(), request.argument()}));
         };
     }
 
