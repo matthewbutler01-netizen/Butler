@@ -136,7 +136,7 @@ if ($text -notmatch 'Get-Bf809AutoFillSnapshot') {
 if ($text -match 'function Get-Bf808AutoFillSnapshot \{') {
     throw 'BF-809 BLOCKED: brittle BF-808 snapshot reader still remains.'
 }
-if ($text -notmatch "Get-ChildItem -LiteralPath \$directory -Filter '\*\.json'") {
+if (-not $text.Contains('Get-ChildItem -LiteralPath $directory -Filter ''*.json''')) {
     throw 'BF-809 BLOCKED: fallback snapshot discovery was not installed.'
 }
 
