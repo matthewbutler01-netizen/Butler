@@ -122,7 +122,10 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
 
         assertTrue(worker.contains("new String[] {\"league\", \"overview\", request.leagueId()}"));
-        assertTrue(worker.contains("new String[] {request.leagueId(), \"--team-bundle\"}"));
+        assertTrue(worker.contains("case TEAM_BUNDLE -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerMyTeamEvidenceBundleCli.runEmbedded("));
+        assertTrue(worker.contains("new String[] {request.leagueId()}"));
+        assertFalse(worker.contains("new String[] {request.leagueId(), \"--team-bundle\"}"));
         assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
         assertTrue(worker.contains("new String[] {request.leagueId(), \"--waiver-dashboard-bundle\"}"));
         assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
