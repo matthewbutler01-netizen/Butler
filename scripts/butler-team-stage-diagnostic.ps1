@@ -13,7 +13,8 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
     throw 'BF-722 BLOCKED: LocalApplicationData is unavailable.'
 }
 
-$configPath = Join-Path (Join-Path $localAppData 'Butler') 'app-league.txt'
+$configDir = Join-Path $localAppData 'Butler'
+$configPath = Join-Path $configDir 'app-league.txt'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     throw 'BF-722 BLOCKED: Butler app league configuration is unavailable.'
 }
@@ -25,8 +26,32 @@ if ([string]::IsNullOrWhiteSpace($leagueId) -or -not [Guid]::TryParse($leagueId,
 }
 $leagueId = $parsedLeagueId.ToString('D').ToLowerInvariant()
 
+$configuredDataDir = [string]$env:BUTLER_APP_DATA_DIR
+if ([string]::IsNullOrWhiteSpace($configuredDataDir)) {
+    $dataDir = Join-Path $configDir 'data'
+}
+else {
+    if (-not [IO.Path]::IsPathRooted($configuredDataDir)) {
+        throw 'BF-722 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.'
+    }
+    $dataDir = $configuredDataDir
+}
+
+$dataDir = [IO.Path]::GetFullPath($dataDir)
+$sourceRoot = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\')
+$sourcePrefix = $sourceRoot + '\'
+if ($dataDir.Equals($sourceRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $dataDir.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'BF-722 BLOCKED: Butler timing diagnostic data directory must be outside the source/package tree.'
+}
+
+$databasePath = Join-Path $dataDir 'butler.db'
+if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+    throw "BF-722 BLOCKED: governed Butler runtime database is missing at $databasePath"
+}
+
 if (-not (Test-Path -LiteralPath $betCliDir -PathType Container)) {
-    throw "BF-722 BLOCKED: bet-cli working directory not found at $betCliDir"
+    throw "BF-722 BLOCKED: bet-cli source directory not found at $betCliDir"
 }
 if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
     throw "BF-722 BLOCKED: prepared Butler runtime library directory not found at $runtimeLibDir"
@@ -47,7 +72,7 @@ if ([string]::IsNullOrWhiteSpace($java)) {
 $previousPreference = $ErrorActionPreference
 $lines = $null
 $exitCode = $null
-Push-Location $betCliDir
+Push-Location $dataDir
 try {
     try {
         $ErrorActionPreference = 'Continue'
@@ -85,4 +110,5 @@ if (-not $match.Success) {
 $payload = $match.Groups['payload'].Value.Replace(';', '; ')
 Write-Host ''
 Write-Host ('My Team stage timing (diagnostic, outside BF-688): ' + $payload)
+Write-Host ('BF-722 data: ' + $dataDir)
 Write-Host 'BF-722 diagnostic boundary: read-only My Team evidence only; no /refresh and no Butler or Sleeper write path is invoked.'
