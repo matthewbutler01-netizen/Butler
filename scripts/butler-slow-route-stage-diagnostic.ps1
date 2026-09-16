@@ -13,7 +13,8 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
     throw 'BF-733 BLOCKED: LocalApplicationData is unavailable.'
 }
 
-$configPath = Join-Path (Join-Path $localAppData 'Butler') 'app-league.txt'
+$configDir = Join-Path $localAppData 'Butler'
+$configPath = Join-Path $configDir 'app-league.txt'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     throw 'BF-733 BLOCKED: Butler app league configuration is unavailable.'
 }
@@ -25,8 +26,32 @@ if ([string]::IsNullOrWhiteSpace($leagueId) -or -not [Guid]::TryParse($leagueId,
 }
 $leagueId = $parsedLeagueId.ToString('D').ToLowerInvariant()
 
+$configuredDataDir = [string]$env:BUTLER_APP_DATA_DIR
+if ([string]::IsNullOrWhiteSpace($configuredDataDir)) {
+    $dataDir = Join-Path $configDir 'data'
+}
+else {
+    if (-not [IO.Path]::IsPathRooted($configuredDataDir)) {
+        throw 'BF-763 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.'
+    }
+    $dataDir = $configuredDataDir
+}
+
+$dataDir = [IO.Path]::GetFullPath($dataDir)
+$sourceRoot = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\')
+$sourcePrefix = $sourceRoot + '\'
+if ($dataDir.Equals($sourceRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $dataDir.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'BF-763 BLOCKED: Butler slow-route diagnostic data directory must be outside the source/package tree.'
+}
+
+$databasePath = Join-Path $dataDir 'butler.db'
+if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+    throw "BF-763 BLOCKED: governed Butler runtime database is missing at $databasePath"
+}
+
 if (-not (Test-Path -LiteralPath $betCliDir -PathType Container)) {
-    throw "BF-733 BLOCKED: bet-cli working directory not found at $betCliDir"
+    throw "BF-733 BLOCKED: bet-cli source directory not found at $betCliDir"
 }
 if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
     throw "BF-733 BLOCKED: prepared Butler runtime library directory not found at $runtimeLibDir"
@@ -47,7 +72,7 @@ if ([string]::IsNullOrWhiteSpace($java)) {
 $previousPreference = $ErrorActionPreference
 $lines = $null
 $exitCode = $null
-Push-Location $betCliDir
+Push-Location $dataDir
 try {
     try {
         $ErrorActionPreference = 'Continue'
@@ -110,5 +135,6 @@ Write-Host ''
 Write-Host ("BF-760 Sleeper transport prewarm (same JVM, outside target_ms): state=SUCCESS; elapsed_ms={0}" -f $prewarmElapsedMs)
 Write-Host ("BF-763 slow-route same-JVM warmup (discarded, outside reported timing): state=SUCCESS; elapsed_ms={0}" -f $pipelineWarmupElapsedMs)
 Write-Host ('Slow-route stage timing (warmed-transport diagnostic, steady-state after one same-JVM warmup, outside BF-688): ' + $payload)
+Write-Host ('BF-763 data: ' + $dataDir)
 Write-Host 'BF-763 diagnostic boundary: BF-748-equivalent shared Sleeper transport is prewarmed once, then one complete read-only slow-route execution is discarded before the reported same-JVM timing; unchanged BF-623 verification still runs on warmup and measured passes; response discarded; no provider payload caching or concurrency; /refresh excluded; no Butler or Sleeper write path is invoked.'
 Write-Host 'BF-736 comparison diagnostic boundary: read-only existing evidence only; BF-615 source order preserved; /refresh excluded; no Butler or Sleeper write path is invoked.'
