@@ -13,6 +13,13 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         try {
             if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
                 throw new IllegalArgumentException(
@@ -26,9 +33,10 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
             var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
             print(summary, convergence);
+            return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
