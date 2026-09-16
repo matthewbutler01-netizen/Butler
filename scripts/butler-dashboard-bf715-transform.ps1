@@ -130,3 +130,13 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf800Transform -CorePath $stagedCore
 }
+
+# BF-803: presentation-only manager modernization runs after BF-800 so it can
+# restyle My Team and AutoFill without changing provider, optimizer, or route semantics.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf803Transform = Join-Path $PSScriptRoot 'butler-app-bf803-manager-ui-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf803Transform -PathType Leaf)) {
+        throw "BF-803 BLOCKED: manager UI transform not found at $bf803Transform"
+    }
+    & $bf803Transform -CorePath $stagedCore
+}
