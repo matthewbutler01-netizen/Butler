@@ -35,13 +35,21 @@ class ButlerAppLauncherBf666ScriptTest {
     }
 
     @Test
-    void commandLauncherUsesWindowsPowerShellAndForwardsAllArgumentsThroughGuard() throws Exception {
+    void commandLauncherUsesWindowsPowerShellAndForwardsAllArgumentsThroughSupervisorAndGuard() throws Exception {
         String command = script("scripts/butler-app.cmd");
+        String supervisor = script("scripts/butler-app-supervisor.ps1");
         String guard = script("scripts/butler-app-guard.ps1");
 
         assertTrue(command.contains("WindowsPowerShell\\v1.0\\powershell.exe"));
-        assertTrue(command.contains("-File \"%~dp0butler-app-guard.ps1\" %*"));
+        assertTrue(command.contains("-File \"%~dp0butler-app-supervisor.ps1\" %*"));
         assertTrue(command.contains("exit /b %ERRORLEVEL%"));
+
+        assertTrue(supervisor.contains("$guard = Join-Path $scriptDir 'butler-app-guard.ps1'"));
+        assertTrue(supervisor.contains("if (-not [string]::IsNullOrWhiteSpace($LeagueId))"));
+        assertTrue(supervisor.contains("$arguments += \" -LeagueId `\"$LeagueId`\"\""));
+        assertTrue(supervisor.contains("if ($NoBrowser) { $arguments += ' -NoBrowser' }"));
+        assertTrue(supervisor.contains("if ($ResetLeague) { $arguments += ' -ResetLeague' }"));
+
         assertTrue(guard.contains("$appLauncher = Join-Path $scriptDir \"butler-app.ps1\""));
         assertTrue(guard.contains("$arguments.LeagueId = $LeagueId"));
         assertTrue(guard.contains("Port = $Port"));
@@ -54,6 +62,8 @@ class ButlerAppLauncherBf666ScriptTest {
     void launcherScriptsRemainAsciiOnly() throws Exception {
         assertAscii(script("scripts/butler-app.ps1"));
         assertAscii(script("scripts/butler-app-guard.ps1"));
+        assertAscii(script("scripts/butler-app-supervisor.ps1"));
+        assertAscii(script("scripts/butler-child-tree-watchdog.ps1"));
         assertAscii(script("scripts/butler-app.cmd"));
     }
 
