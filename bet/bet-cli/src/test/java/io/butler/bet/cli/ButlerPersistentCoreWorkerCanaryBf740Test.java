@@ -126,10 +126,16 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(worker.contains("ButlerMyTeamEvidenceBundleCli.runEmbedded("));
         assertTrue(worker.contains("new String[] {request.leagueId()}"));
         assertFalse(worker.contains("new String[] {request.leagueId(), \"--team-bundle\"}"));
-        assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
-        assertTrue(worker.contains("new String[] {request.leagueId(), \"--waiver-dashboard-bundle\"}"));
-        assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
+        assertTrue(worker.contains("case LATEST_SUMMARY -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
+        assertTrue(worker.contains("case WAIVER_DASHBOARD_BUNDLE -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerWaiverDashboardEvidenceBundleCli.runEmbedded("));
+        assertTrue(worker.contains("case EXPLANATION_LOOKUP -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.runEmbedded("));
         assertTrue(worker.contains("new String[] {request.leagueId(), request.argument()}"));
+        assertFalse(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
+        assertFalse(worker.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
+        assertFalse(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
         assertFalse(worker.contains("Class.forName"));
         assertFalse(worker.contains("ProcessBuilder"));
     }
