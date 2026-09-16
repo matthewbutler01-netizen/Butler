@@ -126,3 +126,14 @@ if ($autoFillReplacement -match 'Method = "POST"|BUTLER_FANTASYPROS_API_KEY|Auto
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+# BF-818: after Lineup Advisor staging, upgrade the sibling Waiver Board into a
+# manager-first decision summary while preserving the existing governed shortlist.
+$stagedDashboard = Join-Path (Split-Path -Parent $CorePath) 'butler-dashboard.ps1'
+if (Test-Path -LiteralPath $stagedDashboard -PathType Leaf) {
+    $bf818Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf818-waiver-advisor-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf818Transform -PathType Leaf)) {
+        throw "BF-818 BLOCKED: Waiver Advisor transform not found at $bf818Transform"
+    }
+    & $bf818Transform -DashboardPath $stagedDashboard
+}
