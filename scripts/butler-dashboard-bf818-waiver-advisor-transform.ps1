@@ -184,6 +184,18 @@ if ($setupNew -match 'Invoke-RestMethod|Invoke-ButlerReadOnly|Method = "POST"|sl
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 
+# BF-822: after BF-817 has installed the manager Lineup Advisor, replace only the
+# raw AutoFill roster-drift failure with a manager-facing path to the existing
+# explicit governed refresh confirmation. Standalone dashboard transforms remain valid.
+$stagedCore = Join-Path (Split-Path -Parent $DashboardPath) 'butler-app-shell-core-single.ps1'
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf822Transform = Join-Path $PSScriptRoot 'butler-app-bf822-autofill-roster-drift-recovery-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf822Transform -PathType Leaf)) {
+        throw "BF-822 BLOCKED: AutoFill roster-drift recovery transform not found at $bf822Transform"
+    }
+    & $bf822Transform -CorePath $stagedCore
+}
+
 # BF-819: after the dedicated Waiver Advisor is installed, simplify the Dashboard into
 # manager-first scan mode with the existing governed proof available on demand.
 $bf819Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf819-manager-proof-mode-transform.ps1'
