@@ -27,6 +27,16 @@ class ButlerDashboardManagerProofModeBf819Test {
     }
 
     @Test
+    void managerVisualPolishSeparatesHeroMetadataAndDecisionCards() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
+
+        assertTrue(transform.contains(".manager-hero .command-meta{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:18px}"));
+        assertTrue(transform.contains(".manager-hero .command-meta span{display:inline-flex;align-items:center;padding:6px 10px"));
+        assertTrue(transform.contains(".manager-decision-stack{display:grid;gap:16px}"));
+        assertTrue(transform.contains("<div class=\"command-meta\"><span>$(ConvertTo-HtmlText $target)</span><span>Read-only manager view</span><span>Saved decisions remain traceable</span></div>"));
+    }
+
+    @Test
     void detailedGovernanceMovesBehindExpandableProofMode() throws Exception {
         String transform = source("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
 
