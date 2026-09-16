@@ -189,4 +189,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-809 BLOCKED: AutoFill snapshot reader transform not found at $bf809Transform"
     }
     & $bf809Transform -DashboardPath $DashboardPath
+
+    # BF-810: the explanation panel must follow the already-ordered priority 01 signal
+    # rather than always explaining the saved waiver decision.
+    $bf810Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf810-priority-explanation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf810Transform -PathType Leaf)) {
+        throw "BF-810 BLOCKED: priority explanation transform not found at $bf810Transform"
+    }
+    & $bf810Transform -DashboardPath $DashboardPath
 }
