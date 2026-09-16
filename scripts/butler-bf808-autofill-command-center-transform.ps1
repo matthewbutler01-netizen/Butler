@@ -38,7 +38,7 @@ function Replace-ExactlyOnce {
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
-$coreDashboardAnchor = 'function ConvertTo-DashboardHtml {'
+$coreTeamAnchor = 'function ConvertTo-TeamHtml {'
 $coreSnapshotHelpers = @'
 function Get-Bf808AutoFillSnapshotPath {
     param([Parameter(Mandatory = $true)][string]$LeagueKey)
@@ -90,7 +90,7 @@ function Save-Bf808AutoFillSnapshot {
         RecommendedTotal = [string]$AutoFill.RecommendedTotal
         Gain = [string]$AutoFill.Gain
         ChangedCount = [int]$changedCount
-        AssignmentCount = [int]@($AutoFill.Assignments).Count
+        AssignmentCount = [int](@($AutoFill.Assignments).Count)
         GeneratedUtc = [DateTimeOffset]::UtcNow.ToString('o')
     }
 
@@ -114,9 +114,9 @@ function Save-Bf808AutoFillSnapshot {
     }
 }
 
-function ConvertTo-DashboardHtml {
+function ConvertTo-TeamHtml {
 '@
-$core = Replace-ExactlyOnce -Text $core -Old $coreDashboardAnchor -New $coreSnapshotHelpers -Contract 'core AutoFill snapshot helper insertion'
+$core = Replace-ExactlyOnce -Text $core -Old $coreTeamAnchor -New $coreSnapshotHelpers -Contract 'core AutoFill snapshot helper insertion'
 
 $autoFillRouteAnchor = @'
                     $autoFill = ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
