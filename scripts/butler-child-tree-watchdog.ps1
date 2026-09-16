@@ -1,17 +1,17 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateRange(1, 2147483647)]
-    [int]$OwnerPid,
+    [int]$SupervisorPid,
 
     [Parameter(Mandatory = $true)]
-    [long]$OwnerStartTicks,
+    [long]$SupervisorStartTicks,
 
     [Parameter(Mandatory = $true)]
     [ValidateRange(1, 2147483647)]
-    [int]$ChildPid,
+    [int]$GuardPid,
 
     [Parameter(Mandatory = $true)]
-    [long]$ChildStartTicks
+    [long]$GuardStartTicks
 )
 
 Set-StrictMode -Version Latest
@@ -41,39 +41,69 @@ function Test-ProcessIdentity {
     return ($null -ne $actual -and [long]$actual -eq $ExpectedStartTicks)
 }
 
-while ($true) {
-    # If the exact tracked child is already gone, there is nothing left for this
-    # watchdog to own. PID reuse must never cause an unrelated process to be killed.
-    if (-not (Test-ProcessIdentity -ProcessId $ChildPid -ExpectedStartTicks $ChildStartTicks)) {
-        exit 0
+function Get-TrackedCoreChildren {
+    $children = @()
+    try {
+        $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $GuardPid" -ErrorAction Stop |
+            Where-Object {
+                $_.Name -ieq 'powershell.exe' -and
+                -not [string]::IsNullOrWhiteSpace([string]$_.CommandLine) -and
+                [string]$_.CommandLine -like '*butler-app-shell-core.ps1*'
+            })
     }
+    catch {
+        return @()
+    }
+    return @($children)
+}
 
-    if (Test-ProcessIdentity -ProcessId $OwnerPid -ExpectedStartTicks $OwnerStartTicks) {
+function Stop-TrackedCoreTrees {
+    foreach ($core in @(Get-TrackedCoreChildren)) {
+        $corePid = [int]$core.ProcessId
+        if ($corePid -le 0) { continue }
+
+        if (Test-Path -LiteralPath $taskkill -PathType Leaf) {
+            try {
+                & $taskkill /PID $corePid /T /F 2>$null | Out-Null
+                continue
+            }
+            catch {
+            }
+        }
+        try { Stop-Process -Id $corePid -Force -ErrorAction SilentlyContinue } catch {}
+    }
+}
+
+while ($true) {
+    $supervisorAlive = Test-ProcessIdentity -ProcessId $SupervisorPid -ExpectedStartTicks $SupervisorStartTicks
+    $guardAlive = Test-ProcessIdentity -ProcessId $GuardPid -ExpectedStartTicks $GuardStartTicks
+
+    if ($supervisorAlive -and $guardAlive) {
         Start-Sleep -Milliseconds 200
         continue
     }
 
-    # The Butler app-shell owner disappeared without completing its normal finally
-    # cleanup (for example Ctrl+C terminating the launcher process). Kill only the
-    # exact tracked preserved-core tree. taskkill /T reaches the staged core pool,
-    # dashboards, and their ButlerReadOnlyJvmWorker descendants.
-    if (Test-Path -LiteralPath $taskkill -PathType Leaf) {
-        try {
-            & $taskkill /PID $ChildPid /T /F 2>$null | Out-Null
-        }
-        catch {
-        }
-    }
-    else {
-        try { Stop-Process -Id $ChildPid -Force -ErrorAction SilentlyContinue } catch {}
+    # Normal guard completion should already have stopped its preserved core.
+    # Ctrl+C can terminate the launcher chain before those finally blocks run;
+    # the original Win32 parent PID remains available on the orphaned core,
+    # so kill only exact Butler core children and their descendants.
+    Stop-TrackedCoreTrees
+
+    # If the supervisor disappeared but the exact guard process survived, stop
+    # only that guard PID after its Butler core trees are contained. Do not use
+    # /T here so unrelated shell-launched processes such as a browser are not
+    # swept into cleanup.
+    if (-not $supervisorAlive -and $guardAlive) {
+        try { Stop-Process -Id $GuardPid -Force -ErrorAction SilentlyContinue } catch {}
     }
 
     for ($attempt = 0; $attempt -lt 50; $attempt++) {
-        if (-not (Test-ProcessIdentity -ProcessId $ChildPid -ExpectedStartTicks $ChildStartTicks)) {
+        if ((Get-TrackedCoreChildren).Count -eq 0) {
             exit 0
         }
+        Stop-TrackedCoreTrees
         Start-Sleep -Milliseconds 100
     }
 
-    throw "BF-812 BLOCKED: tracked preserved-core process $ChildPid survived owner shutdown cleanup."
+    throw 'BF-812 BLOCKED: preserved Butler core descendants survived launcher shutdown cleanup.'
 }
