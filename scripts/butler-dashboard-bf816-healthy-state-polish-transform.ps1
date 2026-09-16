@@ -167,3 +167,15 @@ if ($text -notmatch 'Latest AutoFill hit an evidence gap') {
 }
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+
+# BF-817: the Command Center phase is complete. When app-shell staging provides the sibling
+# core, upgrade My Team's existing read-only AutoFill surface into a manager-first weekly
+# lineup decision summary without changing the provider, optimizer, or Sleeper boundaries.
+$stagedCore = Join-Path (Split-Path -Parent $DashboardPath) 'butler-app-shell-core-single.ps1'
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf817Transform = Join-Path $PSScriptRoot 'butler-app-bf817-lineup-advisor-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf817Transform -PathType Leaf)) {
+        throw "BF-817 BLOCKED: Lineup Advisor transform not found at $bf817Transform"
+    }
+    & $bf817Transform -CorePath $stagedCore
+}
