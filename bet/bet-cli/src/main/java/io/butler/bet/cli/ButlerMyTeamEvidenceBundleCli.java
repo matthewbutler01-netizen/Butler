@@ -47,6 +47,11 @@ public final class ButlerMyTeamEvidenceBundleCli {
     private ButlerMyTeamEvidenceBundleCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) System.exit(exitCode);
+    }
+
+    static int runEmbedded(String[] args) {
         boolean includeAutoFill = validAutoFillArgs(args);
         boolean normalBundle = args != null
             && args.length == 1
@@ -54,8 +59,7 @@ public final class ButlerMyTeamEvidenceBundleCli {
             && !args[0].isBlank();
         if (!normalBundle && !includeAutoFill) {
             System.err.println("Error: butlerMyTeamEvidenceBundle requires <butler-league-id> [--autofill].");
-            System.exit(2);
-            return;
+            return 2;
         }
 
         try {
@@ -140,9 +144,10 @@ public final class ButlerMyTeamEvidenceBundleCli {
             } finally {
                 executor.shutdownNow();
             }
+            return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
