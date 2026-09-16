@@ -7,12 +7,13 @@ import io.butler.bet.data.PlayerFantasyPositionRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
-import io.butler.bet.integration.FantasyProsWeeklyProjectionProvider;
+import io.butler.bet.integration.SleeperWeeklyProjectionProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -21,11 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SleeperLiveAutoFillLineupRecommendationBf800Test {
+    private static final Instant PROJECTION_OBSERVED_AT = Instant.parse("2026-09-16T23:30:00Z");
+
     @TempDir
     Path tempDir;
 
     @Test
-    void composesExactLiveRosterAndFantasyProsProjectionIntoReadOnlyRecommendation() throws Exception {
+    void composesExactLiveRosterAndWeeklyProjectionIntoReadOnlyRecommendation() throws Exception {
         Database database = initializedDatabase();
         String leagueId = "league-1";
         new LeagueRepository(database).save(new League(leagueId, "sleeper-league", "Test League", 2026));
@@ -34,16 +37,17 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
         savePlayer(database, "butler-wr-a", "s-wr-a", "Receiver A", "WR", "JAX", List.of("WR"));
         savePlayer(database, "butler-wr-b", "s-wr-b", "Receiver B", "WR", "WAS", List.of("WR"));
 
-        var snapshot = new FantasyProsWeeklyProjectionProvider.ProjectionSnapshot(
-            FantasyProsWeeklyProjectionProvider.SOURCE_NAME,
-            "nfl/2026/projections?week=2&scoring=PPR",
+        var snapshot = new SleeperWeeklyProjectionProvider.ProjectionSnapshot(
+            SleeperWeeklyProjectionProvider.SOURCE_NAME,
+            "projections/nfl/2026/2?season_type=regular",
             2026,
             2,
-            FantasyProsWeeklyProjectionProvider.ScoringBasis.PPR,
+            SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
             List.of(
-                projection("1", "Quarter Back", "QB", "CHI", "20"),
-                projection("2", "Receiver A", "WR", "JAC", "10"),
-                projection("3", "Receiver B", "WR", "WSH", "15")));
+                projection("s-qb", "20"),
+                projection("s-wr-a", "10"),
+                projection("s-wr-b", "15")));
 
         var report = new SleeperLiveAutoFillLineupRecommendation(
             database,
@@ -51,7 +55,9 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             .recommend(rosterReport(leagueId));
 
         assertTrue(report.ready());
-        assertEquals(FantasyProsWeeklyProjectionProvider.ScoringBasis.PPR, report.scoringBasis());
+        assertEquals(SleeperWeeklyProjectionProvider.ScoringBasis.PPR, report.scoringBasis());
+        assertEquals(SleeperWeeklyProjectionProvider.SOURCE_NAME, report.sourceName());
+        assertEquals(PROJECTION_OBSERVED_AT, report.projectionObservedAt());
         assertEquals(new BigDecimal("30"), report.currentProjectedTotal());
         assertEquals(new BigDecimal("5"), report.projectedGain());
         assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
@@ -61,51 +67,65 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
     }
 
     @Test
-    void ambiguousProjectionIdentityFailsClosed() throws Exception {
+    void duplicateProjectionIdentityFailsClosed() throws Exception {
         Database database = initializedDatabase();
         String leagueId = "league-2";
         new LeagueRepository(database).save(new League(leagueId, "sleeper-league-2", "Test League 2", 2026));
         new LeagueScoringSettingsRepository(database).replace(leagueId, Map.of("rec", 1.0));
-        savePlayer(database, "butler-qb", "s-qb", "D.J. Example", "QB", "CHI", List.of("QB"));
+        savePlayer(database, "butler-qb", "s-qb", "Quarter Back", "QB", "CHI", List.of("QB"));
         savePlayer(database, "butler-wr-a", "s-wr-a", "Receiver A", "WR", "JAX", List.of("WR"));
         savePlayer(database, "butler-wr-b", "s-wr-b", "Receiver B", "WR", "WAS", List.of("WR"));
 
-        var snapshot = new FantasyProsWeeklyProjectionProvider.ProjectionSnapshot(
-            FantasyProsWeeklyProjectionProvider.SOURCE_NAME,
+        var snapshot = new SleeperWeeklyProjectionProvider.ProjectionSnapshot(
+            SleeperWeeklyProjectionProvider.SOURCE_NAME,
             "surface",
             2026,
             2,
-            FantasyProsWeeklyProjectionProvider.ScoringBasis.PPR,
+            SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
             List.of(
-                projection("1", "DJ Example", "QB", "CHI", "20"),
-                projection("9", "D.J. Example", "QB", "CHI", "19"),
-                projection("2", "Receiver A", "WR", "JAX", "10"),
-                projection("3", "Receiver B", "WR", "WAS", "15")));
-
-        var base = rosterReport(leagueId);
-        var alteredPlayers = List.of(
-            new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
-                "s-qb", "STARTER", 0, "QB", "butler-qb", "D.J. Example", "QB", "CHI", "EXACT_CANONICAL"),
-            base.targetPlayers().get(1),
-            base.targetPlayers().get(2));
-        var altered = copyWithPlayers(base, alteredPlayers);
+                projection("s-qb", "20"),
+                projection("s-qb", "19"),
+                projection("s-wr-a", "10"),
+                projection("s-wr-b", "15")));
 
         var report = new SleeperLiveAutoFillLineupRecommendation(
             database,
             (season, week, scoring) -> snapshot)
-            .recommend(altered);
+            .recommend(rosterReport(leagueId));
 
         assertFalse(report.ready());
-        assertTrue(report.reason().contains("ambiguous"));
+        assertTrue(report.reason().contains("duplicate Sleeper player id"));
         assertTrue(report.reason().contains("will not guess"));
     }
 
     @Test
-    void nameAndTeamNormalizationAreDeterministicNotFuzzy() {
-        assertEquals("djmoore", SleeperLiveAutoFillLineupRecommendation.normalizeName("D.J. Moore"));
-        assertEquals("djmoore", SleeperLiveAutoFillLineupRecommendation.normalizeName("DJ Moore"));
-        assertEquals("JAX", SleeperLiveAutoFillLineupRecommendation.normalizeTeam("JAC"));
-        assertEquals("WAS", SleeperLiveAutoFillLineupRecommendation.normalizeTeam("WSH"));
+    void missingExactSleeperProjectionIdentityFailsClosed() throws Exception {
+        Database database = initializedDatabase();
+        String leagueId = "league-3";
+        new LeagueRepository(database).save(new League(leagueId, "sleeper-league-3", "Test League 3", 2026));
+        new LeagueScoringSettingsRepository(database).replace(leagueId, Map.of("rec", 1.0));
+        savePlayer(database, "butler-qb", "s-qb", "Quarter Back", "QB", "CHI", List.of("QB"));
+        savePlayer(database, "butler-wr-a", "s-wr-a", "Receiver A", "WR", "JAX", List.of("WR"));
+        savePlayer(database, "butler-wr-b", "s-wr-b", "Receiver B", "WR", "WAS", List.of("WR"));
+
+        var snapshot = new SleeperWeeklyProjectionProvider.ProjectionSnapshot(
+            SleeperWeeklyProjectionProvider.SOURCE_NAME,
+            "surface",
+            2026,
+            2,
+            SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
+            List.of(projection("s-qb", "20"), projection("s-wr-a", "10")));
+
+        var report = new SleeperLiveAutoFillLineupRecommendation(
+            database,
+            (season, week, scoring) -> snapshot)
+            .recommend(rosterReport(leagueId));
+
+        assertFalse(report.ready());
+        assertTrue(report.reason().contains("no exact Sleeper player-id match"));
+        assertTrue(report.reason().contains("will not guess"));
     }
 
     private Database initializedDatabase() throws Exception {
@@ -126,10 +146,8 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
         new PlayerFantasyPositionRepository(database).replace(butlerId, fantasyPositions);
     }
 
-    private static FantasyProsWeeklyProjectionProvider.Projection projection(
-        String id, String name, String position, String team, String points) {
-        return new FantasyProsWeeklyProjectionProvider.Projection(
-            id, name, position, team, new BigDecimal(points));
+    private static SleeperWeeklyProjectionProvider.Projection projection(String id, String points) {
+        return new SleeperWeeklyProjectionProvider.Projection(id, new BigDecimal(points));
     }
 
     private static SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterReport(String leagueId) {
@@ -167,18 +185,5 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             3,
             0,
             players);
-    }
-
-    private static SleeperLiveWaiverTargetRosterContextAudit.AuditReport copyWithPlayers(
-        SleeperLiveWaiverTargetRosterContextAudit.AuditReport source,
-        List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players) {
-        return new SleeperLiveWaiverTargetRosterContextAudit.AuditReport(
-            source.policyId(), source.leagueId(), source.marketSnapshotId(), source.waiverSnapshotId(),
-            source.sleeperLeagueId(), source.providerSeason(), source.providerStatus(), source.providerLeg(),
-            source.sleeperOwnerId(), source.ownerDisplayName(), source.ownerTeamName(), source.rosterId(),
-            source.butlerTeamId(), source.butlerTeamName(), source.lineupSlots(), source.startingSlots(),
-            source.candidateCount(), source.reviewableCandidateCount(), source.targetPlayerCount(),
-            source.starterCount(), source.benchCount(), source.reserveCount(), source.taxiCount(),
-            source.exactMappedTargetPlayers(), source.unmappedTargetPlayers(), players);
     }
 }
