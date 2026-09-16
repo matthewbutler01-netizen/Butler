@@ -181,4 +181,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-808 BLOCKED: AutoFill Command Center transform not found at $bf808Transform"
     }
     & $bf808Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-809: live acceptance proved the writer succeeds while the dashboard can miss the saved file.
+    # Harden discovery and identity matching after BF-808 has installed its snapshot reader.
+    $bf809Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf809-autofill-snapshot-reader-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf809Transform -PathType Leaf)) {
+        throw "BF-809 BLOCKED: AutoFill snapshot reader transform not found at $bf809Transform"
+    }
+    & $bf809Transform -DashboardPath $DashboardPath
 }
