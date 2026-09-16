@@ -28,6 +28,8 @@ class ButlerCommandCenterBf804Test {
         assertTrue(transform.contains("Decision History"));
         assertTrue(transform.contains("Saved and traceable"));
         assertTrue(transform.contains("READ ONLY."));
+        assertTrue(transform.contains("@media(max-width:920px)"));
+        assertTrue(transform.contains(".quick-grid,.evidence-grid,.priority-move{grid-template-columns:1fr}"));
 
         assertFalse(transform.contains("Method = \"POST\""));
         assertFalse(transform.contains("--team-bundle-autofill"));
