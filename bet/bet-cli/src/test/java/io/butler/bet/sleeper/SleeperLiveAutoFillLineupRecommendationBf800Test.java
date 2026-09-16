@@ -13,6 +13,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -21,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SleeperLiveAutoFillLineupRecommendationBf800Test {
+    private static final Instant PROJECTION_OBSERVED_AT = Instant.parse("2026-09-16T23:30:00Z");
+
     @TempDir
     Path tempDir;
 
@@ -40,6 +43,7 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             2026,
             2,
             SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
             List.of(
                 projection("s-qb", "20"),
                 projection("s-wr-a", "10"),
@@ -53,6 +57,7 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
         assertTrue(report.ready());
         assertEquals(SleeperWeeklyProjectionProvider.ScoringBasis.PPR, report.scoringBasis());
         assertEquals(SleeperWeeklyProjectionProvider.SOURCE_NAME, report.sourceName());
+        assertEquals(PROJECTION_OBSERVED_AT, report.projectionObservedAt());
         assertEquals(new BigDecimal("30"), report.currentProjectedTotal());
         assertEquals(new BigDecimal("5"), report.projectedGain());
         assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
@@ -77,6 +82,7 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             2026,
             2,
             SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
             List.of(
                 projection("s-qb", "20"),
                 projection("s-qb", "19"),
@@ -109,6 +115,7 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             2026,
             2,
             SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            PROJECTION_OBSERVED_AT,
             List.of(projection("s-qb", "20"), projection("s-wr-a", "10")));
 
         var report = new SleeperLiveAutoFillLineupRecommendation(
