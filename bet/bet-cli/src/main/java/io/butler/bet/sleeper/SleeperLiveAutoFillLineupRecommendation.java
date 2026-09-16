@@ -3,29 +3,27 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
 import io.butler.bet.data.PlayerFantasyPositionRepository;
-import io.butler.bet.integration.FantasyProsWeeklyProjectionProvider;
+import io.butler.bet.integration.SleeperWeeklyProjectionProvider;
 import io.butler.bet.intelligence.AutoFillLineupOptimizer;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/** BF-800 read-only composition of BF-610 live roster evidence and FantasyPros weekly projections. */
+/** BF-822 read-only composition of BF-610 live roster evidence and independent weekly projections. */
 public final class SleeperLiveAutoFillLineupRecommendation {
     public static final String POLICY_ID =
-        "sleeper-live-autofill-v1-bf610-fantasypros-weekly-projection-preview-only";
+        "sleeper-live-autofill-v2-bf610-provider-independent-weekly-projection-preview-only";
 
     private final Database database;
     private final ProjectionSource projectionSource;
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
-        this(database, new FantasyProsWeeklyProjectionProvider()::load);
+        this(database, new SleeperWeeklyProjectionProvider()::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -37,7 +35,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         throws java.sql.SQLException {
         Objects.requireNonNull(roster, "roster must not be null");
         if (!SleeperLiveWaiverTargetRosterContextAudit.POLICY_ID.equals(roster.policyId())) {
-            throw new IllegalArgumentException("BF-800 requires an exact BF-610 roster report");
+            throw new IllegalArgumentException("AutoFill requires an exact BF-610 roster report");
         }
         if (roster.providerLeg() == null || roster.providerLeg() <= 0) {
             return RecommendationReport.unavailable(
@@ -48,39 +46,48 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Map<String, Double> scoringSettings = new LeagueScoringSettingsRepository(database)
             .findByLeagueId(roster.leagueId());
         Double receptionPoints = scoringSettings.get("rec");
-        final FantasyProsWeeklyProjectionProvider.ScoringBasis scoring;
+        final SleeperWeeklyProjectionProvider.ScoringBasis scoring;
         try {
-            scoring = FantasyProsWeeklyProjectionProvider.ScoringBasis.fromReceptionPoints(receptionPoints);
+            scoring = SleeperWeeklyProjectionProvider.ScoringBasis.fromReceptionPoints(receptionPoints);
         } catch (IllegalStateException e) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), null, e.getMessage());
         }
 
-        final FantasyProsWeeklyProjectionProvider.ProjectionSnapshot snapshot;
+        final SleeperWeeklyProjectionProvider.ProjectionSnapshot snapshot;
         try {
             snapshot = projectionSource.load(roster.providerSeason(), roster.providerLeg(), scoring);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring,
-                "FantasyPros weekly projection request was interrupted.");
+                "Current weekly projection evidence request was interrupted.");
         } catch (IOException | IllegalStateException e) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring,
-                "FantasyPros weekly projection evidence is unavailable: " + safeMessage(e));
+                "Current weekly projection evidence is unavailable: " + safeMessage(e));
         }
 
         if (snapshot.season() != roster.providerSeason() || snapshot.week() != roster.providerLeg()
             || snapshot.scoring() != scoring) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring,
-                "FantasyPros weekly projection evidence does not match the live Sleeper season/week/scoring frame.");
+                "Current weekly projection evidence does not match the live Sleeper season/week/scoring frame.");
         }
 
         PlayerFantasyPositionRepository eligibilityRepository = new PlayerFantasyPositionRepository(database);
         List<AutoFillLineupOptimizer.RosterPlayer> optimizerRoster = new ArrayList<>();
         Map<String, BigDecimal> projectionsBySleeperId = new LinkedHashMap<>();
         int mappedActivePlayers = 0;
+
+        Map<String, SleeperWeeklyProjectionProvider.Projection> projectionBySleeperId = new LinkedHashMap<>();
+        for (var projection : snapshot.projections()) {
+            if (projectionBySleeperId.putIfAbsent(projection.sleeperPlayerId(), projection) != null) {
+                return RecommendationReport.unavailable(
+                    roster.providerSeason(), roster.providerLeg(), scoring,
+                    "Weekly projection evidence contains a duplicate Sleeper player id; Butler will not guess.");
+            }
+        }
 
         for (var target : roster.targetPlayers()) {
             AutoFillLineupOptimizer.RosterSlot rosterSlot = rosterSlot(target.rosterSlot());
@@ -101,10 +108,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     "AutoFill requires current Sleeper fantasy-position eligibility for " + display(target) + ".");
             }
 
-            ProjectionMatch match = exactProjection(target, snapshot.projections());
-            if (!match.matched()) {
+            SleeperWeeklyProjectionProvider.Projection projection = projectionBySleeperId.get(target.sleeperPlayerId());
+            if (projection == null) {
                 return RecommendationReport.unavailable(
-                    roster.providerSeason(), roster.providerLeg(), scoring, match.reason());
+                    roster.providerSeason(), roster.providerLeg(), scoring,
+                    "Current weekly projection evidence has no exact Sleeper player-id match for " + display(target)
+                        + "; Butler will not guess.");
             }
 
             optimizerRoster.add(new AutoFillLineupOptimizer.RosterPlayer(
@@ -114,7 +123,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 rosterSlot,
                 target.starterOrdinal(),
                 target.lineupSlot()));
-            projectionsBySleeperId.put(target.sleeperPlayerId(), match.projection().projectedPoints());
+            projectionsBySleeperId.put(target.sleeperPlayerId(), projection.projectedPoints());
             mappedActivePlayers++;
         }
 
@@ -144,35 +153,6 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             currentProjectedTotal, projectedGain, recommendation);
     }
 
-    static ProjectionMatch exactProjection(
-        SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer target,
-        List<FantasyProsWeeklyProjectionProvider.Projection> projections) {
-        Objects.requireNonNull(target, "target must not be null");
-        Objects.requireNonNull(projections, "projections must not be null");
-        String position = fantasyProsPosition(target.position());
-        String team = normalizeTeam(target.nflTeam());
-        if (position == null || team == null) {
-            return ProjectionMatch.missing(
-                "AutoFill cannot map " + display(target) + " to FantasyPros without exact position and NFL team evidence.");
-        }
-
-        List<FantasyProsWeeklyProjectionProvider.Projection> matches = projections.stream()
-            .filter(projection -> position.equals(projection.position()))
-            .filter(projection -> team.equals(normalizeTeam(projection.team())))
-            .filter(projection -> "DST".equals(position)
-                || normalizeName(display(target)).equals(normalizeName(projection.name())))
-            .toList();
-        if (matches.size() == 1) return ProjectionMatch.found(matches.get(0));
-        if (matches.isEmpty()) {
-            return ProjectionMatch.missing(
-                "FantasyPros has no exact weekly projection match for " + display(target)
-                    + " (" + position + ", " + team + ").");
-        }
-        return ProjectionMatch.missing(
-            "FantasyPros weekly projection mapping is ambiguous for " + display(target)
-                + " (" + position + ", " + team + "); Butler will not guess.");
-    }
-
     private static AutoFillLineupOptimizer.RosterSlot rosterSlot(String value) {
         if (value == null) throw new IllegalArgumentException("rosterSlot must not be null");
         return switch (value) {
@@ -180,32 +160,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             case "BENCH" -> AutoFillLineupOptimizer.RosterSlot.BENCH;
             case "RESERVE" -> AutoFillLineupOptimizer.RosterSlot.RESERVE;
             case "TAXI" -> AutoFillLineupOptimizer.RosterSlot.TAXI;
-            default -> throw new IllegalStateException("BF-800 unsupported live roster slot: " + value);
+            default -> throw new IllegalStateException("unsupported live roster slot: " + value);
         };
-    }
-
-    private static String fantasyProsPosition(String value) {
-        if (value == null || value.isBlank()) return null;
-        String normalized = value.trim().toUpperCase(Locale.ROOT);
-        return "DEF".equals(normalized) ? "DST" : normalized;
-    }
-
-    static String normalizeTeam(String value) {
-        if (value == null || value.isBlank() || "none".equalsIgnoreCase(value.trim())) return null;
-        String team = value.trim().toUpperCase(Locale.ROOT);
-        return switch (team) {
-            case "JAC" -> "JAX";
-            case "WSH" -> "WAS";
-            default -> team;
-        };
-    }
-
-    static String normalizeName(String value) {
-        if (value == null) return "";
-        String decomposed = Normalizer.normalize(value, Normalizer.Form.NFKD)
-            .replaceAll("\\p{M}+", "")
-            .toLowerCase(Locale.ROOT);
-        return decomposed.replaceAll("[^a-z0-9]", "");
     }
 
     private static String display(SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer target) {
@@ -221,27 +177,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     @FunctionalInterface
     interface ProjectionSource {
-        FantasyProsWeeklyProjectionProvider.ProjectionSnapshot load(
+        SleeperWeeklyProjectionProvider.ProjectionSnapshot load(
             int season,
             int week,
-            FantasyProsWeeklyProjectionProvider.ScoringBasis scoring)
+            SleeperWeeklyProjectionProvider.ScoringBasis scoring)
             throws IOException, InterruptedException;
-    }
-
-    record ProjectionMatch(FantasyProsWeeklyProjectionProvider.Projection projection, String reason) {
-        ProjectionMatch {
-            if ((projection == null) == (reason == null)) {
-                throw new IllegalArgumentException("projection match must contain exactly one of projection/reason");
-            }
-        }
-        boolean matched() { return projection != null; }
-        static ProjectionMatch found(FantasyProsWeeklyProjectionProvider.Projection projection) {
-            return new ProjectionMatch(Objects.requireNonNull(projection), null);
-        }
-        static ProjectionMatch missing(String reason) {
-            if (reason == null || reason.isBlank()) throw new IllegalArgumentException("reason must not be blank");
-            return new ProjectionMatch(null, reason.trim());
-        }
     }
 
     public record RecommendationReport(
@@ -250,7 +190,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         String reason,
         int season,
         Integer week,
-        FantasyProsWeeklyProjectionProvider.ScoringBasis scoringBasis,
+        SleeperWeeklyProjectionProvider.ScoringBasis scoringBasis,
         String sourceName,
         String sourceSurface,
         int mappedActivePlayers,
@@ -283,7 +223,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         public static RecommendationReport unavailable(
             int season,
             Integer week,
-            FantasyProsWeeklyProjectionProvider.ScoringBasis scoringBasis,
+            SleeperWeeklyProjectionProvider.ScoringBasis scoringBasis,
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
@@ -293,7 +233,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         public static RecommendationReport ready(
             int season,
             int week,
-            FantasyProsWeeklyProjectionProvider.ScoringBasis scoringBasis,
+            SleeperWeeklyProjectionProvider.ScoringBasis scoringBasis,
             String sourceName,
             String sourceSurface,
             int mappedActivePlayers,
