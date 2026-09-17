@@ -98,7 +98,7 @@ class ButlerAppShellBf676WarningRefreshTest {
     void confirmationExplainsBf823RecoveryBeforeBf676Fallback() throws Exception {
         String refresh = script("scripts/butler-decision-refresh.ps1");
 
-        assertTrue(refresh.contains("Refresh Butler data?"));
+        assertTrue(refresh.contains("Refresh Butler's data?"));
         assertTrue(refresh.contains("BF-823 first performs a read-only roster/player recovery probe."));
         assertTrue(refresh.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
         assertTrue(refresh.contains("If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
