@@ -93,6 +93,6 @@ foreach ($pathToParse in @($CorePath, $TradeHostPath, $TradeLabPath)) {
     [void][System.Management.Automation.Language.Parser]::ParseFile($pathToParse, [ref]$parseTokens, [ref]$parseErrors)
     if (@($parseErrors).Count -gt 0) {
         $parseMessage = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
-        throw "BF-831 BLOCKED: Trade Analyzer validation failed PowerShell parse for $pathToParse: $parseMessage"
+        throw "BF-831 BLOCKED: Trade Analyzer validation failed PowerShell parse for ${pathToParse}: $parseMessage"
     }
 }
