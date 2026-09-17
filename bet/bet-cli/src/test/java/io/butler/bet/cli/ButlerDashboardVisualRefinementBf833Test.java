@@ -48,6 +48,25 @@ class ButlerDashboardVisualRefinementBf833Test {
     }
 
     @Test
+    void queueAndDecisionDetailsForceNeutralSurfaces() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf833-visual-language-refinement-transform.ps1");
+
+        for (String marker : new String[]{
+                "background:var(--surface-2)!important",
+                "background:var(--surface)!important",
+                ".dashboard-command-center .priority-card .status",
+                ".dashboard-command-center .priority-index",
+                ".dashboard-command-center .priority-type",
+                ".dashboard-command-center .priority-copy",
+                ".dashboard-command-center details",
+                "background:#171A1C!important",
+                "background:#1D2123!important"
+        }) {
+            assertTrue(transform.contains(marker), "missing BF-833 queue-neutralization marker " + marker);
+        }
+    }
+
+    @Test
     void refinementRemainsPresentationOnlyAndFailClosed() throws Exception {
         String transform = source("scripts/butler-dashboard-bf833-visual-language-refinement-transform.ps1");
         int safetyScan = transform.indexOf("$dashboardStart");
