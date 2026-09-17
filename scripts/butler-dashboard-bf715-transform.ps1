@@ -215,3 +215,20 @@ if (-not (Test-Path -LiteralPath $bf834Transform -PathType Leaf)) {
     throw "BF-834 BLOCKED: Waiver decision surface transform not found at $bf834Transform"
 }
 & $bf834Transform -DashboardPath $DashboardPath
+
+# BF-837: live visual acceptance proved manager surfaces were still split across multiple
+# design systems. Run the visual alignment after BF-834 and after the chained BF-815..BF-835
+# staging work so nothing later can restore the legacy blue/Teko presentation.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf837CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf837-manager-page-visual-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf837CoreTransform -PathType Leaf)) {
+        throw "BF-837 BLOCKED: final staged-core visual transform not found at $bf837CoreTransform"
+    }
+    & $bf837CoreTransform -CorePath $stagedCore
+}
+
+$bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf837DashboardTransform -PathType Leaf)) {
+    throw "BF-837 BLOCKED: final dashboard-hosted visual transform not found at $bf837DashboardTransform"
+}
+& $bf837DashboardTransform -DashboardPath $DashboardPath
