@@ -131,3 +131,12 @@ if (-not (Test-Path -LiteralPath $bf815Transform -PathType Leaf)) {
     throw "BF-815 BLOCKED: unified decision package transform not found at $bf815Transform"
 }
 & $bf815Transform -DashboardPath $DashboardPath
+
+# BF-832: BF-815 chains through BF-816 and the current My Team staging work before
+# returning. Apply the Dashboard visual system last so no older command-center pass can
+# restore the legacy navy presentation afterward.
+$bf832Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf832-command-center-visual-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf832Transform -PathType Leaf)) {
+    throw "BF-832 BLOCKED: Dashboard command-center visual transform not found at $bf832Transform"
+}
+& $bf832Transform -DashboardPath $DashboardPath
