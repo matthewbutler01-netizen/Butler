@@ -9,7 +9,7 @@ function Get-AppNav {
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
     $historyClass = if ($Active -ceq 'history') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Lab</a><a$historyClass href=`"/history`">History</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history`">History</a></nav>"
 }
 
 function Add-AppNavigation {
@@ -18,7 +18,7 @@ function Add-AppNavigation {
         throw 'BF-671 BLOCKED: proxied Butler HTML is missing the navigation contract.'
     }
     $links = ''
-    if ($Html -notmatch 'href="/trade"') { $links += '<a href="/trade">Trade Lab</a>' }
+    if ($Html -notmatch 'href="/trade"') { $links += '<a href="/trade">Trade Analyzer</a>' }
     if ($Html -notmatch 'href="/history"') { $links += '<a href="/history">History</a>' }
     if ([string]::IsNullOrWhiteSpace($links)) { return $Html }
     return $Html.Replace('</nav>', "$links</nav>")

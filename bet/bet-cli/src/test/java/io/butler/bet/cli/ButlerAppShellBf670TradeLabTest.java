@@ -44,7 +44,7 @@ class ButlerAppShellBf670TradeLabTest {
         assertTrue(worker.contains("Get-TradeLabLoadingHtml -LeagueId $LeagueId"));
         assertTrue(host.contains("function Get-TradeLabLoadingHtml"));
         assertTrue(host.contains("http-equiv=\"refresh\" content=\"1;url=/trade?load=1\""));
-        assertTrue(host.contains("Opening Trade Lab..."));
+        assertTrue(host.contains("Opening Trade Analyzer..."));
         assertTrue(host.contains("The workspace will appear automatically."));
         assertTrue(host.contains("No proposal, transaction, or Sleeper write is being executed."));
 
