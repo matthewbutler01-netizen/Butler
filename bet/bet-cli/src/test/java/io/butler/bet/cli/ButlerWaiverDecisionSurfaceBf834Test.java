@@ -57,6 +57,16 @@ class ButlerWaiverDecisionSurfaceBf834Test {
     }
 
     @Test
+    void rendererReplacementIsLineEndingAgnostic() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf834-waiver-decision-surface-transform.ps1");
+
+        assertTrue(transform.contains("$waiverBlock.LastIndexOf('    return @\"'"));
+        assertTrue(transform.contains("$waiverBlock = $waiverBlock.Substring(0, $returnStart) + $managerReturn"));
+        assertFalse(transform.contains("$returnEndMarker"),
+                "BF-834 must not depend on LF/CRLF-specific here-string terminator matching");
+    }
+
+    @Test
     void transformRemainsReadOnlyAndFailClosed() throws Exception {
         String transform = source("scripts/butler-dashboard-bf834-waiver-decision-surface-transform.ps1");
         int safetyScan = transform.indexOf("$installedWaiverStart");
