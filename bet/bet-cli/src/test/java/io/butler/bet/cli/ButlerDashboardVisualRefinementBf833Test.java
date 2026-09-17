@@ -47,24 +47,30 @@ class ButlerDashboardVisualRefinementBf833Test {
     }
 
     @Test
-    void queueAndDecisionDetailsUseExplicitNeutralSurfaces() throws Exception {
+    void refinementTargetsTheLiveManagerQueueContract() throws Exception {
         String transform = source("scripts/butler-dashboard-bf833-visual-language-refinement-transform.ps1");
 
         for (String marker : new String[]{
-                "priority-card primary bf833-priority-card",
-                "priority-card bf833-priority-card",
-                "article.bf833-priority-card",
-                "background:#F7F6F2!important",
-                "background:#FFFFFF!important",
+                "manager-decision-card",
+                "manager-priority-index",
+                "manager-kind",
+                "manager-card-actions",
+                "manager-decision-main h3",
+                "manager-decision-main p",
+                "manager-chip-row",
+                "manager-decision-stack>article.manager-decision-card",
                 "background:#1B1E20!important",
                 "background:#202426!important",
                 "border-left:3px solid #69A27D!important",
-                ".dashboard-command-center details"
+                "live Dashboard manager queue contract is missing"
         }) {
-            assertTrue(transform.contains(marker), "missing BF-833 queue-neutralization marker " + marker);
+            assertTrue(transform.contains(marker), "missing BF-833 live queue marker " + marker);
         }
 
-        assertTrue(transform.contains("priority-card class contract expected one match"));
+        assertFalse(transform.contains("bf833-priority-card"),
+                "BF-833 must not target the dormant priority-card renderer instead of the live manager queue");
+        assertFalse(transform.contains("priority-card class contract expected one match"),
+                "BF-833 must not retain the stale priority-card mutation contract");
     }
 
     @Test
