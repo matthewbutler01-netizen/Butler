@@ -34,7 +34,6 @@ class ButlerDashboardVisualRefinementBf833Test {
                 "--bg:#F3F2EE",
                 "--bg:#111315",
                 "background-image:none",
-                ".dashboard-command-center .priority-card.primary",
                 ".dashboard-command-center .command-title",
                 ".dashboard-command-center .nav a.active",
                 "--surface:#191C1E",
@@ -48,22 +47,24 @@ class ButlerDashboardVisualRefinementBf833Test {
     }
 
     @Test
-    void queueAndDecisionDetailsForceNeutralSurfaces() throws Exception {
+    void queueAndDecisionDetailsUseExplicitNeutralSurfaces() throws Exception {
         String transform = source("scripts/butler-dashboard-bf833-visual-language-refinement-transform.ps1");
 
         for (String marker : new String[]{
-                "background:var(--surface-2)!important",
-                "background:var(--surface)!important",
-                ".dashboard-command-center .priority-card .status",
-                ".dashboard-command-center .priority-index",
-                ".dashboard-command-center .priority-type",
-                ".dashboard-command-center .priority-copy",
-                ".dashboard-command-center details",
-                "background:#171A1C!important",
-                "background:#1D2123!important"
+                "priority-card primary bf833-priority-card",
+                "priority-card bf833-priority-card",
+                "article.bf833-priority-card",
+                "background:#F7F6F2!important",
+                "background:#FFFFFF!important",
+                "background:#1B1E20!important",
+                "background:#202426!important",
+                "border-left:3px solid #69A27D!important",
+                ".dashboard-command-center details"
         }) {
             assertTrue(transform.contains(marker), "missing BF-833 queue-neutralization marker " + marker);
         }
+
+        assertTrue(transform.contains("priority-card class contract expected one match"));
     }
 
     @Test
