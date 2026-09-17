@@ -169,6 +169,13 @@ if (-not (Test-Path -LiteralPath $bf823Transform -PathType Leaf)) {
 }
 & $bf823Transform -CorePath $CorePath
 
+# BF-825: carry exact read-only unavailable-player evidence into the manager-facing Lineup Advisor.
+$bf825Transform = Join-Path $PSScriptRoot 'butler-app-bf825-lineup-availability-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf825Transform -PathType Leaf)) {
+    throw "BF-825 BLOCKED: lineup availability transform not found at $bf825Transform"
+}
+& $bf825Transform -CorePath $CorePath
+
 # BF-818: after Lineup Advisor staging, upgrade the sibling Waiver Board into a
 # manager-first decision summary while preserving the existing governed shortlist.
 $stagedDashboard = Join-Path (Split-Path -Parent $CorePath) 'butler-dashboard.ps1'
