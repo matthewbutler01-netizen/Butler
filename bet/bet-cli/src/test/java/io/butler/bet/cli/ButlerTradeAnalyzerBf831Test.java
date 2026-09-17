@@ -43,13 +43,23 @@ class ButlerTradeAnalyzerBf831Test {
                 "--radius:3px",
                 "repeating-linear-gradient",
                 "@media(prefers-color-scheme:dark)",
-                "$host = $host.Replace('Trade Lab', 'Trade Analyzer')",
+                "$tradeHostText = $tradeHostText.Replace('Trade Lab', 'Trade Analyzer')",
                 "$lab = $lab.Replace('Trade Lab', 'Trade Analyzer')",
                 "Analyze a trade",
                 "Get Butler recommendation"
         }) {
             assertTrue(transform.contains(marker), "missing BF-831 command-center marker " + marker);
         }
+    }
+
+    @Test
+    void transformAvoidsReservedPowerShellHostVariable() throws Exception {
+        String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
+
+        assertTrue(transform.contains("$tradeHostText = [System.IO.File]::ReadAllText($TradeHostPath)"));
+        assertTrue(transform.contains("WriteAllText($TradeHostPath, $tradeHostText"));
+        assertFalse(transform.contains("$host = "),
+                "PowerShell variables are case-insensitive; $host collides with the read-only built-in $Host variable");
     }
 
     @Test
