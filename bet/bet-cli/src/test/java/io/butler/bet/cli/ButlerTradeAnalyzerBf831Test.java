@@ -41,44 +41,59 @@ class ButlerTradeAnalyzerBf831Test {
                 "--brick:#A8452F",
                 "--font-display:'Teko'",
                 "--radius:3px",
+                "repeating-linear-gradient",
                 "@media(prefers-color-scheme:dark)",
-                "<a href='/trade'>Trade Analyzer</a>",
-                "<h2>Loading Trade Analyzer</h2>",
-                "<h2>Trade Analyzer</h2>"
+                "$host = $host.Replace('Trade Lab', 'Trade Analyzer')",
+                "$lab = $lab.Replace('Trade Lab', 'Trade Analyzer')",
+                "Analyze a trade",
+                "Get Butler recommendation"
         }) {
             assertTrue(transform.contains(marker), "missing BF-831 command-center marker " + marker);
         }
     }
 
     @Test
-    void governedRecommendationIsPrimaryAndRawEvidenceIsSecondary() throws Exception {
+    void governedRecommendationAndExistingEvidenceRemainTheDecisionHierarchy() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
-        int recommendation = transform.indexOf("Butler Recommendation");
-        int action = transform.indexOf("decision-action");
-        int evidence = transform.indexOf("trade-evidence-grid");
-        int raw = transform.indexOf("Raw Butler evidence · BF-670 v5");
-
-        assertTrue(recommendation >= 0);
-        assertTrue(action >= 0);
-        assertTrue(evidence >= 0);
-        assertTrue(raw > recommendation, "raw BF-670 evidence should remain behind the manager-facing recommendation");
-        assertTrue(transform.contains("<details class='trade-raw'>"));
-        assertTrue(transform.contains("Blocking issue:"));
-        assertTrue(transform.contains("Gates:"));
+        for (String marker : new String[]{
+                "Butler recommendation",
+                "trade-result",
+                "StrategicVeto",
+                "EvidenceComplete",
+                "TransitionCoverage",
+                "ProtectedCoverage",
+                "Technical governed output",
+                ".gate-grid",
+                ".veto-item",
+                ".raw-output"
+        }) {
+            assertTrue(transform.contains(marker), "missing governed decision/evidence marker " + marker);
+        }
     }
 
     @Test
-    void transformPreservesGovernedTradeEngineAndReadOnlyBoundary() throws Exception {
+    void transformProtectsCurrentRoutedBf670EngineAndReadOnlyBoundary() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
         String tradeLab = source("scripts/butler-trade-lab.ps1");
 
-        assertTrue(transform.contains("Invoke-ButlerTradeV5"));
-        assertTrue(tradeLab.contains("Invoke-ButlerTradeV5"));
-        assertTrue(transform.contains("BF-831 BLOCKED: trade analyzer transform lost the governed BF-670 v5 invocation."));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("https://api.sleeper.app/v1"));
-        assertFalse(transform.contains("roster mutation"));
+        for (String marker : new String[]{
+                "trade recommendation $LeagueId",
+                "ConvertTo-TradeRecommendationView",
+                "PerspectiveTeamId",
+                "StrategicVeto",
+                "EvidenceComplete",
+                "READ ONLY"
+        }) {
+            assertTrue(tradeLab.contains(marker), "current BF-670 trade contract missing " + marker);
+            assertTrue(transform.contains(marker), "BF-831 does not guard current BF-670 marker " + marker);
+        }
+
+        assertTrue(transform.contains("BF-831 BLOCKED: governed BF-670 marker is missing after presentation transform"));
+        assertTrue(transform.contains("BF-831 BLOCKED: Trade Analyzer introduced provider, API, or write behavior marker"));
+        assertFalse(tradeLab.contains("Method = \"POST\""));
+        assertFalse(tradeLab.contains("https://api.sleeper.app"));
+        assertFalse(transform.contains("$env:"));
     }
 
     private static String source(String relativePath) throws IOException {
