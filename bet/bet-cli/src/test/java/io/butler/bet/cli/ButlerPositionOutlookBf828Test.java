@@ -25,12 +25,33 @@ class ButlerPositionOutlookBf828Test {
     }
 
     @Test
+    void bf828TargetsTheLivePostBf803PositionRenderer() throws Exception {
+        String bf803 = source("scripts/butler-app-bf803-manager-ui-transform.ps1");
+        String transform = source("scripts/butler-app-bf828-position-outlook-partial-transform.ps1");
+
+        for (String stagedMarker : new String[]{
+                "$positionHtml = ''",
+                "card position-card",
+                "$(ConvertTo-HtmlText $position.DirectStarters) starter slot(s)",
+                "Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total value $(ConvertTo-HtmlText $position.TotalPositionValue)",
+                "<div class=`\"pressure-tier`\">Unavailable</div>"
+        }) {
+            assertTrue(bf803.contains(stagedMarker), "BF-803 staged renderer is missing expected marker " + stagedMarker);
+            assertTrue(transform.contains(stagedMarker), "BF-828 must match the live BF-803 staged renderer marker " + stagedMarker);
+        }
+
+        assertFalse(transform.contains("$pressureHtml = \"\""),
+                "BF-828 must not target the pre-BF-803 pressureHtml renderer");
+        assertTrue(transform.contains("staged BF-803 Position Outlook rendering contract"));
+    }
+
+    @Test
     void partialPositionsExposeExactGovernedCoverageWithoutInventingTier() throws Exception {
         String transform = source("scripts/butler-app-bf828-position-outlook-partial-transform.ps1");
 
         for (String marker : new String[]{
                 "Coverage needed",
-                "position-partial",
+                "card position-card position-partial",
                 "Value coverage $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players)",
                 "stale $(ConvertTo-HtmlText $position.Stale)",
                 "missing $(ConvertTo-HtmlText $position.Missing)",
@@ -49,7 +70,8 @@ class ButlerPositionOutlookBf828Test {
         assertTrue(transform.contains("if ($position.Available)"));
         assertTrue(transform.contains("$(ConvertTo-HtmlText $position.Tier)"));
         assertTrue(transform.contains("Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue)"));
-        assertTrue(transform.contains("Total position value $(ConvertTo-HtmlText $position.TotalPositionValue)"));
+        assertTrue(transform.contains("total value $(ConvertTo-HtmlText $position.TotalPositionValue)"));
+        assertTrue(transform.contains("Value coverage $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players)"));
     }
 
     @Test
