@@ -160,3 +160,11 @@ if (@($parseErrors).Count -gt 0) {
     $messages = (@($parseErrors) | ForEach-Object { $_.Message }) -join '; '
     throw "BF-832 BLOCKED: generated Dashboard failed PowerShell parse: $messages"
 }
+
+# BF-833: refine the Dashboard visual language only after BF-832 has installed the
+# command-center structure and visual scope. This is a presentation-only override.
+$bf833Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf833-visual-language-refinement-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf833Transform -PathType Leaf)) {
+    throw "BF-833 BLOCKED: visual-language refinement transform not found at $bf833Transform"
+}
+& $bf833Transform -DashboardPath $DashboardPath
