@@ -49,20 +49,23 @@ body.dashboard-page{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--line:#D
 .dashboard-command-center .danger{color:var(--brick)}
 .dashboard-command-center .done{color:var(--muted);background:var(--surface-2)}
 .dashboard-command-center .priority-stack{gap:12px;margin-top:18px}
-.dashboard-command-center .priority-card{grid-template-columns:40px minmax(0,1fr) auto;gap:16px;padding:18px 19px;border-radius:10px;background:var(--surface-2)}
-.dashboard-command-center .priority-card.primary{background:var(--surface);border-left:3px solid var(--turf);box-shadow:0 5px 16px rgba(25,35,29,.05)}
-.dashboard-command-center .priority-index{width:32px;height:32px;border-radius:8px;background:color-mix(in srgb,var(--turf) 14%,var(--surface));color:var(--turf-deep);font-family:var(--font-body);font-size:12px;font-weight:800}
-.dashboard-command-center .priority-type{font-size:10px;color:var(--muted);letter-spacing:.1em}
-.dashboard-command-center .priority-title{font-size:17px;font-weight:800;line-height:1.35;margin-top:4px}
-.dashboard-command-center .priority-copy{font-size:13px;line-height:1.55;margin-top:6px}
-.dashboard-command-center .priority-player{border-radius:8px;background:var(--surface)}
+.dashboard-command-center .priority-card{grid-template-columns:40px minmax(0,1fr) auto;gap:16px;padding:18px 19px;border-radius:10px;background:var(--surface-2)!important;border-color:var(--line)!important;box-shadow:none!important}
+.dashboard-command-center .priority-card.primary{background:var(--surface)!important;border-color:var(--line)!important;border-left:3px solid var(--turf)!important;box-shadow:0 5px 16px rgba(25,35,29,.05)!important}
+.dashboard-command-center .priority-index{width:32px;height:32px;border-radius:8px;background:color-mix(in srgb,var(--turf) 14%,var(--surface))!important;color:var(--turf-deep)!important;font-family:var(--font-body);font-size:12px;font-weight:800}
+.dashboard-command-center .priority-type{font-size:10px;color:var(--muted)!important;letter-spacing:.1em}
+.dashboard-command-center .priority-title{font-size:17px;font-weight:800;line-height:1.35;margin-top:4px;color:var(--ink)!important}
+.dashboard-command-center .priority-copy{font-size:13px;line-height:1.55;margin-top:6px;color:var(--muted)!important}
+.dashboard-command-center .priority-card .status{background:var(--surface)!important;border-color:var(--line)!important}
+.dashboard-command-center .priority-player{border-radius:8px;background:var(--surface)!important;border-color:var(--line)!important}
 .dashboard-command-center .command-button{border-radius:8px;padding:8px 13px}
 .dashboard-command-center .command-button.secondary{background:var(--surface)}
 .dashboard-command-center .why-card{border-radius:8px;background:var(--surface-2)}
 .dashboard-command-center .evidence-card{border-radius:8px;background:var(--surface-2)}
 .dashboard-command-center .evidence-card .evidence-value{font-family:var(--font-body);font-size:18px;font-weight:800;color:var(--ink)}
+.dashboard-command-center details{background:var(--surface-2)!important;border:1px solid var(--line)!important;border-radius:8px!important;padding:11px 13px!important}
+.dashboard-command-center summary{color:var(--ink)!important}
 .dashboard-command-center .boundary{background:transparent;box-shadow:none}
-@media(prefers-color-scheme:dark){body.dashboard-page{--bg:#111315;--surface:#191C1E;--surface-2:#202426;--line:#303639;--turf:#69A27D;--turf-deep:#8CBC9A;--gold:#D4A64B;--ink:#F1F3F1;--muted:#A6AFA9;--brick:#D47A6B;background:#111315;background-image:none}.dashboard-command-center .top,.dashboard-command-center .nav,.dashboard-command-center .panel,.dashboard-command-center .priority-card.primary{box-shadow:none}.dashboard-command-center .priority-card{background:#171A1C}.dashboard-command-center .priority-card.primary{background:#1D2123}.dashboard-command-center .priority-index{background:#26352C;color:#A8D3B5}.dashboard-command-center .nav a.active{background:#222D26;border-color:#33483A}.dashboard-command-center .summary-chip,.dashboard-command-center .status,.dashboard-command-center .command-button.secondary{background:#1D2123}.dashboard-command-center .evidence-card,.dashboard-command-center .why-card,.dashboard-command-center .priority-player{background:#202426}}
+@media(prefers-color-scheme:dark){body.dashboard-page{--bg:#111315;--surface:#191C1E;--surface-2:#202426;--line:#303639;--turf:#69A27D;--turf-deep:#8CBC9A;--gold:#D4A64B;--ink:#F1F3F1;--muted:#A6AFA9;--brick:#D47A6B;background:#111315;background-image:none}.dashboard-command-center .top,.dashboard-command-center .nav,.dashboard-command-center .panel,.dashboard-command-center .priority-card.primary{box-shadow:none}.dashboard-command-center .priority-card{background:#171A1C!important;border-color:#303639!important}.dashboard-command-center .priority-card.primary{background:#1D2123!important;border-color:#303639!important;border-left-color:#69A27D!important;box-shadow:none!important}.dashboard-command-center .priority-index{background:#26352C!important;color:#A8D3B5!important}.dashboard-command-center .priority-type{color:#A6AFA9!important}.dashboard-command-center .priority-copy{color:#A6AFA9!important}.dashboard-command-center .priority-card .status{background:#1D2123!important;border-color:#303639!important}.dashboard-command-center .nav a.active{background:#222D26;border-color:#33483A}.dashboard-command-center .summary-chip,.dashboard-command-center .status,.dashboard-command-center .command-button.secondary{background:#1D2123}.dashboard-command-center .evidence-card,.dashboard-command-center .why-card,.dashboard-command-center .priority-player,.dashboard-command-center details{background:#202426!important;border-color:#303639!important}}
 @media(max-width:760px){.dashboard-command-center{padding-top:14px}.dashboard-command-center .top{padding:20px 18px 15px}.dashboard-command-center .brand h1{font-size:26px}.dashboard-command-center .nav{padding:7px 8px}.dashboard-command-center .nav a{font-size:12px;padding:8px 9px}.dashboard-command-center .panel{padding:18px 16px}.dashboard-command-center .command-title{font-size:27px}.dashboard-command-center h2{font-size:21px}.dashboard-command-center .priority-card{padding:15px 14px;gap:12px}}
 '@
 
@@ -76,6 +79,8 @@ foreach ($required in @(
     '--bg:#111315',
     'background-image:none',
     '.dashboard-command-center .priority-card.primary',
+    'background:var(--surface-2)!important',
+    '.dashboard-command-center details',
     '.dashboard-command-center .command-title',
     '.dashboard-command-center .nav a.active'
 )) {
