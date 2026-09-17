@@ -176,6 +176,13 @@ if (-not (Test-Path -LiteralPath $bf825Transform -PathType Leaf)) {
 }
 & $bf825Transform -CorePath $CorePath
 
+# BF-827: replace generic My Team placeholder cards with evidence-backed roster intelligence.
+$bf827Transform = Join-Path $PSScriptRoot 'butler-app-bf827-roster-intelligence-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf827Transform -PathType Leaf)) {
+    throw "BF-827 BLOCKED: roster intelligence transform not found at $bf827Transform"
+}
+& $bf827Transform -CorePath $CorePath
+
 # BF-818: after Lineup Advisor staging, upgrade the sibling Waiver Board into a
 # manager-first decision summary while preserving the existing governed shortlist.
 $stagedDashboard = Join-Path (Split-Path -Parent $CorePath) 'butler-dashboard.ps1'
