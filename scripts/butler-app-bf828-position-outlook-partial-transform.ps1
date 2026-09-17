@@ -13,23 +13,25 @@ if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
 
 $core = [System.IO.File]::ReadAllText($CorePath)
 
-$oldPressure = @'
-    $pressureHtml = ""
+# BF-803 replaces the original My Team renderer before BF-827/BF-828 run in the
+# live app staging chain. Match that staged Position Outlook contract directly.
+$oldPosition = @'
+    $positionHtml = ''
     foreach ($position in $Pressure) {
         if ($position.Available) {
-            $pressureHtml += "<article class=`"card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) direct starter(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue)</div><div class=`"meta`">Total position value $(ConvertTo-HtmlText $position.TotalPositionValue)</div><div class=`"meta`">Players $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players) valued &middot; stale $(ConvertTo-HtmlText $position.Stale) &middot; missing $(ConvertTo-HtmlText $position.Missing)</div></article>"
+            $positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) starter slot(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total value $(ConvertTo-HtmlText $position.TotalPositionValue)</div></article>"
         }
         else {
-            $pressureHtml += "<article class=`"card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">Unavailable</div><div class=`"meta`">$(ConvertTo-HtmlText $position.Reason)</div></article>"
+            $positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">Unavailable</div><div class=`"meta`">$(ConvertTo-HtmlText $position.Reason)</div></article>"
         }
     }
 '@
 
-$newPressure = @'
-    $pressureHtml = ""
+$newPosition = @'
+    $positionHtml = ''
     foreach ($position in $Pressure) {
         if ($position.Available) {
-            $pressureHtml += "<article class=`"card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) direct starter(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue)</div><div class=`"meta`">Total position value $(ConvertTo-HtmlText $position.TotalPositionValue)</div><div class=`"meta`">Players $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players) valued &middot; stale $(ConvertTo-HtmlText $position.Stale) &middot; missing $(ConvertTo-HtmlText $position.Missing)</div></article>"
+            $positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) direct starter(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total value $(ConvertTo-HtmlText $position.TotalPositionValue)</div><div class=`"meta`">Value coverage $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players) &middot; stale $(ConvertTo-HtmlText $position.Stale) &middot; missing $(ConvertTo-HtmlText $position.Missing)</div></article>"
         }
         else {
             $reasonText = if ([string]::IsNullOrWhiteSpace([string]$position.Reason)) { "Complete governed value coverage is required before Butler will assign a position tier." } else { [string]$position.Reason }
@@ -43,19 +45,21 @@ $newPressure = @'
             else {
                 "Governed player coverage counts were not returned for this position."
             }
-            $pressureHtml += "<article class=`"card position-partial`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) direct starter(s)</div><div class=`"pressure-tier`">Coverage needed</div><div class=`"meta`">$coverageText</div><div class=`"meta`">$(ConvertTo-HtmlText $reasonText)</div><details><summary>Partial evidence details</summary><div class=`"technical`">No position tier is inferred until the governed positional-pressure evidence is complete.</div></details></article>"
+            $positionHtml += "<article class=`"card position-card position-partial`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) direct starter(s)</div><div class=`"pressure-tier`">Coverage needed</div><div class=`"meta`">$coverageText</div><div class=`"meta`">$(ConvertTo-HtmlText $reasonText)</div><details><summary>Partial evidence details</summary><div class=`"technical`">No position tier is inferred until the governed positional-pressure evidence is complete.</div></details></article>"
         }
     }
 '@
 
-$matchCount = [regex]::Matches($core, [regex]::Escape($oldPressure.Trim())).Count
+$matchCount = [regex]::Matches($core, [regex]::Escape($oldPosition.Trim())).Count
 if ($matchCount -ne 1) {
-    throw "BF-828 BLOCKED: Position Outlook rendering contract expected one match, found $matchCount."
+    throw "BF-828 BLOCKED: staged BF-803 Position Outlook rendering contract expected one match, found $matchCount."
 }
-$core = $core.Replace($oldPressure.Trim(), $newPressure.Trim())
+$core = $core.Replace($oldPosition.Trim(), $newPosition.Trim())
 
 foreach ($required in @(
+    '$positionHtml',
     'Coverage needed',
+    'card position-card position-partial',
     'Value coverage $(ConvertTo-HtmlText $position.Valued)/$(ConvertTo-HtmlText $position.Players)',
     'stale $(ConvertTo-HtmlText $position.Stale)',
     'missing $(ConvertTo-HtmlText $position.Missing)',
@@ -63,7 +67,7 @@ foreach ($required in @(
     'No position tier is inferred until the governed positional-pressure evidence is complete.',
     '$(ConvertTo-HtmlText $position.Tier)',
     'Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue)',
-    'Total position value $(ConvertTo-HtmlText $position.TotalPositionValue)'
+    'total value $(ConvertTo-HtmlText $position.TotalPositionValue)'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-828 BLOCKED: required Position Outlook marker is missing: $required"
@@ -71,7 +75,7 @@ foreach ($required in @(
 }
 
 foreach ($forbidden in @('https://api.sleeper.app', 'Invoke-RestMethod', 'Invoke-WebRequest', 'Method = "POST"')) {
-    if ($newPressure.Contains($forbidden)) {
+    if ($newPosition.Contains($forbidden)) {
         throw "BF-828 BLOCKED: partial-evidence presentation introduced provider, API, or write behavior marker $forbidden"
     }
 }
