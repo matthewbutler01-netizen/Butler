@@ -1,6 +1,7 @@
 # BF-675/BF-676/BF-677/BF-678 native manual governed Butler refresh app module.
 # BF-823 keeps GET confirmation-only and exact POST /refresh token-gated, then probes
 # whether local lineup evidence recovery is required before falling back to BF-676.
+# BF-824 simplifies only the manager-facing confirmation/completion presentation.
 
 function New-DecisionRefreshToken {
     $bytes = New-Object byte[] 32
@@ -102,14 +103,14 @@ function Get-DecisionRefreshConfirmationHtml {
 <div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>
 $nav
 <section class="panel">
-<div class="eyebrow">Explicit governed refresh</div>
-<div class="statusrow"><div><h2 class="headline">Refresh Butler data?</h2><p class="lede">Butler will first check whether roster or player evidence needs repair. If it does not, the existing governed decision refresh is used only when its own safety preflight authorizes it.</p></div><span class="status done">REVIEW FIRST</span></div>
-<div class="refresh-warning"><strong>This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.</strong><p>The browser confirmation authorizes Butler local evidence recovery only. Every recovery path verifies its exact preconditions before writing Butler data.</p></div>
+<div class="eyebrow">Data refresh</div>
+<div class="statusrow"><div><h2 class="headline">Refresh Butler's data?</h2><p class="lede">Butler found that some of its local fantasy data may be outdated. Refreshing will repair Butler's data and update the evidence used for recommendations.</p></div><span class="status done">CONFIRMATION REQUIRED</span></div>
+<div class="refresh-warning"><strong>Nothing will be submitted to Sleeper.</strong><p>This refresh only updates Butler's local evidence. Butler still verifies the exact safety conditions before any Butler data is changed.</p></div>
 <form method="post" action="/refresh">
 <input type="hidden" name="token" value="$safeToken">
 <div class="refresh-actions"><button class="refresh-button" type="submit">Confirm refresh</button><a class="refresh-cancel" href="/">Cancel</a></div>
 </form>
-<details class="refresh-governance"><summary>How Butler governs this refresh</summary><ul class="refresh-list"><li>BF-823 first performs a read-only roster/player recovery probe.</li><li>If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed.</li><li>If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized.</li><li>If any required state is ambiguous or unsafe, the refresh stops instead of guessing.</li></ul></details>
+<details class="refresh-governance"><summary>Technical details</summary><ul class="refresh-list"><li>This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.</li><li>BF-823 first performs a read-only roster/player recovery probe.</li><li>If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed.</li><li>If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized.</li><li>If any required state is ambiguous or unsafe, the refresh stops instead of guessing.</li></ul></details>
 </section>
 </main>
 </body>
@@ -218,9 +219,11 @@ function Get-DecisionRefreshSuccessHtml {
     return @"
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css</style></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
+.refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
+</style></head>
 <body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
-<section class="panel"><div class="eyebrow">Explicit governed refresh</div><div class="statusrow"><div><h2 class="headline">Butler data refresh complete</h2><p class="lede">The authorized Butler-local recovery or governed refresh completed. No Sleeper lineup, waiver, trade, roster, or FAAB transaction was submitted.</p></div><span class="status done">COMPLETE</span></div><p><a href="/team/autofill">Retry Lineup Review</a> &nbsp; <a href="/">Open current Dashboard</a> &nbsp; <a href="/history">Open immutable History</a></p><details><summary>View refresh details</summary><pre>$safeResult</pre></details></section>
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
 </main></body></html>
 "@
 }
