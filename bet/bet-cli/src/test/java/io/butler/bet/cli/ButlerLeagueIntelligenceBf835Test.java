@@ -27,6 +27,7 @@ class ButlerLeagueIntelligenceBf835Test {
     @Test
     void managerSurfaceUsesExistingLeagueEvidenceWithoutNewModel() throws Exception {
         String transform = source("scripts/butler-app-bf835-league-intelligence-transform.ps1");
+        String core = source("scripts/butler-app-shell-core-single.ps1");
 
         for (String marker : new String[]{
                 "League data needs attention",
@@ -44,10 +45,15 @@ class ButlerLeagueIntelligenceBf835Test {
             assertTrue(transform.contains(marker), "missing BF-835 manager-facing marker " + marker);
         }
 
-        assertTrue(transform.contains("$View.RankingsAvailable"));
-        assertTrue(transform.contains("$View.MovementAvailable"));
-        assertTrue(transform.contains("$View.RequiresAttention"));
-        assertTrue(transform.contains("$View.CoreReady"));
+        for (String preservedGate : new String[]{
+                "$View.RankingsAvailable",
+                "$View.MovementAvailable",
+                "$View.RequiresAttention",
+                "$View.CoreReady"
+        }) {
+            assertTrue(core.contains(preservedGate),
+                    "BF-835 depends on the existing governed League evidence gate " + preservedGate);
+        }
     }
 
     @Test
