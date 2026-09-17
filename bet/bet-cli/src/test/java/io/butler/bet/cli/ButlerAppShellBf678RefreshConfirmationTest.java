@@ -18,8 +18,8 @@ class ButlerAppShellBf678RefreshConfirmationTest {
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String confirmation = confirmationSection(refresh);
 
-        int title = confirmation.indexOf("Refresh Butler data?");
-        int noSleeper = confirmation.indexOf("This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.");
+        int title = confirmation.indexOf("Refresh Butler's data?");
+        int noSleeper = confirmation.indexOf("Nothing will be submitted to Sleeper.");
         int form = confirmation.indexOf("<form method=\"post\" action=\"/refresh\">");
         int confirm = confirmation.indexOf("Confirm refresh");
         int cancel = confirmation.indexOf("class=\"refresh-cancel\" href=\"/\">Cancel</a>");
@@ -37,7 +37,7 @@ class ButlerAppShellBf678RefreshConfirmationTest {
     void extendedGovernanceRemainsAvailableThroughNativeDetails() throws Exception {
         String confirmation = confirmationSection(script("scripts/butler-decision-refresh.ps1"));
 
-        assertTrue(confirmation.contains("<details class=\"refresh-governance\"><summary>How Butler governs this refresh</summary>"));
+        assertTrue(confirmation.contains("<details class=\"refresh-governance\"><summary>Technical details</summary>"));
         assertTrue(confirmation.contains("manual recheck under BF-675"));
         assertTrue(confirmation.contains("BF-823 first performs a read-only roster/player recovery probe."));
         assertTrue(confirmation.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
