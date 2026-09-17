@@ -93,3 +93,11 @@ if ($core -match 'BF-827.*Method = "POST"|BF-827.*Invoke-RestMethod|BF-827.*Slee
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+# BF-829: after governed My Team intelligence is present, apply the shared editorial
+# visual system. This transform is presentation-only and preserves all page contracts.
+$bf829Transform = Join-Path $PSScriptRoot 'butler-app-bf829-editorial-visual-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf829Transform -PathType Leaf)) {
+    throw "BF-829 BLOCKED: editorial visual transform not found at $bf829Transform"
+}
+& $bf829Transform -CorePath $CorePath
