@@ -51,9 +51,9 @@ class ButlerEditorialVisualRefreshBf829Test {
             assertTrue(transform.contains(existingClass), "missing existing CSS contract " + existingClass);
         }
 
+        assertTrue(transform.contains("editorial visual refresh introduced provider, network, or write behavior"));
         assertFalse(transform.contains("$env:"));
         assertFalse(transform.contains("https://api.sleeper"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
         assertFalse(transform.contains("Start-Process"));
         assertFalse(transform.contains("Set-Content"));
     }
