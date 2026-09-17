@@ -1,4 +1,4 @@
-# BF-670 host helpers for the read-only Trade Lab module.
+# BF-670 host helpers for the read-only Trade Analyzer module.
 # This file intentionally contains presentation/orchestration helpers only.
 
 function ConvertTo-HtmlText {
@@ -87,10 +87,9 @@ function ConvertTo-RosterContextView {
 
 function Get-AppCss {
     return @'
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#f7f8fb;background:#0b1020;line-height:1.45}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#172447 0,#0b1020 38%,#070b15 100%);min-height:100vh}.shell{max-width:1120px;margin:0 auto;padding:28px 22px 56px}.top{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:16px}.brand h1{font-size:38px;letter-spacing:.16em;margin:0}.brand p{margin:5px 0 0;color:#9ca9c8}.target{font-size:14px;color:#cbd4eb;text-align:right}.nav{display:flex;gap:8px;margin:0 0 20px;flex-wrap:wrap}.nav a{color:#b9c6e5;text-decoration:none;padding:9px 13px;border:1px solid #28365f;border-radius:10px;background:#0d1630;font-weight:700}.nav a.active{background:#315dca;color:white;border-color:#315dca}.panel{background:rgba(16,24,48,.88);border:1px solid #28365f;border-radius:20px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28);margin-bottom:18px}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#8ea0c7}.statusrow{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.headline{font-size:28px;margin:6px 0 4px}.lede{color:#cbd4eb;margin:0;max-width:800px}.status{font-weight:800;padding:9px 13px;border-radius:999px;font-size:13px;white-space:nowrap}.good{background:#123d2c;color:#8ff0b9}.warn{background:#4b3713;color:#ffd98b}.danger{background:#4c2028;color:#ffb0bc}.done{background:#1c315c;color:#a9c6ff}.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}.stat,.card,.action,.roster-card{padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.stat strong{display:block;color:#8797bd;font-size:11px;text-transform:uppercase;letter-spacing:.08em}.stat span{display:block;font-size:19px;font-weight:800;margin-top:5px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.card .rank{color:#8ea0c7;font-size:12px;font-weight:800}.card .name{font-size:18px;font-weight:800;margin-top:4px}.card .meta,.meta{color:#9eabd0;font-size:12px;margin-top:6px}.empty{margin-top:14px;padding:16px;border:1px solid #2b3962;border-radius:14px;background:#0d1630;color:#aebada}.boundary{font-size:13px;color:#a9b5d2}.lock{font-weight:800;color:#a9c6ff}details{margin-top:14px;border-top:1px solid #28365f;padding-top:12px}summary{cursor:pointer;color:#a9c6ff;font-weight:700}@media(max-width:760px){.top,.statusrow{display:block}.target{text-align:left;margin-top:12px}.brand h1{font-size:30px}.status{display:inline-block;margin-top:12px}.stats,.grid{grid-template-columns:1fr}}
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#16201A;background:#F4F2EA;line-height:1.45;--bg:#F4F2EA;--surface:#FFFFFF;--surface-2:#ECE9DD;--line:#D8D4C4;--turf:#2E6B47;--turf-deep:#1F4D33;--gold:#C98A1F;--ink:#16201A;--muted:#5B6459;--brick:#A8452F;--font-display:'Teko',Impact,sans-serif;--font-body:'Inter',Segoe UI,Arial,sans-serif;--radius:3px}*{box-sizing:border-box}html{background:var(--bg)}body{font-family:var(--font-body);margin:0;min-height:100vh;color:var(--ink);background-color:var(--bg);background-image:repeating-linear-gradient(90deg,transparent 0,transparent 79px,color-mix(in srgb,var(--line) 28%,transparent) 80px)}a{color:var(--turf-deep)}h1,h2,h3{color:var(--ink)}.shell{max-width:1320px;margin:0 auto;padding:28px 30px 64px}.top{display:flex;justify-content:space-between;gap:28px;align-items:flex-end;padding:8px 0 20px;border-bottom:1px solid var(--ink);margin-bottom:0}.brand h1{font-family:var(--font-display);font-weight:600;font-size:42px;line-height:.9;letter-spacing:.03em;margin:0;text-transform:uppercase}.brand p{margin:8px 0 0;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.target{font-size:11px;color:var(--muted);text-align:right;max-width:420px}.nav{display:flex;gap:22px;margin:0 0 30px;flex-wrap:wrap;padding:13px 0;border-bottom:1px solid var(--line)}.nav a{color:var(--muted);text-decoration:none;padding:4px 0 9px;font-weight:800;font-size:10px;letter-spacing:.09em;text-transform:uppercase;border:0;border-bottom:3px solid transparent;background:transparent;border-radius:0}.nav a:hover{color:var(--ink)}.nav a.active{color:var(--turf);border-bottom-color:var(--turf);background:transparent}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;box-shadow:none;margin-bottom:18px}.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--turf);font-weight:900}.statusrow{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.headline{font-family:var(--font-display);font-size:34px;line-height:1;margin:7px 0 7px;text-transform:uppercase}.lede{color:var(--muted);margin:0;max-width:860px}.status{display:inline-flex;align-items:center;font-weight:900;padding:6px 8px;border-radius:var(--radius);font-size:9px;white-space:nowrap;letter-spacing:.08em;text-transform:uppercase;border:1px solid currentColor;background:transparent}.good{color:var(--turf)}.warn{color:#8a6319}.danger{color:var(--brick)}.done{color:var(--muted)}.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin-top:18px;border-top:1px solid var(--line);border-left:1px solid var(--line)}.stat{padding:14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface)}.stat strong{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.08em}.stat span{display:block;font-size:18px;font-weight:800;margin-top:5px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.card,.action,.roster-card{padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}.card .meta,.meta{color:var(--muted);font-size:12px;margin-top:6px}.empty{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);color:var(--muted)}.boundary{font-size:12px;color:var(--muted);border-style:dashed}.lock{font-weight:900;color:var(--ink)}details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}summary{cursor:pointer;color:var(--turf-deep);font-weight:800}.trade-loading-shell{min-height:55vh;display:grid;place-items:center}.trade-loading-card{max-width:520px;text-align:center}.trade-loading-spinner{width:42px;height:42px;margin:0 auto 16px;border:3px solid var(--line);border-top-color:var(--turf);border-radius:50%;animation:trade-spin .8s linear infinite}@keyframes trade-spin{to{transform:rotate(360deg)}}@media(prefers-color-scheme:dark){:root{--bg:#111713;--surface:#18201b;--surface-2:#202b24;--line:#344137;--turf:#77b58b;--turf-deep:#9ec7aa;--gold:#e1ad52;--ink:#edf4ef;--muted:#aab7ad;--brick:#d77a62}}@media(max-width:760px){.top,.statusrow{display:block}.target{text-align:left;margin-top:12px}.brand h1{font-size:36px}.status{margin-top:12px}.stats,.grid{grid-template-columns:1fr}.shell{padding:20px 16px 46px}.nav{gap:14px}}
 '@
 }
-
 function Get-AppNav {
     param([Parameter(Mandatory = $true)][string]$Active)
     $dashboardClass = if ($Active -ceq 'dashboard') { ' class="active"' } else { '' }
@@ -98,7 +97,7 @@ function Get-AppNav {
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Lab</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
 }
 
 function Get-TradeLabLoadingHtml {
@@ -114,7 +113,7 @@ function Get-TradeLabLoadingHtml {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="1;url=/trade?load=1">
-<title>Butler Trade Lab</title>
+<title>Butler Trade Analyzer</title>
 <style>$css</style>
 </head>
 <body>
@@ -124,7 +123,7 @@ $nav
 <section class="panel">
 <div class="eyebrow">Governed trade intelligence</div>
 <div class="statusrow">
-<div><h2 class="headline">Opening Trade Lab...</h2><p class="lede">Loading your exact roster identity and persisted league assets. The workspace will appear automatically.</p></div>
+<div><h2 class="headline">Opening Trade Analyzer...</h2><p class="lede">Loading your exact roster identity and persisted league assets. The workspace will appear automatically.</p></div>
 <span class="status done">READ ONLY</span>
 </div>
 <div class="empty">Butler is preparing the governed trade workspace. No proposal, transaction, or Sleeper write is being executed.</div>
@@ -141,5 +140,5 @@ function Add-TradeNavigation {
     if ($Html -notmatch '<nav class="nav" aria-label="Butler sections">') {
         throw 'BF-670 BLOCKED: proxied Butler HTML is missing the navigation contract.'
     }
-    return $Html.Replace('</nav>', '<a href="/trade">Trade Lab</a></nav>')
+    return $Html.Replace('</nav>', '<a href="/trade">Trade Analyzer</a></nav>')
 }
