@@ -49,14 +49,14 @@ body.dashboard-page{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--line:#D
 .dashboard-command-center .danger{color:var(--brick)}
 .dashboard-command-center .done{color:var(--muted);background:var(--surface-2)}
 .dashboard-command-center .priority-stack{gap:12px;margin-top:18px}
-.dashboard-command-center .priority-card{grid-template-columns:40px minmax(0,1fr) auto;gap:16px;padding:18px 19px;border-radius:10px;background:var(--surface-2)!important;border-color:var(--line)!important;box-shadow:none!important}
-.dashboard-command-center .priority-card.primary{background:var(--surface)!important;border-color:var(--line)!important;border-left:3px solid var(--turf)!important;box-shadow:0 5px 16px rgba(25,35,29,.05)!important}
-.dashboard-command-center .priority-index{width:32px;height:32px;border-radius:8px;background:color-mix(in srgb,var(--turf) 14%,var(--surface))!important;color:var(--turf-deep)!important;font-family:var(--font-body);font-size:12px;font-weight:800}
-.dashboard-command-center .priority-type{font-size:10px;color:var(--muted)!important;letter-spacing:.1em}
-.dashboard-command-center .priority-title{font-size:17px;font-weight:800;line-height:1.35;margin-top:4px;color:var(--ink)!important}
-.dashboard-command-center .priority-copy{font-size:13px;line-height:1.55;margin-top:6px;color:var(--muted)!important}
-.dashboard-command-center .priority-card .status{background:var(--surface)!important;border-color:var(--line)!important}
-.dashboard-command-center .priority-player{border-radius:8px;background:var(--surface)!important;border-color:var(--line)!important}
+.dashboard-command-center .priority-card,.dashboard-command-center article.bf833-priority-card{grid-template-columns:40px minmax(0,1fr) auto;gap:16px;padding:18px 19px;border-radius:10px;background:#F7F6F2!important;border-color:#D9DCD7!important;box-shadow:none!important}
+.dashboard-command-center .priority-card.primary,.dashboard-command-center article.bf833-priority-card.primary{background:#FFFFFF!important;border-color:#D9DCD7!important;border-left:3px solid #376E50!important;box-shadow:0 5px 16px rgba(25,35,29,.05)!important}
+.dashboard-command-center .priority-index{width:32px;height:32px;border-radius:8px;background:#E7F0EA!important;color:#28543D!important;font-family:var(--font-body);font-size:12px;font-weight:800}
+.dashboard-command-center .priority-type{font-size:10px;color:#68726B!important;letter-spacing:.1em}
+.dashboard-command-center .priority-title{font-size:17px;font-weight:800;line-height:1.35;margin-top:4px;color:#1E2521!important}
+.dashboard-command-center .priority-copy{font-size:13px;line-height:1.55;margin-top:6px;color:#68726B!important}
+.dashboard-command-center .priority-card .status,.dashboard-command-center article.bf833-priority-card .status{background:#FFFFFF!important;border-color:#D9DCD7!important}
+.dashboard-command-center .priority-player{border-radius:8px;background:#FFFFFF!important;border-color:#D9DCD7!important}
 .dashboard-command-center .command-button{border-radius:8px;padding:8px 13px}
 .dashboard-command-center .command-button.secondary{background:var(--surface)}
 .dashboard-command-center .why-card{border-radius:8px;background:var(--surface-2)}
@@ -65,7 +65,7 @@ body.dashboard-page{--bg:#F3F2EE;--surface:#FFFFFF;--surface-2:#F7F6F2;--line:#D
 .dashboard-command-center details{background:var(--surface-2)!important;border:1px solid var(--line)!important;border-radius:8px!important;padding:11px 13px!important}
 .dashboard-command-center summary{color:var(--ink)!important}
 .dashboard-command-center .boundary{background:transparent;box-shadow:none}
-@media(prefers-color-scheme:dark){body.dashboard-page{--bg:#111315;--surface:#191C1E;--surface-2:#202426;--line:#303639;--turf:#69A27D;--turf-deep:#8CBC9A;--gold:#D4A64B;--ink:#F1F3F1;--muted:#A6AFA9;--brick:#D47A6B;background:#111315;background-image:none}.dashboard-command-center .top,.dashboard-command-center .nav,.dashboard-command-center .panel,.dashboard-command-center .priority-card.primary{box-shadow:none}.dashboard-command-center .priority-card{background:#171A1C!important;border-color:#303639!important}.dashboard-command-center .priority-card.primary{background:#1D2123!important;border-color:#303639!important;border-left-color:#69A27D!important;box-shadow:none!important}.dashboard-command-center .priority-index{background:#26352C!important;color:#A8D3B5!important}.dashboard-command-center .priority-type{color:#A6AFA9!important}.dashboard-command-center .priority-copy{color:#A6AFA9!important}.dashboard-command-center .priority-card .status{background:#1D2123!important;border-color:#303639!important}.dashboard-command-center .nav a.active{background:#222D26;border-color:#33483A}.dashboard-command-center .summary-chip,.dashboard-command-center .status,.dashboard-command-center .command-button.secondary{background:#1D2123}.dashboard-command-center .evidence-card,.dashboard-command-center .why-card,.dashboard-command-center .priority-player,.dashboard-command-center details{background:#202426!important;border-color:#303639!important}}
+@media(prefers-color-scheme:dark){body.dashboard-page{--bg:#111315;--surface:#191C1E;--surface-2:#202426;--line:#303639;--turf:#69A27D;--turf-deep:#8CBC9A;--gold:#D4A64B;--ink:#F1F3F1;--muted:#A6AFA9;--brick:#D47A6B;background:#111315;background-image:none}.dashboard-command-center .top,.dashboard-command-center .nav,.dashboard-command-center .panel,.dashboard-command-center .priority-card.primary{box-shadow:none}html body.dashboard-page main.dashboard-command-center .priority-stack>article.bf833-priority-card{background:#1B1E20!important;border-color:#303639!important;box-shadow:none!important}html body.dashboard-page main.dashboard-command-center .priority-stack>article.bf833-priority-card.primary{background:#202426!important;border-color:#303639!important;border-left:3px solid #69A27D!important;box-shadow:none!important}html body.dashboard-page main.dashboard-command-center article.bf833-priority-card .priority-index{background:#26352C!important;color:#A8D3B5!important}html body.dashboard-page main.dashboard-command-center article.bf833-priority-card .priority-type{color:#A6AFA9!important}html body.dashboard-page main.dashboard-command-center article.bf833-priority-card .priority-title{color:#F1F3F1!important}html body.dashboard-page main.dashboard-command-center article.bf833-priority-card .priority-copy{color:#A6AFA9!important}html body.dashboard-page main.dashboard-command-center article.bf833-priority-card .status{background:#202426!important;border-color:#303639!important}.dashboard-command-center .nav a.active{background:#222D26;border-color:#33483A}.dashboard-command-center .summary-chip,.dashboard-command-center .status,.dashboard-command-center .command-button.secondary{background:#1D2123}.dashboard-command-center .evidence-card,.dashboard-command-center .why-card,.dashboard-command-center .priority-player,.dashboard-command-center details{background:#202426!important;border-color:#303639!important}}
 @media(max-width:760px){.dashboard-command-center{padding-top:14px}.dashboard-command-center .top{padding:20px 18px 15px}.dashboard-command-center .brand h1{font-size:26px}.dashboard-command-center .nav{padding:7px 8px}.dashboard-command-center .nav a{font-size:12px;padding:8px 9px}.dashboard-command-center .panel{padding:18px 16px}.dashboard-command-center .command-title{font-size:27px}.dashboard-command-center h2{font-size:21px}.dashboard-command-center .priority-card{padding:15px 14px;gap:12px}}
 '@
 
@@ -78,8 +78,9 @@ foreach ($required in @(
     '--bg:#F3F2EE',
     '--bg:#111315',
     'background-image:none',
-    '.dashboard-command-center .priority-card.primary',
-    'background:var(--surface-2)!important',
+    'article.bf833-priority-card',
+    'background:#1B1E20!important',
+    'background:#202426!important',
     '.dashboard-command-center details',
     '.dashboard-command-center .command-title',
     '.dashboard-command-center .nav a.active'
@@ -95,9 +96,19 @@ if ($dashboardStart -lt 0 -or $dashboardEnd -le $dashboardStart) {
     throw 'BF-833 BLOCKED: Dashboard renderer function boundary is missing.'
 }
 $dashboardBlock = $text.Substring($dashboardStart, $dashboardEnd - $dashboardStart)
+$cardClassAnchor = '$cardClass = if ($priorityIndex -eq 0) { "priority-card primary" } else { "priority-card" }'
+$cardClassMatches = [regex]::Matches($dashboardBlock, [regex]::Escape($cardClassAnchor)).Count
+if ($cardClassMatches -ne 1) {
+    throw "BF-833 BLOCKED: priority-card class contract expected one match, found $cardClassMatches."
+}
+$dashboardBlock = $dashboardBlock.Replace(
+    $cardClassAnchor,
+    '$cardClass = if ($priorityIndex -eq 0) { "priority-card primary bf833-priority-card" } else { "priority-card bf833-priority-card" }'
+)
 if ($dashboardBlock -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
     throw 'BF-833 BLOCKED: visual refinement introduced provider, optimizer, FAAB, or write behavior.'
 }
+$text = $text.Substring(0, $dashboardStart) + $dashboardBlock + $text.Substring($dashboardEnd)
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 
