@@ -40,7 +40,7 @@ if (-not $core.Contains('--turf:#2E6B47')) {
     throw 'BF-831 requires the BF-830 command-center visual baseline.'
 }
 
-$host = [System.IO.File]::ReadAllText($TradeHostPath)
+$tradeHostText = [System.IO.File]::ReadAllText($TradeHostPath)
 $hostCssReplacement = @"
 function Get-AppCss {
     return @'
@@ -49,10 +49,10 @@ function Get-AppCss {
 }
 "@
 
-if (-not $host.Contains('--turf:#2E6B47')) {
-    $host = Replace-Block -Text $host -StartMarker 'function Get-AppCss {' -NextMarker 'function Get-AppNav {' -Replacement $hostCssReplacement -Label 'trade host command-center CSS'
+if (-not $tradeHostText.Contains('--turf:#2E6B47')) {
+    $tradeHostText = Replace-Block -Text $tradeHostText -StartMarker 'function Get-AppCss {' -NextMarker 'function Get-AppNav {' -Replacement $hostCssReplacement -Label 'trade host command-center CSS'
 }
-$host = $host.Replace('Trade Lab', 'Trade Analyzer')
+$tradeHostText = $tradeHostText.Replace('Trade Lab', 'Trade Analyzer')
 
 $lab = [System.IO.File]::ReadAllText($TradeLabPath)
 $tradeCssStart = '$tradeCss = @' + "'"
@@ -88,10 +88,10 @@ foreach ($required in @(
     }
 }
 foreach ($forbidden in @('https://api.sleeper.app', 'Start-Process', 'Invoke-RestMethod', 'Invoke-WebRequest', 'Method = "POST"')) {
-    if ($host.Contains($forbidden) -or $lab.Contains($forbidden)) {
+    if ($tradeHostText.Contains($forbidden) -or $lab.Contains($forbidden)) {
         throw "BF-831 BLOCKED: Trade Analyzer introduced provider, API, or write behavior marker $forbidden"
     }
 }
 
-[System.IO.File]::WriteAllText($TradeHostPath, $host, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($TradeHostPath, $tradeHostText, [System.Text.UTF8Encoding]::new($false))
 [System.IO.File]::WriteAllText($TradeLabPath, $lab, [System.Text.UTF8Encoding]::new($false))
