@@ -66,6 +66,16 @@ class ButlerTradeAnalyzerBf831Test {
     }
 
     @Test
+    void laterLoadedDecisionHistoryKeepsTradeAnalyzerNavNaming() throws Exception {
+        String history = source("scripts/butler-decision-history.ps1");
+
+        assertTrue(history.contains("Trade Analyzer</a>"),
+                "the later-loaded Decision History nav must preserve Trade Analyzer naming");
+        assertFalse(history.contains("Trade Lab</a>"),
+                "Decision History must not override the shared nav back to legacy Trade Lab naming");
+    }
+
+    @Test
     void bf831GuardIsValidationOnlyAndNeverRewritesTradeSources() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
