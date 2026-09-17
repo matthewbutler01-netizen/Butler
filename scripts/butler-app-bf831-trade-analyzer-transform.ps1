@@ -95,3 +95,13 @@ foreach ($forbidden in @('https://api.sleeper.app', 'Start-Process', 'Invoke-Res
 
 [System.IO.File]::WriteAllText($TradeHostPath, $tradeHostText, [System.Text.UTF8Encoding]::new($false))
 [System.IO.File]::WriteAllText($TradeLabPath, $lab, [System.Text.UTF8Encoding]::new($false))
+
+# Runtime transforms generate executable PowerShell. Parse the staged core now so
+# source-only CI cannot report green while the generated Windows script is invalid.
+$parseTokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$parseTokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseMessage = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-831 BLOCKED: generated staged core failed PowerShell parse: $parseMessage"
+}
