@@ -1,6 +1,6 @@
-# BF-675/BF-676/BF-677/BF-678 native manual governed waiver refresh app module.
-# GET renders confirmation only. Exact POST /refresh is token-gated and invokes
-# the repo-owned governed refresh runner; no Sleeper transaction endpoint exists here.
+# BF-675/BF-676/BF-677/BF-678 native manual governed Butler refresh app module.
+# BF-823 keeps GET confirmation-only and exact POST /refresh token-gated, then probes
+# whether local lineup evidence recovery is required before falling back to BF-676.
 
 function New-DecisionRefreshToken {
     $bytes = New-Object byte[] 32
@@ -42,8 +42,8 @@ function Add-DecisionRefreshControl {
 
     # BF-677 is presentation eligibility only. These exact technical fields were
     # already derived from the governed compact summary by the inner Dashboard.
-    # Missing/duplicate/unknown values simply omit the link. BF-676 POST preflight
-    # remains the only authorization for any Butler write.
+    # Missing/duplicate/unknown values simply omit the link. BF-676/BF-823 POST
+    # preflight remains the only authorization for any Butler write.
     $decisionState = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Decision state:'
     $bf629State = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-629:'
     $bf631State = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-631:'
@@ -73,7 +73,7 @@ function Add-DecisionRefreshControl {
     }
 
     if (-not $eligible) { return $Html }
-    return $Html.Replace('</nav>', '<a href="/refresh">Check for a new decision</a></nav>')
+    return $Html.Replace('</nav>', '<a href="/refresh">Refresh Butler data</a></nav>')
 }
 
 function Get-DecisionRefreshConfirmationHtml {
@@ -92,7 +92,7 @@ function Get-DecisionRefreshConfirmationHtml {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Butler - Check for a new decision</title>
+<title>Butler - Refresh Butler data</title>
 <style>$css
 .refresh-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-button{appearance:none;border:1px solid #3b82f6;border-radius:12px;background:#2563eb;color:#fff;font:inherit;font-weight:700;padding:12px 18px;cursor:pointer}.refresh-cancel{display:inline-block;padding:12px 0}.refresh-warning{margin-top:18px;padding:16px;border:1px solid #334155;border-radius:14px}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}.refresh-list{line-height:1.7;margin-bottom:0}.refresh-list li{margin:5px 0}
 </style>
@@ -102,14 +102,14 @@ function Get-DecisionRefreshConfirmationHtml {
 <div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>
 $nav
 <section class="panel">
-<div class="eyebrow">Manual governed refresh</div>
-<div class="statusrow"><div><h2 class="headline">Check for a new decision?</h2><p class="lede">Butler will refresh its governed waiver evidence, recompute the existing recommendation method, and capture a new immutable audit package.</p></div><span class="status done">MANUAL</span></div>
-<div class="refresh-warning"><strong>This does not submit a waiver move to Sleeper.</strong><p>The current governed decision is re-checked before any Butler write.</p></div>
+<div class="eyebrow">Explicit governed refresh</div>
+<div class="statusrow"><div><h2 class="headline">Refresh Butler data?</h2><p class="lede">Butler will first check whether roster or player evidence needs repair. If it does not, the existing governed decision refresh is used only when its own safety preflight authorizes it.</p></div><span class="status done">REVIEW FIRST</span></div>
+<div class="refresh-warning"><strong>This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.</strong><p>The browser confirmation authorizes Butler local evidence recovery only. Every recovery path verifies its exact preconditions before writing Butler data.</p></div>
 <form method="post" action="/refresh">
 <input type="hidden" name="token" value="$safeToken">
-<div class="refresh-actions"><button class="refresh-button" type="submit">Confirm and check again</button><a class="refresh-cancel" href="/">Cancel</a></div>
+<div class="refresh-actions"><button class="refresh-button" type="submit">Confirm refresh</button><a class="refresh-cancel" href="/">Cancel</a></div>
 </form>
-<details class="refresh-governance"><summary>How Butler governs this refresh</summary><ul class="refresh-list"><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable recommendation, BF-676 proceeds only when BF-635 reports the approved six-hour refresh warning and BF-636 supplies the exact ready nine-step plan.</li><li>Refreshing a warning-state recommendation may preserve it, change it, or produce no governed transaction after newer evidence is evaluated.</li><li>Fully current actionable, stale hard-gate, pending, completed/unconverged, and unknown states are blocked before BF-602.</li><li>The refresh may take several minutes while the browser waits for the nine governed stages. If a stage fails, later stages stop; earlier Butler evidence stages may already have completed.</li></ul></details>
+<details class="refresh-governance"><summary>How Butler governs this refresh</summary><ul class="refresh-list"><li>BF-823 first performs a read-only roster/player recovery probe.</li><li>If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed.</li><li>If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized.</li><li>If any required state is ambiguous or unsafe, the refresh stops instead of guessing.</li></ul></details>
 </section>
 </main>
 </body>
@@ -175,9 +175,32 @@ function Invoke-DecisionRefreshRunner {
         [Parameter(Mandatory = $true)][string]$RunnerPath
     )
 
-    if (-not (Test-Path -LiteralPath $RunnerPath)) {
+    if (-not (Test-Path -LiteralPath $RunnerPath -PathType Leaf)) {
         throw "BF-676 BLOCKED: refresh runner not found at $RunnerPath"
     }
+
+    $recoveryRunner = Join-Path (Split-Path -Parent $RunnerPath) 'butler-lineup-evidence-recovery.ps1'
+    if (-not (Test-Path -LiteralPath $recoveryRunner -PathType Leaf)) {
+        throw "BF-823 BLOCKED: lineup evidence recovery runner not found at $recoveryRunner"
+    }
+
+    $probeLines = @(& $recoveryRunner -LeagueId $LeagueId -ProbeOnly)
+    $probeText = (($probeLines | ForEach-Object { "$_" }) -join "`n")
+    $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*$'
+    $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*$'
+    if ($requiresRecovery -and $noRecovery) {
+        throw 'BF-823 BLOCKED: lineup evidence recovery probe returned contradictory states.'
+    }
+    if ($requiresRecovery) {
+        $resultLines = @(& $recoveryRunner -LeagueId $LeagueId)
+        return ($resultLines -join "`n")
+    }
+    if (-not $noRecovery) {
+        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return an exact governed state.'
+    }
+
+    # No lineup/roster recovery is required. Preserve the existing BF-676 runner and
+    # its exact authorization gates without weakening or reimplementing them here.
     $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
     return ($resultLines -join "`n")
 }
@@ -195,9 +218,9 @@ function Get-DecisionRefreshSuccessHtml {
     return @"
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Decision refreshed</title><style>$css</style></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css</style></head>
 <body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
-<section class="panel"><div class="eyebrow">Manual governed refresh</div><div class="statusrow"><div><h2 class="headline">New governed decision captured</h2><p class="lede">All nine governed refresh stages completed. Butler did not submit a Sleeper transaction.</p></div><span class="status done">COMPLETE</span></div><p><a href="/">Open current Dashboard</a> &nbsp; <a href="/history">Open immutable History</a></p><details><summary>Final governed summary</summary><pre>$safeResult</pre></details></section>
+<section class="panel"><div class="eyebrow">Explicit governed refresh</div><div class="statusrow"><div><h2 class="headline">Butler data refresh complete</h2><p class="lede">The authorized Butler-local recovery or governed refresh completed. No Sleeper lineup, waiver, trade, roster, or FAAB transaction was submitted.</p></div><span class="status done">COMPLETE</span></div><p><a href="/team/autofill">Retry Lineup Review</a> &nbsp; <a href="/">Open current Dashboard</a> &nbsp; <a href="/history">Open immutable History</a></p><details><summary>View refresh details</summary><pre>$safeResult</pre></details></section>
 </main></body></html>
 "@
 }
@@ -212,6 +235,6 @@ function Get-DecisionRefreshFailureHtml {
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
-<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Manual governed refresh</div><h2 class="headline">Refresh blocked or stopped</h2><pre>$safeMessage</pre><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If execution had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
+<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
 "@
 }
