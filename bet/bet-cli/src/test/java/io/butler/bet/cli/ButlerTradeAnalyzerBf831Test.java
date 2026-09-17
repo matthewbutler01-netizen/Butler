@@ -13,22 +13,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerTradeAnalyzerBf831Test {
 
     @Test
-    void bf827StagesTradeAnalyzerAfterSharedCommandCenterVisualBaseline() throws Exception {
+    void bf827ValidatesTradeAnalyzerAfterSharedCommandCenterVisualBaseline() throws Exception {
         String bf827 = source("scripts/butler-app-bf827-roster-intelligence-transform.ps1");
 
         int bf829 = bf827.indexOf("& $bf829Transform -CorePath $CorePath");
         int bf831 = bf827.indexOf("& $bf831Transform -CorePath $CorePath");
 
         assertTrue(bf829 >= 0, "BF-829 visual baseline must remain staged");
-        assertTrue(bf831 > bf829, "BF-831 must run after BF-830/BF-829 establishes the shared visual baseline");
+        assertTrue(bf831 > bf829, "BF-831 validation must run after BF-830/BF-829 establishes the shared visual baseline");
         assertTrue(bf827.contains("butler-app-bf831-trade-analyzer-transform.ps1"));
     }
 
     @Test
-    void transformUsesCommandCenterTokensAndManagerFacingTradeAnalyzerNaming() throws Exception {
-        String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
+    void canonicalSourcesOwnCommandCenterTradeAnalyzerPresentation() throws Exception {
+        String tradeHost = source("scripts/butler-trade-lab-host.ps1");
+        String tradeLab = source("scripts/butler-trade-lab.ps1");
 
         for (String marker : new String[]{
+                "read-only Trade Analyzer module",
                 "--bg:#F4F2EA",
                 "--surface:#FFFFFF",
                 "--surface-2:#ECE9DD",
@@ -43,56 +45,60 @@ class ButlerTradeAnalyzerBf831Test {
                 "--radius:3px",
                 "repeating-linear-gradient",
                 "@media(prefers-color-scheme:dark)",
-                "$tradeHostText = $tradeHostText.Replace('Trade Lab', 'Trade Analyzer')",
-                "$lab = $lab.Replace('Trade Lab', 'Trade Analyzer')",
-                "Analyze a trade",
-                "Get Butler recommendation"
+                "Trade Analyzer",
+                "Opening Trade Analyzer..."
         }) {
-            assertTrue(transform.contains(marker), "missing BF-831 command-center marker " + marker);
+            assertTrue(tradeHost.contains(marker), "canonical Trade Analyzer host missing " + marker);
+        }
+
+        for (String marker : new String[]{
+                "read-only Trade Analyzer app module",
+                "Butler recommendation",
+                "Analyze a trade",
+                "Get Butler recommendation",
+                ".trade-result{border-left:4px solid var(--turf)}",
+                ".gate-grid",
+                ".veto-item",
+                ".raw-output"
+        }) {
+            assertTrue(tradeLab.contains(marker), "canonical Trade Analyzer page missing " + marker);
         }
     }
 
     @Test
-    void transformAvoidsReservedPowerShellHostVariable() throws Exception {
+    void bf831GuardIsValidationOnlyAndNeverRewritesTradeSources() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
         assertTrue(transform.contains("$tradeHostText = [System.IO.File]::ReadAllText($TradeHostPath)"));
-        assertTrue(transform.contains("WriteAllText($TradeHostPath, $tradeHostText"));
+        assertTrue(transform.contains("$lab = [System.IO.File]::ReadAllText($TradeLabPath)"));
+        assertTrue(transform.contains("validation-only"));
+        assertTrue(transform.contains("canonical Trade Analyzer host marker is missing"));
+        assertTrue(transform.contains("canonical Trade Analyzer decision marker is missing"));
+
+        assertFalse(transform.contains("WriteAllText("),
+                "BF-831 must never rewrite the staged or tracked Trade Analyzer source files");
+        assertFalse(transform.contains("Replace-Block"),
+                "BF-831 must not retain source-transform replacement behavior");
+        assertFalse(transform.contains("$tradeHostText = $tradeHostText.Replace"),
+                "BF-831 must not mutate canonical Trade Analyzer host source");
+        assertFalse(transform.contains("$lab = $lab.Replace"),
+                "BF-831 must not mutate canonical Trade Analyzer page source");
         assertFalse(transform.contains("$host = "),
                 "PowerShell variables are case-insensitive; $host collides with the read-only built-in $Host variable");
     }
 
     @Test
-    void transformParsesGeneratedStagedCoreBeforeRuntimeStartup() throws Exception {
+    void validatorParsesCoreAndBothCanonicalTradeModules() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
-        assertTrue(transform.contains("System.Management.Automation.Language.Parser]::ParseFile($CorePath"));
-        assertTrue(transform.contains("generated staged core failed PowerShell parse"));
+        assertTrue(transform.contains("foreach ($pathToParse in @($CorePath, $TradeHostPath, $TradeLabPath))"));
+        assertTrue(transform.contains("System.Management.Automation.Language.Parser]::ParseFile($pathToParse"));
+        assertTrue(transform.contains("Trade Analyzer validation failed PowerShell parse"));
         assertTrue(transform.contains("Extent.StartLineNumber"));
     }
 
     @Test
-    void governedRecommendationAndExistingEvidenceRemainTheDecisionHierarchy() throws Exception {
-        String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
-
-        for (String marker : new String[]{
-                "Butler recommendation",
-                "trade-result",
-                "StrategicVeto",
-                "EvidenceComplete",
-                "TransitionCoverage",
-                "ProtectedCoverage",
-                "Technical governed output",
-                ".gate-grid",
-                ".veto-item",
-                ".raw-output"
-        }) {
-            assertTrue(transform.contains(marker), "missing governed decision/evidence marker " + marker);
-        }
-    }
-
-    @Test
-    void transformProtectsCurrentRoutedBf670EngineAndReadOnlyBoundary() throws Exception {
+    void governedRecommendationAndReadOnlyBoundaryRemainCanonical() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
         String tradeLab = source("scripts/butler-trade-lab.ps1");
 
@@ -102,13 +108,15 @@ class ButlerTradeAnalyzerBf831Test {
                 "PerspectiveTeamId",
                 "StrategicVeto",
                 "EvidenceComplete",
+                "TransitionCoverage",
+                "ProtectedCoverage",
+                "Technical governed output",
                 "READ ONLY"
         }) {
             assertTrue(tradeLab.contains(marker), "current BF-670 trade contract missing " + marker);
-            assertTrue(transform.contains(marker), "BF-831 does not guard current BF-670 marker " + marker);
+            assertTrue(transform.contains(marker), "BF-831 validator does not guard current BF-670 marker " + marker);
         }
 
-        assertTrue(transform.contains("BF-831 BLOCKED: governed BF-670 marker is missing after presentation transform"));
         assertTrue(transform.contains("BF-831 BLOCKED: Trade Analyzer introduced provider, API, or write behavior marker"));
         assertFalse(tradeLab.contains("Method = \"POST\""));
         assertFalse(tradeLab.contains("https://api.sleeper.app"));
