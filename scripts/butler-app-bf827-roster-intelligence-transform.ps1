@@ -101,3 +101,11 @@ if (-not (Test-Path -LiteralPath $bf829Transform -PathType Leaf)) {
     throw "BF-829 BLOCKED: editorial visual transform not found at $bf829Transform"
 }
 & $bf829Transform -CorePath $CorePath
+
+# BF-831: align the real BF-670 trade decision surface with the BF-830 command-center
+# presentation after the shared visual baseline has been established.
+$bf831Transform = Join-Path $PSScriptRoot 'butler-app-bf831-trade-analyzer-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf831Transform -PathType Leaf)) {
+    throw "BF-831 BLOCKED: Trade Analyzer transform not found at $bf831Transform"
+}
+& $bf831Transform -CorePath $CorePath
