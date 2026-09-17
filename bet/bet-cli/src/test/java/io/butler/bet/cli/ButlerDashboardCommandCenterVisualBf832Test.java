@@ -68,6 +68,12 @@ class ButlerDashboardCommandCenterVisualBf832Test {
     void visualTransformRemainsPresentationOnlyAndFailClosed() throws Exception {
         String transform = source("scripts/butler-dashboard-bf832-command-center-visual-transform.ps1");
 
+        int guardStart = transform.indexOf("if ($dashboardBlock -match '");
+        int guardEnd = guardStart < 0 ? -1 : transform.indexOf('\n', guardStart);
+        assertTrue(guardStart >= 0 && guardEnd > guardStart,
+                "BF-832 must retain the presentation-only safety scan");
+
+        String operationalTransform = transform.substring(0, guardStart) + transform.substring(guardEnd + 1);
         for (String forbidden : new String[]{
                 "https://api.sleeper.app",
                 "FantasyProsApiClient",
@@ -78,9 +84,12 @@ class ButlerDashboardCommandCenterVisualBf832Test {
                 "AttentionGroup =",
                 "CURRENT_AND_ACTIONABLE"
         }) {
-            assertFalse(transform.contains(forbidden), "BF-832 must not introduce decision/provider/write behavior: " + forbidden);
+            assertFalse(operationalTransform.contains(forbidden),
+                    "BF-832 must not introduce decision/provider/write behavior outside its fail-closed safety scan: " + forbidden);
         }
 
+        assertTrue(transform.contains("Invoke-RestMethod|Invoke-WebRequest|Method = \"POST\"|submitTransaction|AutoFillLineupOptimizer"),
+                "BF-832 safety scan must keep explicit provider/optimizer/write markers");
         assertTrue(transform.contains("generated Dashboard failed PowerShell parse"));
         assertTrue(transform.contains("System.Management.Automation.Language.Parser"));
         assertTrue(transform.contains("Dashboard visual alignment introduced provider, optimizer, or write behavior"));
