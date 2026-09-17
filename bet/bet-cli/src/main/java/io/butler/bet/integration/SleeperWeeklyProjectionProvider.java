@@ -17,19 +17,20 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * BF-822 read-only weekly projection evidence from Sleeper's projection surface.
+ * BF-822/BF-826 read-only weekly projection evidence from Sleeper's projection surface.
  *
- * <p>No credential is required. Butler accepts exact Sleeper player identities from either the
- * list-shaped or player-id-keyed payload envelopes observed on the projection surface. The
- * requested scoring basis must be present as its exact points field; Butler never substitutes a
- * standard-scoring value for half-PPR or PPR. Duplicate or contradictory identities, malformed
- * payloads, HTTP failures, or incomplete roster coverage remain evidence gaps.</p>
+ * <p>BF-826 keeps Sleeper's precomputed points as the primary evidence. When an exact current
+ * player row is present but the requested precomputed points field is missing, the production
+ * path may score that exact row from Sleeper's raw projected stats and the league's persisted
+ * Sleeper scoring settings. No historical average, zero projection, fuzzy identity, or stale
+ * frame is substituted.</p>
  */
 public final class SleeperWeeklyProjectionProvider {
     public static final String SOURCE_NAME = "Sleeper weekly projections";
@@ -55,21 +56,42 @@ public final class SleeperWeeklyProjectionProvider {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
+    /** BF-822 compatibility path: the requested precomputed points field remains mandatory. */
     public ProjectionSnapshot load(int season, int week, ScoringBasis scoring)
         throws IOException, InterruptedException {
-        if (season < 1999 || season > 2100) {
-            throw new IllegalArgumentException("season must be between 1999 and 2100");
-        }
-        if (week <= 0 || week > 25) {
-            throw new IllegalArgumentException("week must be between 1 and 25");
-        }
-        Objects.requireNonNull(scoring, "scoring must not be null");
-        return parse(source.fetch(season, week), season, week, scoring, clock.instant());
+        validateRequest(season, week, scoring);
+        return parse(
+            source.fetch(season, week), season, week, scoring, Map.of(), clock.instant(), true);
+    }
+
+    /** BF-826 production path: exact raw projected stats may be league-scored when needed. */
+    public ProjectionSnapshot load(
+        int season,
+        int week,
+        ScoringBasis scoring,
+        Map<String, Double> leagueScoringSettings) throws IOException, InterruptedException {
+        validateRequest(season, week, scoring);
+        Objects.requireNonNull(leagueScoringSettings, "leagueScoringSettings must not be null");
+        return parse(
+            source.fetch(season, week), season, week, scoring,
+            Map.copyOf(leagueScoringSettings), clock.instant(), false);
     }
 
     ProjectionSnapshot parse(String json, int expectedSeason, int expectedWeek, ScoringBasis scoring)
         throws IOException {
-        return parse(json, expectedSeason, expectedWeek, scoring, clock.instant());
+        return parse(json, expectedSeason, expectedWeek, scoring, Map.of(), clock.instant(), true);
+    }
+
+    ProjectionSnapshot parse(
+        String json,
+        int expectedSeason,
+        int expectedWeek,
+        ScoringBasis scoring,
+        Map<String, Double> leagueScoringSettings) throws IOException {
+        Objects.requireNonNull(leagueScoringSettings, "leagueScoringSettings must not be null");
+        return parse(
+            json, expectedSeason, expectedWeek, scoring,
+            Map.copyOf(leagueScoringSettings), clock.instant(), false);
     }
 
     private ProjectionSnapshot parse(
@@ -77,7 +99,9 @@ public final class SleeperWeeklyProjectionProvider {
         int expectedSeason,
         int expectedWeek,
         ScoringBasis scoring,
-        Instant observedAt) throws IOException {
+        Map<String, Double> leagueScoringSettings,
+        Instant observedAt,
+        boolean requirePrecomputedPoints) throws IOException {
         if (json == null || json.isBlank()) {
             throw new IllegalStateException("weekly projection response is empty");
         }
@@ -88,6 +112,7 @@ public final class SleeperWeeklyProjectionProvider {
 
         String pointsField = pointsField(scoring);
         List<Projection> projections = new ArrayList<>();
+        List<ProjectionGap> gaps = new ArrayList<>();
         Set<String> playerIds = new HashSet<>();
 
         if (root.isArray()) {
@@ -95,7 +120,9 @@ public final class SleeperWeeklyProjectionProvider {
                 if (row == null || !row.isObject()) continue;
                 String playerId = clean(text(row.get("player_id")));
                 if (playerId == null) continue;
-                addProjection(row, playerId, expectedSeason, expectedWeek, pointsField, playerIds, projections);
+                addProjection(
+                    row, playerId, expectedSeason, expectedWeek, pointsField,
+                    leagueScoringSettings, requirePrecomputedPoints, playerIds, projections, gaps);
             }
         } else {
             Iterator<Map.Entry<String, JsonNode>> fields = root.fields();
@@ -111,11 +138,13 @@ public final class SleeperWeeklyProjectionProvider {
                         "weekly projection response has contradictory player identity " + playerId
                             + " vs " + embeddedPlayerId);
                 }
-                addProjection(row, playerId, expectedSeason, expectedWeek, pointsField, playerIds, projections);
+                addProjection(
+                    row, playerId, expectedSeason, expectedWeek, pointsField,
+                    leagueScoringSettings, requirePrecomputedPoints, playerIds, projections, gaps);
             }
         }
 
-        if (projections.isEmpty()) {
+        if (projections.isEmpty() && (requirePrecomputedPoints || gaps.isEmpty())) {
             throw new IllegalStateException("weekly projection response has no usable " + pointsField + " evidence");
         }
         return new ProjectionSnapshot(
@@ -125,7 +154,8 @@ public final class SleeperWeeklyProjectionProvider {
             expectedWeek,
             scoring,
             observedAt,
-            List.copyOf(projections));
+            List.copyOf(projections),
+            List.copyOf(gaps));
     }
 
     private static void addProjection(
@@ -134,8 +164,11 @@ public final class SleeperWeeklyProjectionProvider {
         int expectedSeason,
         int expectedWeek,
         String pointsField,
+        Map<String, Double> leagueScoringSettings,
+        boolean requirePrecomputedPoints,
         Set<String> playerIds,
-        List<Projection> projections) {
+        List<Projection> projections,
+        List<ProjectionGap> gaps) {
         if (!matchesIntegerField(row, "week", expectedWeek)
             || !matchesIntegerField(row, "season", expectedSeason)) {
             return;
@@ -144,17 +177,89 @@ public final class SleeperWeeklyProjectionProvider {
         if (seasonType != null && !"regular".equalsIgnoreCase(seasonType)) {
             return;
         }
+        if (!playerIds.add(playerId)) {
+            throw new IllegalStateException("weekly projection response contains duplicate player_id " + playerId);
+        }
 
         JsonNode nestedStats = row.get("stats");
         JsonNode stats = nestedStats != null && nestedStats.isObject() ? nestedStats : row;
         JsonNode points = stats.get(pointsField);
-        if (points == null || !points.isNumber()) {
+        if (points != null && points.isNumber()) {
+            projections.add(new Projection(
+                playerId,
+                points.decimalValue(),
+                ProjectionProvenance.SLEEPER_PRECOMPUTED,
+                List.of(pointsField)));
             return;
         }
-        if (!playerIds.add(playerId)) {
-            throw new IllegalStateException("weekly projection response contains duplicate player_id " + playerId);
+
+        if (requirePrecomputedPoints) return;
+
+        RawScore rawScore = scoreRawProjection(stats, leagueScoringSettings);
+        if (rawScore.ready()) {
+            projections.add(new Projection(
+                playerId,
+                rawScore.points(),
+                ProjectionProvenance.SLEEPER_RAW_STATS_LEAGUE_SCORED,
+                rawScore.scoringKeys()));
+            return;
         }
-        projections.add(new Projection(playerId, points.decimalValue()));
+
+        gaps.add(new ProjectionGap(
+            playerId,
+            "exact Sleeper projection row is present but " + pointsField
+                + " is missing/non-numeric; " + rawScore.reason()));
+    }
+
+    private static RawScore scoreRawProjection(JsonNode stats, Map<String, Double> leagueScoringSettings) {
+        if (leagueScoringSettings == null || leagueScoringSettings.isEmpty()) {
+            return RawScore.unavailable("persisted league scoring rules are unavailable for exact raw-stat scoring");
+        }
+        if (stats == null || !stats.isObject()) {
+            return RawScore.unavailable("raw projected stats are unavailable");
+        }
+
+        BigDecimal points = BigDecimal.ZERO;
+        Set<String> matchedScoringKeys = new LinkedHashSet<>();
+        int nonZeroRules = 0;
+        for (Map.Entry<String, Double> entry : leagueScoringSettings.entrySet()) {
+            String key = clean(entry.getKey());
+            Double multiplier = entry.getValue();
+            if (key == null || multiplier == null || !Double.isFinite(multiplier)) {
+                return RawScore.unavailable("persisted league scoring contains a malformed rule");
+            }
+            if (Double.compare(multiplier, 0.0d) == 0) continue;
+            nonZeroRules++;
+
+            JsonNode stat = stats.get(key);
+            if (stat == null || stat.isNull()) {
+                continue; // Sleeper projection rows are sparse; an absent exact stat contributes zero.
+            }
+            if (!stat.isNumber()) {
+                return RawScore.unavailable("raw projected stat " + key + " is non-numeric");
+            }
+            matchedScoringKeys.add(key);
+            points = points.add(stat.decimalValue().multiply(BigDecimal.valueOf(multiplier)));
+        }
+
+        if (nonZeroRules == 0) {
+            return RawScore.unavailable("persisted league scoring has no non-zero rules");
+        }
+        if (matchedScoringKeys.isEmpty()) {
+            return RawScore.unavailable(
+                "raw projected stats contain no numeric fields matching the persisted league scoring rules");
+        }
+        return RawScore.ready(points, List.copyOf(matchedScoringKeys));
+    }
+
+    private static void validateRequest(int season, int week, ScoringBasis scoring) {
+        if (season < 1999 || season > 2100) {
+            throw new IllegalArgumentException("season must be between 1999 and 2100");
+        }
+        if (week <= 0 || week > 25) {
+            throw new IllegalArgumentException("week must be between 1 and 25");
+        }
+        Objects.requireNonNull(scoring, "scoring must not be null");
     }
 
     private static boolean matchesIntegerField(JsonNode row, String fieldName, int expected) {
@@ -210,13 +315,45 @@ public final class SleeperWeeklyProjectionProvider {
         }
     }
 
-    public record Projection(String sleeperPlayerId, BigDecimal projectedPoints) {
+    public enum ProjectionProvenance {
+        SLEEPER_PRECOMPUTED,
+        SLEEPER_RAW_STATS_LEAGUE_SCORED
+    }
+
+    public record Projection(
+        String sleeperPlayerId,
+        BigDecimal projectedPoints,
+        ProjectionProvenance provenance,
+        List<String> scoringKeys) {
+        public Projection(String sleeperPlayerId, BigDecimal projectedPoints) {
+            this(
+                sleeperPlayerId,
+                projectedPoints,
+                ProjectionProvenance.SLEEPER_PRECOMPUTED,
+                List.of());
+        }
+
         public Projection {
             if (sleeperPlayerId == null || sleeperPlayerId.isBlank()) {
                 throw new IllegalArgumentException("sleeperPlayerId must not be blank");
             }
             sleeperPlayerId = sleeperPlayerId.trim();
             Objects.requireNonNull(projectedPoints, "projectedPoints must not be null");
+            Objects.requireNonNull(provenance, "provenance must not be null");
+            scoringKeys = List.copyOf(Objects.requireNonNull(scoringKeys, "scoringKeys must not be null"));
+        }
+    }
+
+    public record ProjectionGap(String sleeperPlayerId, String reason) {
+        public ProjectionGap {
+            if (sleeperPlayerId == null || sleeperPlayerId.isBlank()) {
+                throw new IllegalArgumentException("sleeperPlayerId must not be blank");
+            }
+            if (reason == null || reason.isBlank()) {
+                throw new IllegalArgumentException("reason must not be blank");
+            }
+            sleeperPlayerId = sleeperPlayerId.trim();
+            reason = reason.trim();
         }
     }
 
@@ -227,7 +364,19 @@ public final class SleeperWeeklyProjectionProvider {
         int week,
         ScoringBasis scoring,
         Instant observedAt,
-        List<Projection> projections) {
+        List<Projection> projections,
+        List<ProjectionGap> gaps) {
+        public ProjectionSnapshot(
+            String sourceName,
+            String sourceSurface,
+            int season,
+            int week,
+            ScoringBasis scoring,
+            Instant observedAt,
+            List<Projection> projections) {
+            this(sourceName, sourceSurface, season, week, scoring, observedAt, projections, List.of());
+        }
+
         public ProjectionSnapshot {
             if (sourceName == null || sourceName.isBlank()) throw new IllegalArgumentException("sourceName must not be blank");
             if (sourceSurface == null || sourceSurface.isBlank()) throw new IllegalArgumentException("sourceSurface must not be blank");
@@ -238,6 +387,17 @@ public final class SleeperWeeklyProjectionProvider {
             Objects.requireNonNull(scoring, "scoring must not be null");
             Objects.requireNonNull(observedAt, "observedAt must not be null");
             projections = List.copyOf(Objects.requireNonNull(projections, "projections must not be null"));
+            gaps = List.copyOf(Objects.requireNonNull(gaps, "gaps must not be null"));
+        }
+    }
+
+    private record RawScore(boolean ready, BigDecimal points, List<String> scoringKeys, String reason) {
+        private static RawScore ready(BigDecimal points, List<String> scoringKeys) {
+            return new RawScore(true, points, scoringKeys, null);
+        }
+
+        private static RawScore unavailable(String reason) {
+            return new RawScore(false, null, List.of(), reason);
         }
     }
 

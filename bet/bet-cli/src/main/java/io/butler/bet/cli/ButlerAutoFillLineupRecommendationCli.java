@@ -4,7 +4,7 @@ import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 
 import java.math.BigDecimal;
 
-/** BF-800/BF-825 deterministic text renderer for the read-only My Team AutoFill bundle section. */
+/** BF-800/BF-825/BF-826 deterministic text renderer for the read-only My Team AutoFill bundle section. */
 public final class ButlerAutoFillLineupRecommendationCli {
     private ButlerAutoFillLineupRecommendationCli() {}
 
@@ -24,6 +24,7 @@ public final class ButlerAutoFillLineupRecommendationCli {
         var recommendation = report.recommendation();
         System.out.println("Projection source: " + report.sourceName());
         System.out.println("Projection source surface: " + report.sourceSurface());
+        System.out.println("Projection provenance: " + report.projectionProvenance());
         System.out.println("Mapped active roster players: " + report.mappedActivePlayers());
         System.out.println("Current projected starter total: " + points(report.currentProjectedTotal()));
         System.out.println("Recommended projected starter total: " + points(recommendation.projectedTotal()));

@@ -124,7 +124,7 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             .recommend(rosterReport(leagueId));
 
         assertFalse(report.ready());
-        assertTrue(report.reason().contains("no exact Sleeper player-id match"));
+        assertTrue(report.reason().contains("no exact Sleeper player-id row"));
         assertTrue(report.reason().contains("will not guess"));
     }
 
