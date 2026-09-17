@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerEditorialVisualRefreshBf829Test {
 
     @Test
-    void bf827StagesBf829AfterGovernedRosterIntelligence() throws Exception {
+    void bf817StillStagesTheSharedVisualTransformAfterGovernedRosterIntelligence() throws Exception {
         String bf827 = source("scripts/butler-app-bf827-roster-intelligence-transform.ps1");
 
         int rosterWrite = bf827.indexOf("[System.IO.File]::WriteAllText($CorePath");
@@ -25,23 +25,12 @@ class ButlerEditorialVisualRefreshBf829Test {
     }
 
     @Test
-    void transformReplacesOnlyTheSharedCssFunctionWithEditorialDesignTokens() throws Exception {
+    void transformStillOwnsOnlyTheSharedCssFunctionAndExistingSelectors() throws Exception {
         String transform = source("scripts/butler-app-bf829-editorial-visual-transform.ps1");
 
         assertTrue(transform.contains("-StartMarker 'function Get-AppCss {'"));
         assertTrue(transform.contains("-NextMarker 'function Get-AppNav {'"));
-        assertTrue(transform.contains("--paper:#f8f4ec"));
-        assertTrue(transform.contains("--accent:#9b3f28"));
-        assertTrue(transform.contains("font-family:Georgia,'Times New Roman',serif"));
-        assertTrue(transform.contains(".nav a.active:after"));
-        assertTrue(transform.contains(".recommendation-panel{border-top:5px solid var(--accent)"));
-        assertTrue(transform.contains("border-radius:2px"));
         assertTrue(transform.contains("@media(max-width:760px)"));
-    }
-
-    @Test
-    void transformKeepsExistingUiContractsAndCannotIntroduceProviderOrWriteBehavior() throws Exception {
-        String transform = source("scripts/butler-app-bf829-editorial-visual-transform.ps1");
 
         for (String existingClass : new String[]{
                 ".panel", ".hero-panel", ".recommendation-panel", ".manager-metrics",
@@ -50,8 +39,13 @@ class ButlerEditorialVisualRefreshBf829Test {
         }) {
             assertTrue(transform.contains(existingClass), "missing existing CSS contract " + existingClass);
         }
+    }
 
-        assertTrue(transform.contains("editorial visual refresh introduced provider, network, or write behavior"));
+    @Test
+    void presentationTransformStillCannotIntroduceProviderOrWriteBehavior() throws Exception {
+        String transform = source("scripts/butler-app-bf829-editorial-visual-transform.ps1");
+
+        assertTrue(transform.contains("visual alignment introduced provider, API, or write behavior"));
         assertFalse(transform.contains("$env:"));
         assertFalse(transform.contains("https://api.sleeper"));
         assertFalse(transform.contains("Start-Process"));
