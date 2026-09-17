@@ -161,6 +161,14 @@ if ($autoFillReplacement -match 'Method = "POST"|BUTLER_FANTASYPROS_API_KEY|Auto
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 
+# BF-823: after Lineup Advisor staging, replace raw evidence failures with manager-facing
+# recovery states that lead to the existing explicit token-gated refresh confirmation.
+$bf823Transform = Join-Path $PSScriptRoot 'butler-app-bf823-evidence-recovery-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf823Transform -PathType Leaf)) {
+    throw "BF-823 BLOCKED: evidence recovery transform not found at $bf823Transform"
+}
+& $bf823Transform -CorePath $CorePath
+
 # BF-818: after Lineup Advisor staging, upgrade the sibling Waiver Board into a
 # manager-first decision summary while preserving the existing governed shortlist.
 $stagedDashboard = Join-Path (Split-Path -Parent $CorePath) 'butler-dashboard.ps1'

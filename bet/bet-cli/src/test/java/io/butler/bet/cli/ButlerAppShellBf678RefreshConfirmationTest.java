@@ -18,10 +18,10 @@ class ButlerAppShellBf678RefreshConfirmationTest {
         String refresh = script("scripts/butler-decision-refresh.ps1");
         String confirmation = confirmationSection(refresh);
 
-        int title = confirmation.indexOf("Check for a new decision?");
-        int noSleeper = confirmation.indexOf("This does not submit a waiver move to Sleeper.");
+        int title = confirmation.indexOf("Refresh Butler data?");
+        int noSleeper = confirmation.indexOf("This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.");
         int form = confirmation.indexOf("<form method=\"post\" action=\"/refresh\">");
-        int confirm = confirmation.indexOf("Confirm and check again");
+        int confirm = confirmation.indexOf("Confirm refresh");
         int cancel = confirmation.indexOf("class=\"refresh-cancel\" href=\"/\">Cancel</a>");
         int details = confirmation.indexOf("<details class=\"refresh-governance\">");
 
@@ -39,11 +39,10 @@ class ButlerAppShellBf678RefreshConfirmationTest {
 
         assertTrue(confirmation.contains("<details class=\"refresh-governance\"><summary>How Butler governs this refresh</summary>"));
         assertTrue(confirmation.contains("manual recheck under BF-675"));
-        assertTrue(confirmation.contains("BF-635 reports the approved six-hour refresh warning"));
-        assertTrue(confirmation.contains("BF-636 supplies the exact ready nine-step plan"));
-        assertTrue(confirmation.contains("Fully current actionable, stale hard-gate, pending, completed/unconverged, and unknown states are blocked before BF-602."));
-        assertTrue(confirmation.contains("The refresh may take several minutes while the browser waits for the nine governed stages."));
-        assertTrue(confirmation.contains("If a stage fails, later stages stop; earlier Butler evidence stages may already have completed."));
+        assertTrue(confirmation.contains("BF-823 first performs a read-only roster/player recovery probe."));
+        assertTrue(confirmation.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
+        assertTrue(confirmation.contains("If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
+        assertTrue(confirmation.contains("If any required state is ambiguous or unsafe, the refresh stops instead of guessing."));
     }
 
     @Test

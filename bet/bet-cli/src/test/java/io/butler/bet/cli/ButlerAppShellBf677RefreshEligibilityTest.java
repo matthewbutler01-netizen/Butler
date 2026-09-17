@@ -41,7 +41,7 @@ class ButlerAppShellBf677RefreshEligibilityTest {
         assertTrue(eligibility.contains("$bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE'"));
         assertTrue(eligibility.contains("$bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
         assertTrue(eligibility.contains("$eligible = $true"));
-        assertTrue(eligibility.contains("href=\"/refresh\">Check for a new decision"));
+        assertTrue(eligibility.contains("href=\"/refresh\">Refresh Butler data"));
     }
 
     @Test
@@ -81,7 +81,7 @@ class ButlerAppShellBf677RefreshEligibilityTest {
         String worker = script("scripts/butler-app-request-worker.ps1");
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
-        assertTrue(refresh.contains("BF-676 POST preflight"));
+        assertTrue(refresh.contains("BF-676/BF-823 POST"));
         assertTrue(shell.contains("[hashtable]::Synchronized(@{ Token = $decisionRefreshToken })"));
         assertTrue(worker.contains("$SubmittedToken -cne [string]$State.Token"));
         assertTrue(worker.contains("$State.Token = New-DecisionRefreshToken"));

@@ -95,14 +95,15 @@ class ButlerAppShellBf676WarningRefreshTest {
     }
 
     @Test
-    void confirmationExplainsWarningRefreshCanPreserveChangeOrRemoveRecommendation() throws Exception {
+    void confirmationExplainsBf823RecoveryBeforeBf676Fallback() throws Exception {
         String refresh = script("scripts/butler-decision-refresh.ps1");
 
-        assertTrue(refresh.contains("BF-635 reports the approved six-hour refresh warning"));
-        assertTrue(refresh.contains("BF-636 supplies the exact ready nine-step plan"));
-        assertTrue(refresh.contains("may preserve it, change it, or produce no governed transaction"));
-        assertTrue(refresh.contains("Fully current actionable, stale hard-gate, pending, completed/unconverged, and unknown states are blocked"));
-        assertTrue(refresh.contains("This does not submit a waiver move to Sleeper."));
+        assertTrue(refresh.contains("Refresh Butler data?"));
+        assertTrue(refresh.contains("BF-823 first performs a read-only roster/player recovery probe."));
+        assertTrue(refresh.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
+        assertTrue(refresh.contains("If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
+        assertTrue(refresh.contains("If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized."));
+        assertTrue(refresh.contains("This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper."));
     }
 
     @Test
