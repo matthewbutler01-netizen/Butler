@@ -73,8 +73,9 @@ $lab = $lab.Replace('>Evaluate trade</button>', '>Get Butler recommendation</but
 $lab = $lab.Replace('<h1 class="headline">Evaluate a trade</h1>', '<h1 class="headline">Analyze a trade</h1>')
 
 foreach ($required in @(
-    'Invoke-ButlerTradeV5',
     'trade recommendation $LeagueId',
+    'ConvertTo-TradeRecommendationView',
+    'PerspectiveTeamId',
     'StrategicVeto',
     'EvidenceComplete',
     'TransitionCoverage',
