@@ -206,3 +206,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf813Transform -DashboardPath $DashboardPath
 }
+
+# BF-834: Waiver Board becomes a manager-first decision surface only after every existing
+# dashboard/core staging pass has returned. This pass reuses the already-governed waiver state
+# and exact audited pair; it does not change recommendation semantics or introduce a write path.
+$bf834Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf834-waiver-decision-surface-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf834Transform -PathType Leaf)) {
+    throw "BF-834 BLOCKED: Waiver decision surface transform not found at $bf834Transform"
+}
+& $bf834Transform -DashboardPath $DashboardPath
