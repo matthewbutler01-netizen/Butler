@@ -105,7 +105,7 @@ $returnStart = $waiverBlock.IndexOf('    return @"', [System.StringComparison]::
 if ($returnStart -lt 0) {
     throw 'BF-834 BLOCKED: Waiver Board HTML return is missing.'
 }
-$returnEndMarker = "`n\"@`n}`n`n"
+$returnEndMarker = "`n`"@`n}`n`n"
 $returnEnd = $waiverBlock.IndexOf($returnEndMarker, $returnStart, [System.StringComparison]::Ordinal)
 if ($returnEnd -lt 0) {
     throw 'BF-834 BLOCKED: Waiver Board HTML return terminator is missing.'
