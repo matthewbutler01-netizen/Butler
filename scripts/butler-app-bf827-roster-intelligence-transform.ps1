@@ -94,6 +94,14 @@ if ($core -match 'BF-827.*Method = "POST"|BF-827.*Invoke-RestMethod|BF-827.*Slee
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 
+# BF-828: preserve exact governed positional-pressure counts when a local position
+# cannot yet receive a tier. This runs before the shared visual transform.
+$bf828Transform = Join-Path $PSScriptRoot 'butler-app-bf828-position-outlook-partial-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf828Transform -PathType Leaf)) {
+    throw "BF-828 BLOCKED: Position Outlook partial-evidence transform not found at $bf828Transform"
+}
+& $bf828Transform -CorePath $CorePath
+
 # BF-829: after governed My Team intelligence is present, apply the shared editorial
 # visual system. This transform is presentation-only and preserves all page contracts.
 $bf829Transform = Join-Path $PSScriptRoot 'butler-app-bf829-editorial-visual-transform.ps1'
