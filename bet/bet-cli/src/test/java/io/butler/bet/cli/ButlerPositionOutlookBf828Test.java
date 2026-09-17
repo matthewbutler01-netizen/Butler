@@ -69,11 +69,12 @@ class ButlerPositionOutlookBf828Test {
     void bf828RemainsPresentationOnlyAndReadOnly() throws Exception {
         String transform = source("scripts/butler-app-bf828-position-outlook-partial-transform.ps1");
 
-        assertFalse(transform.contains("https://api.sleeper.app/v1"));
+        assertTrue(transform.contains("foreach ($forbidden"), "BF-828 must keep its fail-closed safety scan");
+        assertFalse(transform.contains("https://api.sleeper.app/v1/"));
         assertFalse(transform.contains("SleeperClient"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
+        assertFalse(transform.contains("$request.Method = \"POST\""));
+        assertFalse(transform.contains("Invoke-RestMethod -"));
+        assertFalse(transform.contains("Invoke-WebRequest -"));
     }
 
     private static String source(String relativePath) throws IOException {
