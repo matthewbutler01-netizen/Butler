@@ -4,7 +4,7 @@ import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 
 import java.math.BigDecimal;
 
-/** BF-800 deterministic text renderer for the read-only My Team AutoFill bundle section. */
+/** BF-800/BF-825 deterministic text renderer for the read-only My Team AutoFill bundle section. */
 public final class ButlerAutoFillLineupRecommendationCli {
     private ButlerAutoFillLineupRecommendationCli() {}
 
@@ -50,6 +50,17 @@ public final class ButlerAutoFillLineupRecommendationCli {
         } else {
             for (var player : recommendation.promotions()) {
                 System.out.println("  " + player.displayName() + " [" + player.playerId() + "]");
+            }
+        }
+        System.out.println("Availability exclusions:");
+        if (report.availabilityExclusions().isEmpty()) {
+            System.out.println("  none");
+        } else {
+            for (var exclusion : report.availabilityExclusions()) {
+                System.out.println("  " + exclusion.displayName() + " [" + exclusion.sleeperPlayerId() + "]"
+                    + " | status=" + value(exclusion.status())
+                    + " | injury_status=" + value(exclusion.injuryStatus())
+                    + " | reason=" + exclusion.reason());
             }
         }
         System.out.println("Boundary: AutoFill is preview-only. No Butler or Sleeper lineup write was executed.");

@@ -12,12 +12,13 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * BF-800 read-only current-lineup optimizer.
+ * BF-800/BF-825 read-only current-lineup optimizer.
  *
  * <p>This class does not fetch evidence and does not mutate a roster. It consumes an explicit
- * ordered provider lineup, explicit active-roster eligibility, and explicit weekly projections.
- * Missing projection evidence fails closed instead of silently removing a player from
- * consideration. Reserve and taxi players are never candidates.</p>
+ * ordered provider lineup, explicit active-roster eligibility, explicit weekly projections, and
+ * (when BF-825 has proved it upstream) exact player ids that are unavailable to play. Missing
+ * projection evidence still fails closed for every startable player. Reserve, taxi, and explicitly
+ * unavailable players are never candidates.</p>
  */
 public final class AutoFillLineupOptimizer {
     public static final String POLICY_ID =
@@ -27,9 +28,25 @@ public final class AutoFillLineupOptimizer {
         List<String> providerLineupSlots,
         List<RosterPlayer> rosterPlayers,
         Map<String, BigDecimal> weeklyProjectionByPlayerId) {
+        return optimize(providerLineupSlots, rosterPlayers, weeklyProjectionByPlayerId, Set.of());
+    }
+
+    public Recommendation optimize(
+        List<String> providerLineupSlots,
+        List<RosterPlayer> rosterPlayers,
+        Map<String, BigDecimal> weeklyProjectionByPlayerId,
+        Set<String> explicitlyUnavailablePlayerIds) {
         Objects.requireNonNull(providerLineupSlots, "providerLineupSlots must not be null");
         Objects.requireNonNull(rosterPlayers, "rosterPlayers must not be null");
         Objects.requireNonNull(weeklyProjectionByPlayerId, "weeklyProjectionByPlayerId must not be null");
+        Objects.requireNonNull(explicitlyUnavailablePlayerIds, "explicitlyUnavailablePlayerIds must not be null");
+
+        Set<String> ids = new HashSet<>();
+        for (RosterPlayer player : rosterPlayers) {
+            if (!ids.add(player.playerId())) {
+                throw new IllegalArgumentException("duplicate roster playerId: " + player.playerId());
+            }
+        }
 
         List<RosterPlayer> active = rosterPlayers.stream()
             .filter(player -> player.rosterSlot() == RosterSlot.STARTER || player.rosterSlot() == RosterSlot.BENCH)
@@ -39,14 +56,25 @@ public final class AutoFillLineupOptimizer {
             return Recommendation.unavailable("No active starter/bench players are available for AutoFill.");
         }
 
-        Set<String> ids = new HashSet<>();
-        for (RosterPlayer player : rosterPlayers) {
-            if (!ids.add(player.playerId())) {
-                throw new IllegalArgumentException("duplicate roster playerId: " + player.playerId());
+        Set<String> activeIds = new HashSet<>();
+        for (RosterPlayer player : active) activeIds.add(player.playerId());
+        for (String unavailableId : explicitlyUnavailablePlayerIds) {
+            String normalizedId = requireText(unavailableId, "explicitlyUnavailablePlayerId");
+            if (!activeIds.contains(normalizedId)) {
+                throw new IllegalArgumentException(
+                    "explicitly unavailable player must be an exact active roster playerId: " + normalizedId);
             }
         }
 
-        List<String> missing = active.stream()
+        List<RosterPlayer> candidates = active.stream()
+            .filter(player -> !explicitlyUnavailablePlayerIds.contains(player.playerId()))
+            .toList();
+        if (candidates.isEmpty()) {
+            return Recommendation.unavailable(
+                "A complete legal starting lineup cannot be built because every active roster player is explicitly unavailable.");
+        }
+
+        List<String> missing = candidates.stream()
             .filter(player -> !weeklyProjectionByPlayerId.containsKey(player.playerId())
                 || weeklyProjectionByPlayerId.get(player.playerId()) == null)
             .map(player -> player.displayName() + " [" + player.playerId() + "]")
@@ -56,14 +84,14 @@ public final class AutoFillLineupOptimizer {
                 "Weekly projection evidence is incomplete for active roster players: " + String.join(", ", missing));
         }
 
-        List<OptimalLegalLineupSolver.ScoredPlayerCandidate> candidates = new ArrayList<>();
-        for (RosterPlayer player : active) {
-            candidates.add(new OptimalLegalLineupSolver.ScoredPlayerCandidate(
+        List<OptimalLegalLineupSolver.ScoredPlayerCandidate> scoredCandidates = new ArrayList<>();
+        for (RosterPlayer player : candidates) {
+            scoredCandidates.add(new OptimalLegalLineupSolver.ScoredPlayerCandidate(
                 player.playerId(), player.providerFantasyPositions(), weeklyProjectionByPlayerId.get(player.playerId())));
         }
 
         OptimalLegalLineupSolver.LineupResult solved =
-            new OptimalLegalLineupSolver().solve(providerLineupSlots, candidates);
+            new OptimalLegalLineupSolver().solve(providerLineupSlots, scoredCandidates);
         if (!solved.complete()) {
             return Recommendation.unavailable(
                 "A complete legal starting lineup cannot be built from the active roster and current eligibility evidence.");
@@ -114,7 +142,7 @@ public final class AutoFillLineupOptimizer {
             .filter(player -> !recommendedStarterIds.contains(player.playerId()))
             .sorted(Comparator.comparing(RosterPlayer::playerId))
             .toList();
-        List<RosterPlayer> promotions = active.stream()
+        List<RosterPlayer> promotions = candidates.stream()
             .filter(player -> recommendedStarterIds.contains(player.playerId())
                 && !currentStarterIds.contains(player.playerId()))
             .sorted(Comparator.comparing(RosterPlayer::playerId))
