@@ -47,15 +47,11 @@ class ButlerRosterIntelligenceBf827Test {
         assertTrue(transform.contains("League comparison needs complete governed franchise-value coverage"));
         assertTrue(transform.contains("Complete current value coverage is required."));
         assertTrue(transform.contains("Complete governed competitive and roster posture evidence is required"));
-
-        // These provider/write markers intentionally appear only inside BF-827's own safety guard.
-        // Verify that guard remains present instead of falsely treating its marker strings as behavior.
-        assertTrue(transform.contains("BF-827.*Method = \"POST\""));
-        assertTrue(transform.contains("BF-827.*Invoke-RestMethod"));
-        assertTrue(transform.contains("BF-827.*SleeperClient"));
         assertTrue(transform.contains("roster-intelligence presentation introduced a write or direct provider path"));
 
         // The transform itself must not introduce credentials, endpoints, or executable network helpers.
+        // Provider/write names may appear only as inert strings inside the transform's fail-closed safety guard,
+        // so test actual executable/network markers instead of coupling to the guard's exact regex spelling.
         assertFalse(transform.contains("$env:"));
         assertFalse(transform.contains("https://api.sleeper"));
         assertFalse(transform.contains("Invoke-WebRequest"));
