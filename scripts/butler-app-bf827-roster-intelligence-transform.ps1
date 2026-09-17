@@ -117,3 +117,11 @@ if (-not (Test-Path -LiteralPath $bf831Transform -PathType Leaf)) {
     throw "BF-831 BLOCKED: Trade Analyzer transform not found at $bf831Transform"
 }
 & $bf831Transform -CorePath $CorePath
+
+# BF-835: translate the existing governed League page into a manager-facing intelligence
+# surface only after shared visual and trade presentation transforms are complete.
+$bf835Transform = Join-Path $PSScriptRoot 'butler-app-bf835-league-intelligence-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf835Transform -PathType Leaf)) {
+    throw "BF-835 BLOCKED: League Intelligence transform not found at $bf835Transform"
+}
+& $bf835Transform -CorePath $CorePath
