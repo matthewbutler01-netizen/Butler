@@ -35,7 +35,7 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(shell.contains("sleeper-live-waiver-no-transaction-refresh.ps1"));
         assertTrue(shell.contains(". $decisionRefresh"));
         assertTrue(worker.contains("$path -eq '/refresh'"));
-        assertTrue(refresh.contains("href=\"/refresh\">Check for a new decision"));
+        assertTrue(refresh.contains("href=\"/refresh\">Refresh Butler data"));
         assertTrue(refresh.contains("method=\"post\" action=\"/refresh\""));
         assertTrue(refresh.contains("type=\"hidden\" name=\"token\""));
         assertTrue(worker.contains("if ($parts[0] -eq 'POST')"));
@@ -129,7 +129,7 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertFalse(shell.contains("create_transaction"));
         assertFalse(worker.contains("create_transaction"));
         assertTrue(runner.contains("This runner never submits, cancels, or replaces a Sleeper transaction and never sets FAAB."));
-        assertTrue(refresh.contains("This does not submit a waiver move to Sleeper."));
+        assertTrue(refresh.contains("This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper."));
     }
 
     @Test
