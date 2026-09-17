@@ -63,6 +63,15 @@ class ButlerTradeAnalyzerBf831Test {
     }
 
     @Test
+    void transformParsesGeneratedStagedCoreBeforeRuntimeStartup() throws Exception {
+        String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
+
+        assertTrue(transform.contains("System.Management.Automation.Language.Parser]::ParseFile($CorePath"));
+        assertTrue(transform.contains("generated staged core failed PowerShell parse"));
+        assertTrue(transform.contains("Extent.StartLineNumber"));
+    }
+
+    @Test
     void governedRecommendationAndExistingEvidenceRemainTheDecisionHierarchy() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
