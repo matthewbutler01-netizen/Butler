@@ -101,16 +101,10 @@ $decisionPrelude = @'
 
 $waiverBlock = $waiverBlock.Replace($decisionAnchor, $decisionAnchor + $decisionPrelude)
 
-$returnStart = $waiverBlock.IndexOf('    return @"', [System.StringComparison]::Ordinal)
+$returnStart = $waiverBlock.LastIndexOf('    return @"', [System.StringComparison]::Ordinal)
 if ($returnStart -lt 0) {
     throw 'BF-834 BLOCKED: Waiver Board HTML return is missing.'
 }
-$returnEndMarker = "`n`"@`n}`n`n"
-$returnEnd = $waiverBlock.IndexOf($returnEndMarker, $returnStart, [System.StringComparison]::Ordinal)
-if ($returnEnd -lt 0) {
-    throw 'BF-834 BLOCKED: Waiver Board HTML return terminator is missing.'
-}
-$returnEnd += $returnEndMarker.Length
 
 $managerReturn = @'
     return @"
@@ -144,7 +138,7 @@ $header
 
 '@
 
-$waiverBlock = $waiverBlock.Substring(0, $returnStart) + $managerReturn + $waiverBlock.Substring($returnEnd)
+$waiverBlock = $waiverBlock.Substring(0, $returnStart) + $managerReturn
 $text = $text.Substring(0, $waiverStart) + $waiverBlock + $text.Substring($waiverEnd)
 
 foreach ($required in @(
