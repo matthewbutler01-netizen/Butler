@@ -20,7 +20,6 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
     throw 'BF-823 BLOCKED: LocalApplicationData is unavailable.'
 }
-
 $configDir = Join-Path $localAppData 'Butler'
 
 function Resolve-ButlerRuntimeDataDir {
@@ -45,10 +44,8 @@ function Resolve-ButlerRuntimeDataDir {
     if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
         throw "BF-823 BLOCKED: governed Butler runtime data directory not found at $resolved"
     }
-
-    $databasePath = Join-Path $resolved 'butler.db'
-    if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
-        throw "BF-823 BLOCKED: governed Butler runtime database not found at $databasePath"
+    if (-not (Test-Path -LiteralPath (Join-Path $resolved 'butler.db') -PathType Leaf)) {
+        throw "BF-823 BLOCKED: governed Butler runtime database not found at $resolved"
     }
     return $resolved
 }
@@ -56,14 +53,10 @@ function Resolve-ButlerRuntimeDataDir {
 function Get-ButlerJavaExecutable {
     if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
         $candidate = Join-Path $env:JAVA_HOME 'bin\java.exe'
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            return $candidate
-        }
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
     }
-
     try {
-        $command = Get-Command java.exe -ErrorAction Stop
-        return [string]$command.Source
+        return [string](Get-Command java.exe -ErrorAction Stop).Source
     }
     catch {
         throw 'BF-823 BLOCKED: java.exe is unavailable for governed recovery.'
@@ -89,7 +82,6 @@ function Invoke-ButlerRuntimeCommand {
     $lines = $null
     $exitCode = $null
     $javaArguments = @('--enable-native-access=ALL-UNNAMED', '-cp', $script:classPath, $MainClass) + @($Arguments)
-
     Push-Location $script:dataDir
     try {
         try {
@@ -118,19 +110,18 @@ function Invoke-RequiredSuccess {
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
 
-    Write-Output ("BF-823: running {0}..." -f $Label)
+    Write-Host ("BF-823: running {0}..." -f $Label)
     $result = Invoke-ButlerRuntimeCommand -MainClass $MainClass -Arguments $Arguments
     if ($result.ExitCode -ne 0) {
         $tail = Get-BoundedTail -Text $result.Text
         throw "BF-823 BLOCKED: $Label failed with runtime exit code $($result.ExitCode); output=$tail"
     }
-    Write-Output ("BF-823: {0} complete." -f $Label)
+    Write-Host ("BF-823: {0} complete." -f $Label)
     return $result
 }
 
 function Get-HydrationAudit {
-    $auditClass = 'io.butler.bet.cli.ButlerSleeperCurrentSeasonHydrationEligibilityAuditCli'
-    $result = Invoke-ButlerRuntimeCommand -MainClass $auditClass -Arguments @($LeagueId)
+    $result = Invoke-ButlerRuntimeCommand -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentSeasonHydrationEligibilityAuditCli' -Arguments @($LeagueId)
     if ($result.ExitCode -ne 0) {
         $tail = Get-BoundedTail -Text $result.Text
         throw "BF-823 BLOCKED: BF-599 hydration eligibility audit failed with runtime exit code $($result.ExitCode); output=$tail"
@@ -160,7 +151,6 @@ $LeagueId = $parsedLeagueId.ToString('D').ToLowerInvariant()
 $dataDir = Resolve-ButlerRuntimeDataDir
 $java = Get-ButlerJavaExecutable
 $classPath = Join-Path $runtimeLibDir '*'
-
 if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
     throw "BF-823 BLOCKED: prepared Butler runtime not found at $runtimeLibDir"
 }
@@ -221,8 +211,7 @@ Write-Output 'Boundary: it does not submit, cancel, or replace a Sleeper transac
 
 if ($audit.UnmappedCount -gt 0) {
     Write-Output ("BF-823: BF-599 found {0} current player identity mapping(s) to bootstrap." -f $audit.UnmappedCount)
-    $bootstrapClass = 'io.butler.bet.cli.ButlerSleeperCurrentSeasonRosterBootstrapCli'
-    $bootstrap = Invoke-RequiredSuccess -MainClass $bootstrapClass -Label 'BF-600 current-season roster/player bootstrap' -Arguments @($LeagueId, $audit.SleeperLeagueId)
+    $bootstrap = Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentSeasonRosterBootstrapCli' -Label 'BF-600 current-season roster/player bootstrap' -Arguments @($LeagueId, $audit.SleeperLeagueId)
     if ($bootstrap.Text.IndexOf('Bootstrap state: HYDRATED_VERIFIED', [System.StringComparison]::Ordinal) -lt 0) {
         $tail = Get-BoundedTail -Text $bootstrap.Text
         throw "BF-823 BLOCKED: BF-600 completed without HYDRATED_VERIFIED. output=$tail"
@@ -260,7 +249,6 @@ if ($rebuildEvidence) {
         [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli'; Label = 'BF-607 current-week stat sync' },
         [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli'; Label = 'BF-612 target-roster production hydration' }
     )
-
     foreach ($stage in $stages) {
         [void](Invoke-RequiredSuccess -MainClass $stage.MainClass -Label $stage.Label -Arguments @($LeagueId))
     }
