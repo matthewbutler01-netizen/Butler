@@ -39,7 +39,7 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
                 "ConvertTo-AutoFillHtml -AutoFill $AutoFill",
                 "ConvertTo-RosterStrengthView",
                 "ConvertTo-PositionalPressureView",
-                "does not predict a winner",
+                "not to predict a winner",
                 "will not guess the opponent"
         }) {
             assertTrue(transform.contains(marker), "BF-840 matchup transform missing " + marker);
