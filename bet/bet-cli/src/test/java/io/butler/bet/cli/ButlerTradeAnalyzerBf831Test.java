@@ -25,31 +25,36 @@ class ButlerTradeAnalyzerBf831Test {
     }
 
     @Test
-    void canonicalSourcesOwnCommandCenterTradeAnalyzerPresentation() throws Exception {
+    void canonicalSourcesOwnBf833FamilyTradeAnalyzerPresentation() throws Exception {
         String tradeHost = source("scripts/butler-trade-lab-host.ps1");
         String tradeLab = source("scripts/butler-trade-lab.ps1");
 
         for (String marker : new String[]{
                 "read-only Trade Analyzer module",
-                "--bg:#F4F2EA",
+                "--bg:#F3F2EE",
                 "--surface:#FFFFFF",
-                "--surface-2:#ECE9DD",
-                "--line:#D8D4C4",
-                "--turf:#2E6B47",
-                "--turf-deep:#1F4D33",
-                "--gold:#C98A1F",
-                "--ink:#16201A",
-                "--muted:#5B6459",
-                "--brick:#A8452F",
-                "--font-display:'Teko'",
-                "--radius:3px",
-                "repeating-linear-gradient",
+                "--surface-2:#F7F6F2",
+                "--line:#D9DCD7",
+                "--turf:#376E50",
+                "--turf-deep:#28543D",
+                "--gold:#A77418",
+                "--ink:#1E2521",
+                "--muted:#68726B",
+                "--brick:#A65245",
+                "--font-display:'Inter'",
+                "--radius:10px",
+                "background-image:none",
+                "--bg:#111315",
+                "--surface:#191C1E",
+                "--surface-2:#202426",
                 "@media(prefers-color-scheme:dark)",
                 "Trade Analyzer",
                 "Opening Trade Analyzer..."
         }) {
             assertTrue(tradeHost.contains(marker), "canonical Trade Analyzer host missing " + marker);
         }
+        assertFalse(tradeHost.contains("'Teko'"), "canonical Trade Analyzer host must not depend on Teko");
+        assertFalse(tradeHost.contains("repeating-linear-gradient"), "canonical Trade Analyzer host must not retain field-line backgrounds");
 
         for (String marker : new String[]{
                 "read-only Trade Analyzer app module",
@@ -76,17 +81,18 @@ class ButlerTradeAnalyzerBf831Test {
     }
 
     @Test
-    void bf831GuardIsValidationOnlyAndNeverRewritesTradeSources() throws Exception {
+    void bf831StagesBf837ButNeverRewritesCanonicalTradeSources() throws Exception {
         String transform = source("scripts/butler-app-bf831-trade-analyzer-transform.ps1");
 
+        assertTrue(transform.contains("butler-app-bf837-manager-page-visual-transform.ps1"));
+        assertTrue(transform.contains("& $bf837Transform -CorePath $CorePath"));
         assertTrue(transform.contains("$tradeHostText = [System.IO.File]::ReadAllText($TradeHostPath)"));
         assertTrue(transform.contains("$lab = [System.IO.File]::ReadAllText($TradeLabPath)"));
-        assertTrue(transform.contains("validation-only"));
         assertTrue(transform.contains("canonical Trade Analyzer host marker is missing"));
         assertTrue(transform.contains("canonical Trade Analyzer decision marker is missing"));
 
         assertFalse(transform.contains("WriteAllText("),
-                "BF-831 must never rewrite the staged or tracked Trade Analyzer source files");
+                "BF-831 must never rewrite the tracked Trade Analyzer source files");
         assertFalse(transform.contains("Replace-Block"),
                 "BF-831 must not retain source-transform replacement behavior");
         assertFalse(transform.contains("$tradeHostText = $tradeHostText.Replace"),

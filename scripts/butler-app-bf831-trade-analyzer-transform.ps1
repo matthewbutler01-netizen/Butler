@@ -15,12 +15,28 @@ foreach ($requiredPath in @($CorePath, $TradeLabPath, $TradeHostPath)) {
     }
 }
 
-# BF-836 promotes the proven BF-831 Trade Analyzer presentation into the canonical
-# BF-670 source modules. This guard is intentionally validation-only: it may read
-# source/runtime files, but it must never rewrite tracked Trade Analyzer sources.
+# BF-837 installs the BF-833 visual language into the staged manager-page core.
+# This may rewrite only the staged CorePath; BF-836's tracked Trade Analyzer sources
+# remain canonical and must never be rewritten by this validation step.
+$bf837Transform = Join-Path $PSScriptRoot 'butler-app-bf837-manager-page-visual-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf837Transform -PathType Leaf)) {
+    throw "BF-837 BLOCKED: manager-page visual transform not found at $bf837Transform"
+}
+& $bf837Transform -CorePath $CorePath
+
 $core = [System.IO.File]::ReadAllText($CorePath)
-if (-not $core.Contains('--turf:#2E6B47')) {
-    throw 'BF-831 requires the BF-830 command-center visual baseline.'
+foreach ($required in @(
+    'BF-837 manager-page visual alignment',
+    '--bg:#F3F2EE',
+    '--surface-2:#F7F6F2',
+    '--turf:#376E50',
+    "--font-display:'Inter'",
+    '--radius:10px',
+    'background-image:none'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-831 BLOCKED: staged manager-page visual marker is missing: $required"
+    }
 }
 
 $tradeHostText = [System.IO.File]::ReadAllText($TradeHostPath)
@@ -28,19 +44,22 @@ $lab = [System.IO.File]::ReadAllText($TradeLabPath)
 
 foreach ($required in @(
     'read-only Trade Analyzer module',
-    '--bg:#F4F2EA',
+    '--bg:#F3F2EE',
     '--surface:#FFFFFF',
-    '--surface-2:#ECE9DD',
-    '--line:#D8D4C4',
-    '--turf:#2E6B47',
-    '--turf-deep:#1F4D33',
-    '--gold:#C98A1F',
-    '--ink:#16201A',
-    '--muted:#5B6459',
-    '--brick:#A8452F',
-    "--font-display:'Teko'",
-    '--radius:3px',
-    'repeating-linear-gradient',
+    '--surface-2:#F7F6F2',
+    '--line:#D9DCD7',
+    '--turf:#376E50',
+    '--turf-deep:#28543D',
+    '--gold:#A77418',
+    '--ink:#1E2521',
+    '--muted:#68726B',
+    '--brick:#A65245',
+    "--font-display:'Inter'",
+    '--radius:10px',
+    'background-image:none',
+    '--bg:#111315',
+    '--surface:#191C1E',
+    '--surface-2:#202426',
     '@media(prefers-color-scheme:dark)',
     'Trade Analyzer',
     'Opening Trade Analyzer...',
