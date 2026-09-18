@@ -232,3 +232,13 @@ if (-not (Test-Path -LiteralPath $bf837DashboardTransform -PathType Leaf)) {
     throw "BF-837 BLOCKED: final dashboard-hosted visual transform not found at $bf837DashboardTransform"
 }
 & $bf837DashboardTransform -DashboardPath $DashboardPath
+
+# BF-840: add the first-class Weekly Matchup workspace after all existing manager
+# presentation passes so no earlier transform can remove the route or navigation.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf840Transform = Join-Path $PSScriptRoot 'butler-app-bf840-weekly-matchup-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf840Transform -PathType Leaf)) {
+        throw "BF-840 BLOCKED: Weekly Matchup transform not found at $bf840Transform"
+    }
+    & $bf840Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+}
