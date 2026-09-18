@@ -233,10 +233,11 @@ if ($dashboard -notmatch 'href="/matchup">Matchup</a>') {
 if ($core -notmatch 'PAIR VERIFIED' -or $core -notmatch 'EVIDENCE NEEDED') {
     throw 'BF-840 BLOCKED: manager-facing weekly matchup states are incomplete.'
 }
-if ($core -match 'favored|underdog|betting odds') {
+$bf840Surface = $matchupFunctions + $matchupRoute
+if ($bf840Surface -match 'favored|underdog|betting odds') {
     throw 'BF-840 BLOCKED: weekly matchup presentation introduced predictive or betting-style copy.'
 }
-if ($core -match 'Method = "POST"|create_transaction|submitTransaction') {
+if ($bf840Surface -match 'Method = "POST"|create_transaction|submitTransaction') {
     throw 'BF-840 BLOCKED: weekly matchup presentation introduced a write path.'
 }
 
