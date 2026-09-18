@@ -25,8 +25,8 @@ class ButlerTradeAnalyzerAcceptanceBf839Test {
                 "Get-ValuedAsset -Html $opponentPage.Body -Name \'receive\'",
                 "&evaluate=1&give=",
                 "&receive=",
-                "Butler recommendation",
-                "Perspective is always your exact bound team.",
+                "Butler recommendation:",
+                "This is evaluated from your team\'s perspective.",
                 "GOVERNED_TRADE_RECOMMENDATION_RENDERED",
                 "Working tree: CLEAN",
                 "BF-839 RESULT: COMPLETE"
