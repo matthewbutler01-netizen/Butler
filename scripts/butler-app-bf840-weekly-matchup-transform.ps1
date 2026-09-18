@@ -235,7 +235,7 @@ foreach ($required in @(
     'Weekly matchup',
     'PAIRING VERIFIED',
     'Opponent pairing unavailable',
-    'does not predict a winner',
+    'not to predict a winner',
     ':bet:bet-cli:weeklyMatchupWorkspace',
     '--team-bundle-autofill',
     'ConvertTo-AutoFillHtml -AutoFill $AutoFill'
