@@ -80,6 +80,16 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
     }
 
     @Test
+    void singleFlightAcceptanceUsesCurrentManagerMatchupStates() throws Exception {
+        String acceptance = source("scripts/butler-matchup-single-flight-acceptance.ps1");
+
+        assertTrue(acceptance.contains("OPPONENT CONFIRMED"));
+        assertTrue(acceptance.contains("Opponent not confirmed"));
+        assertFalse(acceptance.contains("PAIRING VERIFIED"));
+        assertFalse(acceptance.contains("Opponent pairing unavailable"));
+    }
+
+    @Test
     void standaloneWeeklyMatchupWorkspaceRemainsAvailableForDiagnostics() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
         String build = source("bet/bet-cli/build.gradle.kts");
