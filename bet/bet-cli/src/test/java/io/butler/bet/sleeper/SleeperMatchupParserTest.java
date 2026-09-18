@@ -26,13 +26,14 @@ class SleeperMatchupParserTest {
 
         assertEquals(1, matchups.size());
         assertEquals(3, matchups.getFirst().rosterId());
+        assertEquals(7, matchups.getFirst().matchupId());
         assertEquals(List.of("p3", "p1", "p2"), matchups.getFirst().playerIds());
         assertEquals(List.of("p1", "0", "p3"), matchups.getFirst().starterIds());
     }
 
     @Test
     void missingPlayerOrStarterArraysRemainExplicitlyEmpty() throws Exception {
-        var matchups = parser.parse("[{\"roster_id\":1}]");
+        var matchups = parser.parse("[{\"roster_id\":1,\"matchup_id\":4}]");
         assertEquals(List.of(), matchups.getFirst().playerIds());
         assertEquals(List.of(), matchups.getFirst().starterIds());
     }
@@ -42,7 +43,9 @@ class SleeperMatchupParserTest {
         assertThrows(IllegalArgumentException.class, () -> parser.parse("{}"));
         assertThrows(IllegalArgumentException.class, () -> parser.parse("[{\"roster_id\":0}]"));
         assertThrows(IllegalArgumentException.class,
-            () -> parser.parse("[{\"roster_id\":1,\"players\":\"p1\"}]"));
+            () -> parser.parse("[{\"roster_id\":1}]"));
+        assertThrows(IllegalArgumentException.class,
+            () -> parser.parse("[{\"roster_id\":1,\"matchup_id\":2,\"players\":\"p1\"}]"));
         assertThrows(IllegalArgumentException.class,
             () -> parser.parse("[{\"roster_id\":1,\"starters\":[\"\"]}]"));
     }
