@@ -17,17 +17,36 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
         String source = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerWeeklyMatchupEvidenceBundleCli.java");
 
         assertTrue(source.contains("Database database = initializedDatabase();"));
-        assertTrue(source.contains("ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
-        assertTrue(source.contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
+        assertTrue(source.contains("new PersonalizedSleeperTargetRepository(database)"));
+        assertTrue(source.contains("new TeamWeekRosterEvidenceRepository(database)"));
+        assertTrue(source.contains("new TeamRepository(database)"));
         assertTrue(source.contains("new LeagueRosterStrengthTierAnalyzer(database)"));
         assertTrue(source.contains("new LeaguePositionalPressureAnalyzer(database)"));
         assertTrue(source.contains("new WeeklyMatchupWorkspaceAnalyzer(database)"));
         assertTrue(source.contains("ButlerWeeklyMatchupWorkspaceCli.print(report)"));
+        assertTrue(source.contains("ButlerMyTeamEvidenceBundleCli.emit(MATCHUP_CONTEXT, matchupContext)"));
         assertTrue(source.contains("ButlerMyTeamEvidenceBundleCli.emit(MATCHUP, matchup)"));
 
         assertFalse(source.contains("LeagueTeamContextAnalyzer"));
         assertFalse(source.contains("LeagueTeamPostureAnalyzer"));
         assertFalse(source.contains("LeagueFutureCapitalTierAnalyzer"));
+    }
+
+    @Test
+    void passiveBundleUsesPersistedContextAndKeepsLiveRosterBehindAutofill() throws Exception {
+        String source = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerWeeklyMatchupEvidenceBundleCli.java");
+        int runStart = source.indexOf("static int runEmbedded");
+        int autoFillHelper = source.indexOf("private static SleeperLiveAutoFillLineupRecommendation.RecommendationReport autoFillSafely", runStart);
+        assertTrue(runStart >= 0 && autoFillHelper > runStart);
+        String composition = source.substring(runStart, autoFillHelper);
+
+        assertTrue(composition.contains("loadPersistedContext(database, leagueId)"));
+        assertTrue(composition.contains("includeAutoFill"));
+        assertTrue(composition.contains("autoFillSafely(database, leagueId, context)"));
+        assertFalse(composition.contains("ButlerPersonalizedTargetCliSupport.verify"));
+        assertFalse(composition.contains("new SleeperLiveWaiverTargetRosterContextAudit"));
+        assertTrue(source.substring(autoFillHelper).contains("ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertTrue(source.substring(autoFillHelper).contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
     }
 
     @Test
@@ -71,6 +90,8 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
 
         assertTrue(route.contains("--weekly-matchup-bundle"));
         assertTrue(route.contains("--weekly-matchup-bundle-autofill"));
+        assertTrue(route.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP_CONTEXT\""));
+        assertTrue(route.contains("ConvertTo-MatchupRosterContextView"));
         assertTrue(route.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP\""));
         assertTrue(route.contains("State: UNAVAILABLE"));
         assertTrue(route.contains("exact matchup frame does not match the bound roster frame"));
