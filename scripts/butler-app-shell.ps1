@@ -279,7 +279,7 @@ try {
     Write-Host "My Team: http://127.0.0.1:$Port/team"
     Write-Host "Waiver Board: http://127.0.0.1:$Port/waivers"
     Write-Host "League: http://127.0.0.1:$Port/league"
-    Write-Host "Trade Lab: http://127.0.0.1:$Port/trade"
+    Write-Host "Trade Analyzer: http://127.0.0.1:$Port/trade"
     Write-Host "History: http://127.0.0.1:$Port/history"
     Write-Host "Manual decision refresh: http://127.0.0.1:$Port/refresh"
     Write-Host 'Bind: 127.0.0.1 only'
