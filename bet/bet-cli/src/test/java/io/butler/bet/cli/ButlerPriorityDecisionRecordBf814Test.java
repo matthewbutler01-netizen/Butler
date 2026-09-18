@@ -36,7 +36,7 @@ class ButlerPriorityDecisionRecordBf814Test {
         assertTrue(transform.contains("Waiver decision saved and traceable"));
         assertTrue(transform.contains("View Decision History"));
         assertTrue(transform.contains("No trade decision recorded"));
-        assertTrue(transform.contains("Open Trade Lab"));
+        assertTrue(transform.contains("Open Trade Analyzer"));
         assertTrue(transform.contains("No specific trade has been evaluated"));
     }
 
