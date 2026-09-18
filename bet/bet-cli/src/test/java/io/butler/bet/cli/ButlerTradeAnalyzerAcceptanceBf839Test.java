@@ -26,7 +26,7 @@ class ButlerTradeAnalyzerAcceptanceBf839Test {
                 "&evaluate=1&give=",
                 "&receive=",
                 "Butler recommendation:",
-                "This is evaluated from your team\'s perspective.",
+                "This is evaluated from your team''s perspective.",
                 "GOVERNED_TRADE_RECOMMENDATION_RENDERED",
                 "Working tree: CLEAN",
                 "BF-839 RESULT: COMPLETE"
