@@ -102,7 +102,7 @@ function ConvertTo-MatchupOpponentContextHtml {
 
     if ($Strength.Available) {
         $strengthText = [string]$Strength.Tier
-        $strengthEvidence = "Starter value $($Strength.StarterValue) &middot; roster value $($Strength.TotalPlayerValue) &middot; coverage $($Strength.Coverage)%"
+        $strengthEvidence = "Starter value $($Strength.StarterValue) | roster value $($Strength.TotalPlayerValue) | coverage $($Strength.Coverage)%"
     }
     else {
         $strengthText = 'Coverage needed'
@@ -248,7 +248,7 @@ foreach ($required in @(
 $installedStart = $core.IndexOf('function ConvertTo-WeeklyMatchupView {', [System.StringComparison]::Ordinal)
 $installedEnd = $core.IndexOf('function ConvertTo-LeagueHtml {', $installedStart, [System.StringComparison]::Ordinal)
 $installedBlock = $core.Substring($installedStart, $installedEnd - $installedStart)
-if ($installedBlock -match 'win probability|predicted winner|Method = "POST"|submitTransaction|setFaab|Invoke-RestMethod|https://api\.sleeper\.app') {
+if ($installedBlock -match 'winnerProbability|predictedWinner|Method = "POST"|submitTransaction|setFaab|Invoke-RestMethod|https://api\.sleeper\.app') {
     throw 'BF-840 BLOCKED: Weekly Matchup presentation introduced prediction, provider, or write behavior.'
 }
 
