@@ -246,6 +246,8 @@ if ([regex]::Matches($routeSource, 'Invoke-ButlerReadOnlyTask').Count -ne 1) {
 foreach ($marker in @(
     '--weekly-matchup-bundle',
     '--weekly-matchup-bundle-autofill',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT"',
+    'ConvertTo-MatchupRosterContextView',
     'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"'
 )) {
     if ($routeSource.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
