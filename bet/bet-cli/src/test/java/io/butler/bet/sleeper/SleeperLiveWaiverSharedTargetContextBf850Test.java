@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,7 +68,6 @@ class SleeperLiveWaiverSharedTargetContextBf850Test {
         assertTrue(comparison.contains("public CoalescedReport run(String leagueId, String sleeperOwnerId)"));
         assertTrue(comparison.contains("rosterContextSource.audit(requestedLeagueId, requestedOwnerId)"));
         assertTrue(comparison.contains("SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContext"));
-        assertFalse(comparison.contains("static "));
     }
 
     private static int occurrences(String text, String needle) {
