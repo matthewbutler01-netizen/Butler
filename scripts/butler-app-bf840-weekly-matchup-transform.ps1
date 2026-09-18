@@ -128,6 +128,8 @@ function ConvertTo-MatchupAutoFillHtml {
     $html = ConvertTo-AutoFillHtml -AutoFill $AutoFill
     $html = $html.Replace('href="/team/autofill"', 'href="/matchup/autofill"')
     $html = $html.Replace('href="/team"', 'href="/matchup"')
+    $html = $html.Replace('>Run AutoFill</a>', '>Review Lineup</a>')
+    $html = $html.Replace('>Back to My Team</a>', '>Back to Matchup</a>')
     return $html
 }
 
