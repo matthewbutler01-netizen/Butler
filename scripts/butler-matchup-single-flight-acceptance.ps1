@@ -138,10 +138,10 @@ function Assert-Matchup {
             throw "BF-845 BLOCKED: $Stage is missing governed Matchup marker: $marker"
         }
     }
-    $verified = $Response.Body.IndexOf('PAIRING VERIFIED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    $unavailable = $Response.Body.IndexOf('Opponent pairing unavailable', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $verified = $Response.Body.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $unavailable = $Response.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $verified -and -not $unavailable) {
-        throw "BF-845 BLOCKED: $Stage exposed neither verified pairing nor the governed fail-closed pairing state."
+        throw "BF-845 BLOCKED: $Stage exposed neither confirmed opponent nor the governed fail-closed matchup state."
     }
 }
 
