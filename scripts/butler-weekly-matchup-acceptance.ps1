@@ -11,12 +11,22 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $appLauncher = Join-Path $scriptDir 'butler-app.ps1'
+$gradle = Join-Path $repoRoot 'gradlew.bat'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
 $git = (Get-Command git.exe -ErrorAction Stop).Source
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
+$localAppData = $env:LOCALAPPDATA
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+}
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    throw 'BF-841 BLOCKED: LocalApplicationData is unavailable.'
+}
+$configDir = Join-Path $localAppData 'Butler'
+$configPath = Join-Path $configDir 'app-league.txt'
 
-foreach ($required in @($appLauncher, $powershell, $taskkill, $git)) {
+foreach ($required in @($appLauncher, $gradle, $powershell, $taskkill, $git)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "BF-841 BLOCKED: required component not found at $required"
     }
@@ -146,6 +156,79 @@ function Assert-Contains {
     }
 }
 
+function Get-ConfiguredLeagueId {
+    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
+        throw 'BF-841 BLOCKED: Butler app league configuration is missing.'
+    }
+    $raw = [IO.File]::ReadAllText($configPath, [Text.Encoding]::ASCII).Trim()
+    $parsed = [Guid]::Empty
+    if ([string]::IsNullOrWhiteSpace($raw) -or -not [Guid]::TryParse($raw, [ref]$parsed)) {
+        throw 'BF-841 BLOCKED: Butler app league configuration is invalid.'
+    }
+    return $parsed.ToString('D').ToLowerInvariant()
+}
+
+function Get-ButlerDataDir {
+    $configured = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($configured)) {
+        $candidate = Join-Path $configDir 'data'
+    }
+    else {
+        if (-not [IO.Path]::IsPathRooted($configured)) {
+            throw 'BF-841 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.'
+        }
+        $candidate = $configured
+    }
+    $resolved = [IO.Path]::GetFullPath($candidate)
+    $databasePath = Join-Path $resolved 'butler.db'
+    if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
+        throw "BF-841 BLOCKED: governed Butler runtime database is missing at $databasePath"
+    }
+    return $resolved
+}
+
+function Invoke-MatchupPairingSync {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$DataDir
+    )
+
+    $previousDataDir = [string]$env:BUTLER_APP_DATA_DIR
+    $previousPreference = $ErrorActionPreference
+    $exitCode = -1
+    $lines = @()
+    try {
+        $env:BUTLER_APP_DATA_DIR = $DataDir
+        Push-Location $repoRoot
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = @(& $gradle ':bet:bet-cli:sleeperCurrentWeekMatchupSync' "--args=$LeagueId" 2>&1)
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+            $ErrorActionPreference = $previousPreference
+        }
+    }
+    finally {
+        if ([string]::IsNullOrWhiteSpace($previousDataDir)) {
+            Remove-Item Env:BUTLER_APP_DATA_DIR -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:BUTLER_APP_DATA_DIR = $previousDataDir
+        }
+    }
+
+    $text = ($lines | ForEach-Object { "$_" }) -join [Environment]::NewLine
+    if ($exitCode -ne 0) {
+        throw "BF-841 BLOCKED: BF-840 matchup pairing sync failed with Gradle exit code $exitCode. output=$text"
+    }
+    if ($text.IndexOf('BF-840 current weekly matchup pairing synchronized.', [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-841 BLOCKED: BF-840 matchup pairing sync did not report success. output=$text"
+    }
+    Write-Host 'Pairing sync: BF840_CURRENT_WEEK_EVIDENCE_VERIFIED'
+}
+
 $before = Get-WorkingTreeState
 if (-not [string]::IsNullOrWhiteSpace($before)) {
     throw "BF-841 BLOCKED: repository must be clean before acceptance. status=$before"
@@ -159,10 +242,16 @@ $passed = $false
 
 Write-Host 'Butler Weekly Matchup end-to-end acceptance (BF-841)'
 Write-Host "Target: $root"
-Write-Host 'Journey: health -> exact current pairing -> Lineup Advisor -> opponent roster context.'
-Write-Host 'Boundary: GET-only local Butler requests; /refresh excluded; no Butler or Sleeper transaction write.'
+Write-Host 'Journey: BF-840 exact-pairing sync -> health -> exact current pairing -> Lineup Advisor -> opponent roster context.'
+Write-Host 'Boundary: one explicit Butler-local matchup evidence sync, then GET-only local Butler requests; /refresh excluded; no Sleeper transaction write.'
+
+$leagueId = Get-ConfiguredLeagueId
+$dataDir = Get-ButlerDataDir
+Invoke-MatchupPairingSync -LeagueId $leagueId -DataDir $dataDir
 
 try {
+    $previousDataDir = [string]$env:BUTLER_APP_DATA_DIR
+    $env:BUTLER_APP_DATA_DIR = $dataDir
     $process = Start-OwnedButler -Port $port
     $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     $healthy = $false
@@ -238,6 +327,12 @@ finally {
     try { Stop-OwnedButler -Process $process -Port $port }
     catch {
         if ($null -eq $failure) { $failure = $_ } else { Write-Warning $_.Exception.Message }
+    }
+    if ([string]::IsNullOrWhiteSpace($previousDataDir)) {
+        Remove-Item Env:BUTLER_APP_DATA_DIR -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:BUTLER_APP_DATA_DIR = $previousDataDir
     }
 }
 
