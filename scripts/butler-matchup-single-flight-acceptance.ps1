@@ -131,7 +131,11 @@ function Assert-Matchup {
     param($Response, [string]$Stage)
 
     if ($Response.StatusCode -ne 200) {
-        throw "BF-845 BLOCKED: $Stage returned HTTP $($Response.StatusCode)."
+        $plain = [regex]::Replace([string]$Response.Body, '<[^>]+>', ' ')
+        $plain = [System.Net.WebUtility]::HtmlDecode($plain)
+        $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        if ($plain.Length -gt 900) { $plain = $plain.Substring(0, 900) + '...' }
+        throw "BF-845 BLOCKED: $Stage returned HTTP $($Response.StatusCode). body=$plain"
     }
     foreach ($marker in @('Weekly matchup','Lineup advisor','READ ONLY.')) {
         if ($Response.Body.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
