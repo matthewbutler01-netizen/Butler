@@ -285,7 +285,7 @@ try {
     foreach ($marker in @(
         'Butler - Weekly Matchup',
         'Weekly matchup',
-        'PAIRING VERIFIED',
+        'OPPONENT CONFIRMED',
         'Lineup advisor',
         'NOT REVIEWED',
         'href="/matchup/autofill"',
@@ -306,7 +306,7 @@ try {
     }
 
     foreach ($blocked in @(
-        'Opponent pairing unavailable',
+        'Opponent not confirmed',
         'Butler Weekly Matchup view blocked',
         'Internal Server Error'
     )) {
@@ -332,7 +332,7 @@ try {
     Assert-Ok -Response $review -Stage 'Weekly Matchup explicit lineup review'
     foreach ($marker in @(
         'Butler - Weekly Matchup',
-        'PAIRING VERIFIED',
+        'OPPONENT CONFIRMED',
         'Lineup advisor',
         'href="/matchup/autofill"',
         'Opponent context',
@@ -352,7 +352,7 @@ try {
         throw 'BF-846 BLOCKED: reviewed Weekly Matchup displayed a My Team return label for a Matchup destination.'
     }
     foreach ($blocked in @(
-        'Opponent pairing unavailable',
+        'Opponent not confirmed',
         'Butler Weekly Matchup view blocked',
         'Internal Server Error'
     )) {
