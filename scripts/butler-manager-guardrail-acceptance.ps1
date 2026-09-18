@@ -254,16 +254,16 @@ try {
         'Lineup advisor',
         'READ ONLY.'
     )
-    $verifiedPairing = $matchup.Body.IndexOf('PAIRING VERIFIED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    $unavailablePairing = $matchup.Body.IndexOf('Opponent pairing unavailable', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $verifiedPairing = $matchup.Body.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $unavailablePairing = $matchup.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $verifiedPairing -and -not $unavailablePairing) {
         throw 'BF-844 BLOCKED: Weekly Matchup exposed neither verified pairing nor the governed fail-closed pairing state.'
     }
     if ($verifiedPairing) {
-        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Pairing evidence','<details')
+        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Matchup details','<details')
     }
     else {
-        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup fail-closed pairing' -Markers @('EVIDENCE NEEDED')
+        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup fail-closed pairing' -Markers @('MATCHUP DATA NEEDED')
     }
     Assert-NoBettingPressure -Html $matchup.Body -Stage 'Weekly Matchup'
     Write-Host 'Matchup: DECISION_FIRST_AND_EVIDENCE_BOUNDARY_VERIFIED'
