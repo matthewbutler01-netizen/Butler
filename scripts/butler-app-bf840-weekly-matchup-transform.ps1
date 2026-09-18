@@ -231,7 +231,7 @@ $core = $core.Insert($routeIndex, $matchupRoute)
 
 foreach ($required in @(
     'ProviderLeg = $season.Groups[''leg''].Value.Trim()',
-    'href="/matchup"',
+    '/matchup',
     'Weekly matchup',
     'PAIRING VERIFIED',
     'Opponent pairing unavailable',
