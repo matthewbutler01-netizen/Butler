@@ -37,6 +37,7 @@ $dashboardBlock = $text.Substring($dashboardStart, $dashboardEnd - $dashboardSta
 
 $queueAnchor = '        $cardClass = if ($managerIndex -eq 0) { "manager-decision-card primary" } else { "manager-decision-card" }'
 $queueRouting = @'
+        # BF-843: Weekly Matchup owns lineup review routes; My Team remains roster repair/inspection.
         if ($kind -ceq "Lineup") {
             switch ([string]$lineupSignalStatus) {
                 "NOT REVIEWED" {
