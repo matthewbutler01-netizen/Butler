@@ -63,6 +63,20 @@ class ButlerAppShellBf845MatchupSingleFlightTest {
         assertFalse(optimization.contains("/matchup/autofill"));
     }
 
+
+    @Test
+    void liveAcceptanceKeepsPassiveOnlyWarmCacheBoundary() throws Exception {
+        String acceptance = source("scripts/butler-matchup-single-flight-acceptance.ps1");
+
+        assertTrue(acceptance.contains("cold passive Matchup -> immediate warm passive Matchup"));
+        assertTrue(acceptance.contains("Invoke-TimedGet -Url ($root + '/matchup')"));
+        assertTrue(acceptance.contains("Warm cache: VERIFIED"));
+        assertTrue(acceptance.contains("AutoFill cache boundary: PRESERVED"));
+        assertTrue(acceptance.contains("BF-845 RESULT: COMPLETE"));
+        assertFalse(acceptance.contains("'/matchup/autofill') -TimeoutMs"));
+        assertFalse(acceptance.contains("Method = 'POST'"));
+    }
+
     @Test
     void bf845WorkerRemainsAsciiOnly() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
