@@ -113,7 +113,11 @@ foreach ($required in @(
     }
 }
 
-$installedDashboard = $text.Substring($dashboardStart, $dashboardEnd - $dashboardStart)
+$installedDashboardEnd = $text.IndexOf('function ConvertTo-TeamHtml {', $dashboardStart, [System.StringComparison]::Ordinal)
+if ($installedDashboardEnd -le $dashboardStart) {
+    throw 'BF-843 BLOCKED: installed Dashboard renderer boundary is missing.'
+}
+$installedDashboard = $text.Substring($dashboardStart, $installedDashboardEnd - $dashboardStart)
 if ($installedDashboard -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
     throw 'BF-843 BLOCKED: Dashboard Matchup routing introduced provider, optimizer, or write behavior.'
 }
