@@ -37,8 +37,9 @@ class ButlerAppShellBf701ErrorBodyDiagnosticsTest {
     void loadCheckKeepsReadOnlyWorkloadAndRefreshGuard() throws Exception {
         String script = script("scripts/butler-read-load-check.ps1");
 
-        assertTrue(script.contains("$paths = @('/health', '/', '/team', '/waivers', '/league', '/trade', '/history')"));
+        assertTrue(script.contains("$paths = @('/health', '/', '/team', '/matchup', '/waivers', '/league', '/trade', '/history')"));
         assertTrue(script.contains("if ($paths -contains '/refresh')"));
+        assertTrue(script.contains("if ($paths -contains '/matchup/autofill')"));
         assertTrue(script.contains("$request.Method = 'GET'"));
         assertTrue(script.contains("$request.Proxy = $null"));
         assertTrue(script.contains("$request.KeepAlive = $false"));

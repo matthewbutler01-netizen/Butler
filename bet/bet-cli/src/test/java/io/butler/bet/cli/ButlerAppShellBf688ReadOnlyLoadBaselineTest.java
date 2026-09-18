@@ -28,9 +28,11 @@ class ButlerAppShellBf688ReadOnlyLoadBaselineTest {
     void pressureSetIsFixedReadOnlyAndExcludesRefresh() throws Exception {
         String script = script("scripts/butler-read-load-check.ps1");
 
-        assertTrue(script.contains("$paths = @('/health', '/', '/team', '/waivers', '/league', '/trade', '/history')"));
+        assertTrue(script.contains("$paths = @('/health', '/', '/team', '/matchup', '/waivers', '/league', '/trade', '/history')"));
         assertTrue(script.contains("if ($paths -contains '/refresh')"));
         assertTrue(script.contains("/refresh is forbidden in the read-only load path set."));
+        assertTrue(script.contains("if ($paths -contains '/matchup/autofill')"));
+        assertTrue(script.contains("/matchup/autofill is opt-in projection work and is forbidden in the passive peak-load path set."));
         assertTrue(script.contains("$request.Method = 'GET'"));
         assertFalse(script.contains("$request.Method = 'POST'"));
         assertFalse(script.contains("Invoke-DecisionRefreshRunner"));
