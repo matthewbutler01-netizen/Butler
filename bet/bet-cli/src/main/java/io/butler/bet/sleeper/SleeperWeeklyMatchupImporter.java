@@ -60,6 +60,9 @@ public final class SleeperWeeklyMatchupImporter {
         }
 
         var matchups = gateway.fetchMatchups(sleeperLeagueId, week);
+        if (matchups == null || matchups.isEmpty()) {
+            throw new IllegalStateException("Sleeper week " + week + " has no matchup evidence");
+        }
         SleeperMatchupParser.requireExactPairing(matchups);
 
         List<ResolvedMatchup> resolved = new ArrayList<>();
