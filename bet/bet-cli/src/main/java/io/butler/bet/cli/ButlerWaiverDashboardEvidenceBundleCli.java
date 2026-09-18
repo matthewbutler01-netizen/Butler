@@ -4,6 +4,7 @@ import io.butler.bet.data.Database;
 import io.butler.bet.sleeper.SleeperLiveWaiverCoalescedComparisonEvidence;
 import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
+import io.butler.bet.sleeper.SleeperLiveWaiverSharedTargetContext;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -60,7 +61,9 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
 
     private static void runFullBundle(String leagueId) throws Exception {
         Database database = initializedDatabase();
-        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+        var shared = new SleeperLiveWaiverSharedTargetContext(database).resolve(leagueId);
+        var target = shared.target();
+        var exactRosterContext = shared.rosterContext();
         String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
 
         var reports = runConcurrentPair(
@@ -70,7 +73,7 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
                 return new SummaryEvidence(summary, convergence);
             },
             () -> new SleeperLiveWaiverCoalescedComparisonEvidence(database)
-                .run(leagueId, target.sleeperUserId()));
+                .run(leagueId, target.sleeperUserId(), exactRosterContext));
 
         String summary = withVerifiedTarget(verifiedTarget, capture(() ->
             ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.print(
@@ -83,16 +86,18 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
         emit(SUMMARY, summary);
         emit(WAIVER_BOARD, waiverBoard);
         emit(ROSTER_CONTEXT, rosterContext);
-        System.out.println("Boundary: BF-762 composes the existing read-only Waiver Board summary and one coalesced comparison/target-roster evidence execution after one BF-623 target verification; the exact BF-610 report is shared only within this execution; no Butler or Sleeper write is executed.");
+        System.out.println("Boundary: BF-850 shares one live Sleeper snapshot across exact BF-623 target verification and BF-610 roster audit, then reuses that exact roster report for comparison; no Butler or Sleeper write is executed.");
     }
 
     private static void runComparisonRosterOnly(String leagueId) throws Exception {
         Database database = initializedDatabase();
-        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+        var shared = new SleeperLiveWaiverSharedTargetContext(database).resolve(leagueId);
+        var target = shared.target();
+        var exactRosterContext = shared.rosterContext();
         String verifiedTarget = capture(() -> ButlerPersonalizedTargetCliSupport.printVerified(target));
 
         var report = new SleeperLiveWaiverCoalescedComparisonEvidence(database)
-            .run(leagueId, target.sleeperUserId());
+            .run(leagueId, target.sleeperUserId(), exactRosterContext);
 
         String waiverBoard = withVerifiedTarget(verifiedTarget, capture(() ->
             ButlerSleeperLiveWaiverComparisonBundleCli.print(report.bundle())));
@@ -101,7 +106,7 @@ public final class ButlerWaiverDashboardEvidenceBundleCli {
 
         emit(WAIVER_BOARD, waiverBoard);
         emit(ROSTER_CONTEXT, rosterContext);
-        System.out.println("Boundary: BF-762 coalesces the existing read-only waiver comparison and target-roster context after one BF-623 target verification; the exact BF-610 report is produced once and used by both outputs. No Butler or Sleeper write is executed.");
+        System.out.println("Boundary: BF-850 shares one live Sleeper snapshot across exact BF-623 target verification and BF-610 roster audit, then reuses that exact roster report for comparison. No Butler or Sleeper write is executed.");
     }
 
     private static Database initializedDatabase() throws Exception {
