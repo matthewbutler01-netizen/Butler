@@ -18,6 +18,9 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
 
         for (String marker : new String[]{
                 "Butler Weekly Matchup end-to-end acceptance (BF-841)",
+                "BF-840 exact-pairing sync",
+                ":bet:bet-cli:sleeperCurrentWeekMatchupSync",
+                "BF840_CURRENT_WEEK_EVIDENCE_VERIFIED",
                 "/matchup",
                 "PAIRING VERIFIED",
                 "Lineup advisor",
@@ -43,8 +46,11 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
         String cmd = source("scripts/butler-weekly-matchup-acceptance.cmd");
 
         assertTrue(script.contains("$request.Method = 'GET'"));
+        assertTrue(script.contains("one explicit Butler-local matchup evidence sync"));
         assertTrue(script.contains("GET-only local Butler requests"));
         assertTrue(script.contains("/refresh excluded"));
+        assertTrue(script.contains("BUTLER_APP_DATA_DIR"));
+        assertTrue(script.contains("app-league.txt"));
         assertTrue(script.contains("taskkill /PID $Process.Id /T /F"));
         assertTrue(script.contains("running-port-{0}.txt"));
         assertTrue(script.contains("git status --porcelain=v1 --untracked-files=all"));
@@ -56,6 +62,8 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
         assertFalse(script.contains("Invoke-WebRequest"));
         assertFalse(script.contains("submitTransaction"));
         assertFalse(script.contains("setFaab"));
+        assertFalse(script.contains("/refresh'"));
+        assertFalse(script.contains("/refresh\""));
     }
 
     @Test
