@@ -70,6 +70,8 @@ class ButlerTradeAnalyzerAcceptanceBf839Test {
         assertTrue(script.contains("retired Trade Lab"));
         assertTrue(script.contains("repository must be clean before acceptance"));
         assertTrue(script.contains("repository became dirty during acceptance"));
+        assertTrue(script.contains("public recommendation exposed internal technical label"));
+        assertTrue(script.contains("Advanced technical record"));
     }
 
     private static String source(String relativePath) throws IOException {
