@@ -3,6 +3,7 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.Team;
@@ -32,6 +33,7 @@ class SleeperWeeklyMatchupImporterTest {
         FakeGateway gateway = new FakeGateway();
         SleeperWeeklyMatchupImporter importer = new SleeperWeeklyMatchupImporter(gateway, database);
         TeamWeekRosterEvidenceRepository evidence = new TeamWeekRosterEvidenceRepository(database);
+        TeamWeekMatchupEvidenceRepository matchupEvidence = new TeamWeekMatchupEvidenceRepository(database);
 
         var result = importer.importWeek("L1", 5);
         assertEquals(2, result.teamsImported());
@@ -42,6 +44,8 @@ class SleeperWeeklyMatchupImporterTest {
         var first = evidence.findLatest(team1.getId(), 2026, 5, "sleeper").orElseThrow();
         assertEquals(List.of("p3", "p1", "p2"), first.providerPlayerIds());
         assertEquals(List.of("p1", "0", "p3"), first.providerStarterIds());
+        assertEquals(12, matchupEvidence.findLatest(team1.getId(), 2026, 5, "sleeper").orElseThrow().providerMatchupId());
+        assertEquals(12, matchupEvidence.findLatest(team2.getId(), 2026, 5, "sleeper").orElseThrow().providerMatchupId());
 
         gateway.secondFixture = true;
         importer.importWeek("L1", 5);
@@ -102,17 +106,17 @@ class SleeperWeeklyMatchupImporterTest {
         @Override public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String leagueId, int week) {
             if (duplicateRoster) {
                 return List.of(
-                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p1"), List.of("p1")),
-                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p2"), List.of("p2")));
+                    new SleeperMatchupParser.SleeperMatchup(1, 12, List.of("p1"), List.of("p1")),
+                    new SleeperMatchupParser.SleeperMatchup(1, 12, List.of("p2"), List.of("p2")));
             }
             if (secondFixture) {
                 return List.of(
-                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p1", "p4"), List.of("p4")),
-                    new SleeperMatchupParser.SleeperMatchup(2, List.of("p9"), List.of("p9")));
+                    new SleeperMatchupParser.SleeperMatchup(1, 12, List.of("p1", "p4"), List.of("p4")),
+                    new SleeperMatchupParser.SleeperMatchup(2, 12, List.of("p9"), List.of("p9")));
             }
             return List.of(
-                new SleeperMatchupParser.SleeperMatchup(1, List.of("p3", "p1", "p2"), List.of("p1", "0", "p3")),
-                new SleeperMatchupParser.SleeperMatchup(2, List.of("p9", "p8"), List.of("p8")));
+                new SleeperMatchupParser.SleeperMatchup(1, 12, List.of("p3", "p1", "p2"), List.of("p1", "0", "p3")),
+                new SleeperMatchupParser.SleeperMatchup(2, 12, List.of("p9", "p8"), List.of("p8")));
         }
 
         @Override public Map<String, SleeperJsonParser.SleeperPlayer> fetchPlayers() {
