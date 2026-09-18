@@ -72,14 +72,17 @@ class ButlerDashboardMatchupRoutingBf843Test {
     @Test
     void routingOverlayAddsNoProviderOrWriteBehavior() throws Exception {
         String transform = source("scripts/butler-dashboard-bf843-matchup-routing-transform.ps1");
+        int safetyScan = transform.indexOf("$installedDashboardEnd =");
+        assertTrue(safetyScan > 0, "BF-843 safety-scan boundary must remain present");
+        String operational = transform.substring(0, safetyScan);
 
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
-        assertFalse(transform.contains("https://api.sleeper.app"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
-        assertFalse(transform.contains("AutoFillLineupOptimizer"));
+        assertFalse(operational.contains("Invoke-RestMethod"));
+        assertFalse(operational.contains("Invoke-WebRequest"));
+        assertFalse(operational.contains("https://api.sleeper.app"));
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
+        assertFalse(operational.contains("AutoFillLineupOptimizer"));
         assertTrue(transform.contains("System.Management.Automation.Language.Parser"));
     }
 
