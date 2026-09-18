@@ -18,7 +18,7 @@ class ButlerWeeklyMatchupLineupContextBf842Test {
 
         assertTrue(transform.contains("$path -eq \"/matchup\" -or $path -eq \"/matchup/autofill\""));
         assertTrue(transform.contains("$requestAutoFill = $path -eq \"/matchup/autofill\""));
-        assertTrue(transform.contains("$bundleArguments = if ($requestAutoFill) { \"$LeagueId --team-bundle-autofill\" } else { \"$LeagueId --team-bundle\" }"));
+        assertTrue(transform.contains("$bundleArguments = if ($requestAutoFill) { \"$LeagueId --weekly-matchup-bundle-autofill\" } else { \"$LeagueId --weekly-matchup-bundle\" }"));
         assertTrue(transform.contains("New-AutoFillIdleView"));
         assertTrue(transform.contains("ConvertTo-AutoFillView -Text"));
     }
