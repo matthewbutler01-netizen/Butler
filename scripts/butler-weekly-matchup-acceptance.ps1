@@ -300,6 +300,17 @@ try {
     if ($matchup.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: idle Weekly Matchup escaped to the My Team AutoFill route.'
     }
+    Assert-Contains -Html $matchup.Body -Marker 'Matchup details' -Stage 'Weekly Matchup plain-language details'
+    foreach ($legacyMatchupPhrase in @(
+        'PAIRING VERIFIED',
+        'EVIDENCE NEEDED',
+        'Pairing evidence',
+        'Opponent pairing unavailable'
+    )) {
+        if ($matchup.Body.IndexOf($legacyMatchupPhrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "BF-848 BLOCKED: Weekly Matchup exposed legacy engineering copy: $legacyMatchupPhrase"
+        }
+    }
     Assert-Contains -Html $matchup.Body -Marker '>Review Lineup</a>' -Stage 'Weekly Matchup idle action copy'
     if ($matchup.Body.IndexOf('>Run AutoFill</a>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-846 BLOCKED: idle Weekly Matchup exposed standalone My Team AutoFill wording.'
@@ -326,6 +337,7 @@ try {
     }
 
     Write-Host 'Matchup: EXACT_PAIRING_RENDERED'
+    Write-Host 'Matchup copy: PLAIN_LANGUAGE_VERIFIED'
     Write-Host 'Lineup idle: OPT_IN_REVIEW_VERIFIED'
 
     $review = Invoke-Get -Url ($root + '/matchup/autofill') -TimeoutMs $timeoutMs
