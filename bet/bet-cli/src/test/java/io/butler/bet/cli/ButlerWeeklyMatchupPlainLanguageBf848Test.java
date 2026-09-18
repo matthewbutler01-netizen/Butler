@@ -38,6 +38,8 @@ class ButlerWeeklyMatchupPlainLanguageBf848Test {
         assertTrue(transform.contains("Current Sleeper week is unavailable, so exact opponent pairing cannot be resolved."));
         assertTrue(transform.contains("will not guess or display one"));
         assertTrue(transform.contains("does not predict a winner"));
+        assertTrue(transform.contains("'does not predict a winner',"));
+        assertFalse(transform.contains("'not to predict a winner',"));
     }
 
     @Test
