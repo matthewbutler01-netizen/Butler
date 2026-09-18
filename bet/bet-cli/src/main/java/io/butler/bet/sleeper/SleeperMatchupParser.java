@@ -26,8 +26,11 @@ public final class SleeperMatchupParser {
         for (JsonNode node : root) {
             int rosterId = node.path("roster_id").asInt(0);
             if (rosterId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: roster_id");
+            int matchupId = node.path("matchup_id").asInt(0);
+            if (matchupId <= 0) throw new IllegalArgumentException("Missing or invalid Sleeper field: matchup_id");
             matchups.add(new SleeperMatchup(
                 rosterId,
+                matchupId,
                 stringList(node, "players"),
                 stringList(node, "starters")));
         }
@@ -49,9 +52,18 @@ public final class SleeperMatchupParser {
         return List.copyOf(result);
     }
 
-    public record SleeperMatchup(int rosterId, List<String> playerIds, List<String> starterIds) {
+    public record SleeperMatchup(int rosterId, int matchupId, List<String> playerIds, List<String> starterIds) {
+        /**
+         * Compatibility constructor for older synthetic fixtures that do not exercise matchup pairing.
+         * Production provider responses always use the four-argument constructor through parse().
+         */
+        public SleeperMatchup(int rosterId, List<String> playerIds, List<String> starterIds) {
+            this(rosterId, 1, playerIds, starterIds);
+        }
+
         public SleeperMatchup {
             if (rosterId <= 0) throw new IllegalArgumentException("rosterId must be positive");
+            if (matchupId <= 0) throw new IllegalArgumentException("matchupId must be positive");
             playerIds = List.copyOf(playerIds == null ? List.of() : playerIds);
             starterIds = List.copyOf(starterIds == null ? List.of() : starterIds);
         }
