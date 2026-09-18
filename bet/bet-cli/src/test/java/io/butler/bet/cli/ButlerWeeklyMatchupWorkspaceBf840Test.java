@@ -40,7 +40,7 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
                 "ConvertTo-RosterStrengthView",
                 "ConvertTo-PositionalPressureView",
                 "does not predict a winner",
-                "will not guess the opponent"
+                "will not guess or display one"
         }) {
             assertTrue(transform.contains(marker), "BF-840 matchup transform missing " + marker);
         }
