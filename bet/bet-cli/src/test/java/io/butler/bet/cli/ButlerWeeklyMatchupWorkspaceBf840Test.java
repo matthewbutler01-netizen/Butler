@@ -31,8 +31,8 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
         for (String marker : new String[]{
                 "/matchup",
                 "Weekly matchup",
-                "PAIRING VERIFIED",
-                "Opponent pairing unavailable",
+                "OPPONENT CONFIRMED",
+                "Opponent not confirmed",
                 "Current Sleeper week is unavailable",
                 ":bet:bet-cli:weeklyMatchupWorkspace",
                 "--team-bundle-autofill",
