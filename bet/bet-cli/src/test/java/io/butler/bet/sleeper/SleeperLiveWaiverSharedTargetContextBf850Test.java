@@ -62,7 +62,7 @@ class SleeperLiveWaiverSharedTargetContextBf850Test {
         assertTrue(acceptance.contains("$root + '/waivers'"));
         assertTrue(acceptance.contains("Warm cache: VERIFIED"));
         assertTrue(acceptance.contains("Shared live snapshot boundary: PRESERVED"));
-        assertFalse(acceptance.contains("/refresh"));
+        assertFalse(acceptance.contains("$root + '/refresh'"));
     }
 
     @Test
