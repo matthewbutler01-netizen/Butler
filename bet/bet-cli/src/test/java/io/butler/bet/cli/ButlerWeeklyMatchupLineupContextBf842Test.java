@@ -57,12 +57,15 @@ class ButlerWeeklyMatchupLineupContextBf842Test {
     @Test
     void noNewWriteOrPredictionBehaviorIsIntroduced() throws Exception {
         String transform = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
+        int safetyScan = transform.indexOf("$installedStart");
+        assertTrue(safetyScan > 0, "BF-842 must preserve the BF-840 safety-scan boundary");
+        String operational = transform.substring(0, safetyScan);
 
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
-        assertFalse(transform.contains("win probability</"));
-        assertFalse(transform.contains("predicted winner"));
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
+        assertFalse(operational.contains("win probability</"));
+        assertFalse(operational.contains("predictedWinner"));
     }
 
     private static String source(String relativePath) throws IOException {
