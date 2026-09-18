@@ -90,6 +90,14 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
     }
 
     @Test
+    void singleFlightAcceptanceSurfacesColdHttpFailureBody() throws Exception {
+        String acceptance = source("scripts/butler-matchup-single-flight-acceptance.ps1");
+
+        assertTrue(acceptance.contains("body=$plain"));
+        assertTrue(acceptance.contains("WebUtility]::HtmlDecode"));
+    }
+
+    @Test
     void standaloneWeeklyMatchupWorkspaceRemainsAvailableForDiagnostics() throws Exception {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
         String build = source("bet/bet-cli/build.gradle.kts");
