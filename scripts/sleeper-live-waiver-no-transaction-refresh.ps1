@@ -188,6 +188,10 @@ try {
         throw "BF-676 BLOCKED: decision state '$decisionState' is not authorized for browser refresh. No BF-602/BF-603/etc. write stage was executed."
     }
 
+    Invoke-Bf676GradleStep `
+        -Label 'BF-840 PRE-STAGE - exact weekly matchup pairing' `
+        -Task ':bet:bet-cli:sleeperCurrentWeekMatchupSync'
+
     $steps = @(
         @{ Order = 1; Bf = 'BF-602'; Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync' },
         @{ Order = 2; Bf = 'BF-603'; Task = ':bet:bet-cli:sleeperLiveWaiverMarketAttentionSync' },
