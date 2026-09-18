@@ -256,7 +256,7 @@ $matchupRoute = @'
                 continue
             }
 
-'@@
+'@
 $core = $core.Insert($routeIndex, $matchupRoute)
 
 foreach ($required in @(
