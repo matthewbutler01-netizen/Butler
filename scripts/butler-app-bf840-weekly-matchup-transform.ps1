@@ -119,7 +119,7 @@ function ConvertTo-MatchupOpponentContextHtml {
         }
     }
 
-    return "<section class=`"panel`"><div class=`"section-head`"><div><div class=`"eyebrow`">Opponent context</div><h2>Roster profile</h2><p class=`"lede`">Existing governed roster-strength and positional evidence only. This context does not predict a matchup winner.</p></div></div><div class=`"manager-metrics`"><div class=`"metric-card`"><span class=`"metric-label`">Roster strength</span><span class=`"metric-value`">$(ConvertTo-HtmlText $strengthText)</span><div class=`"meta`">$(ConvertTo-HtmlText $strengthEvidence)</div></div></div><div class=`"grid four`">$positionCards</div></section>"
+    return "<section class=`"panel`"><div class=`"section-head`"><div><div class=`"eyebrow`">Opponent context</div><h2>Roster profile</h2><p class=`"lede`">Roster-strength and positional context only. Butler does not use this section to predict a winner.</p></div></div><div class=`"manager-metrics`"><div class=`"metric-card`"><span class=`"metric-label`">Roster strength</span><span class=`"metric-value`">$(ConvertTo-HtmlText $strengthText)</span><div class=`"meta`">$(ConvertTo-HtmlText $strengthEvidence)</div></div></div><div class=`"grid four`">$positionCards</div></section>"
 }
 
 function ConvertTo-MatchupAutoFillHtml {
@@ -152,10 +152,10 @@ function ConvertTo-MatchupHtml {
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Weekly Matchup</title><style>$css</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $Roster.LeagueName) &middot; Week $(ConvertTo-HtmlText $Matchup.Week)</div></header>
 $nav
-<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">$(ConvertTo-HtmlText $displayTeam) vs. $(ConvertTo-HtmlText $Matchup.OpponentTeamName)</h1><p class="lede">Exact Sleeper matchup pairing for Week $(ConvertTo-HtmlText $Matchup.Week). Butler uses this page to organize your lineup decision and supported opponent context, not to predict a winner.</p></div><span class="status good">PAIRING VERIFIED</span></div><div class="stats"><div class="stat"><strong>Week</strong><span>$(ConvertTo-HtmlText $Matchup.Week)</span></div><div class="stat"><strong>Your team</strong><span>$(ConvertTo-HtmlText $displayTeam)</span></div><div class="stat"><strong>Opponent</strong><span>$(ConvertTo-HtmlText $Matchup.OpponentTeamName)</span></div></div><details><summary>Pairing evidence</summary><div class="technical">Sleeper matchup $(ConvertTo-HtmlText $Matchup.MatchupId) &middot; source $(ConvertTo-HtmlText $Matchup.Source) &middot; as-of $(ConvertTo-HtmlText $Matchup.AsOf)</div></details></section>
+<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">$(ConvertTo-HtmlText $displayTeam) vs. $(ConvertTo-HtmlText $Matchup.OpponentTeamName)</h1><p class="lede">Your Week $(ConvertTo-HtmlText $Matchup.Week) opponent is confirmed. Review your lineup and opponent context here; Butler does not predict a winner.</p></div><span class="status good">OPPONENT CONFIRMED</span></div><div class="stats"><div class="stat"><strong>Week</strong><span>$(ConvertTo-HtmlText $Matchup.Week)</span></div><div class="stat"><strong>Your team</strong><span>$(ConvertTo-HtmlText $displayTeam)</span></div><div class="stat"><strong>Opponent</strong><span>$(ConvertTo-HtmlText $Matchup.OpponentTeamName)</span></div></div><details><summary>Matchup details</summary><div class="technical">Sleeper matchup $(ConvertTo-HtmlText $Matchup.MatchupId) &middot; source $(ConvertTo-HtmlText $Matchup.Source) &middot; as-of $(ConvertTo-HtmlText $Matchup.AsOf)</div></details></section>
 $autoFillHtml
 $opponentHtml
-<section class="panel boundary"><span class="lock">READ ONLY.</span> Weekly Matchup uses exact persisted Sleeper pairing plus Butler's existing governed Lineup Advisor, roster-strength, and positional context. It does not calculate win probability, predict a winner, submit a lineup, refresh evidence automatically, or execute any Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Weekly Matchup uses your confirmed Sleeper opponent plus Butler's Lineup Advisor, roster-strength, and positional context. It does not calculate win probability, predict a winner, submit a lineup, refresh evidence automatically, or execute any Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -176,9 +176,9 @@ function ConvertTo-MatchupUnavailableHtml {
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Weekly Matchup</title><style>$css</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $Roster.LeagueName) &middot; $(ConvertTo-HtmlText $displayTeam)</div></header>
 $nav
-<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">Opponent pairing unavailable</h1><p class="lede">Butler could not prove the exact current Sleeper opponent, so no opponent is inferred or displayed.</p></div><span class="status warn">EVIDENCE NEEDED</span></div><div class="callout">$(ConvertTo-HtmlText $Reason)</div></section>
+<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">Opponent not confirmed</h1><p class="lede">Butler could not confirm your current Sleeper opponent, so it will not guess or display one.</p></div><span class="status warn">MATCHUP DATA NEEDED</span></div><div class="callout">$(ConvertTo-HtmlText $Reason)</div></section>
 $autoFillHtml
-<section class="panel boundary"><span class="lock">READ ONLY.</span> Butler keeps the lineup review available when supported, but it will not guess the opponent or imply a matchup result when exact pairing evidence is missing.</section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> You can still review your lineup, but Butler will not guess your opponent or imply a matchup result when matchup data is incomplete.</section>
 </main></body></html>
 "@
 }
@@ -251,9 +251,9 @@ foreach ($required in @(
     'ProviderLeg = $season.Groups[''leg''].Value.Trim()',
     '/matchup',
     'Weekly matchup',
-    'PAIRING VERIFIED',
-    'Opponent pairing unavailable',
-    'not to predict a winner',
+    'OPPONENT CONFIRMED',
+    'Opponent not confirmed',
+    'does not predict a winner',
     ':bet:bet-cli:weeklyMatchupWorkspace',
     '--team-bundle',
     '--team-bundle-autofill',

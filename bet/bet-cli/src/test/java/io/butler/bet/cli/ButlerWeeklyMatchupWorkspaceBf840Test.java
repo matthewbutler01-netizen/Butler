@@ -31,16 +31,16 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
         for (String marker : new String[]{
                 "/matchup",
                 "Weekly matchup",
-                "PAIRING VERIFIED",
-                "Opponent pairing unavailable",
+                "OPPONENT CONFIRMED",
+                "Opponent not confirmed",
                 "Current Sleeper week is unavailable",
                 ":bet:bet-cli:weeklyMatchupWorkspace",
                 "--team-bundle-autofill",
                 "ConvertTo-AutoFillHtml -AutoFill $AutoFill",
                 "ConvertTo-RosterStrengthView",
                 "ConvertTo-PositionalPressureView",
-                "not to predict a winner",
-                "will not guess the opponent"
+                "does not predict a winner",
+                "will not guess or display one"
         }) {
             assertTrue(transform.contains(marker), "BF-840 matchup transform missing " + marker);
         }
