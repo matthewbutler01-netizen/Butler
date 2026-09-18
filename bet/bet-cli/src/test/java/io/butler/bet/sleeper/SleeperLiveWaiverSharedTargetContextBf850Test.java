@@ -53,6 +53,18 @@ class SleeperLiveWaiverSharedTargetContextBf850Test {
     }
 
     @Test
+    void focusedAcceptanceMeasuresExactWaiverColdWarmPath() throws Exception {
+        String acceptance = source("scripts/butler-waiver-shared-snapshot-acceptance.ps1");
+
+        assertTrue(acceptance.contains("Cold Waivers:"));
+        assertTrue(acceptance.contains("Warm Waivers:"));
+        assertTrue(acceptance.contains("$root + '/waivers'"));
+        assertTrue(acceptance.contains("Warm cache: VERIFIED"));
+        assertTrue(acceptance.contains("Shared live snapshot boundary: PRESERVED"));
+        assertFalse(acceptance.contains("/refresh"));
+    }
+
+    @Test
     void standaloneLiveSourcesRemainAvailableOutsideBundleComposition() throws Exception {
         String target = source(
             "bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
