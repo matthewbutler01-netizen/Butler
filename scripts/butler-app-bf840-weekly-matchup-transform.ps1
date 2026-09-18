@@ -253,7 +253,7 @@ foreach ($required in @(
     'Weekly matchup',
     'OPPONENT CONFIRMED',
     'Opponent not confirmed',
-    'not to predict a winner',
+    'does not predict a winner',
     ':bet:bet-cli:weeklyMatchupWorkspace',
     '--team-bundle',
     '--team-bundle-autofill',
