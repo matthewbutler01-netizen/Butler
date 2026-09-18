@@ -94,10 +94,11 @@ function Get-AppNav {
     param([Parameter(Mandatory = $true)][string]$Active)
     $dashboardClass = if ($Active -ceq 'dashboard') { ' class="active"' } else { '' }
     $teamClass = if ($Active -ceq 'team') { ' class="active"' } else { '' }
+    $matchupClass = if ($Active -ceq 'matchup') { ' class="active"' } else { '' }
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
 }
 
 function Get-TradeLabLoadingHtml {
