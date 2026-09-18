@@ -240,10 +240,13 @@ if (-not (Test-Path -LiteralPath $bf837DashboardTransform -PathType Leaf)) {
 }
 & $bf837DashboardTransform -DashboardPath $DashboardPath
 
-# BF-843: after the final accepted Dashboard visual pass, route lineup decision actions
-# through Weekly Matchup while leaving roster-state repair on My Team.
-$bf843DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf843-matchup-routing-transform.ps1'
-if (-not (Test-Path -LiteralPath $bf843DashboardTransform -PathType Leaf)) {
-    throw "BF-843 BLOCKED: Dashboard Matchup routing transform not found at $bf843DashboardTransform"
+# BF-843: the Matchup route overlay targets the full app's BF-819 manager queue,
+# which only exists when the sibling staged core is present. Standalone BF-715 waivers
+# staging intentionally remains valid without the manager queue.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf843DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf843-matchup-routing-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf843DashboardTransform -PathType Leaf)) {
+        throw "BF-843 BLOCKED: Dashboard Matchup routing transform not found at $bf843DashboardTransform"
+    }
+    & $bf843DashboardTransform -DashboardPath $DashboardPath
 }
-& $bf843DashboardTransform -DashboardPath $DashboardPath
