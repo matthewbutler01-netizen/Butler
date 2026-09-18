@@ -66,7 +66,7 @@ $orderingPrelude = @'
             StatusClass = $tradeSignalClass
             AttentionGroup = $tradeAttentionGroup
             ExtraHtml = ""
-            ActionsHtml = '<a class="command-button" href="/trade">Open Trade Lab</a>'
+            ActionsHtml = '<a class="command-button" href="/trade">Open Trade Analyzer</a>'
         }
     )
 
