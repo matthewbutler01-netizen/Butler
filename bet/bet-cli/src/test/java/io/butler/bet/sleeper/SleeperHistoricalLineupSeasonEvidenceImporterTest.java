@@ -3,6 +3,7 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.Team;
@@ -40,6 +41,10 @@ class SleeperHistoricalLineupSeasonEvidenceImporterTest {
         assertTrue(evidence.findLatest("t1", 2025, 2, "sleeper").isEmpty());
         assertTrue(evidence.findLatest("t1", 2025, 3, "sleeper").isPresent());
         assertTrue(evidence.findLatest("t1", 2025, 4, "sleeper").isEmpty());
+
+        TeamWeekMatchupEvidenceRepository pairings = new TeamWeekMatchupEvidenceRepository(database);
+        assertEquals(11, pairings.findLatest("t1", 2025, 1, "sleeper").orElseThrow().providerMatchupId());
+        assertEquals(13, pairings.findLatest("t1", 2025, 3, "sleeper").orElseThrow().providerMatchupId());
     }
 
     private Database initializedLeague() throws Exception {
@@ -89,14 +94,14 @@ class SleeperHistoricalLineupSeasonEvidenceImporterTest {
             return switch (week) {
                 case 1 -> List.of(
                     new SleeperMatchupParser.SleeperMatchup(
-                        1, List.of("p1", "p2", "p3"), List.of("p1", "p2")),
+                        1, 11, List.of("p1", "p2", "p3"), List.of("p1", "p2")),
                     new SleeperMatchupParser.SleeperMatchup(
-                        2, List.of("p4", "p5"), List.of("p4")));
+                        2, 11, List.of("p4", "p5"), List.of("p4")));
                 case 3 -> List.of(
                     new SleeperMatchupParser.SleeperMatchup(
-                        1, List.of("p1", "p2", "p5"), List.of("p1", "p2")),
+                        1, 13, List.of("p1", "p2", "p5"), List.of("p1", "p2")),
                     new SleeperMatchupParser.SleeperMatchup(
-                        2, List.of("p3", "p4"), List.of("p3")));
+                        2, 13, List.of("p3", "p4"), List.of("p3")));
                 default -> List.of();
             };
         }
