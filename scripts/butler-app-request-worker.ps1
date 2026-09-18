@@ -180,6 +180,7 @@ function Get-ExpensiveReadSingleFlightKey {
         '/' { return 'ROOT' }
         '/waivers' { return 'WAIVERS' }
         '/league' { return 'LEAGUE' }
+        '/matchup' { return 'MATCHUP' }
         default { return $null }
     }
 }
@@ -459,7 +460,7 @@ try {
         $proxied = if ($requestTarget -ceq '/team') {
             Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
         }
-        elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league') {
+        elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league' -or $requestTarget -ceq '/matchup') {
             Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
         }
         else {
