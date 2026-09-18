@@ -231,8 +231,11 @@ function Invoke-MatchupPairingSync {
 }
 
 $matchupTransformSource = [IO.File]::ReadAllText($matchupTransform, [Text.Encoding]::UTF8)
-$routeStart = $matchupTransformSource.IndexOf('$matchupRoute = @''', [System.StringComparison]::Ordinal)
-$routeEnd = if ($routeStart -ge 0) { $matchupTransformSource.IndexOf("'@", $routeStart + 1, [System.StringComparison]::Ordinal) } else { -1 }
+$singleQuote = [char]39
+$routeMarker = '$matchupRoute = @' + $singleQuote
+$routeEndMarker = [string]$singleQuote + '@'
+$routeStart = $matchupTransformSource.IndexOf($routeMarker, [System.StringComparison]::Ordinal)
+$routeEnd = if ($routeStart -ge 0) { $matchupTransformSource.IndexOf($routeEndMarker, $routeStart + $routeMarker.Length, [System.StringComparison]::Ordinal) } else { -1 }
 if ($routeStart -lt 0 -or $routeEnd -le $routeStart) {
     throw 'BF-849 BLOCKED: Weekly Matchup route source could not be isolated.'
 }
