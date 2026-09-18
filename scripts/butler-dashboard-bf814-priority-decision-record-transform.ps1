@@ -91,7 +91,7 @@ $recordDerivation = @'
             }
             "Trade" {
                 $primaryRecordHtml = @"
-<section class="panel"><div class="decision-strip"><div><div class="eyebrow">Decision record</div><strong>No trade decision recorded</strong><span>No specific trade has been evaluated in the current Dashboard frame. Open Trade Lab with a deal or target before Butler can produce a trade record.</span></div><div class="status done">ON DEMAND</div></div><div class="manager-actions"><a class="command-button" href="/trade">Open Trade Lab</a></div></section>
+<section class="panel"><div class="decision-strip"><div><div class="eyebrow">Decision record</div><strong>No trade decision recorded</strong><span>No specific trade has been evaluated in the current Dashboard frame. Open Trade Analyzer with a deal or target before Butler can produce a trade record.</span></div><div class="status done">ON DEMAND</div></div><div class="manager-actions"><a class="command-button" href="/trade">Open Trade Analyzer</a></div></section>
 "@
             }
         }

@@ -34,7 +34,7 @@ class ButlerAppShellBf687StartupPresentationTest {
         assertTrue(shell.contains("My Team: http://127.0.0.1:$Port/team"));
         assertTrue(shell.contains("Waiver Board: http://127.0.0.1:$Port/waivers"));
         assertTrue(shell.contains("League: http://127.0.0.1:$Port/league"));
-        assertTrue(shell.contains("Trade Lab: http://127.0.0.1:$Port/trade"));
+        assertTrue(shell.contains("Trade Analyzer: http://127.0.0.1:$Port/trade"));
         assertTrue(shell.contains("History: http://127.0.0.1:$Port/history"));
         assertTrue(shell.contains("Manual decision refresh: http://127.0.0.1:$Port/refresh"));
         assertTrue(shell.contains("Bind: 127.0.0.1 only"));

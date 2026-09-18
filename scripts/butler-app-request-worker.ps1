@@ -449,7 +449,7 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         }
         catch {
-            $errorHtml = "<!doctype html><html><body><h1>Butler Trade Lab blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/trade`">Return to Trade Lab</a></p></body></html>"
+            $errorHtml = "<!doctype html><html><body><h1>Butler Trade Analyzer blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/trade`">Return to Trade Analyzer</a></p></body></html>"
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
         return
