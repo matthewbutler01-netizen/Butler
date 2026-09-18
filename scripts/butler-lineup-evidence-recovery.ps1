@@ -142,6 +142,43 @@ function Get-HydrationAudit {
     }
 }
 
+function Get-Bf840RosterFrame {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    $team = [regex]::Match($Text, '(?m)^Butler team id/name:\s+(?<id>\S+)\s+/\s+(?<name>.+?)\s*$')
+    $frame = [regex]::Match($Text, '(?m)^Provider season/status/leg:\s+(?<season>\d+)/(?<status>[^/]+)/(?<leg>\d+)\s*$')
+    if (-not $team.Success -or -not $frame.Success) {
+        throw 'BF-840 BLOCKED: verified target-roster output is missing exact team or current-week fields.'
+    }
+
+    return [pscustomobject]@{
+        TeamId = $team.Groups['id'].Value.Trim()
+        Season = [int]$frame.Groups['season'].Value
+        Week = [int]$frame.Groups['leg'].Value
+    }
+}
+
+function Test-Bf840MatchupEvidence {
+    param([Parameter(Mandatory = $true)][string]$RosterAuditText)
+
+    $frame = Get-Bf840RosterFrame -Text $RosterAuditText
+    $result = Invoke-ButlerRuntimeCommand -MainClass 'io.butler.bet.cli.ButlerLeagueTeamWeekMatchupEvidenceCli' -Arguments @('league', 'team-week-matchup-evidence', $LeagueId, $frame.TeamId, [string]$frame.Season, [string]$frame.Week)
+
+    if ($result.ExitCode -eq 0) {
+        if ($result.Text.IndexOf('State: EXACT_PAIR_VERIFIED', [System.StringComparison]::Ordinal) -lt 0) {
+            throw 'BF-840 BLOCKED: matchup evidence command succeeded without EXACT_PAIR_VERIFIED.'
+        }
+        return [pscustomobject]@{ Available = $true; Text = $result.Text }
+    }
+
+    if ($result.Text.IndexOf('BF-840 BLOCKED:', [System.StringComparison]::Ordinal) -ge 0) {
+        return [pscustomobject]@{ Available = $false; Text = $result.Text }
+    }
+
+    $tail = Get-BoundedTail -Text $result.Text
+    throw "BF-840 BLOCKED: matchup evidence probe failed outside the governed missing/invalid evidence boundary; output=$tail"
+}
+
 $parsedLeagueId = [Guid]::Empty
 if (-not [Guid]::TryParse($LeagueId, [ref]$parsedLeagueId)) {
     throw 'BF-823 BLOCKED: Butler league id is invalid.'
@@ -181,7 +218,14 @@ else {
     $preflight = Invoke-ButlerRuntimeCommand -MainClass $bf610Class -Arguments @($LeagueId)
     if ($preflight.ExitCode -eq 0) {
         if ($ProbeOnly) {
-            Write-Output 'BF-823 PROBE: NO_RECOVERY_REQUIRED'
+            $matchupProbe = Test-Bf840MatchupEvidence -RosterAuditText $preflight.Text
+            if ($matchupProbe.Available) {
+                Write-Output 'BF-823 PROBE: NO_RECOVERY_REQUIRED'
+            }
+            else {
+                Write-Output 'BF-823 PROBE: RECOVERY_REQUIRED'
+                Write-Output 'BF-823 PROBE REASON: MATCHUP_EVIDENCE'
+            }
             return
         }
     }
@@ -227,12 +271,21 @@ if ($audit.UnmappedCount -gt 0) {
 
 $rosterCheck = Invoke-ButlerRuntimeCommand -MainClass $bf610Class -Arguments @($LeagueId)
 $rebuildEvidence = $false
+$syncMatchupEvidence = $false
 if ($rosterCheck.ExitCode -eq 0) {
-    Write-Output 'BF-823: BF-610 roster evidence is already current; downstream evidence writes are not required.'
+    $matchupProbe = Test-Bf840MatchupEvidence -RosterAuditText $rosterCheck.Text
+    if ($matchupProbe.Available) {
+        Write-Output 'BF-823: BF-610 roster evidence and BF-840 weekly matchup pairing are already current.'
+    }
+    else {
+        $syncMatchupEvidence = $true
+        Write-Output 'BF-823: BF-610 roster evidence is current; BF-840 weekly matchup pairing needs Butler-local refresh.'
+    }
 }
 elseif ($rosterCheck.Text.IndexOf($driftPrefix, [System.StringComparison]::Ordinal) -ge 0 -and
         $rosterCheck.Text.IndexOf($driftSuffix, [System.StringComparison]::Ordinal) -ge 0) {
     $rebuildEvidence = $true
+    $syncMatchupEvidence = $true
     Write-Output 'BF-823: exact BF-610 roster drift verified; governed downstream evidence recovery is authorized.'
 }
 else {
@@ -254,7 +307,23 @@ if ($rebuildEvidence) {
     }
 }
 
-[void](Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -Arguments @($LeagueId))
+$postRoster = Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -Arguments @($LeagueId)
+
+if (-not $syncMatchupEvidence) {
+    $postMatchupProbe = Test-Bf840MatchupEvidence -RosterAuditText $postRoster.Text
+    $syncMatchupEvidence = -not $postMatchupProbe.Available
+}
+
+if ($syncMatchupEvidence) {
+    [void](Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' -Label 'BF-840 current-week matchup evidence sync' -Arguments @($LeagueId))
+    $verifiedMatchup = Test-Bf840MatchupEvidence -RosterAuditText $postRoster.Text
+    if (-not $verifiedMatchup.Available) {
+        $tail = Get-BoundedTail -Text $verifiedMatchup.Text
+        throw "BF-840 BLOCKED: current-week matchup sync completed without an exact verified opponent pair; output=$tail"
+    }
+    Write-Output 'BF-840 MATCHUP EVIDENCE: VERIFIED'
+}
+
 [void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -Arguments @($LeagueId))
 
 Write-Output 'BF-823 RECOVERY: VERIFIED'
