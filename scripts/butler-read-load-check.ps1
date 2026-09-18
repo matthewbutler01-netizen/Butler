@@ -16,9 +16,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$paths = @('/health', '/', '/team', '/waivers', '/league', '/trade', '/history')
+$paths = @('/health', '/', '/team', '/matchup', '/waivers', '/league', '/trade', '/history')
 if ($paths -contains '/refresh') {
     throw 'BF-688 BLOCKED: /refresh is forbidden in the read-only load path set.'
+}
+if ($paths -contains '/matchup/autofill') {
+    throw 'BF-844 BLOCKED: /matchup/autofill is opt-in projection work and is forbidden in the passive peak-load path set.'
 }
 
 function Get-ButlerBaseUri {
