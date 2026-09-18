@@ -28,12 +28,14 @@ class ButlerWeeklyMatchupActionCopyBf846Test {
     }
 
     @Test
-    void standaloneTeamLineupAdvisorCopyRemainsUnchanged() throws Exception {
+    void matchupAdapterRemainsScopedFromStandaloneTeamCopy() throws Exception {
         String lineup = source("scripts/butler-app-bf817-lineup-advisor-transform.ps1");
+        String matchup = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
 
-        assertTrue(lineup.contains(">Run AutoFill</a>"));
+        assertTrue(lineup.contains(">Review Lineup</a>"));
         assertTrue(lineup.contains(">Back to My Team</a>"));
         assertFalse(lineup.contains(">Back to Matchup</a>"));
+        assertTrue(matchup.contains(">Back to My Team</a>', '>Back to Matchup</a>"));
     }
 
     @Test

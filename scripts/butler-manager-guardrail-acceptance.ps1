@@ -227,6 +227,26 @@ try {
     Assert-NoBettingPressure -Html $dashboard.Body -Stage 'Dashboard'
     Write-Host 'Dashboard: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'
 
+    $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
+    Assert-Ok -Response $team -Stage 'My Team'
+    Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @(
+        'Lineup advisor',
+        'Review Lineup',
+        'href="/team/autofill"',
+        'READ ONLY.'
+    )
+    foreach ($legacyLineupPhrase in @(
+        'Run AutoFill',
+        'AutoFill review',
+        'run AutoFill'
+    )) {
+        if ($team.Body.IndexOf($legacyLineupPhrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "BF-847 BLOCKED: My Team exposed internal lineup jargon: $legacyLineupPhrase"
+        }
+    }
+    Assert-NoBettingPressure -Html $team.Body -Stage 'My Team'
+    Write-Host 'My Team: LINEUP_REVIEW_LANGUAGE_VERIFIED'
+
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Ok -Response $matchup -Stage 'Weekly Matchup'
     Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup' -Markers @(
