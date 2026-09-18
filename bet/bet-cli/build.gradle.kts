@@ -347,6 +347,13 @@ val sleeperLiveWaiverRecommendationEvidenceAgeTelemetry by tasks.registering(Jav
     mainClass.set("io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationEvidenceAgeTelemetryCli")
 }
 
+val weeklyMatchupWorkspace by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Read-only BF-840 exact persisted weekly matchup workspace."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("io.butler.bet.cli.ButlerWeeklyMatchupWorkspaceCli")
+}
+
 val sleeperPersonalTargetDiscovery by tasks.registering(JavaExec::class) {
     group = "application"
     description = "Read-only BF-621 exact requesting-user Sleeper account, current league, and roster discovery."
