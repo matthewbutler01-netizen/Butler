@@ -54,6 +54,7 @@ if ([string]::IsNullOrWhiteSpace([string]$java)) {
 $mainClass = switch ($Task) {
     ':bet:bet-cli:run' { 'io.butler.bet.cli.ButlerCommandRouter'; break }
     ':bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAuditCli'; break }
+    ':bet:bet-cli:weeklyMatchupWorkspace' { 'io.butler.bet.cli.ButlerWeeklyMatchupWorkspaceCli'; break }
     ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli'; break }
     ':bet:bet-cli:sleeperLiveWaiverComparisonBundle' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'; break }
     ':bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverGovernedExplanationLookupCli'; break }
