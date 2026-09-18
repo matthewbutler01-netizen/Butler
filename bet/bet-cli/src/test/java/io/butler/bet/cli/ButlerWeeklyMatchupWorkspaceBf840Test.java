@@ -57,10 +57,14 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
         String build = source("bet/bet-cli/build.gradle.kts");
         String history = source("scripts/butler-decision-history.ps1");
         String tradeHost = source("scripts/butler-trade-lab-host.ps1");
+        String refresh = source("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
         assertTrue(dispatch.contains(":bet:bet-cli:weeklyMatchupWorkspace"));
         assertTrue(dispatch.contains("ButlerWeeklyMatchupWorkspaceCli"));
         assertTrue(build.contains("val weeklyMatchupWorkspace by tasks.registering(JavaExec::class)"));
+        assertTrue(build.contains("val sleeperCurrentWeekMatchupSync by tasks.registering(JavaExec::class)"));
+        assertTrue(refresh.contains("BF-840 PRE-STAGE - exact weekly matchup pairing"));
+        assertTrue(refresh.contains(":bet:bet-cli:sleeperCurrentWeekMatchupSync"));
         assertTrue(history.contains("href=\"/matchup\""));
         assertTrue(tradeHost.contains("href=\"/matchup\""));
     }
