@@ -3,18 +3,21 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
+import io.butler.bet.domain.Team;
+import io.butler.bet.domain.TeamWeekMatchupEvidence;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
-/** Imports raw week-specific Sleeper matchup roster membership without scoring or lineup inference. */
+/** Imports raw week-specific Sleeper roster evidence plus exact matchup pairing without inference. */
 public final class SleeperWeeklyMatchupImporter {
     private static final String SOURCE = "sleeper";
 
@@ -22,6 +25,7 @@ public final class SleeperWeeklyMatchupImporter {
     private final LeagueRepository leagues;
     private final TeamRepository teams;
     private final TeamWeekRosterEvidenceRepository evidence;
+    private final TeamWeekMatchupEvidenceRepository matchupEvidence;
 
     public SleeperWeeklyMatchupImporter(Database database) {
         this(new SleeperApiGateway(), database);
@@ -33,6 +37,7 @@ public final class SleeperWeeklyMatchupImporter {
         this.leagues = new LeagueRepository(database);
         this.teams = new TeamRepository(database);
         this.evidence = new TeamWeekRosterEvidenceRepository(database);
+        this.matchupEvidence = new TeamWeekMatchupEvidenceRepository(database);
     }
 
     public ImportResult importWeek(String sleeperLeagueId, int week)
@@ -55,31 +60,44 @@ public final class SleeperWeeklyMatchupImporter {
         }
 
         var matchups = gateway.fetchMatchups(sleeperLeagueId, week);
-        LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
-        Set<Integer> seenRosterIds = new HashSet<>();
-        int imported = 0;
+        SleeperMatchupParser.requireExactPairing(matchups);
+
+        List<ResolvedMatchup> resolved = new ArrayList<>();
         for (var matchup : matchups) {
-            if (!seenRosterIds.add(matchup.rosterId())) {
-                throw new IllegalStateException("Duplicate Sleeper matchup roster_id: " + matchup.rosterId());
-            }
             String rosterExternalId = Integer.toString(matchup.rosterId());
-            var team = teams.findByExternalId(league.getId(), rosterExternalId)
+            Team team = teams.findByExternalId(league.getId(), rosterExternalId)
                 .orElseThrow(() -> new IllegalStateException(
                     "Sleeper roster " + rosterExternalId + " is not mapped to an imported team"));
+            resolved.add(new ResolvedMatchup(team, matchup));
+        }
+
+        LocalDate asOfDate = LocalDate.now(ZoneOffset.UTC);
+        for (ResolvedMatchup row : resolved) {
+            var matchup = row.matchup();
             evidence.save(TeamWeekRosterEvidence.create(
                 league.getId(),
-                team.getId(),
+                row.team().getId(),
                 sourceLeague.season(),
                 week,
                 matchup.playerIds(),
                 matchup.starterIds(),
                 SOURCE,
                 asOfDate));
-            imported++;
+            matchupEvidence.save(TeamWeekMatchupEvidence.create(
+                league.getId(),
+                row.team().getId(),
+                sourceLeague.season(),
+                week,
+                matchup.matchupId(),
+                SOURCE,
+                asOfDate));
         }
 
-        return new ImportResult(league.getId(), sourceLeague.season(), week, SOURCE, imported);
+        return new ImportResult(
+            league.getId(), sourceLeague.season(), week, SOURCE, resolved.size());
     }
+
+    private record ResolvedMatchup(Team team, SleeperMatchupParser.SleeperMatchup matchup) {}
 
     public record ImportResult(String leagueId, int season, int week, String source, int teamsImported) {
         public ImportResult {
