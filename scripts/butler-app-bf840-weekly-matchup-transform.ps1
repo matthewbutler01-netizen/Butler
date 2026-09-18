@@ -202,8 +202,8 @@ $matchupRoute = @'
             if ($path -eq "/matchup" -or $path -eq "/matchup/autofill") {
                 try {
                     $requestAutoFill = $path -eq "/matchup/autofill"
-                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --team-bundle-autofill" } else { "$LeagueId --team-bundle" }
-                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-842"
+                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --weekly-matchup-bundle-autofill" } else { "$LeagueId --weekly-matchup-bundle" }
+                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-849"
                     $rosterView = ConvertTo-RosterContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_CONTEXT")
                     $autoFill = if ($requestAutoFill) {
                         ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
@@ -220,10 +220,133 @@ $matchupRoute = @'
                     }
 
                     try {
-                        $rawMatchup = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:weeklyMatchupWorkspace" -Arguments "$($rosterView.SleeperLeagueId) $($rosterView.ButlerTeamId) $($rosterView.Season) $week" -BoundaryName "BF-842"
+                        $rawMatchup = Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"
+                        $unavailable = [regex]::Match($rawMatchup, '(?m)^State:\s+UNAVAILABLE\s*                        $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
+                        $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
+                        $opponentStrength = ConvertTo-RosterStrengthView -Text $strengthText -TeamId $matchup.OpponentTeamId
+                        $opponentPressure = ConvertTo-PositionalPressureView -Text $pressureText -TeamId $matchup.OpponentTeamId
+                        $html = ConvertTo-MatchupHtml -Roster $rosterView -Matchup $matchup -AutoFill $autoFill -OpponentStrength $opponentStrength -OpponentPressure $opponentPressure
+                    }
+                    catch {
+                        $html = ConvertTo-MatchupUnavailableHtml -Roster $rosterView -AutoFill $autoFill -Reason $_.Exception.Message
+                    }
+
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
+                }
+                catch {
+                    $errorHtml = "<!doctype html><html><body><h1>Butler Weekly Matchup view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                    Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
+                }
+                continue
+            }
+
+'@
+$core = $core.Insert($routeIndex, $matchupRoute)
+
+foreach ($required in @(
+    'ProviderLeg = $season.Groups[''leg''].Value.Trim()',
+    '/matchup',
+    'Weekly matchup',
+    'OPPONENT CONFIRMED',
+    'Opponent not confirmed',
+    'does not predict a winner',
+    '--weekly-matchup-bundle',
+    '--weekly-matchup-bundle-autofill',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"',
+    '/matchup/autofill',
+    'New-AutoFillIdleView',
+    'ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-840 BLOCKED: required weekly-matchup marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function ConvertTo-WeeklyMatchupView {', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function ConvertTo-LeagueHtml {', $installedStart, [System.StringComparison]::Ordinal)
+$installedBlock = $core.Substring($installedStart, $installedEnd - $installedStart)
+if ($installedBlock -match 'winnerProbability|predictedWinner|Method = "POST"|submitTransaction|setFaab|Invoke-RestMethod|https://api\.sleeper\.app') {
+    throw 'BF-840 BLOCKED: Weekly Matchup presentation introduced prediction, provider, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-840 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+                        if ($unavailable.Success) {
+                            $reason = [regex]::Match($rawMatchup, '(?m)^Reason:\s+(?<value>.+?)\s*                        $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
+                        $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
+                        $opponentStrength = ConvertTo-RosterStrengthView -Text $strengthText -TeamId $matchup.OpponentTeamId
+                        $opponentPressure = ConvertTo-PositionalPressureView -Text $pressureText -TeamId $matchup.OpponentTeamId
+                        $html = ConvertTo-MatchupHtml -Roster $rosterView -Matchup $matchup -AutoFill $autoFill -OpponentStrength $opponentStrength -OpponentPressure $opponentPressure
+                    }
+                    catch {
+                        $html = ConvertTo-MatchupUnavailableHtml -Roster $rosterView -AutoFill $autoFill -Reason $_.Exception.Message
+                    }
+
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
+                }
+                catch {
+                    $errorHtml = "<!doctype html><html><body><h1>Butler Weekly Matchup view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                    Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
+                }
+                continue
+            }
+
+'@
+$core = $core.Insert($routeIndex, $matchupRoute)
+
+foreach ($required in @(
+    'ProviderLeg = $season.Groups[''leg''].Value.Trim()',
+    '/matchup',
+    'Weekly matchup',
+    'OPPONENT CONFIRMED',
+    'Opponent not confirmed',
+    'does not predict a winner',
+    ':bet:bet-cli:weeklyMatchupWorkspace',
+    '--team-bundle',
+    '--team-bundle-autofill',
+    '/matchup/autofill',
+    'New-AutoFillIdleView',
+    'ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-840 BLOCKED: required weekly-matchup marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function ConvertTo-WeeklyMatchupView {', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function ConvertTo-LeagueHtml {', $installedStart, [System.StringComparison]::Ordinal)
+$installedBlock = $core.Substring($installedStart, $installedEnd - $installedStart)
+if ($installedBlock -match 'winnerProbability|predictedWinner|Method = "POST"|submitTransaction|setFaab|Invoke-RestMethod|https://api\.sleeper\.app') {
+    throw 'BF-840 BLOCKED: Weekly Matchup presentation introduced prediction, provider, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-840 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+                            if (-not $reason.Success) {
+                                throw "BF-849 BLOCKED: unavailable bundled matchup is missing a reason."
+                            }
+                            throw $reason.Groups['value'].Value.Trim()
+                        }
+
                         $matchup = ConvertTo-WeeklyMatchupView -Text $rawMatchup
                         if ($matchup.UserTeamId -cne $rosterView.ButlerTeamId -or $matchup.Week -ne $week -or $matchup.Season -ne $rosterView.Season) {
-                            throw "BF-842 BLOCKED: exact matchup frame does not match the bound roster frame."
+                            throw "BF-849 BLOCKED: exact matchup frame does not match the bound roster frame."
                         }
                         $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
                         $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
