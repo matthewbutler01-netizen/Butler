@@ -225,6 +225,13 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-837 BLOCKED: final staged-core visual transform not found at $bf837CoreTransform"
     }
     & $bf837CoreTransform -CorePath $stagedCore
+
+    # BF-840: add exact weekly matchup only after the accepted manager visual system is final.
+    $bf840Transform = Join-Path $PSScriptRoot 'butler-app-bf840-weekly-matchup-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf840Transform -PathType Leaf)) {
+        throw "BF-840 BLOCKED: weekly matchup transform not found at $bf840Transform"
+    }
+    & $bf840Transform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'

@@ -8,11 +8,13 @@ import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.LeagueConfigurationObservation;
 import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerFantasyPositionObservation;
 import io.butler.bet.domain.Team;
+import io.butler.bet.domain.TeamWeekMatchupEvidence;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
 
 import java.io.IOException;
@@ -40,6 +42,7 @@ public final class SleeperHistoricalLineupEvidenceImporter {
     private final PlayerFantasyPositionObservationRepository fantasyPositionObservations;
     private final LeagueConfigurationObservationRepository configurations;
     private final TeamWeekRosterEvidenceRepository rosterEvidence;
+    private final TeamWeekMatchupEvidenceRepository matchupEvidence;
 
     public SleeperHistoricalLineupEvidenceImporter(Database database) {
         this(new SleeperApiHistoricalSource(), database);
@@ -54,6 +57,7 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         this.fantasyPositionObservations = new PlayerFantasyPositionObservationRepository(database);
         this.configurations = new LeagueConfigurationObservationRepository(database);
         this.rosterEvidence = new TeamWeekRosterEvidenceRepository(database);
+        this.matchupEvidence = new TeamWeekMatchupEvidenceRepository(database);
     }
 
     public ImportResult syncWeek(String butlerLeagueId, int targetSeason, int week)
@@ -123,6 +127,14 @@ public final class SleeperHistoricalLineupEvidenceImporter {
                 week,
                 matchup.playerIds(),
                 matchup.starterIds(),
+                SOURCE,
+                asOfDate));
+            matchupEvidence.save(TeamWeekMatchupEvidence.create(
+                leagueId,
+                entry.getValue().getId(),
+                targetSeason,
+                week,
+                matchup.matchupId(),
                 SOURCE,
                 asOfDate));
             teamsImported++;
@@ -277,6 +289,7 @@ public final class SleeperHistoricalLineupEvidenceImporter {
         if (matchups == null || matchups.isEmpty()) {
             throw new IllegalStateException("historical Sleeper week has no matchup evidence");
         }
+        SleeperMatchupParser.requireExactPairing(matchups);
         Map<String, SleeperMatchupParser.SleeperMatchup> result = new LinkedHashMap<>();
         for (var matchup : matchups) {
             String rosterId = Integer.toString(matchup.rosterId());

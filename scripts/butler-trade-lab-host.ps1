@@ -97,7 +97,7 @@ function Get-AppNav {
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
 }
 
 function Get-TradeLabLoadingHtml {
@@ -136,9 +136,12 @@ $nav
 
 function Add-TradeNavigation {
     param([Parameter(Mandatory = $true)][string]$Html)
-    if ($Html -match 'href="/trade"') { return $Html }
+    if ($Html -match 'href="/trade"' -and $Html -match 'href="/matchup"') { return $Html }
     if ($Html -notmatch '<nav class="nav" aria-label="Butler sections">') {
         throw 'BF-670 BLOCKED: proxied Butler HTML is missing the navigation contract.'
     }
-    return $Html.Replace('</nav>', '<a href="/trade">Trade Analyzer</a></nav>')
+    $links = ''
+    if ($Html -notmatch 'href="/matchup"') { $links += '<a href="/matchup">Matchup</a>' }
+    if ($Html -notmatch 'href="/trade"') { $links += '<a href="/trade">Trade Analyzer</a>' }
+    return $Html.Replace('</nav>', "$links</nav>")
 }

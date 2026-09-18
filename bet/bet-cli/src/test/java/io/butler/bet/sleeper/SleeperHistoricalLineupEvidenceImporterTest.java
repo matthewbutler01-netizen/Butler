@@ -6,6 +6,7 @@ import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.PlayerFantasyPositionObservationRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
 import io.butler.bet.domain.League;
 import io.butler.bet.domain.Player;
@@ -65,6 +66,10 @@ class SleeperHistoricalLineupEvidenceImporterTest {
             .findLatest("t2", 2025, 1, "sleeper").orElseThrow();
         assertEquals(List.of("p4", "p5"), team2.providerPlayerIds());
         assertEquals(List.of("p4"), team2.providerStarterIds());
+
+        var pairings = new TeamWeekMatchupEvidenceRepository(database);
+        assertEquals(12, pairings.findLatest("t1", 2025, 1, "sleeper").orElseThrow().providerMatchupId());
+        assertEquals(12, pairings.findLatest("t2", 2025, 1, "sleeper").orElseThrow().providerMatchupId());
     }
 
     @Test
@@ -152,8 +157,8 @@ class SleeperHistoricalLineupEvidenceImporterTest {
             @Override
             public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String sleeperLeagueId, int week) {
                 return List.of(
-                    new SleeperMatchupParser.SleeperMatchup(1, List.of("p1"), List.of("p1", "0", "0")),
-                    new SleeperMatchupParser.SleeperMatchup(2, List.of("p4"), List.of("p4", "0")));
+                    new SleeperMatchupParser.SleeperMatchup(1, 12, List.of("p1"), List.of("p1", "0", "0")),
+                    new SleeperMatchupParser.SleeperMatchup(2, 12, List.of("p4"), List.of("p4", "0")));
             }
         };
 
@@ -205,9 +210,9 @@ class SleeperHistoricalLineupEvidenceImporterTest {
         public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String sleeperLeagueId, int week) {
             return List.of(
                 new SleeperMatchupParser.SleeperMatchup(
-                    1, List.of("p1", "p2", "p3"), List.of("p1", "p2")),
+                    1, 12, List.of("p1", "p2", "p3"), List.of("p1", "p2")),
                 new SleeperMatchupParser.SleeperMatchup(
-                    2, List.of("p4", "p5"), List.of("p4")));
+                    2, 12, List.of("p4", "p5"), List.of("p4")));
         }
 
         @Override
