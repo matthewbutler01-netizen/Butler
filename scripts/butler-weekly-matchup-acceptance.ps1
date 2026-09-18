@@ -280,19 +280,25 @@ try {
 
     $timeoutMs = $RequestTimeoutSeconds * 1000
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
-    Assert-Ok -Response $matchup -Stage 'Weekly Matchup'
+    Assert-Ok -Response $matchup -Stage 'Weekly Matchup idle state'
 
     foreach ($marker in @(
         'Butler - Weekly Matchup',
         'Weekly matchup',
         'PAIRING VERIFIED',
         'Lineup advisor',
+        'NOT REVIEWED',
+        'href="/matchup/autofill"',
         'Opponent context',
         'Roster profile',
         'href="/matchup"',
         'READ ONLY.'
     )) {
-        Assert-Contains -Html $matchup.Body -Marker $marker -Stage 'Weekly Matchup'
+        Assert-Contains -Html $matchup.Body -Marker $marker -Stage 'Weekly Matchup idle state'
+    }
+
+    if ($matchup.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-842 BLOCKED: idle Weekly Matchup escaped to the My Team AutoFill route.'
     }
 
     foreach ($blocked in @(
@@ -316,7 +322,38 @@ try {
     }
 
     Write-Host 'Matchup: EXACT_PAIRING_RENDERED'
-    Write-Host 'Lineup: GOVERNED_LINEUP_ADVISOR_RENDERED'
+    Write-Host 'Lineup idle: OPT_IN_REVIEW_VERIFIED'
+
+    $review = Invoke-Get -Url ($root + '/matchup/autofill') -TimeoutMs $timeoutMs
+    Assert-Ok -Response $review -Stage 'Weekly Matchup explicit lineup review'
+    foreach ($marker in @(
+        'Butler - Weekly Matchup',
+        'PAIRING VERIFIED',
+        'Lineup advisor',
+        'href="/matchup/autofill"',
+        'Opponent context',
+        'Roster profile',
+        'READ ONLY.'
+    )) {
+        Assert-Contains -Html $review.Body -Marker $marker -Stage 'Weekly Matchup explicit lineup review'
+    }
+    if ($review.Body.IndexOf('NOT REVIEWED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-842 BLOCKED: explicit Matchup AutoFill request remained in NOT REVIEWED state.'
+    }
+    if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
+    }
+    foreach ($blocked in @(
+        'Opponent pairing unavailable',
+        'Butler Weekly Matchup view blocked',
+        'Internal Server Error'
+    )) {
+        if ($review.Body.IndexOf($blocked, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "BF-842 BLOCKED: explicit Weekly Matchup review rendered a fail-closed surface: $blocked"
+        }
+    }
+
+    Write-Host 'Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED'
     Write-Host 'Opponent: GOVERNED_OPPONENT_CONTEXT_RENDERED'
     $passed = $true
 }

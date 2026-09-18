@@ -122,6 +122,15 @@ function ConvertTo-MatchupOpponentContextHtml {
     return "<section class=`"panel`"><div class=`"section-head`"><div><div class=`"eyebrow`">Opponent context</div><h2>Roster profile</h2><p class=`"lede`">Existing governed roster-strength and positional evidence only. This context does not predict a matchup winner.</p></div></div><div class=`"manager-metrics`"><div class=`"metric-card`"><span class=`"metric-label`">Roster strength</span><span class=`"metric-value`">$(ConvertTo-HtmlText $strengthText)</span><div class=`"meta`">$(ConvertTo-HtmlText $strengthEvidence)</div></div></div><div class=`"grid four`">$positionCards</div></section>"
 }
 
+function ConvertTo-MatchupAutoFillHtml {
+    param([Parameter(Mandatory = $true)]$AutoFill)
+
+    $html = ConvertTo-AutoFillHtml -AutoFill $AutoFill
+    $html = $html.Replace('href="/team/autofill"', 'href="/matchup/autofill"')
+    $html = $html.Replace('href="/team"', 'href="/matchup"')
+    return $html
+}
+
 function ConvertTo-MatchupHtml {
     param(
         [Parameter(Mandatory = $true)]$Roster,
@@ -134,7 +143,7 @@ function ConvertTo-MatchupHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'matchup'
     $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
-    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
     $opponentHtml = ConvertTo-MatchupOpponentContextHtml -Strength $OpponentStrength -Pressure $OpponentPressure
 
     return @"
@@ -159,7 +168,7 @@ function ConvertTo-MatchupUnavailableHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'matchup'
     $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
-    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Weekly Matchup</title><style>$css</style></head><body><main class="shell">
@@ -188,11 +197,18 @@ if ($routeIndex -lt 0) {
 }
 
 $matchupRoute = @'
-            if ($path -eq "/matchup") {
+            if ($path -eq "/matchup" -or $path -eq "/matchup/autofill") {
                 try {
-                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments "$LeagueId --team-bundle-autofill" -BoundaryName "BF-840"
+                    $requestAutoFill = $path -eq "/matchup/autofill"
+                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --team-bundle-autofill" } else { "$LeagueId --team-bundle" }
+                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-842"
                     $rosterView = ConvertTo-RosterContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_CONTEXT")
-                    $autoFill = ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
+                    $autoFill = if ($requestAutoFill) {
+                        ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
+                    }
+                    else {
+                        New-AutoFillIdleView
+                    }
 
                     $week = 0
                     if (-not [int]::TryParse([string]$rosterView.ProviderLeg, [ref]$week) -or $week -le 0) {
@@ -202,10 +218,10 @@ $matchupRoute = @'
                     }
 
                     try {
-                        $rawMatchup = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:weeklyMatchupWorkspace" -Arguments "$($rosterView.SleeperLeagueId) $($rosterView.ButlerTeamId) $($rosterView.Season) $week" -BoundaryName "BF-840"
+                        $rawMatchup = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:weeklyMatchupWorkspace" -Arguments "$($rosterView.SleeperLeagueId) $($rosterView.ButlerTeamId) $($rosterView.Season) $week" -BoundaryName "BF-842"
                         $matchup = ConvertTo-WeeklyMatchupView -Text $rawMatchup
                         if ($matchup.UserTeamId -cne $rosterView.ButlerTeamId -or $matchup.Week -ne $week -or $matchup.Season -ne $rosterView.Season) {
-                            throw "BF-840 BLOCKED: exact matchup frame does not match the bound roster frame."
+                            throw "BF-842 BLOCKED: exact matchup frame does not match the bound roster frame."
                         }
                         $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
                         $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
@@ -237,8 +253,11 @@ foreach ($required in @(
     'Opponent pairing unavailable',
     'not to predict a winner',
     ':bet:bet-cli:weeklyMatchupWorkspace',
+    '--team-bundle',
     '--team-bundle-autofill',
-    'ConvertTo-AutoFillHtml -AutoFill $AutoFill'
+    '/matchup/autofill',
+    'New-AutoFillIdleView',
+    'ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-840 BLOCKED: required weekly-matchup marker is missing: $required"
