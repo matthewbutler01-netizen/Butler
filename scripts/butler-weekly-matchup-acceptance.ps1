@@ -300,6 +300,10 @@ try {
     if ($matchup.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: idle Weekly Matchup escaped to the My Team AutoFill route.'
     }
+    Assert-Contains -Html $matchup.Body -Marker '>Review Lineup</a>' -Stage 'Weekly Matchup idle action copy'
+    if ($matchup.Body.IndexOf('>Run AutoFill</a>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-846 BLOCKED: idle Weekly Matchup exposed standalone My Team AutoFill wording.'
+    }
 
     foreach ($blocked in @(
         'Opponent pairing unavailable',
@@ -343,6 +347,10 @@ try {
     if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
     }
+    Assert-Contains -Html $review.Body -Marker '>Back to Matchup</a>' -Stage 'Weekly Matchup reviewed action copy'
+    if ($review.Body.IndexOf('>Back to My Team</a>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-846 BLOCKED: reviewed Weekly Matchup displayed a My Team return label for a Matchup destination.'
+    }
     foreach ($blocked in @(
         'Opponent pairing unavailable',
         'Butler Weekly Matchup view blocked',
@@ -354,6 +362,7 @@ try {
     }
 
     Write-Host 'Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED'
+    Write-Host 'Action copy: MATCHUP_CONTEXT_VERIFIED'
     Write-Host 'Opponent: GOVERNED_OPPONENT_CONTEXT_RENDERED'
     $passed = $true
 }
