@@ -72,7 +72,7 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
         assertTrue(route.contains("--weekly-matchup-bundle"));
         assertTrue(route.contains("--weekly-matchup-bundle-autofill"));
         assertTrue(route.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP\""));
-        assertTrue(route.contains("State:\\s+UNAVAILABLE"));
+        assertTrue(route.contains("State: UNAVAILABLE"));
         assertTrue(route.contains("exact matchup frame does not match the bound roster frame"));
         assertTrue(occurrences(route, "Invoke-ButlerReadOnlyTask") == 1,
             "BF-849 Matchup route must use exactly one governed task call");
