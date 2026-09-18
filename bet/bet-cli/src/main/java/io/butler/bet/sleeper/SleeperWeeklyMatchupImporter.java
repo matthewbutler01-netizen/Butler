@@ -3,7 +3,9 @@ package io.butler.bet.sleeper;
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.data.TeamWeekMatchupEvidenceRepository;
 import io.butler.bet.data.TeamWeekRosterEvidenceRepository;
+import io.butler.bet.domain.TeamWeekMatchupEvidence;
 import io.butler.bet.domain.TeamWeekRosterEvidence;
 
 import java.io.IOException;
@@ -22,6 +24,7 @@ public final class SleeperWeeklyMatchupImporter {
     private final LeagueRepository leagues;
     private final TeamRepository teams;
     private final TeamWeekRosterEvidenceRepository evidence;
+    private final TeamWeekMatchupEvidenceRepository matchupEvidence;
 
     public SleeperWeeklyMatchupImporter(Database database) {
         this(new SleeperApiGateway(), database);
@@ -33,6 +36,7 @@ public final class SleeperWeeklyMatchupImporter {
         this.leagues = new LeagueRepository(database);
         this.teams = new TeamRepository(database);
         this.evidence = new TeamWeekRosterEvidenceRepository(database);
+        this.matchupEvidence = new TeamWeekMatchupEvidenceRepository(database);
     }
 
     public ImportResult importWeek(String sleeperLeagueId, int week)
@@ -73,6 +77,14 @@ public final class SleeperWeeklyMatchupImporter {
                 week,
                 matchup.playerIds(),
                 matchup.starterIds(),
+                SOURCE,
+                asOfDate));
+            matchupEvidence.save(TeamWeekMatchupEvidence.create(
+                league.getId(),
+                team.getId(),
+                sourceLeague.season(),
+                week,
+                matchup.matchupId(),
                 SOURCE,
                 asOfDate));
             imported++;
