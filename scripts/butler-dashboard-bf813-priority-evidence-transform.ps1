@@ -155,7 +155,7 @@ $evidenceDerivation = @'
 <div class="evidence-grid">
   <div class="evidence-card"><strong>Roster check</strong><div class="evidence-value">$(ConvertTo-HtmlText $evidenceRosterStatusText)</div><div class="evidence-note">$(ConvertTo-HtmlText $verification.Roster)</div></div>
   <div class="evidence-card"><strong>Trade review</strong><div class="evidence-value">On demand</div><div class="evidence-note">No specific trade is being evaluated from the Dashboard.</div></div>
-  <div class="evidence-card"><strong>Trade evidence</strong><div class="evidence-value">Not loaded</div><div class="evidence-note">Open Trade Lab with a specific deal or target before relying on trade evidence.</div></div>
+  <div class="evidence-card"><strong>Trade evidence</strong><div class="evidence-value">Not loaded</div><div class="evidence-note">Open Trade Analyzer with a specific deal or target before relying on trade evidence.</div></div>
   <div class="evidence-card"><strong>Decision scope</strong><div class="evidence-value">Specific deal required</div><div class="evidence-note">Butler will not invent a trade trust frame without an evaluated proposal.</div></div>
 </div>
 "@
