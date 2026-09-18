@@ -16,6 +16,7 @@ class ButlerTradeAnalyzerNamingBf838Test {
     void managerFacingRuntimeSourcesUseTradeAnalyzerName() throws Exception {
         for (String path : new String[]{
                 "scripts/butler-app-shell.ps1",
+                "scripts/butler-app-request-worker.ps1",
                 "scripts/butler-dashboard.ps1",
                 "scripts/butler-app-shell-core.ps1",
                 "scripts/butler-app-shell-core-single.ps1",
@@ -35,11 +36,14 @@ class ButlerTradeAnalyzerNamingBf838Test {
     @Test
     void startupAndDashboardTradeGuidanceUseCanonicalName() throws Exception {
         String shell = source("scripts/butler-app-shell.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
         String priorities = source("scripts/butler-dashboard-bf807-priority-ordering-transform.ps1");
         String evidence = source("scripts/butler-dashboard-bf813-priority-evidence-transform.ps1");
         String record = source("scripts/butler-dashboard-bf814-priority-decision-record-transform.ps1");
 
         assertTrue(shell.contains("Trade Analyzer: http://127.0.0.1:$Port/trade"));
+        assertTrue(worker.contains("Butler Trade Analyzer blocked"));
+        assertTrue(worker.contains("Return to Trade Analyzer"));
         assertTrue(priorities.contains("Open Trade Analyzer"));
         assertTrue(evidence.contains("Open Trade Analyzer with a specific deal or target"));
         assertTrue(record.contains("Open Trade Analyzer with a deal or target"));
