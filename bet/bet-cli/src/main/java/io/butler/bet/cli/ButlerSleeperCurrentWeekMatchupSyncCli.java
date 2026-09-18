@@ -8,14 +8,12 @@ import java.nio.file.Path;
 
 /** Explicit Butler evidence-write CLI for the current exact Sleeper matchup pairing. */
 public final class ButlerSleeperCurrentWeekMatchupSyncCli {
-    private static final Path DATABASE_PATH = Path.of("butler.db");
-
     private ButlerSleeperCurrentWeekMatchupSyncCli() {}
 
     public static void main(String[] args) {
         try {
             String leagueId = parse(args);
-            Database database = new Database(DATABASE_PATH);
+            Database database = new Database(databasePath(System.getenv("BUTLER_APP_DATA_DIR")));
             database.initialize();
 
             var live = new SleeperLiveSeasonOperationalReadinessAudit(database).audit(leagueId);
@@ -49,6 +47,17 @@ public final class ButlerSleeperCurrentWeekMatchupSyncCli {
             System.err.println("Error: " + safeMessage(e));
             System.exit(2);
         }
+    }
+
+    static Path databasePath(String configuredDataDir) {
+        if (configuredDataDir == null || configuredDataDir.isBlank()) {
+            return Path.of("butler.db");
+        }
+        Path dataDir = Path.of(configuredDataDir.trim());
+        if (!dataDir.isAbsolute()) {
+            throw new IllegalArgumentException("BUTLER_APP_DATA_DIR must be an absolute path");
+        }
+        return dataDir.resolve("butler.db");
     }
 
     static String parse(String[] args) {
