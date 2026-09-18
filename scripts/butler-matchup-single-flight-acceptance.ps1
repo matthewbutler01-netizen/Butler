@@ -131,17 +131,21 @@ function Assert-Matchup {
     param($Response, [string]$Stage)
 
     if ($Response.StatusCode -ne 200) {
-        throw "BF-845 BLOCKED: $Stage returned HTTP $($Response.StatusCode)."
+        $plain = [regex]::Replace([string]$Response.Body, '<[^>]+>', ' ')
+        $plain = [System.Net.WebUtility]::HtmlDecode($plain)
+        $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        if ($plain.Length -gt 900) { $plain = $plain.Substring(0, 900) + '...' }
+        throw "BF-845 BLOCKED: $Stage returned HTTP $($Response.StatusCode). body=$plain"
     }
     foreach ($marker in @('Weekly matchup','Lineup advisor','READ ONLY.')) {
         if ($Response.Body.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
             throw "BF-845 BLOCKED: $Stage is missing governed Matchup marker: $marker"
         }
     }
-    $verified = $Response.Body.IndexOf('PAIRING VERIFIED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    $unavailable = $Response.Body.IndexOf('Opponent pairing unavailable', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $verified = $Response.Body.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $unavailable = $Response.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $verified -and -not $unavailable) {
-        throw "BF-845 BLOCKED: $Stage exposed neither verified pairing nor the governed fail-closed pairing state."
+        throw "BF-845 BLOCKED: $Stage exposed neither confirmed opponent nor the governed fail-closed matchup state."
     }
 }
 

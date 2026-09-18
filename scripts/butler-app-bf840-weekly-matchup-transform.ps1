@@ -94,6 +94,38 @@ function ConvertTo-WeeklyMatchupView {
     }
 }
 
+function ConvertTo-MatchupRosterContextView {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    $state = [regex]::Match($Text, '(?m)^State:\s+(?<value>READY)\s*$')
+    $sleeperLeague = [regex]::Match($Text, '(?m)^Sleeper league ID:\s+(?<value>\S+)\s*$')
+    $leagueName = [regex]::Match($Text, '(?m)^League name:\s+(?<value>.+?)\s*$')
+    $rosterId = [regex]::Match($Text, '(?m)^Roster ID:\s+(?<value>\d+)\s*$')
+    $butlerTeamId = [regex]::Match($Text, '(?m)^Butler team ID:\s+(?<value>\S+)\s*$')
+    $butlerTeamName = [regex]::Match($Text, '(?m)^Butler team name:\s+(?<value>.+?)\s*$')
+    $season = [regex]::Match($Text, '(?m)^Season:\s+(?<value>\d+)\s*$')
+    $providerStatus = [regex]::Match($Text, '(?m)^Provider status:\s+(?<value>\S+)\s*$')
+    $week = [regex]::Match($Text, '(?m)^Week:\s+(?<value>\d+)\s*$')
+
+    foreach ($required in @($state,$sleeperLeague,$leagueName,$rosterId,$butlerTeamId,$butlerTeamName,$season,$providerStatus,$week)) {
+        if (-not $required.Success) {
+            throw 'BF-849 BLOCKED: persisted Matchup context is missing a required field.'
+        }
+    }
+
+    return [pscustomobject]@{
+        SleeperLeagueId = $sleeperLeague.Groups['value'].Value.Trim()
+        LeagueName = $leagueName.Groups['value'].Value.Trim()
+        RosterId = [int]$rosterId.Groups['value'].Value
+        TeamName = $butlerTeamName.Groups['value'].Value.Trim()
+        ButlerTeamId = $butlerTeamId.Groups['value'].Value.Trim()
+        ButlerTeamName = $butlerTeamName.Groups['value'].Value.Trim()
+        Season = [int]$season.Groups['value'].Value
+        ProviderStatus = $providerStatus.Groups['value'].Value.Trim()
+        ProviderLeg = $week.Groups['value'].Value.Trim()
+    }
+}
+
 function ConvertTo-MatchupOpponentContextHtml {
     param(
         [Parameter(Mandatory = $true)]$Strength,
@@ -202,9 +234,9 @@ $matchupRoute = @'
             if ($path -eq "/matchup" -or $path -eq "/matchup/autofill") {
                 try {
                     $requestAutoFill = $path -eq "/matchup/autofill"
-                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --team-bundle-autofill" } else { "$LeagueId --team-bundle" }
-                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-842"
-                    $rosterView = ConvertTo-RosterContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_CONTEXT")
+                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --weekly-matchup-bundle-autofill" } else { "$LeagueId --weekly-matchup-bundle" }
+                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-849"
+                    $rosterView = ConvertTo-MatchupRosterContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT")
                     $autoFill = if ($requestAutoFill) {
                         ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
                     }
@@ -220,10 +252,22 @@ $matchupRoute = @'
                     }
 
                     try {
-                        $rawMatchup = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:weeklyMatchupWorkspace" -Arguments "$($rosterView.SleeperLeagueId) $($rosterView.ButlerTeamId) $($rosterView.Season) $week" -BoundaryName "BF-842"
+                        $rawMatchup = Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"
+                        if ($rawMatchup.IndexOf("State: UNAVAILABLE", [System.StringComparison]::Ordinal) -ge 0) {
+                            $reasonMarker = "Reason: "
+                            $reasonStart = $rawMatchup.IndexOf($reasonMarker, [System.StringComparison]::Ordinal)
+                            if ($reasonStart -lt 0) {
+                                throw "BF-849 BLOCKED: unavailable bundled matchup is missing a reason."
+                            }
+                            $reasonStart += $reasonMarker.Length
+                            $reasonEnd = $rawMatchup.IndexOf([Environment]::NewLine, $reasonStart, [System.StringComparison]::Ordinal)
+                            if ($reasonEnd -lt 0) { $reasonEnd = $rawMatchup.Length }
+                            throw $rawMatchup.Substring($reasonStart, $reasonEnd - $reasonStart).Trim()
+                        }
+
                         $matchup = ConvertTo-WeeklyMatchupView -Text $rawMatchup
                         if ($matchup.UserTeamId -cne $rosterView.ButlerTeamId -or $matchup.Week -ne $week -or $matchup.Season -ne $rosterView.Season) {
-                            throw "BF-842 BLOCKED: exact matchup frame does not match the bound roster frame."
+                            throw "BF-849 BLOCKED: exact matchup frame does not match the bound roster frame."
                         }
                         $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
                         $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
@@ -254,9 +298,11 @@ foreach ($required in @(
     'OPPONENT CONFIRMED',
     'Opponent not confirmed',
     'does not predict a winner',
-    ':bet:bet-cli:weeklyMatchupWorkspace',
-    '--team-bundle',
-    '--team-bundle-autofill',
+    '--weekly-matchup-bundle',
+    '--weekly-matchup-bundle-autofill',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT"',
+    'ConvertTo-MatchupRosterContextView',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"',
     '/matchup/autofill',
     'New-AutoFillIdleView',
     'ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill'

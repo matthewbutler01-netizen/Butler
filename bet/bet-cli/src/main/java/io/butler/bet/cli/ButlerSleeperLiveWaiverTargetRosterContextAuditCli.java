@@ -10,6 +10,14 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
     private ButlerSleeperLiveWaiverTargetRosterContextAuditCli() {}
 
     public static void main(String[] args) {
+        if (isWeeklyMatchupAutoFillBundle(args)) {
+            ButlerWeeklyMatchupEvidenceBundleCli.main(new String[]{args[0].trim(), "--autofill"});
+            return;
+        }
+        if (isWeeklyMatchupBundle(args)) {
+            ButlerWeeklyMatchupEvidenceBundleCli.main(new String[]{args[0].trim()});
+            return;
+        }
         if (isTeamAutoFillBundle(args)) {
             ButlerMyTeamEvidenceBundleCli.main(new String[]{args[0].trim(), "--autofill"});
             return;
@@ -44,6 +52,22 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    static boolean isWeeklyMatchupAutoFillBundle(String[] args) {
+        return args != null
+            && args.length == 2
+            && args[0] != null
+            && !args[0].isBlank()
+            && "--weekly-matchup-bundle-autofill".equals(args[1]);
+    }
+
+    static boolean isWeeklyMatchupBundle(String[] args) {
+        return args != null
+            && args.length == 2
+            && args[0] != null
+            && !args[0].isBlank()
+            && "--weekly-matchup-bundle".equals(args[1]);
     }
 
     static boolean isTeamAutoFillBundle(String[] args) {

@@ -33,7 +33,7 @@ class ButlerWeeklyMatchupPlainLanguageBf848Test {
     void plainLanguagePassPreservesExactPairingAndFailClosedLogic() throws Exception {
         String transform = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
 
-        assertTrue(transform.contains(":bet:bet-cli:weeklyMatchupWorkspace"));
+        assertTrue(transform.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP\""));
         assertTrue(transform.contains("exact matchup frame does not match the bound roster frame"));
         assertTrue(transform.contains("Current Sleeper week is unavailable, so exact opponent pairing cannot be resolved."));
         assertTrue(transform.contains("will not guess or display one"));

@@ -11,6 +11,7 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $appLauncher = Join-Path $scriptDir 'butler-app.ps1'
+$matchupTransform = Join-Path $scriptDir 'butler-app-bf840-weekly-matchup-transform.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
@@ -26,7 +27,7 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 $configDir = Join-Path $localAppData 'Butler'
 $configPath = Join-Path $configDir 'app-league.txt'
 
-foreach ($required in @($appLauncher, $gradle, $powershell, $taskkill, $git)) {
+foreach ($required in @($appLauncher, $matchupTransform, $gradle, $powershell, $taskkill, $git)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "BF-841 BLOCKED: required component not found at $required"
     }
@@ -229,6 +230,34 @@ function Invoke-MatchupPairingSync {
     Write-Host 'Pairing sync: BF840_CURRENT_WEEK_EVIDENCE_VERIFIED'
 }
 
+$matchupTransformSource = [IO.File]::ReadAllText($matchupTransform, [Text.Encoding]::UTF8)
+$singleQuote = [char]39
+$routeMarker = '$matchupRoute = @' + $singleQuote
+$routeEndMarker = [string]$singleQuote + '@'
+$routeStart = $matchupTransformSource.IndexOf($routeMarker, [System.StringComparison]::Ordinal)
+$routeEnd = if ($routeStart -ge 0) { $matchupTransformSource.IndexOf($routeEndMarker, $routeStart + $routeMarker.Length, [System.StringComparison]::Ordinal) } else { -1 }
+if ($routeStart -lt 0 -or $routeEnd -le $routeStart) {
+    throw 'BF-849 BLOCKED: Weekly Matchup route source could not be isolated.'
+}
+$routeSource = $matchupTransformSource.Substring($routeStart, $routeEnd - $routeStart)
+if ([regex]::Matches($routeSource, 'Invoke-ButlerReadOnlyTask').Count -ne 1) {
+    throw 'BF-849 BLOCKED: Weekly Matchup route must use exactly one governed task call.'
+}
+foreach ($marker in @(
+    '--weekly-matchup-bundle',
+    '--weekly-matchup-bundle-autofill',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT"',
+    'ConvertTo-MatchupRosterContextView',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"'
+)) {
+    if ($routeSource.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-849 BLOCKED: Weekly Matchup single-bundle route is missing marker: $marker"
+    }
+}
+if ($routeSource.IndexOf(':bet:bet-cli:weeklyMatchupWorkspace', [System.StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-849 BLOCKED: Weekly Matchup route still invokes the standalone matchup workspace task.'
+}
+
 $before = Get-WorkingTreeState
 if (-not [string]::IsNullOrWhiteSpace($before)) {
     throw "BF-841 BLOCKED: repository must be clean before acceptance. status=$before"
@@ -277,6 +306,7 @@ try {
         throw "BF-841 FAILED: Butler did not become healthy within $StartupTimeoutSeconds seconds."
     }
     Write-Host 'Health: BUTLER_APP_SHELL_VERIFIED'
+    Write-Host 'Matchup bundle: SINGLE_JVM_COMPOSITION_VERIFIED'
 
     $timeoutMs = $RequestTimeoutSeconds * 1000
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
