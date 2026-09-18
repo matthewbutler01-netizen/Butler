@@ -27,6 +27,7 @@ public final class ButlerCommandRouter {
             case LEAGUE_PLAYER_SCORE -> ButlerLeaguePlayerScoreCli.main(args);
             case LEAGUE_SCORED_PRODUCTION_EVIDENCE -> ButlerLeagueScoredProductionEvidenceCli.main(args);
             case LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE -> ButlerLeagueTeamScoredProductionEvidenceCli.main(args);
+            case LEAGUE_TEAM_WEEK_MATCHUP_EVIDENCE -> ButlerLeagueTeamWeekMatchupEvidenceCli.main(args);
             case LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP -> ButlerLeagueTeamWeekPotentialLineupCli.main(args);
             case LEAGUE_TEAM_WEEK_STARTED_LINEUP_EVIDENCE -> ButlerLeagueTeamWeekStartedLineupEvidenceCli.main(args);
             case LEAGUE_TEAM_WEEK_LINEUP_POINTS_GAP_EVIDENCE -> ButlerLeagueTeamWeekLineupPointsGapEvidenceCli.main(args);
@@ -129,6 +130,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "league") && equals(args[1], "player-score")) return Route.LEAGUE_PLAYER_SCORE;
             if (equals(args[0], "league") && equals(args[1], "scored-production-evidence")) return Route.LEAGUE_SCORED_PRODUCTION_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-scored-production-evidence")) return Route.LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE;
+            if (equals(args[0], "league") && equals(args[1], "team-week-matchup-evidence")) return Route.LEAGUE_TEAM_WEEK_MATCHUP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-week-potential-lineup")) return Route.LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP;
             if (equals(args[0], "league") && equals(args[1], "team-week-started-lineup-evidence")) return Route.LEAGUE_TEAM_WEEK_STARTED_LINEUP_EVIDENCE;
             if (equals(args[0], "league") && equals(args[1], "team-week-lineup-points-gap-evidence")) return Route.LEAGUE_TEAM_WEEK_LINEUP_POINTS_GAP_EVIDENCE;
@@ -221,7 +223,8 @@ public final class ButlerCommandRouter {
     enum Route { AGE_CONTEXT, AGE_PRODUCTION_CONTEXT, LEAGUE_AGING_MODEL_EVIDENCE, LEAGUE_AGE_OUTLOOK,
                  LEAGUE_SUPPORTING_EVIDENCE, LEAGUE_PERFORMANCE_EVIDENCE, LEAGUE_SCORING_SETTINGS,
                  LEAGUE_SCORING_COVERAGE, LEAGUE_PLAYER_SCORE, LEAGUE_SCORED_PRODUCTION_EVIDENCE,
-                 LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE, LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP,
+                 LEAGUE_TEAM_SCORED_PRODUCTION_EVIDENCE, LEAGUE_TEAM_WEEK_MATCHUP_EVIDENCE,
+                 LEAGUE_TEAM_WEEK_POTENTIAL_LINEUP,
                  LEAGUE_TEAM_WEEK_STARTED_LINEUP_EVIDENCE, LEAGUE_TEAM_WEEK_LINEUP_POINTS_GAP_EVIDENCE,
                  LEAGUE_TEAM_WEEK_LINEUP_CAPTURE_EVIDENCE,
                  LEAGUE_TEAM_SEASON_POTENTIAL_LINEUP_EVIDENCE, LEAGUE_TEAM_SEASON_LINEUP_POINTS_GAP_EVIDENCE,
