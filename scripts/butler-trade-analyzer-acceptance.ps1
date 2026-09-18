@@ -240,7 +240,7 @@ try {
     $result = Invoke-Get -Url $url -TimeoutMs $timeoutMs
     Assert-Ok -Response $result -Stage 'governed recommendation'
 
-    foreach ($marker in @('Butler recommendation','Package recommendation:','Perspective is always your exact bound team.','Strategic veto','Market direction','Technical governed output','READ ONLY.')) {
+    foreach ($marker in @('Butler recommendation:','This is evaluated from your team''s perspective.','Deal-breaker check','<strong>Market</strong>','Technical details','READ ONLY.')) {
         if ($result.Body.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-839 BLOCKED: recommendation is missing marker: $marker"
         }
