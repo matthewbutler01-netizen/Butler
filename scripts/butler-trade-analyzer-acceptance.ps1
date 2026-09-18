@@ -240,7 +240,7 @@ try {
     $result = Invoke-Get -Url $url -TimeoutMs $timeoutMs
     Assert-Ok -Response $result -Stage 'governed recommendation'
 
-    foreach ($marker in @('Butler recommendation:','This is evaluated from your team''s perspective.','Deal-breaker check','<strong>Market</strong>','Technical details','READ ONLY.')) {
+    foreach ($marker in @('Butler recommendation:','This is evaluated from your team''s perspective.','Deal-breaker check','<strong>Market</strong>','READ ONLY.')) {
         if ($result.Body.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-839 BLOCKED: recommendation is missing marker: $marker"
         }
@@ -248,6 +248,12 @@ try {
     if ($result.Body.IndexOf('Butler Trade Analyzer blocked', [System.StringComparison]::Ordinal) -ge 0 -or
         $result.Body.IndexOf('Trade Lab', [System.StringComparison]::Ordinal) -ge 0) {
         throw 'BF-839 BLOCKED: recommendation rendered a blocked or retired Trade Lab surface.'
+
+    foreach ($internalLabel in @('Technical governed output','Technical details','Advanced technical record')) {
+        if ($result.Body.IndexOf($internalLabel, [System.StringComparison]::Ordinal) -ge 0) {
+            throw "BF-839 BLOCKED: public recommendation exposed internal technical label: $internalLabel"
+        }
+    }
     }
 
     Write-Host 'Recommendation: GOVERNED_TRADE_RECOMMENDATION_RENDERED'
