@@ -66,6 +66,8 @@ class ButlerInAppEvidenceRecoveryBf823Test {
         assertTrue(firstEvidenceWrite > bootstrap);
         assertTrue(recovery.contains("BF-823 PROBE: RECOVERY_REQUIRED"));
         assertTrue(recovery.contains("BF-823 PROBE: NO_RECOVERY_REQUIRED"));
+        assertTrue(recovery.contains("BF-823 PROBE REASON: MATCHUP_EVIDENCE"));
+        assertTrue(recovery.contains("State: EXACT_PAIR_VERIFIED"));
         assertTrue(recovery.contains("BF-600 current-season roster/player bootstrap"));
         assertTrue(recovery.contains("Bootstrap state: HYDRATED_VERIFIED"));
         assertTrue(recovery.contains("BF-610 post-recovery target-roster verification"));
@@ -91,6 +93,15 @@ class ButlerInAppEvidenceRecoveryBf823Test {
             assertTrue(at > previous, "BF-823 downstream recovery order must remain deterministic");
             previous = at;
         }
+
+        int postRoster = recovery.indexOf("BF-610 post-recovery target-roster verification");
+        int matchupSync = recovery.indexOf("io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli");
+        int comparison = recovery.indexOf("BF-615/BF-617 post-recovery waiver comparison verification");
+        assertTrue(postRoster >= 0 && matchupSync > postRoster,
+            "BF-840 matchup sync must run only after verified target-roster context");
+        assertTrue(comparison > matchupSync,
+            "existing post-recovery waiver comparison must remain after matchup verification");
+        assertEquals(1, occurrences(recovery, "io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli"));
 
         assertFalse(recovery.contains("ButlerSleeperLiveWaiverFinalRecommendationBundleCli"));
         assertFalse(recovery.contains("ButlerSleeperLiveWaiverRecommendationAuditCaptureCli"));
