@@ -36,6 +36,8 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
                 "Current Sleeper week is unavailable",
                 "--weekly-matchup-bundle",
                 "--weekly-matchup-bundle-autofill",
+                "Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP_CONTEXT\"",
+                "ConvertTo-MatchupRosterContextView",
                 "Get-TeamEvidenceBundleSection -Text $bundleText -Name \"MATCHUP\"",
                 "ConvertTo-AutoFillHtml -AutoFill $AutoFill",
                 "ConvertTo-RosterStrengthView",
