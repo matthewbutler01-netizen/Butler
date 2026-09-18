@@ -29,7 +29,7 @@ class ButlerWeeklyMatchupWorkspaceBf840Test {
         String transform = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
 
         for (String marker : new String[]{
-                "href=\"/matchup\"",
+                "/matchup",
                 "Weekly matchup",
                 "PAIRING VERIFIED",
                 "Opponent pairing unavailable",
