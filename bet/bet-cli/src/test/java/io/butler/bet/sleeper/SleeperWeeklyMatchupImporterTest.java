@@ -90,6 +90,23 @@ class SleeperWeeklyMatchupImporterTest {
     }
 
     @Test
+    void failsClosedWhenProviderWeekHasNoMatchupEvidence() throws Exception {
+        Database database = database();
+        League league = new League("league-internal", "L1", "Test League", 2026);
+        Team team1 = new Team("team-1", "1", league.getId(), "Alpha");
+        Team team2 = new Team("team-2", "2", league.getId(), "Beta");
+        new LeagueRepository(database).save(league);
+        new TeamRepository(database).save(team1);
+        new TeamRepository(database).save(team2);
+
+        FakeGateway gateway = new FakeGateway();
+        gateway.emptyWeek = true;
+        var error = assertThrows(IllegalStateException.class,
+            () -> new SleeperWeeklyMatchupImporter(gateway, database).importWeek("L1", 5));
+        assertTrue(error.getMessage().contains("has no matchup evidence"));
+    }
+
+    @Test
     void failsClosedOnUnpairedProviderMatchupEvidence() throws Exception {
         Database database = database();
         League league = new League("league-internal", "L1", "Test League", 2026);
@@ -116,6 +133,7 @@ class SleeperWeeklyMatchupImporterTest {
         boolean secondFixture;
         boolean duplicateRoster;
         boolean unpaired;
+        boolean emptyWeek;
 
         @Override public SleeperJsonParser.SleeperLeague fetchLeague(String leagueId) {
             return new SleeperJsonParser.SleeperLeague("L1", "Test League", List.of("QB", "FLEX"), 2026, 2, 4);
@@ -130,6 +148,7 @@ class SleeperWeeklyMatchupImporterTest {
         }
 
         @Override public List<SleeperMatchupParser.SleeperMatchup> fetchMatchups(String leagueId, int week) {
+            if (emptyWeek) return List.of();
             if (duplicateRoster) {
                 return List.of(
                     new SleeperMatchupParser.SleeperMatchup(1, 7, List.of("p1"), List.of("p1")),
