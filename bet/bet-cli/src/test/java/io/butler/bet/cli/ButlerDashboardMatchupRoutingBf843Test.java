@@ -70,6 +70,39 @@ class ButlerDashboardMatchupRoutingBf843Test {
     }
 
     @Test
+    void liveAcceptanceAdaptsToCurrentLineupStateAndStaysGetOnly() throws Exception {
+        String script = source("scripts/butler-dashboard-matchup-routing-acceptance.ps1");
+        String cmd = source("scripts/butler-dashboard-matchup-routing-acceptance.cmd");
+
+        for (String marker : new String[]{
+                "Butler Dashboard Matchup routing acceptance (BF-843)",
+                "Get-ExpectedLineupRoute",
+                "Your lineup recommendation is out of date",
+                "Lineup review needs more evidence",
+                "Lineup changes are ready to review",
+                "No lineup change proven",
+                "Your roster needs review first",
+                "Lineup has not been reviewed yet",
+                "MATCHUP_ROUTING_VERIFIED",
+                "Working tree: CLEAN",
+                "BF-843 RESULT: COMPLETE"
+        }) {
+            assertTrue(script.contains(marker), "BF-843 live acceptance missing " + marker);
+        }
+
+        assertTrue(script.contains("$request.Method = 'GET'"));
+        assertTrue(script.contains("taskkill /PID $Process.Id /T /F"));
+        assertTrue(script.contains("git status --porcelain=v1 --untracked-files=all"));
+        assertTrue(cmd.contains("butler-dashboard-matchup-routing-acceptance.ps1"));
+
+        assertFalse(script.contains("Method = 'POST'"));
+        assertFalse(script.contains("Invoke-RestMethod"));
+        assertFalse(script.contains("Invoke-WebRequest"));
+        assertFalse(script.contains("submitTransaction"));
+        assertFalse(script.contains("setFaab"));
+    }
+
+    @Test
     void routingOverlayAddsNoProviderOrWriteBehavior() throws Exception {
         String transform = source("scripts/butler-dashboard-bf843-matchup-routing-transform.ps1");
         int safetyScan = transform.indexOf("$installedDashboardEnd =");
