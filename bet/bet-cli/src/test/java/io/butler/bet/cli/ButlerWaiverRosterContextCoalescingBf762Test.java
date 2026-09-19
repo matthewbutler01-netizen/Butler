@@ -15,7 +15,9 @@ class ButlerWaiverRosterContextCoalescingBf762Test {
         String source = source(
             "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerWaiverDashboardEvidenceBundleCli.java");
 
+        assertTrue(source.contains("new SleeperLiveWaiverSharedTargetContext(database).resolve(leagueId)"));
         assertTrue(source.contains("new SleeperLiveWaiverCoalescedComparisonEvidence(database)"));
+        assertTrue(source.contains(".run(leagueId, target.sleeperUserId(), exactRosterContext)"));
         assertTrue(source.contains("runConcurrentPair("));
         assertTrue(source.contains("reports.second().bundle()"));
         assertTrue(source.contains("reports.second().rosterContext()"));

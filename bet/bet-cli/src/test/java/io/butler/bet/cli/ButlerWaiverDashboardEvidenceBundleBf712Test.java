@@ -57,10 +57,12 @@ class ButlerWaiverDashboardEvidenceBundleBf712Test {
 
         assertEquals(1, occurrences(bundle, "new Database(DATABASE_PATH)"));
         assertEquals(1, occurrences(bundle, "database.initialize()"));
-        assertEquals(2, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertEquals(0, occurrences(bundle, "ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
+        assertEquals(2, occurrences(bundle, "new SleeperLiveWaiverSharedTargetContext(database).resolve(leagueId)"));
         assertTrue(bundle.contains("Executors.newFixedThreadPool(3)"));
         assertTrue(bundle.contains("new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target)"));
         assertTrue(bundle.contains("new SleeperLiveWaiverCoalescedComparisonEvidence(database)"));
+        assertTrue(bundle.contains(".run(leagueId, target.sleeperUserId(), exactRosterContext)"));
         assertFalse(bundle.contains("new SleeperLiveWaiverComparisonEvidenceReuse(database)"));
         assertFalse(bundle.contains("new SleeperLiveWaiverComparisonExecutionBundle(database)"));
         assertFalse(bundle.contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));

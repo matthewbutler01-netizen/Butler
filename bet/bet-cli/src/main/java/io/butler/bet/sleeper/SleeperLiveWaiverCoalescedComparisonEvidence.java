@@ -67,6 +67,41 @@ public final class SleeperLiveWaiverCoalescedComparisonEvidence {
         return new CoalescedReport(measured.bundle(), measured.rosterContext());
     }
 
+    public CoalescedReport run(
+        String leagueId,
+        String sleeperOwnerId,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContext)
+        throws SQLException, IOException, InterruptedException {
+        var measured = runMeasured(leagueId, sleeperOwnerId, rosterContext);
+        return new CoalescedReport(measured.bundle(), measured.rosterContext());
+    }
+
+    public CoalescedMeasuredReport runMeasured(
+        String leagueId,
+        String sleeperOwnerId,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport rosterContext)
+        throws SQLException, IOException, InterruptedException {
+        String normalizedLeagueId = requireText(leagueId, "leagueId");
+        String normalizedOwnerId = requireText(sleeperOwnerId, "sleeperOwnerId");
+        var exactContext = requireMatchingContext(
+            Objects.requireNonNull(rosterContext, "rosterContext must not be null"),
+            normalizedLeagueId,
+            normalizedOwnerId);
+
+        var reuse = new SleeperLiveWaiverComparisonEvidenceReuse(
+            candidateEvidenceSource,
+            (requestedLeagueId, requestedOwnerId) -> rosterEvidenceSource.load(
+                requestedLeagueId,
+                requestedOwnerId,
+                requireMatchingContext(exactContext, requestedLeagueId, requestedOwnerId)),
+            scoringSettingsSource,
+            batchProductionSource);
+
+        var measured = reuse.runMeasured(normalizedLeagueId, normalizedOwnerId);
+        return new CoalescedMeasuredReport(
+            measured.bundle(), exactContext, measured.timing(), 0L);
+    }
+
     public CoalescedMeasuredReport runMeasured(String leagueId, String sleeperOwnerId)
         throws SQLException, IOException, InterruptedException {
         String normalizedLeagueId = requireText(leagueId, "leagueId");

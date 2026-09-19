@@ -43,6 +43,14 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
             new LiveSource());
     }
 
+    SleeperLiveWaiverTargetRosterContextAudit(Database database, Source source) {
+        this(
+            database,
+            leagueId -> readinessFrame(new SleeperLiveWaiverPregameEvidenceReadinessAudit(database).audit(leagueId)),
+            new DatabaseFrameSource(database),
+            source);
+    }
+
     SleeperLiveWaiverTargetRosterContextAudit(
         Database database,
         ReadinessSource readinessSource,
