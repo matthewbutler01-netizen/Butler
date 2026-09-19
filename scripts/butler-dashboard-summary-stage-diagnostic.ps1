@@ -37,9 +37,11 @@ if (-not [Guid]::TryParse($leagueId, [ref]$parsedLeagueId) -or
 
 Push-Location $repoRoot
 try {
-    & $gradle ':bet:bet-cli:installDist' '--quiet'
+    # BF-854 diagnostic preparation owns only generated bet-cli build output.
+    # Clean first so OneDrive/stale generated class placeholders cannot poison Gradle output snapshotting.
+    & $gradle '--no-daemon' ':bet:bet-cli:clean' ':bet:bet-cli:installDist' '--quiet'
     if ($LASTEXITCODE -ne 0) {
-        throw "BF-854 BLOCKED: installDist failed with exit code $LASTEXITCODE."
+        throw "BF-854 BLOCKED: clean installDist failed with exit code $LASTEXITCODE."
     }
 }
 finally {
