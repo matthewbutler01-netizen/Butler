@@ -279,6 +279,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & $bf871DashboardTransform -DashboardPath $DashboardPath
 }
 
+# BF-873: final Waiver Board presentation polish runs after the BF-834 decision
+# surface, BF-837 visual alignment, and any full-app Dashboard route overlays.
+$bf873DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf873-waiver-decision-first-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf873DashboardTransform -PathType Leaf)) {
+    throw "BF-873 BLOCKED: Waiver Board decision-first transform not found at $bf873DashboardTransform"
+}
+& $bf873DashboardTransform -DashboardPath $DashboardPath
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
