@@ -31,6 +31,19 @@ public final class SleeperLiveWaiverRecommendationEvidenceAgeTelemetry {
     public TelemetryReport inspect(SleeperPersonalizedTargetService.VerifiedTarget target) throws SQLException {
         validateVerifiedTarget(target);
         var lineage = lineageSource.revalidate(target);
+        return inspectResolvedLineage(target, lineage);
+    }
+
+    TelemetryReport inspect(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport lineage) {
+        validateVerifiedTarget(target);
+        return inspectResolvedLineage(target, lineage);
+    }
+
+    private TelemetryReport inspectResolvedLineage(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport lineage) {
         validateLineage(target, lineage);
 
         Instant observedAt = clock.instant();
