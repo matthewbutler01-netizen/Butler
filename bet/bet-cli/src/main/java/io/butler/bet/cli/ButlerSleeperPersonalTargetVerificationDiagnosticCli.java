@@ -31,7 +31,7 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
 
             Map<String, Double> stages = new LinkedHashMap<>();
             var target = new SleeperPersonalizedTargetService(database)
-                .verifyBoundTarget(leagueId, stages::put);
+                .verifyBoundTargetSerialDiagnostic(leagueId, stages::put);
 
             for (String stage : stages()) {
                 Double elapsed = stages.get(stage);
