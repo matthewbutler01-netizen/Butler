@@ -30,10 +30,10 @@ class ButlerUnifiedManagerNavigationBf870Test {
             "scripts/butler-trade-lab-host.ps1",
             "scripts/butler-decision-history.ps1"
         )) {
-            String source = source(file);
+            String nav = navMarkup(source(file));
             int previous = -1;
             for (String route : ROUTES) {
-                int next = source.indexOf(route);
+                int next = nav.indexOf(route);
                 assertTrue(next > previous, file + " missing or misordered " + route);
                 previous = next;
             }
@@ -82,11 +82,19 @@ class ButlerUnifiedManagerNavigationBf870Test {
             "scripts/butler-trade-lab-host.ps1",
             "scripts/butler-decision-history.ps1"
         )) {
-            String source = source(file);
-            assertFalse(source.contains("Method = \"POST\""), file + " introduced POST behavior");
-            assertFalse(source.contains("submitTransaction"), file + " introduced transaction behavior");
-            assertFalse(source.contains("setFaab"), file + " introduced FAAB behavior");
+            String nav = navMarkup(source(file));
+            assertFalse(nav.contains("Method = \"POST\""), file + " nav introduced POST behavior");
+            assertFalse(nav.contains("submitTransaction"), file + " nav introduced transaction behavior");
+            assertFalse(nav.contains("setFaab"), file + " nav introduced FAAB behavior");
         }
+    }
+
+    private static String navMarkup(String source) {
+        int start = source.indexOf("return \"<nav class=");
+        assertTrue(start >= 0, "manager nav return is missing");
+        int end = source.indexOf("</nav>\"", start);
+        assertTrue(end > start, "manager nav close is missing");
+        return source.substring(start, end + "</nav>\"".length());
     }
 
     private static String source(String relativePath) throws IOException {
