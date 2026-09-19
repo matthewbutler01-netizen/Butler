@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerAppShellBf694CompanionHeavyGateTest {
 
     @Test
-    void companionOwnersShareOneFiniteGateAfterRouteCacheMiss() throws Exception {
+    void companionOwnersShareOneFiniteTwoSlotGateAfterRouteCacheMiss() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
         int functionStart = worker.indexOf("function Invoke-ExpensiveReadSingleFlightGet");
         int functionEnd = worker.indexOf("function Send-HttpResponse", functionStart);
@@ -25,11 +25,13 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         int companionCreate = block.indexOf("Local\\Butler.Companion.Heavy.{0}");
         int coreRead = block.indexOf("$proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget");
         assertTrue(cacheCheck >= 0 && companionCreate > cacheCheck && coreRead > companionCreate);
-        assertTrue(block.contains("$companionMutex.WaitOne(180000)"));
+        assertTrue(block.contains("[System.Threading.Semaphore]::new("));
+        assertTrue(block.contains("            2,"));
+        assertTrue(block.contains("$companionSemaphore.WaitOne(180000)"));
         assertTrue(block.contains("BF-694 BLOCKED: finite wait for companion heavy read capacity expired."));
-        assertTrue(block.contains("catch [System.Threading.AbandonedMutexException]"));
-        assertTrue(block.contains("$companionMutex.ReleaseMutex()"));
-        assertTrue(block.contains("$companionMutex.Dispose()"));
+        assertFalse(block.contains("catch [System.Threading.AbandonedMutexException]"));
+        assertTrue(block.contains("[void]$companionSemaphore.Release()"));
+        assertTrue(block.contains("$companionSemaphore.Dispose()"));
     }
 
     @Test
