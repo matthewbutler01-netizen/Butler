@@ -43,10 +43,28 @@ public final class SleeperPersonalizedTargetService {
 
     public DiscoveryReport discover(String username, String selectedSleeperLeagueId)
         throws IOException, InterruptedException {
+        return discover(username, selectedSleeperLeagueId, ProviderStageObserver.NO_OP);
+    }
+
+    DiscoveryReport discover(
+        String username,
+        String selectedSleeperLeagueId,
+        ProviderStageObserver observer)
+        throws IOException, InterruptedException {
         String requestedUsername = requireText(username, "username");
         String selectedLeagueId = requireText(selectedSleeperLeagueId, "selectedSleeperLeagueId");
-        UserObservation user = parseUser(source.user(requestedUsername));
-        List<LeagueObservation> currentLeagues = parseLeagues(source.userLeagues(user.userId(), TARGET_SEASON));
+        ProviderStageObserver timing = observer == null ? ProviderStageObserver.NO_OP : observer;
+
+        long started = System.nanoTime();
+        String userPayload = source.user(requestedUsername);
+        timing.observe("user", elapsedMs(started));
+        UserObservation user = parseUser(userPayload);
+
+        started = System.nanoTime();
+        String userLeaguesPayload = source.userLeagues(user.userId(), TARGET_SEASON);
+        timing.observe("user_leagues", elapsedMs(started));
+        List<LeagueObservation> currentLeagues = parseLeagues(userLeaguesPayload);
+
         List<LeagueObservation> selectedMatches = currentLeagues.stream()
             .filter(value -> selectedLeagueId.equals(value.leagueId()))
             .toList();
@@ -56,12 +74,19 @@ public final class SleeperPersonalizedTargetService {
                     + selectedLeagueId);
         }
         LeagueObservation selected = selectedMatches.get(0);
-        LeagueObservation directLeague = parseLeague(source.league(selectedLeagueId));
+
+        started = System.nanoTime();
+        String leaguePayload = source.league(selectedLeagueId);
+        timing.observe("league", elapsedMs(started));
+        LeagueObservation directLeague = parseLeague(leaguePayload);
         if (!selected.equals(directLeague)) {
             throw new IllegalStateException("BF-621 BLOCKED: user-league list and direct league observation disagree");
         }
 
-        List<RosterObservation> rosters = parseRosters(source.rosters(selectedLeagueId));
+        started = System.nanoTime();
+        String rostersPayload = source.rosters(selectedLeagueId);
+        timing.observe("rosters", elapsedMs(started));
+        List<RosterObservation> rosters = parseRosters(rostersPayload);
         List<RosterObservation> memberships = rosters.stream()
             .filter(value -> user.userId().equals(value.ownerId()) || value.coOwnerIds().contains(user.userId()))
             .toList();
@@ -71,7 +96,11 @@ public final class SleeperPersonalizedTargetService {
                     + " current roster memberships instead of exactly one");
         }
         RosterObservation roster = memberships.get(0);
-        ProviderLeagueUser leagueUser = parseLeagueUsers(source.users(selectedLeagueId)).stream()
+
+        started = System.nanoTime();
+        String usersPayload = source.users(selectedLeagueId);
+        timing.observe("league_users", elapsedMs(started));
+        ProviderLeagueUser leagueUser = parseLeagueUsers(usersPayload).stream()
             .filter(value -> user.userId().equals(value.userId()))
             .findFirst()
             .orElseThrow(() -> new IllegalStateException(
@@ -134,11 +163,20 @@ public final class SleeperPersonalizedTargetService {
 
     public VerifiedTarget verifyBoundTarget(String butlerLeagueId)
         throws SQLException, IOException, InterruptedException {
+        return verifyBoundTarget(butlerLeagueId, ProviderStageObserver.NO_OP);
+    }
+
+    public VerifiedTarget verifyBoundTarget(
+        String butlerLeagueId,
+        ProviderStageObserver observer)
+        throws SQLException, IOException, InterruptedException {
+        long totalStarted = System.nanoTime();
+        ProviderStageObserver timing = observer == null ? ProviderStageObserver.NO_OP : observer;
         String leagueId = requireText(butlerLeagueId, "butlerLeagueId");
         var bound = targets.findByButlerLeagueId(leagueId)
             .orElseThrow(() -> new IllegalStateException(
                 "BF-623 BLOCKED: no personalized Sleeper target is bound for Butler league " + leagueId));
-        DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());
+        DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId(), timing);
         if (!bound.sleeperUserId().equals(live.sleeperUserId())) {
             throw new IllegalStateException("BF-623 BLOCKED: bound username now resolves to a different Sleeper user id");
         }
@@ -168,7 +206,7 @@ public final class SleeperPersonalizedTargetService {
         if (!Integer.valueOf(TARGET_SEASON).equals(butlerLeague.getSeason())) {
             throw new IllegalStateException("BF-623 BLOCKED: Butler league season drifted from personalized 2026 target");
         }
-        return new VerifiedTarget(
+        VerifiedTarget result = new VerifiedTarget(
             BF623_POLICY_ID,
             leagueId,
             live.sleeperUsername(),
@@ -181,6 +219,8 @@ public final class SleeperPersonalizedTargetService {
             live.leagueDisplayName(),
             live.teamName(),
             VerificationState.BOUND_TARGET_LIVE_VERIFIED);
+        timing.observe("verify_total", elapsedMs(totalStarted));
+        return result;
     }
 
     private UserObservation parseUser(String json) throws IOException {
@@ -261,6 +301,17 @@ public final class SleeperPersonalizedTargetService {
         } catch (NumberFormatException e) {
             throw new IllegalStateException("Invalid provider season: " + raw);
         }
+    }
+
+    private static double elapsedMs(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000.0;
+    }
+
+    @FunctionalInterface
+    public interface ProviderStageObserver {
+        ProviderStageObserver NO_OP = (stage, elapsedMs) -> {};
+
+        void observe(String stage, double elapsedMs);
     }
 
     interface Source {
