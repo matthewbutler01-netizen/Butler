@@ -56,7 +56,7 @@ class ButlerAppShellBf681HistoryReadableTimestampTest {
         assertTrue(html.contains("for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--)"));
         assertTrue(html.contains("$isNewest = $entryIndex -eq ($presentationEntries.Count - 1)"));
         assertTrue(html.contains("<article class=\"history-card history-card-compact\">"));
-        assertTrue(html.contains("<details class=\"history-older-details\"><summary>Show audit details</summary>"));
+        assertTrue(html.contains("<details class=\"history-older-details\"><summary>Show decision details</summary>"));
         assertTrue(detail.contains("$marker = \"<p class=`\"history-lineage`\">Audit: $safeAudit</p>\""));
         assertTrue(detail.contains("/history?audit=$encodedAudit"));
         assertFalse(history.contains("sleeperLiveWaiverRecommendationAuditCapture"));
