@@ -203,6 +203,12 @@ $pathReplacement = @'
                     dashboard_decision_ms = 0.0
                     dashboard_manager_ms = 0.0
                     dashboard_materialize_ms = 0.0
+                    dashboard_base_fields_ms = 0.0
+                    dashboard_shell_ms = 0.0
+                    dashboard_refresh_block_ms = 0.0
+                    dashboard_next_plan_block_ms = 0.0
+                    dashboard_explanation_lookup_ms = 0.0
+                    dashboard_presnapshot_tail_ms = 0.0
                 }
             }
 '@
@@ -250,7 +256,13 @@ $dashboardHeaderReplacement = @'
             'dashboard_priority_ms',
             'dashboard_decision_ms',
             'dashboard_manager_ms',
-            'dashboard_materialize_ms'
+            'dashboard_materialize_ms',
+            'dashboard_base_fields_ms',
+            'dashboard_shell_ms',
+            'dashboard_refresh_block_ms',
+            'dashboard_next_plan_block_ms',
+            'dashboard_explanation_lookup_ms',
+            'dashboard_presnapshot_tail_ms'
         )) {
             $bf857Value = if ($Bf857Timing.ContainsKey($bf857Key)) { [double]$Bf857Timing[$bf857Key] } else { 0.0 }
             $bf857Pairs.Add(
@@ -310,12 +322,65 @@ $baseReplacement = @'
     } else {
         [long]0
     }
+    $bf860StageStarted = $bf859StageStarted
     $target = Get-LineValue -Text $Summary -Label "Target:"
 '@
 $dashboardBlock = $dashboardBlock.Replace($baseAnchor, $baseReplacement.TrimEnd())
 
+# BF-860: split BF-859's pre-snapshot aggregate into helper-level buckets.
+$bf860CssAnchor = '    $css = Get-SharedCss'
+$bf860RefreshAnchor = '    $refreshPlan = Get-GovernedManualRefreshPlanView -Summary $Summary'
+$bf860NextPlanAnchor = '    $nextDecisionPlan = Get-GovernedNextDecisionPlanView -Summary $Summary'
+$bf860ExplanationAnchor = '    $explanation = Get-GovernedExplanationView -Summary $Summary'
+foreach ($anchor in @($bf860CssAnchor, $bf860RefreshAnchor, $bf860NextPlanAnchor, $bf860ExplanationAnchor)) {
+    if ([regex]::Matches($dashboardBlock, [regex]::Escape($anchor)).Count -ne 1) {
+        throw "BF-860 BLOCKED: pre-snapshot timing anchor missing or ambiguous: $anchor"
+    }
+}
+
+$bf860CssReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_base_fields_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
+        $bf860StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $css = Get-SharedCss
+'@
+$dashboardBlock = $dashboardBlock.Replace($bf860CssAnchor, $bf860CssReplacement.TrimEnd())
+
+$bf860RefreshReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_shell_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
+        $bf860StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $refreshPlan = Get-GovernedManualRefreshPlanView -Summary $Summary
+'@
+$dashboardBlock = $dashboardBlock.Replace($bf860RefreshAnchor, $bf860RefreshReplacement.TrimEnd())
+
+$bf860NextPlanReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_refresh_block_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
+        $bf860StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $nextDecisionPlan = Get-GovernedNextDecisionPlanView -Summary $Summary
+'@
+$dashboardBlock = $dashboardBlock.Replace($bf860NextPlanAnchor, $bf860NextPlanReplacement.TrimEnd())
+
+$bf860ExplanationReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_next_plan_block_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
+        $bf860ExplanationStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $explanation = Get-GovernedExplanationView -Summary $Summary
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_explanation_lookup_ms = Get-Bf857ElapsedMs -StartedTicks $bf860ExplanationStarted
+        $bf860StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+'@
+$dashboardBlock = $dashboardBlock.Replace($bf860ExplanationAnchor, $bf860ExplanationReplacement.TrimEnd())
+
 $snapshotReplacement = @'
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_presnapshot_tail_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
         $bf857Timing.dashboard_parse_base_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
         $bf859SnapshotStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
     }
