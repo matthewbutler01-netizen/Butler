@@ -33,7 +33,7 @@ class ButlerLineupReviewLanguageBf847Test {
         assertTrue(script.contains("$root + '/team'"));
         assertTrue(script.contains("My Team: LINEUP_REVIEW_LANGUAGE_VERIFIED"));
         assertTrue(script.contains("'Review Lineup'"));
-        assertTrue(script.contains("'href=\"/team/autofill\"'"));
+        assertTrue(script.contains("'href=\"/matchup/autofill\"'"));
         assertTrue(script.contains("'Run AutoFill'"));
         assertTrue(script.contains("'AutoFill review'"));
         assertTrue(script.contains("'run AutoFill'"));
