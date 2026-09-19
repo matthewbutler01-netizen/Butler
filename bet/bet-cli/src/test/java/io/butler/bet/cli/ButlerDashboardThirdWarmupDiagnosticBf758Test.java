@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerDashboardThirdWarmupDiagnosticBf758Test {
     @Test
-    void productionRemainsWaiverThenTeamWithoutDashboardWarmup() throws Exception {
+    void productionNowWarmsWaiverThenTeamThenDashboard() throws Exception {
         String source = source("scripts/butler-app-shell-core.ps1");
         String warmup = between(source, "function Invoke-PreservedCoreWarmup {", "function Stop-OwnedProcessTree {");
 
@@ -22,7 +22,8 @@ class ButlerDashboardThirdWarmupDiagnosticBf758Test {
         assertEquals(1, occurrences(warmup, waiverUrl));
         assertEquals(1, occurrences(warmup, teamUrl));
         assertTrue(warmup.indexOf(waiverUrl) < warmup.indexOf(teamUrl));
-        assertFalse(warmup.contains(dashboardCreate));
+        assertTrue(warmup.indexOf(teamUrl) < warmup.indexOf(dashboardCreate));
+        assertEquals(1, occurrences(warmup, dashboardCreate));
         assertFalse(warmup.contains("/refresh"));
     }
 

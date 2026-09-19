@@ -219,12 +219,34 @@ function Invoke-ButlerReadOnlyExplanationLookup {
     $previousPreference = $ErrorActionPreference
 '@
 $dashboardExplanationReplacement = @'
+$script:Bf861ReadyExplanationAuditId = $null
+$script:Bf861ReadyExplanationText = $null
+
 function Invoke-ButlerReadOnlyExplanationLookup {
     param([Parameter(Mandatory = $true)][string]$AuditId)
     if ([string]::IsNullOrWhiteSpace($AuditId)) {
         throw "BF-654 BLOCKED: current BF-627 audit id is missing"
     }
-    return Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP' -BoundaryName "BF-654" -AuditId $AuditId
+
+    # BF-861: a captured BF-653 explanation is append-only, unique per immutable
+    # BF-627 audit, and cannot be rewritten with a different payload. Cache only
+    # the positive ready projection for the exact audit. Never cache NOT_CAPTURED
+    # so a later explicit BF-653 capture is visible on the next Dashboard request.
+    if ([string]$script:Bf861ReadyExplanationAuditId -ceq $AuditId -and
+        -not [string]::IsNullOrWhiteSpace([string]$script:Bf861ReadyExplanationText)) {
+        return [string]$script:Bf861ReadyExplanationText
+    }
+
+    $text = Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP' -BoundaryName "BF-654" -AuditId $AuditId
+    $ready = [regex]::IsMatch([string]$text, '(?m)^Lookup state:\s*EXPLANATION_READY\s*$')
+    $auditMatches = [regex]::IsMatch(
+        [string]$text,
+        '(?m)^BF-627 audit id:\s*' + [regex]::Escape($AuditId) + '\s*$')
+    if ($ready -and $auditMatches) {
+        $script:Bf861ReadyExplanationAuditId = $AuditId
+        $script:Bf861ReadyExplanationText = [string]$text
+    }
+    return $text
     $previousPreference = $ErrorActionPreference
 '@
 

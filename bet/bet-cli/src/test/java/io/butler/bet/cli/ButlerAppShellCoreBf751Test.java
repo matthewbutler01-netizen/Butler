@@ -12,24 +12,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerAppShellCoreBf751Test {
     @Test
-    void preservedCoresWarmSequentiallyWithBoundedWaiverThenTeamReadsBeforePublicListener() throws Exception {
+    void preservedCoresWarmSequentiallyWithBoundedWaiverTeamThenDashboardReadsBeforePublicListener() throws Exception {
         String source = source("scripts/butler-app-shell-core.ps1");
         String warmup = between(source, "function Invoke-PreservedCoreWarmup {", "function Stop-OwnedProcessTree {");
 
         assertTrue(warmup.contains("BUTLER_APP_CORE_POOL_WARMUP -ceq '0'"));
         String waiverUrl = "http://127.0.0.1:$BackendPort/waivers";
         String teamUrl = "http://127.0.0.1:$BackendPort/team";
+        String dashboardCreate = "Create(\"http://127.0.0.1:$BackendPort/\")";
         assertTrue(warmup.contains(waiverUrl));
         assertTrue(warmup.contains(teamUrl));
+        assertTrue(warmup.contains(dashboardCreate));
         assertTrue(warmup.indexOf(waiverUrl) < warmup.indexOf(teamUrl),
             "BF-756 must warm waivers before team on each preserved core");
+        assertTrue(warmup.indexOf(teamUrl) < warmup.indexOf(dashboardCreate),
+            "BF-861 must warm Dashboard after waiver/team reads on each preserved core");
         assertEquals(1, occurrences(warmup, waiverUrl));
         assertEquals(1, occurrences(warmup, teamUrl));
-        assertEquals(2, occurrences(warmup, ".Method = 'GET'"));
-        assertEquals(2, occurrences(warmup, ".Timeout = 3000"));
-        assertEquals(2, occurrences(warmup, ".ReadWriteTimeout = 3000"));
-        assertEquals(2, occurrences(warmup, ".Proxy = $null"));
-        assertEquals(2, occurrences(warmup, ".KeepAlive = $false"));
+        assertEquals(1, occurrences(warmup, dashboardCreate));
+        assertEquals(3, occurrences(warmup, ".Method = 'GET'"));
+        assertEquals(3, occurrences(warmup, ".Timeout = 3000"));
+        assertEquals(3, occurrences(warmup, ".ReadWriteTimeout = 3000"));
+        assertEquals(3, occurrences(warmup, ".Proxy = $null"));
+        assertEquals(3, occurrences(warmup, ".KeepAlive = $false"));
         assertTrue(warmup.contains("Write-Warning"));
         assertFalse(warmup.contains("/refresh"));
         assertFalse(warmup.contains("/league"));
@@ -55,10 +60,13 @@ class ButlerAppShellCoreBf751Test {
         assertTrue(warmup.contains("catch {"));
         assertTrue(warmup.contains("BF-751 preserved-core warmup skipped"));
         assertTrue(warmup.contains("BF-756 preserved-core team warmup skipped"));
+        assertTrue(warmup.contains("BF-861 preserved-core dashboard warmup skipped"));
         assertFalse(warmup.contains("throw 'BF-751"));
         assertFalse(warmup.contains("throw \"BF-751"));
         assertFalse(warmup.contains("throw 'BF-756"));
         assertFalse(warmup.contains("throw \"BF-756"));
+        assertFalse(warmup.contains("throw 'BF-861"));
+        assertFalse(warmup.contains("throw \"BF-861"));
         assertFalse(warmup.contains("POST"));
         assertFalse(warmup.contains("Sleeper"));
         assertFalse(warmup.contains("refresh"));
