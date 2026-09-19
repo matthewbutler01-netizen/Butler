@@ -167,15 +167,18 @@ public final class SleeperPersonalizedTargetService {
 
     public VerifiedTarget verifyBoundTarget(String butlerLeagueId)
         throws SQLException, IOException, InterruptedException {
-        String leagueId = requireText(butlerLeagueId, "butlerLeagueId");
-        var bound = targets.findByButlerLeagueId(leagueId)
-            .orElseThrow(() -> new IllegalStateException(
-                "BF-623 BLOCKED: no personalized Sleeper target is bound for Butler league " + leagueId));
-        DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());
-        return verifyResolvedTarget(leagueId, bound, live);
+        return verifyBoundTargetParallel(butlerLeagueId, ProviderStageObserver.NO_OP);
     }
 
     public VerifiedTarget verifyBoundTarget(
+        String butlerLeagueId,
+        ProviderStageObserver observer)
+        throws SQLException, IOException, InterruptedException {
+        return verifyBoundTargetParallel(butlerLeagueId, observer);
+    }
+
+    /** BF-863 preserves the exact pre-adoption serial verifier for diagnostics and regression comparison. */
+    public VerifiedTarget verifyBoundTargetSerialDiagnostic(
         String butlerLeagueId,
         ProviderStageObserver observer)
         throws SQLException, IOException, InterruptedException {
@@ -191,12 +194,20 @@ public final class SleeperPersonalizedTargetService {
         return result;
     }
 
-    /**
-     * BF-862 diagnostic-only proof path. Production verifyBoundTarget remains serial.
-     * After exact user resolution, the four independent Sleeper reads are issued
-     * concurrently, then reconciled through the same BF-621/BF-623 semantics.
-     */
+    /** BF-862 diagnostic alias retained so equivalence tooling continues to exercise the parallel implementation. */
     public VerifiedTarget verifyBoundTargetParallelDiagnostic(
+        String butlerLeagueId,
+        ProviderStageObserver observer)
+        throws SQLException, IOException, InterruptedException {
+        return verifyBoundTargetParallel(butlerLeagueId, observer);
+    }
+
+    /**
+     * BF-863 production BF-623 verifier. Exact user resolution remains first; only the four
+     * independent post-user Sleeper reads execute concurrently. All BF-621/BF-623 validation
+     * and fail-closed reconciliation are unchanged.
+     */
+    private VerifiedTarget verifyBoundTargetParallel(
         String butlerLeagueId,
         ProviderStageObserver observer)
         throws SQLException, IOException, InterruptedException {
