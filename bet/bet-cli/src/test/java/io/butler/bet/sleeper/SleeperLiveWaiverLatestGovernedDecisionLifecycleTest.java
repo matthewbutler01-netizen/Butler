@@ -73,7 +73,7 @@ class SleeperLiveWaiverLatestGovernedDecisionLifecycleTest {
         return new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> actionability,
             ignored -> evidence,
-            ignored -> telemetry,
+            (ignoredTarget, ignoredLineage) -> telemetry,
             sleeperId -> switch (sleeperId) {
                 case "7049" -> new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "7049", "Jauan Jennings", "WR", "MIN");
