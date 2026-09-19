@@ -83,7 +83,7 @@ function Invoke-PreservedCoreGet {
         if ($bf857CoreTimingEnabled -and $RequestTarget -ceq '/') {
             $backendMs = Get-Bf857ElapsedMs -StartedTicks $bf857Started
             $childTiming = [string]$response.Headers['X-Butler-BF857-Timing']
-            $bf857Timing = 'pool_backend_ms=' + [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:0.0}', $backendMs)
+            $bf857Timing = 'pool_backend_port=' + [string]$BackendPort + ';pool_backend_ms=' + [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:0.0}', $backendMs)
             if (-not [string]::IsNullOrWhiteSpace($childTiming)) {
                 $bf857Timing += ';' + $childTiming
             }
