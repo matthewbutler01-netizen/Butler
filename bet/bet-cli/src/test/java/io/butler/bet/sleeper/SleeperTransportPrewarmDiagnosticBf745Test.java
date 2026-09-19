@@ -64,8 +64,8 @@ class SleeperTransportPrewarmDiagnosticBf745Test {
         assertFalse(diagnostic.contains("newFixedThreadPool"));
 
         assertTrue(service.contains("DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
-        assertFalse(service.contains("CompletableFuture"));
-        assertFalse(service.contains("newFixedThreadPool"));
+        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetParallelDiagnostic("));
+        assertTrue(service.contains("Executors.newFixedThreadPool(4)"));
 
         assertTrue(script.contains("app-league.txt"));
         assertTrue(script.contains("[Guid]::TryParse($leagueId, [ref]$parsedLeagueId)"));
