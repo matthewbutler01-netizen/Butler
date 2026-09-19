@@ -44,7 +44,7 @@ class ButlerPersistentReadWorkerSurvivalBf821Test {
             "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
 
         assertTrue(worker.contains(
-            "ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
+            "ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runPersistentWorkerEmbedded("));
         assertTrue(worker.contains(
             "ButlerWaiverDashboardEvidenceBundleCli.runEmbedded("));
         assertTrue(worker.contains(
