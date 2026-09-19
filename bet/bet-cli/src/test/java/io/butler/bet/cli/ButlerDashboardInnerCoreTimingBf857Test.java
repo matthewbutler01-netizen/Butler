@@ -65,6 +65,10 @@ class ButlerDashboardInnerCoreTimingBf857Test {
         assertTrue(script.contains("Warm miss-path p50"));
         assertTrue(script.contains("BF-857 RESULT: COMPLETE"));
         assertTrue(script.contains("rd /s /q"));
+        assertFalse(script.contains("$coreSingle = Join-Path"),
+            "BF-858 diagnostic must not rewrite core-single before BF-742 exact staging");
+        assertFalse(script.contains("Dashboard output task capture"),
+            "BF-858 diagnostic must not mutate governed-Dashboard launch contracts");
         assertFalse(script.contains("'/refresh'"));
         assertFalse(script.contains("POST"));
         assertFalse(script.contains("submitTransaction"));
