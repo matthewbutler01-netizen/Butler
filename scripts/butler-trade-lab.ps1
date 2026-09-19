@@ -504,7 +504,12 @@ function Invoke-TradeLabHtml {
     $give = @(Get-TradeQueryValues -Query $query -Name 'give')
     $receive = @(Get-TradeQueryValues -Query $query -Name 'receive')
     $evaluate = (Get-TradeQueryFirst -Query $query -Name 'evaluate') -ceq '1'
+    $counterRequested = (Get-TradeQueryFirst -Query $query -Name 'counter') -ceq '1'
+    if ($counterRequested -and -not $evaluate) {
+        throw 'BF-878 BLOCKED: counter proposal requires the exact evaluated trade coordinates.'
+    }
     $evaluation = $null
+    $counterProposal = $null
     if ($evaluate) {
         if ($null -eq $opponent) {
             throw 'BF-670 BLOCKED: choose one current league opponent before evaluation.'
@@ -518,7 +523,21 @@ function Invoke-TradeLabHtml {
         if ($evaluation.PerspectiveTeamId -cne $userTeam.TeamId) {
             throw 'BF-670 BLOCKED: governed trade recommendation perspective does not match the exact bound user team.'
         }
+
+        if ($counterRequested) {
+            if (-not $evaluation.EvidenceComplete -or $evaluation.Action -cne 'REJECT') {
+                throw 'BF-878 BLOCKED: counter proposal is available only for an evidence-complete REJECT.'
+            }
+            $counterRaw = Invoke-ButlerReadOnly -Arguments "trade counter-proposal $LeagueId $($roster.Season) $sideA $sideB side-a" -BoundaryName 'BF-878'
+            $counterProposal = ConvertTo-TradeCounterProposalView -Text $counterRaw
+            if ($counterProposal.PerspectiveTeamId -cne $userTeam.TeamId) {
+                throw 'BF-878 BLOCKED: governed counter proposal perspective does not match the exact bound user team.'
+            }
+            if ($counterProposal.V5Action -cne $evaluation.Action) {
+                throw 'BF-878 BLOCKED: governed counter proposal v5 action does not match the rendered recommendation.'
+            }
+        }
     }
 
-    return ConvertTo-TradeLabHtml -Roster $roster -Inventory $inventory -UserTeam $userTeam -Opponent $opponent -Give $give -Receive $receive -Evaluation $evaluation
+    return ConvertTo-TradeLabHtml -Roster $roster -Inventory $inventory -UserTeam $userTeam -Opponent $opponent -Give $give -Receive $receive -Evaluation $evaluation -CounterProposal $counterProposal
 }
