@@ -104,7 +104,13 @@ function Invoke-TimedDashboard {
             'dashboard_priority_ms',
             'dashboard_decision_ms',
             'dashboard_manager_ms',
-            'dashboard_materialize_ms'
+            'dashboard_materialize_ms',
+            'dashboard_base_fields_ms',
+            'dashboard_shell_ms',
+            'dashboard_refresh_block_ms',
+            'dashboard_next_plan_block_ms',
+            'dashboard_explanation_lookup_ms',
+            'dashboard_presnapshot_tail_ms'
         )
         $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
         try { [void]$reader.ReadToEnd() } finally { $reader.Dispose() }
@@ -124,6 +130,13 @@ function Invoke-TimedDashboard {
         $decision = [double]$bf857.dashboard_decision_ms
         $manager = [double]$bf857.dashboard_manager_ms
         $materialize = [double]$bf857.dashboard_materialize_ms
+        $baseFields = [double]$bf857.dashboard_base_fields_ms
+        $shell = [double]$bf857.dashboard_shell_ms
+        $refreshBlock = [double]$bf857.dashboard_refresh_block_ms
+        $nextPlanBlock = [double]$bf857.dashboard_next_plan_block_ms
+        $explanationLookup = [double]$bf857.dashboard_explanation_lookup_ms
+        $preSnapshotTail = [double]$bf857.dashboard_presnapshot_tail_ms
+        $preSnapshotAccounted = $baseFields + $shell + $refreshBlock + $nextPlanBlock + $explanationLookup + $preSnapshotTail
         $htmlAccounted = $parseBase + $snapshot + $priority + $decision + $manager + $materialize
 
         return [pscustomobject]@{
@@ -139,6 +152,13 @@ function Invoke-TimedDashboard {
             DashboardDecisionMs = $decision
             DashboardManagerMs = $manager
             DashboardMaterializeMs = $materialize
+            DashboardBaseFieldsMs = $baseFields
+            DashboardShellMs = $shell
+            DashboardRefreshBlockMs = $refreshBlock
+            DashboardNextPlanBlockMs = $nextPlanBlock
+            DashboardExplanationLookupMs = $explanationLookup
+            DashboardPreSnapshotTailMs = $preSnapshotTail
+            DashboardPreSnapshotResidualMs = [Math]::Max(0.0, $parseBase - $preSnapshotAccounted)
             DashboardHtmlResidualMs = [Math]::Max(0.0, $html - $htmlAccounted)
             OuterToPoolResidualMs = [Math]::Max(0.0, $core - $pool)
             PoolToPreservedResidualMs = [Math]::Max(0.0, $pool - $preserved)
@@ -176,6 +196,15 @@ function Write-Result {
         $Result.DashboardManagerMs,
         $Result.DashboardMaterializeMs,
         $Result.DashboardHtmlResidualMs)
+    Write-Host (
+        "       pre-snapshot fields={0,6:N1}ms shell={1,6:N1}ms refresh={2,6:N1}ms next-plan={3,6:N1}ms explanation={4,6:N1}ms tail={5,6:N1}ms residual={6,6:N1}ms" -f
+        $Result.DashboardBaseFieldsMs,
+        $Result.DashboardShellMs,
+        $Result.DashboardRefreshBlockMs,
+        $Result.DashboardNextPlanBlockMs,
+        $Result.DashboardExplanationLookupMs,
+        $Result.DashboardPreSnapshotTailMs,
+        $Result.DashboardPreSnapshotResidualMs)
 }
 
 function Get-Median {
@@ -213,11 +242,11 @@ $process = $null
 $oldBf856 = $env:BUTLER_APP_BF856_ROUTE_TIMING
 $oldBf857 = $env:BUTLER_APP_BF857_CORE_TIMING
 
-Write-Host 'Butler Dashboard HTML substage timing diagnostic (BF-859)'
+Write-Host 'Butler Dashboard pre-snapshot helper timing diagnostic (BF-860)'
 Write-Host "Commit: $head"
 Write-Host "Worktree: $worktree"
 Write-Host "Target: $root/"
-Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859 timing is diagnostic-only for this owned process.'
+Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860 timing is diagnostic-only for this owned process.'
 
 try {
     Push-Location $sourceRepoRoot
@@ -303,8 +332,17 @@ try {
         (Get-Median -Items $results -Property 'DashboardManagerMs'),
         (Get-Median -Items $results -Property 'DashboardMaterializeMs'),
         (Get-Median -Items $results -Property 'DashboardHtmlResidualMs'))
+    Write-Host (
+        "pre-snapshot fields={0:N1}ms shell={1:N1}ms refresh={2:N1}ms next-plan={3:N1}ms explanation={4:N1}ms tail={5:N1}ms residual={6:N1}ms" -f
+        (Get-Median -Items $results -Property 'DashboardBaseFieldsMs'),
+        (Get-Median -Items $results -Property 'DashboardShellMs'),
+        (Get-Median -Items $results -Property 'DashboardRefreshBlockMs'),
+        (Get-Median -Items $results -Property 'DashboardNextPlanBlockMs'),
+        (Get-Median -Items $results -Property 'DashboardExplanationLookupMs'),
+        (Get-Median -Items $results -Property 'DashboardPreSnapshotTailMs'),
+        (Get-Median -Items $results -Property 'DashboardPreSnapshotResidualMs'))
 
-    Write-Host 'BF-859 RESULT: COMPLETE'
+    Write-Host 'BF-860 RESULT: COMPLETE'
 }
 finally {
     Stop-OwnedTree -Process $process
