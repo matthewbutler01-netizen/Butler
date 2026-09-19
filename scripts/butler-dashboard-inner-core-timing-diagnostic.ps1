@@ -105,20 +105,13 @@ function Invoke-TimedDashboard {
             'preserved_dashboard_ms',
             'dashboard_process_id',
             'dashboard_summary_ms',
-            'dashboard_summary_cpu_ms',
             'dashboard_html_ms',
             'dashboard_parse_base_ms',
-            'dashboard_parse_base_cpu_ms',
             'dashboard_snapshot_ms',
-            'dashboard_snapshot_cpu_ms',
             'dashboard_priority_ms',
-            'dashboard_priority_cpu_ms',
             'dashboard_decision_ms',
-            'dashboard_decision_cpu_ms',
             'dashboard_manager_ms',
-            'dashboard_manager_cpu_ms',
             'dashboard_materialize_ms',
-            'dashboard_materialize_cpu_ms',
             'dashboard_base_fields_ms',
             'dashboard_shell_ms',
             'dashboard_refresh_block_ms',
@@ -139,20 +132,13 @@ function Invoke-TimedDashboard {
         $preserved = [double]$bf857.preserved_dashboard_ms
         $dashboardProcessId = [int][Math]::Round([double]$bf857.dashboard_process_id)
         $summary = [double]$bf857.dashboard_summary_ms
-        $summaryCpu = [double]$bf857.dashboard_summary_cpu_ms
         $html = [double]$bf857.dashboard_html_ms
         $parseBase = [double]$bf857.dashboard_parse_base_ms
-        $parseBaseCpu = [double]$bf857.dashboard_parse_base_cpu_ms
         $snapshot = [double]$bf857.dashboard_snapshot_ms
-        $snapshotCpu = [double]$bf857.dashboard_snapshot_cpu_ms
         $priority = [double]$bf857.dashboard_priority_ms
-        $priorityCpu = [double]$bf857.dashboard_priority_cpu_ms
         $decision = [double]$bf857.dashboard_decision_ms
-        $decisionCpu = [double]$bf857.dashboard_decision_cpu_ms
         $manager = [double]$bf857.dashboard_manager_ms
-        $managerCpu = [double]$bf857.dashboard_manager_cpu_ms
         $materialize = [double]$bf857.dashboard_materialize_ms
-        $materializeCpu = [double]$bf857.dashboard_materialize_cpu_ms
         $baseFields = [double]$bf857.dashboard_base_fields_ms
         $shell = [double]$bf857.dashboard_shell_ms
         $refreshBlock = [double]$bf857.dashboard_refresh_block_ms
@@ -170,20 +156,13 @@ function Invoke-TimedDashboard {
             PoolBackendMs = $pool
             PreservedDashboardMs = $preserved
             DashboardSummaryMs = $summary
-            DashboardSummaryCpuMs = $summaryCpu
             DashboardHtmlMs = $html
             DashboardParseBaseMs = $parseBase
-            DashboardParseBaseCpuMs = $parseBaseCpu
             DashboardSnapshotMs = $snapshot
-            DashboardSnapshotCpuMs = $snapshotCpu
             DashboardPriorityMs = $priority
-            DashboardPriorityCpuMs = $priorityCpu
             DashboardDecisionMs = $decision
-            DashboardDecisionCpuMs = $decisionCpu
             DashboardManagerMs = $manager
-            DashboardManagerCpuMs = $managerCpu
             DashboardMaterializeMs = $materialize
-            DashboardMaterializeCpuMs = $materializeCpu
             DashboardBaseFieldsMs = $baseFields
             DashboardShellMs = $shell
             DashboardRefreshBlockMs = $refreshBlock
@@ -237,24 +216,7 @@ function Write-Result {
         $Result.DashboardExplanationLookupMs,
         $Result.DashboardPreSnapshotTailMs,
         $Result.DashboardPreSnapshotResidualMs)
-    Write-Host (
-        "       cpu/wall summary={0:N1}/{1:N1}ms parse={2:N1}/{3:N1}ms snapshot={4:N1}/{5:N1}ms priority={6:N1}/{7:N1}ms decision={8:N1}/{9:N1}ms manager={10:N1}/{11:N1}ms materialize={12:N1}/{13:N1}ms | backend={14} dashboard-pid={15}" -f
-        $Result.DashboardSummaryCpuMs,
-        $Result.DashboardSummaryMs,
-        $Result.DashboardParseBaseCpuMs,
-        $Result.DashboardParseBaseMs,
-        $Result.DashboardSnapshotCpuMs,
-        $Result.DashboardSnapshotMs,
-        $Result.DashboardPriorityCpuMs,
-        $Result.DashboardPriorityMs,
-        $Result.DashboardDecisionCpuMs,
-        $Result.DashboardDecisionMs,
-        $Result.DashboardManagerCpuMs,
-        $Result.DashboardManagerMs,
-        $Result.DashboardMaterializeCpuMs,
-        $Result.DashboardMaterializeMs,
-        $Result.BackendPort,
-        $Result.DashboardProcessId)
+    Write-Host ("       identity backend={0} dashboard-pid={1}" -f $Result.BackendPort, $Result.DashboardProcessId)
 }
 
 function Get-Median {
@@ -297,6 +259,53 @@ function Get-Maximum {
         [Parameter(Mandatory = $true)][string]$Property
     )
     return [double](($Items | ForEach-Object { [double]($_.$Property) } | Measure-Object -Maximum).Maximum)
+}
+
+function Write-Bf869BackendGroup {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Items,
+        [Parameter(Mandatory = $true)][int]$BackendPort,
+        [Parameter(Mandatory = $true)][int]$DashboardProcessId
+    )
+
+    Write-Host ("backend={0} dashboard-pid={1} samples={2}" -f $BackendPort, $DashboardProcessId, $Items.Count)
+    Write-Host (
+        "  route p50/p90/max core={0:N1}/{1:N1}/{2:N1} pool={3:N1}/{4:N1}/{5:N1} preserved={6:N1}/{7:N1}/{8:N1} summary={9:N1}/{10:N1}/{11:N1} html={12:N1}/{13:N1}/{14:N1} ms" -f
+        (Get-Median -Items $Items -Property 'CoreProxyMs'),
+        (Get-Percentile -Items $Items -Property 'CoreProxyMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'CoreProxyMs'),
+        (Get-Median -Items $Items -Property 'PoolBackendMs'),
+        (Get-Percentile -Items $Items -Property 'PoolBackendMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'PoolBackendMs'),
+        (Get-Median -Items $Items -Property 'PreservedDashboardMs'),
+        (Get-Percentile -Items $Items -Property 'PreservedDashboardMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'PreservedDashboardMs'),
+        (Get-Median -Items $Items -Property 'DashboardSummaryMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardSummaryMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardSummaryMs'),
+        (Get-Median -Items $Items -Property 'DashboardHtmlMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardHtmlMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardHtmlMs'))
+    Write-Host (
+        "  html p50/p90/max parse={0:N1}/{1:N1}/{2:N1} snapshot={3:N1}/{4:N1}/{5:N1} priority={6:N1}/{7:N1}/{8:N1} decision={9:N1}/{10:N1}/{11:N1} manager={12:N1}/{13:N1}/{14:N1} materialize={15:N1}/{16:N1}/{17:N1} ms" -f
+        (Get-Median -Items $Items -Property 'DashboardParseBaseMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardParseBaseMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardParseBaseMs'),
+        (Get-Median -Items $Items -Property 'DashboardSnapshotMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardSnapshotMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardSnapshotMs'),
+        (Get-Median -Items $Items -Property 'DashboardPriorityMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardPriorityMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardPriorityMs'),
+        (Get-Median -Items $Items -Property 'DashboardDecisionMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardDecisionMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardDecisionMs'),
+        (Get-Median -Items $Items -Property 'DashboardManagerMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardManagerMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardManagerMs'),
+        (Get-Median -Items $Items -Property 'DashboardMaterializeMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardMaterializeMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardMaterializeMs'))
 }
 
 function Stop-OwnedTree {
@@ -425,15 +434,6 @@ try {
         (Get-Median -Items $results -Property 'DashboardExplanationLookupMs'),
         (Get-Median -Items $results -Property 'DashboardPreSnapshotTailMs'),
         (Get-Median -Items $results -Property 'DashboardPreSnapshotResidualMs'))
-    Write-Host (
-        "cpu p50 summary={0:N1}ms parse={1:N1}ms snapshot={2:N1}ms priority={3:N1}ms decision={4:N1}ms manager={5:N1}ms materialize={6:N1}ms" -f
-        (Get-Median -Items $results -Property 'DashboardSummaryCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardParseBaseCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardSnapshotCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardPriorityCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardDecisionCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardManagerCpuMs'),
-        (Get-Median -Items $results -Property 'DashboardMaterializeCpuMs'))
 
     Write-Host ''
     Write-Host 'Warm miss-path variance (p90 / max)'
@@ -455,28 +455,27 @@ try {
         (Get-Maximum -Items $results -Property 'PoolToPreservedResidualMs'),
         (Get-Percentile -Items $results -Property 'DashboardOtherResidualMs' -Percentile 0.90),
         (Get-Maximum -Items $results -Property 'DashboardOtherResidualMs'))
-    Write-Host (
-        "cpu p90/max summary={0:N1}/{1:N1}ms parse={2:N1}/{3:N1}ms snapshot={4:N1}/{5:N1}ms priority={6:N1}/{7:N1}ms decision={8:N1}/{9:N1}ms manager={10:N1}/{11:N1}ms materialize={12:N1}/{13:N1}ms" -f
-        (Get-Percentile -Items $results -Property 'DashboardSummaryCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardSummaryCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardParseBaseCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardParseBaseCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardSnapshotCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardSnapshotCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardPriorityCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardPriorityCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardDecisionCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardDecisionCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardManagerCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardManagerCpuMs'),
-        (Get-Percentile -Items $results -Property 'DashboardMaterializeCpuMs' -Percentile 0.90),
-        (Get-Maximum -Items $results -Property 'DashboardMaterializeCpuMs'))
 
     $backendPortsSeen = @($results | ForEach-Object { [int]$_.BackendPort } | Sort-Object -Unique)
     $dashboardPidsSeen = @($results | ForEach-Object { [int]$_.DashboardProcessId } | Sort-Object -Unique)
+    $groupKeys = @($results | ForEach-Object { "{0}|{1}" -f ([int]$_.BackendPort), ([int]$_.DashboardProcessId) } | Sort-Object -Unique)
+
+    Write-Host ''
+    Write-Host 'Backend/PID grouped variance (p50 / p90 / max)'
+    foreach ($groupKey in $groupKeys) {
+        $parts = $groupKey.Split('|')
+        $groupPort = [int]$parts[0]
+        $groupPid = [int]$parts[1]
+        $groupItems = @($results | Where-Object {
+            [int]$_.BackendPort -eq $groupPort -and [int]$_.DashboardProcessId -eq $groupPid
+        })
+        Write-Bf869BackendGroup -Items $groupItems -BackendPort $groupPort -DashboardProcessId $groupPid
+    }
+
     Write-Host ("BF869_BACKENDS={0}" -f ($backendPortsSeen -join ','))
     Write-Host ("BF869_DASHBOARD_PIDS={0}" -f ($dashboardPidsSeen -join ','))
-    Write-Host ("BF869_BACKEND_COUNT={0}; BF869_DASHBOARD_PID_COUNT={1}" -f $backendPortsSeen.Count, $dashboardPidsSeen.Count)
+    Write-Host ("BF869_BACKEND_COUNT={0}; BF869_DASHBOARD_PID_COUNT={1}; BF869_GROUP_COUNT={2}" -f
+        $backendPortsSeen.Count, $dashboardPidsSeen.Count, $groupKeys.Count)
     Write-Host ("BF868_SAMPLE_COUNT={0}" -f $results.Count)
     Write-Host 'BF-869 RESULT: COMPLETE'
     Write-Host 'BF-868 RESULT: COMPLETE'
