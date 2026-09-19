@@ -34,6 +34,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
                     + "TEAM_BUNDLE\tteam-1\t" + LEAGUE_ID + "\n"
                     + "LATEST_SUMMARY\tsummary-1\t" + LEAGUE_ID + "\n"
                     + "WAIVER_DASHBOARD_BUNDLE\twaiver-1\t" + LEAGUE_ID + "\n"
+                    + "MATCHUP_BUNDLE\tmatchup-1\t" + LEAGUE_ID + "\n"
                     + "EXPLANATION_LOOKUP\texplanation-1\t" + LEAGUE_ID + "\t" + AUDIT_ID + "\n"
                     + "QUIT\n"));
              PrintWriter protocol = new PrintWriter(output, true)) {
@@ -41,27 +42,29 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         }
 
         List<String> lines = output.toString().lines().toList();
-        assertEquals(7, lines.size());
+        assertEquals(8, lines.size());
         assertEquals(ButlerReadOnlyJvmWorker.READY, lines.get(0));
-        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(6));
+        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(7));
 
         assertResult(lines.get(1), "overview-1", "LEAGUE_OVERVIEW:" + LEAGUE_ID + ":null");
         assertResult(lines.get(2), "team-1", "TEAM_BUNDLE:" + LEAGUE_ID + ":null");
         assertResult(lines.get(3), "summary-1", "LATEST_SUMMARY:" + LEAGUE_ID + ":null");
         assertResult(lines.get(4), "waiver-1", "WAIVER_DASHBOARD_BUNDLE:" + LEAGUE_ID + ":null");
-        assertResult(lines.get(5), "explanation-1", "EXPLANATION_LOOKUP:" + LEAGUE_ID + ":" + AUDIT_ID);
+        assertResult(lines.get(5), "matchup-1", "MATCHUP_BUNDLE:" + LEAGUE_ID + ":null");
+        assertResult(lines.get(6), "explanation-1", "EXPLANATION_LOOKUP:" + LEAGUE_ID + ":" + AUDIT_ID);
 
-        assertEquals(5, requests.size());
+        assertEquals(6, requests.size());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LEAGUE_OVERVIEW, requests.get(0).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.TEAM_BUNDLE, requests.get(1).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LATEST_SUMMARY, requests.get(2).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.WAIVER_DASHBOARD_BUNDLE, requests.get(3).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.EXPLANATION_LOOKUP, requests.get(4).operation());
-        for (int index = 0; index < 4; index++) {
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.MATCHUP_BUNDLE, requests.get(4).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.EXPLANATION_LOOKUP, requests.get(5).operation());
+        for (int index = 0; index < 5; index++) {
             assertEquals(LEAGUE_ID, requests.get(index).leagueId());
             assertNull(requests.get(index).argument());
         }
-        assertEquals(AUDIT_ID, requests.get(4).argument());
+        assertEquals(AUDIT_ID, requests.get(5).argument());
     }
 
     @Test
@@ -115,6 +118,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         assertTrue(message.contains("TEAM_BUNDLE"));
         assertTrue(message.contains("LATEST_SUMMARY"));
         assertTrue(message.contains("WAIVER_DASHBOARD_BUNDLE"));
+        assertTrue(message.contains("MATCHUP_BUNDLE"));
         assertTrue(message.contains("EXPLANATION_LOOKUP"));
     }
 
