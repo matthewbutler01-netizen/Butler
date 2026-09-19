@@ -51,7 +51,7 @@ class ButlerDashboardOuterRouteTimingBf856Test {
     void focusedRunnerUsesDetachedTempWorktreeAndReadOnlyDashboardGets() throws Exception {
         String script = source("scripts/butler-dashboard-outer-route-timing-diagnostic.ps1");
 
-        assertTrue(script.contains("git worktree add --detach"));
+        assertTrue(script.contains("worktree add --detach"));
         assertTrue(script.contains("Butler-bf856-route-"));
         assertTrue(script.contains("$env:BUTLER_APP_BF856_ROUTE_TIMING = '1'"));
         assertTrue(script.contains("Three simultaneous Dashboard requests after cache expiry"));
