@@ -35,20 +35,22 @@ if (-not [Guid]::TryParse($leagueId, [ref]$parsedLeagueId) -or
     throw 'BF-854 BLOCKED: configured Butler league id is not an exact canonical UUID.'
 }
 
+$isolatedBuildDir = Join-Path ([IO.Path]::GetTempPath()) ('Butler-bf854-bet-cli-build-' + [Guid]::NewGuid().ToString('N'))
+[IO.Directory]::CreateDirectory($isolatedBuildDir) | Out-Null
+
 Push-Location $repoRoot
 try {
-    # BF-854 diagnostic preparation owns only generated bet-cli build output.
-    # Clean first so OneDrive/stale generated class placeholders cannot poison Gradle output snapshotting.
-    & $gradle '--no-daemon' ':bet:bet-cli:clean' ':bet:bet-cli:installDist' '--quiet'
+    $isolatedProperty = '-PbutlerIsolatedBuildDir=' + $isolatedBuildDir
+    & $gradle '--no-daemon' $isolatedProperty ':bet:bet-cli:installDist' '--quiet'
     if ($LASTEXITCODE -ne 0) {
-        throw "BF-854 BLOCKED: clean installDist failed with exit code $LASTEXITCODE."
+        throw "BF-854 BLOCKED: isolated installDist failed with exit code $LASTEXITCODE."
     }
 }
 finally {
     Pop-Location
 }
 
-$runtimeLibDir = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+$runtimeLibDir = Join-Path $isolatedBuildDir 'install\bet-cli\lib'
 $jars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
 if ($jars.Count -eq 0) {
     throw "BF-854 BLOCKED: prepared runtime contains no jars at $runtimeLibDir"
@@ -227,4 +229,7 @@ try {
 }
 finally {
     Stop-DiagnosticWorker -Worker $worker
+    if (Test-Path -LiteralPath $isolatedBuildDir) {
+        Remove-Item -LiteralPath $isolatedBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
