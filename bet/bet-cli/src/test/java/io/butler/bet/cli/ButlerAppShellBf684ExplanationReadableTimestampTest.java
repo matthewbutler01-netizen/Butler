@@ -35,7 +35,7 @@ class ButlerAppShellBf684ExplanationReadableTimestampTest {
         assertTrue(detailHtml.contains("$explanationCapturedLabel = if ($Explanation.State -ceq 'EXPLANATION_READY')"));
         assertTrue(detailHtml.contains("<strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $explanationCapturedLabel)</span>"));
         assertFalse(detailHtml.contains("<strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $Explanation.Captured)</span>"));
-        assertTrue(detailHtml.contains("<summary>Explanation evidence lineage</summary><p class=\"mono\">Captured UTC: $(ConvertTo-HtmlText $Explanation.Captured)</p>"));
+        assertTrue(detailHtml.contains("<summary>Explanation details</summary><div class=\"detail-grid\">"));
     }
 
     @Test
@@ -47,8 +47,8 @@ class ButlerAppShellBf684ExplanationReadableTimestampTest {
         assertTrue(explanationView.contains("Captured = $captured.Groups['value'].Value.Trim()"));
         assertTrue(explanationView.contains("EXPLANATION_NOT_CAPTURED"));
         assertTrue(explanationView.contains("if ($value -cne 'none')"));
-        assertTrue(detailHtml.contains("No persisted explanation"));
-        assertTrue(detailHtml.contains("BF-653 reports EXPLANATION_NOT_CAPTURED"));
+        assertTrue(detailHtml.contains("No saved explanation"));
+        assertTrue(detailHtml.contains("No explanation was saved with this historical decision"));
     }
 
     @Test
@@ -57,7 +57,7 @@ class ButlerAppShellBf684ExplanationReadableTimestampTest {
         String detailHtml = section(detail, "function ConvertTo-DecisionDetailHtml", "function Invoke-DecisionHistoryHtml");
 
         assertTrue(detailHtml.contains("$capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $Entry.Captured"));
-        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). This detail view is reconciled"));
+        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). Butler verified this against the saved decision record"));
         assertTrue(detailHtml.contains("Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)"));
         assertTrue(detail.contains("sleeperLiveWaiverRecommendationAuditHistory"));
         assertTrue(detail.contains("sleeperLiveWaiverGovernedExplanationLookup"));
