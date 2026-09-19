@@ -42,7 +42,7 @@ class ButlerDashboardHtmlSubstageTimingBf859Test {
         assertTrue(runner.contains("'dashboard_materialize_ms'"));
         assertTrue(runner.contains("html-stages parse="));
         assertTrue(runner.contains("DashboardHtmlResidualMs"));
-        assertTrue(runner.contains("BF-859 RESULT: COMPLETE"));
+        assertTrue(runner.contains("BF-860 RESULT: COMPLETE"));
     }
 
     @Test
