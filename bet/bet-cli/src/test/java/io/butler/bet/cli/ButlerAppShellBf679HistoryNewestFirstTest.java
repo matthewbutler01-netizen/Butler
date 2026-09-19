@@ -64,7 +64,7 @@ class ButlerAppShellBf679HistoryNewestFirstTest {
         String history = script("scripts/butler-decision-history.ps1");
 
         assertTrue(history.contains("-Task ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditHistory'"));
-        assertTrue(history.contains("BF-628 reports no immutable governed waiver audits"));
+        assertTrue(history.contains("No recorded governed waiver decisions are available for this league yet."));
         assertFalse(history.contains("sleeperLiveWaiverRecommendationAuditCapture"));
         assertFalse(history.contains("sleeperLiveWaiverSnapshotSync"));
         assertFalse(history.contains("sleeperLiveWaiverMarketAttentionSync"));

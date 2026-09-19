@@ -22,8 +22,8 @@ class ButlerAppShellBf680HistoryProgressiveDisclosureTest {
         assertTrue(html.contains("if ($isNewest)"));
         assertTrue(html.contains("<article class=\"history-card\">"));
         assertTrue(html.contains("<article class=\"history-card history-card-compact\">"));
-        assertTrue(html.contains("<details class=\"history-older-details\"><summary>Show audit details</summary>"));
-        assertTrue(html.contains("<details><summary>Audit and evidence lineage</summary>"));
+        assertTrue(html.contains("<details class=\"history-older-details\"><summary>Show decision details</summary>"));
+        assertTrue(html.contains("<details><summary>Decision details</summary>"));
         assertFalse(html.contains("<script"));
     }
 
@@ -63,7 +63,7 @@ class ButlerAppShellBf680HistoryProgressiveDisclosureTest {
         assertFalse(history.contains("sleeperLiveWaiverRecommendationAuditCapture"));
         assertFalse(history.contains("sleeperLiveWaiverSnapshotSync"));
         assertFalse(history.contains("sleeperLiveWaiverMarketAttentionSync"));
-        assertTrue(history.contains("BF-628 reports no immutable governed waiver audits"));
+        assertTrue(history.contains("No recorded governed waiver decisions are available for this league yet."));
         assertAscii(history);
     }
 

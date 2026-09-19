@@ -59,10 +59,10 @@ $nav
 <section class="panel">
 <div class="eyebrow">Governed decision history</div>
 <div class="statusrow">
-<div><h2 class="headline">Opening Decision History...</h2><p class="lede">Loading Butler's BF-628 integrity-verified immutable waiver audit trail.</p></div>
+<div><h2 class="headline">Opening Decision History...</h2><p class="lede">Loading recorded waiver decisions for this league and roster.</p></div>
 <span class="status done">READ ONLY</span>
 </div>
-<div class="empty">This view reads existing audit history only. It does not capture, refresh, rerank, or submit anything.</div>
+<div class="empty">This view reads existing decision history only. It does not capture, refresh, rerank, or submit anything.</div>
 </section>
 </main>
 </body>
@@ -182,18 +182,17 @@ function ConvertTo-DecisionHistoryHtml {
         if ($isNewest) {
             $cardHtml = @"
 <article class="history-card">
-<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
-<div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
-<details><summary>Audit and evidence lineage</summary><p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
+<div class="statusrow"><div><div class="eyebrow">Latest recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div></div>
+<details><summary>Decision details</summary><div class="history-meta"><div><strong>Integrity</strong><span>$(ConvertTo-HtmlText $entry.IntegrityState)</span></div><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation state</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div><p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
 </article>
 "@
         }
         else {
             $cardHtml = @"
 <article class="history-card history-card-compact">
-<div class="statusrow"><div><div class="eyebrow">Immutable audit</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div><div class="history-integrity">$(ConvertTo-HtmlText $entry.IntegrityState)</div></div>
-<details class="history-older-details"><summary>Show audit details</summary>
-<div class="history-meta"><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
+<div class="statusrow"><div><div class="eyebrow">Recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div></div>
+<details class="history-older-details"><summary>Show decision details</summary>
+<div class="history-meta"><div><strong>Integrity</strong><span>$(ConvertTo-HtmlText $entry.IntegrityState)</span></div><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation state</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
 <p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p>
 </details>
 </article>
@@ -202,15 +201,15 @@ function ConvertTo-DecisionHistoryHtml {
         $cards += $cardHtml
     }
     if ([string]::IsNullOrWhiteSpace($cards)) {
-        $cards = '<div class="empty">BF-628 reports no immutable governed waiver audits for this exact Butler league.</div>'
+        $cards = '<div class="empty">No recorded governed waiver decisions are available for this league yet.</div>'
     }
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision History</title><style>$css$historyCss</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $History.LeagueId) &middot; roster $(ConvertTo-HtmlText $History.RosterId)</div></header>
 $nav
-<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Immutable governed waiver audits</h1><p class="lede">BF-628 integrity-verified history for the exact BF-623-bound league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>History state</strong><span>$(ConvertTo-HtmlText $History.State)</span></div><div class="stat"><strong>Audit records</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div><div class="stat"><strong>Target roster</strong><span>$(ConvertTo-HtmlText $History.RosterId)</span></div></div><div class="history-list">$cards</div></section>
-<section class="panel boundary"><span class="lock">READ ONLY.</span> BF-671 displays BF-628 history only. It cannot capture or rewrite an audit, refresh evidence, rerank a waiver decision, execute BF-641, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
+<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Recorded waiver decisions</h1><p class="lede">Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>History status</strong><span>$(ConvertTo-HtmlText $History.State)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div><div class="stat"><strong>Roster</strong><span>$(ConvertTo-HtmlText $History.RosterId)</span></div></div><div class="history-list">$cards</div></section>
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Decision History reads recorded governed waiver history only. It cannot capture or rewrite a decision record, refresh evidence, rerank a waiver decision, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
