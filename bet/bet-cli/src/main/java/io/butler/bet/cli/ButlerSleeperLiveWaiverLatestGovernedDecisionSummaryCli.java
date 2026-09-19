@@ -5,6 +5,7 @@ import io.butler.bet.sleeper.SleeperLiveWaiverLatestGovernedDecisionSummary;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionNextDecisionPlan;
 import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
 import io.butler.bet.sleeper.SleeperLiveWaiverRecommendationManualRefreshPlan;
+import io.butler.bet.sleeper.SleeperLiveWaiverSharedSummaryContext;
 
 import java.nio.file.Path;
 
@@ -28,11 +29,9 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             String leagueId = args[0].trim();
             Database database = new Database(Path.of("butler.db"));
             database.initialize();
-            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
-            ButlerPersonalizedTargetCliSupport.printVerified(target);
-            var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
-            var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
-            print(summary, convergence);
+            var resolved = new SleeperLiveWaiverSharedSummaryContext(database).resolve(leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(resolved.target());
+            print(resolved.summary(), resolved.convergence());
             return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
