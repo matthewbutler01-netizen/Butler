@@ -222,26 +222,24 @@ function Invoke-ExpensiveReadSingleFlightGet {
             }
         }
 
-        $companionMutex = [System.Threading.Mutex]::new($false, ("Local\Butler.Companion.Heavy.{0}" -f $PID))
-        $companionLockTaken = $false
+        $companionSemaphore = [System.Threading.Semaphore]::new(
+            2,
+            2,
+            ("Local\Butler.Companion.Heavy.{0}" -f $PID))
+        $companionSlotTaken = $false
         try {
-            try {
-                $companionLockTaken = $companionMutex.WaitOne(180000)
-            }
-            catch [System.Threading.AbandonedMutexException] {
-                $companionLockTaken = $true
-            }
-            if (-not $companionLockTaken) {
+            $companionSlotTaken = $companionSemaphore.WaitOne(180000)
+            if (-not $companionSlotTaken) {
                 throw 'BF-694 BLOCKED: finite wait for companion heavy read capacity expired.'
             }
 
             $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
         }
         finally {
-            if ($companionLockTaken) {
-                try { $companionMutex.ReleaseMutex() } catch {}
+            if ($companionSlotTaken) {
+                try { [void]$companionSemaphore.Release() } catch {}
             }
-            $companionMutex.Dispose()
+            $companionSemaphore.Dispose()
         }
 
         if ([int]$proxied.StatusCode -eq 200) {
