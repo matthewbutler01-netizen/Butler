@@ -19,17 +19,17 @@ class ButlerAppShellCoreBf751Test {
         assertTrue(warmup.contains("BUTLER_APP_CORE_POOL_WARMUP -ceq '0'"));
         String waiverUrl = "http://127.0.0.1:$BackendPort/waivers";
         String teamUrl = "http://127.0.0.1:$BackendPort/team";
-        String dashboardUrl = "http://127.0.0.1:$BackendPort/";
+        String dashboardCreate = "Create(\"http://127.0.0.1:$BackendPort/\")";
         assertTrue(warmup.contains(waiverUrl));
         assertTrue(warmup.contains(teamUrl));
-        assertTrue(warmup.contains(dashboardUrl));
+        assertTrue(warmup.contains(dashboardCreate));
         assertTrue(warmup.indexOf(waiverUrl) < warmup.indexOf(teamUrl),
             "BF-756 must warm waivers before team on each preserved core");
-        assertTrue(warmup.indexOf(teamUrl) < warmup.indexOf(dashboardUrl),
+        assertTrue(warmup.indexOf(teamUrl) < warmup.indexOf(dashboardCreate),
             "BF-861 must warm Dashboard after waiver/team reads on each preserved core");
         assertEquals(1, occurrences(warmup, waiverUrl));
         assertEquals(1, occurrences(warmup, teamUrl));
-        assertEquals(1, occurrences(warmup, dashboardUrl));
+        assertEquals(1, occurrences(warmup, dashboardCreate));
         assertEquals(3, occurrences(warmup, ".Method = 'GET'"));
         assertEquals(3, occurrences(warmup, ".Timeout = 3000"));
         assertEquals(3, occurrences(warmup, ".ReadWriteTimeout = 3000"));
