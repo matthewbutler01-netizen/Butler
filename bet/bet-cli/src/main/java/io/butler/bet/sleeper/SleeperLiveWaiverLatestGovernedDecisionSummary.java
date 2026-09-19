@@ -26,8 +26,8 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
             new SleeperLiveWaiverRecommendationActionabilityRevalidation(database).revalidate(target);
         this.evidenceLineageSource = target ->
             new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation(database).revalidate(target);
-        this.evidenceAgeSource = target ->
-            new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry(database).inspect(target);
+        this.evidenceAgeSource = (target, lineage) ->
+            new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry(database).inspect(target, lineage);
         this.playerLookup = sleeperId -> players.findByExternalId(sleeperId)
             .map(SleeperLiveWaiverLatestGovernedDecisionSummary::display)
             .orElse(null);
@@ -68,7 +68,7 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         validateCrossGateAudit(revalidation, evidenceLineage);
 
         started = System.nanoTime();
-        var evidenceAge = evidenceAgeSource.inspect(target);
+        var evidenceAge = evidenceAgeSource.inspect(target, evidenceLineage);
         timing.observe("bf633_age", elapsedMs(started));
         validateEvidenceAge(target, evidenceLineage, evidenceAge);
         validateCrossGateTelemetry(revalidation, evidenceLineage, evidenceAge);
@@ -336,7 +336,9 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     @FunctionalInterface
     interface EvidenceAgeSource {
         SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryReport inspect(
-            SleeperPersonalizedTargetService.VerifiedTarget target) throws SQLException;
+            SleeperPersonalizedTargetService.VerifiedTarget target,
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport lineage)
+            throws SQLException;
     }
 
     @FunctionalInterface
