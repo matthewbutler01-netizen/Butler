@@ -1,3 +1,8 @@
+param(
+    [ValidateRange(5, 15)]
+    [int]$SampleCount = 7
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -216,6 +221,39 @@ function Get-Median {
     return [double]$values[[int][Math]::Floor($values.Count / 2)]
 }
 
+function Get-Percentile {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Items,
+        [Parameter(Mandatory = $true)][string]$Property,
+        [Parameter(Mandatory = $true)][ValidateRange(0.0, 1.0)][double]$Percentile
+    )
+    $values = @($Items | ForEach-Object { [double]($_.$Property) } | Sort-Object)
+    if ($values.Count -eq 0) {
+        throw 'BF-868 BLOCKED: percentile sample is empty.'
+    }
+    if ($values.Count -eq 1) {
+        return [double]$values[0]
+    }
+
+    $position = ([double]($values.Count - 1)) * $Percentile
+    $lower = [int][Math]::Floor($position)
+    $upper = [int][Math]::Ceiling($position)
+    if ($lower -eq $upper) {
+        return [double]$values[$lower]
+    }
+
+    $weight = $position - [double]$lower
+    return ([double]$values[$lower] * (1.0 - $weight)) + ([double]$values[$upper] * $weight)
+}
+
+function Get-Maximum {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Items,
+        [Parameter(Mandatory = $true)][string]$Property
+    )
+    return [double](($Items | ForEach-Object { [double]($_.$Property) } | Measure-Object -Maximum).Maximum)
+}
+
 function Stop-OwnedTree {
     param([AllowNull()]$Process)
     if ($null -eq $Process) { return }
@@ -246,7 +284,8 @@ Write-Host 'Butler Dashboard pre-snapshot helper timing diagnostic (BF-860)'
 Write-Host "Commit: $head"
 Write-Host "Worktree: $worktree"
 Write-Host "Target: $root/"
-Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860 timing is diagnostic-only for this owned process.'
+Write-Host "Samples: $SampleCount warm miss-path requests"
+Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860/BF-868 timing is diagnostic-only for this owned process.'
 
 try {
     Push-Location $sourceRepoRoot
@@ -304,7 +343,7 @@ try {
     }
 
     $results = @()
-    for ($i = 1; $i -le 3; $i++) {
+    for ($i = 1; $i -le $SampleCount; $i++) {
         if ($i -gt 1) { Start-Sleep -Seconds 6 }
         $result = Invoke-TimedDashboard -Root $root -Id ("s{0}" -f $i)
         $results += $result
@@ -342,6 +381,29 @@ try {
         (Get-Median -Items $results -Property 'DashboardPreSnapshotTailMs'),
         (Get-Median -Items $results -Property 'DashboardPreSnapshotResidualMs'))
 
+    Write-Host ''
+    Write-Host 'Warm miss-path variance (p90 / max)'
+    Write-Host (
+        "core={0:N1}/{1:N1}ms pool={2:N1}/{3:N1}ms preserved={4:N1}/{5:N1}ms summary={6:N1}/{7:N1}ms html={8:N1}/{9:N1}ms outer-res={10:N1}/{11:N1}ms pool-res={12:N1}/{13:N1}ms dash-res={14:N1}/{15:N1}ms" -f
+        (Get-Percentile -Items $results -Property 'CoreProxyMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'CoreProxyMs'),
+        (Get-Percentile -Items $results -Property 'PoolBackendMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'PoolBackendMs'),
+        (Get-Percentile -Items $results -Property 'PreservedDashboardMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'PreservedDashboardMs'),
+        (Get-Percentile -Items $results -Property 'DashboardSummaryMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardSummaryMs'),
+        (Get-Percentile -Items $results -Property 'DashboardHtmlMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardHtmlMs'),
+        (Get-Percentile -Items $results -Property 'OuterToPoolResidualMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'OuterToPoolResidualMs'),
+        (Get-Percentile -Items $results -Property 'PoolToPreservedResidualMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'PoolToPreservedResidualMs'),
+        (Get-Percentile -Items $results -Property 'DashboardOtherResidualMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardOtherResidualMs'))
+
+    Write-Host ("BF868_SAMPLE_COUNT={0}" -f $results.Count)
+    Write-Host 'BF-868 RESULT: COMPLETE'
     Write-Host 'BF-860 RESULT: COMPLETE'
 }
 finally {
