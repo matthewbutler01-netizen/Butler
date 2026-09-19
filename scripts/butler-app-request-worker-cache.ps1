@@ -413,7 +413,15 @@ function ConvertTo-ButlerUserFacingHtml {
     }
     $bodyEncodingReplacement = @'
     if ($ContentType -match '^text/html') {
+        $bf856PresentationStarted = if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
+            [System.Diagnostics.Stopwatch]::GetTimestamp()
+        } else {
+            [long]0
+        }
         $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+        if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
+            $DiagnosticTimings.presentation_ms = Get-Bf856ElapsedMs -StartedTicks $bf856PresentationStarted
+        }
     }
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
 '@
