@@ -12,6 +12,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** BF-621 through BF-623 exact requesting-user Sleeper account+league+roster binding and verification. */
 public final class SleeperPersonalizedTargetService {
@@ -186,6 +190,160 @@ public final class SleeperPersonalizedTargetService {
         timing.observe("verify_total", elapsedMs(totalStarted));
         return result;
     }
+
+    /**
+     * BF-862 diagnostic-only proof path. Production verifyBoundTarget remains serial.
+     * After exact user resolution, the four independent Sleeper reads are issued
+     * concurrently, then reconciled through the same BF-621/BF-623 semantics.
+     */
+    public VerifiedTarget verifyBoundTargetParallelDiagnostic(
+        String butlerLeagueId,
+        ProviderStageObserver observer)
+        throws SQLException, IOException, InterruptedException {
+        long totalStarted = System.nanoTime();
+        ProviderStageObserver timing = observer == null ? ProviderStageObserver.NO_OP : observer;
+        String leagueId = requireText(butlerLeagueId, "butlerLeagueId");
+        var bound = targets.findByButlerLeagueId(leagueId)
+            .orElseThrow(() -> new IllegalStateException(
+                "BF-623 BLOCKED: no personalized Sleeper target is bound for Butler league " + leagueId));
+
+        long started = System.nanoTime();
+        String userPayload = source.user(bound.sleeperUsername());
+        timing.observe("user", elapsedMs(started));
+        UserObservation user = parseUser(userPayload);
+
+        String userLeaguesPayload;
+        String leaguePayload;
+        String rostersPayload;
+        String usersPayload;
+        try (ExecutorService executor = Executors.newFixedThreadPool(4)) {
+            CompletableFuture<TimedPayload> userLeaguesFuture = timedAsync(
+                executor, "user_leagues",
+                () -> source.userLeagues(user.userId(), TARGET_SEASON));
+            CompletableFuture<TimedPayload> leagueFuture = timedAsync(
+                executor, "league",
+                () -> source.league(bound.sleeperLeagueId()));
+            CompletableFuture<TimedPayload> rostersFuture = timedAsync(
+                executor, "rosters",
+                () -> source.rosters(bound.sleeperLeagueId()));
+            CompletableFuture<TimedPayload> usersFuture = timedAsync(
+                executor, "league_users",
+                () -> source.users(bound.sleeperLeagueId()));
+
+            TimedPayload userLeagues = await(userLeaguesFuture);
+            TimedPayload league = await(leagueFuture);
+            TimedPayload rosters = await(rostersFuture);
+            TimedPayload users = await(usersFuture);
+
+            timing.observe(userLeagues.stage(), userLeagues.elapsedMs());
+            timing.observe(league.stage(), league.elapsedMs());
+            timing.observe(rosters.stage(), rosters.elapsedMs());
+            timing.observe(users.stage(), users.elapsedMs());
+
+            userLeaguesPayload = userLeagues.payload();
+            leaguePayload = league.payload();
+            rostersPayload = rosters.payload();
+            usersPayload = users.payload();
+        }
+
+        List<LeagueObservation> currentLeagues = parseLeagues(userLeaguesPayload);
+        List<LeagueObservation> selectedMatches = currentLeagues.stream()
+            .filter(value -> bound.sleeperLeagueId().equals(value.leagueId()))
+            .toList();
+        if (selectedMatches.size() != 1) {
+            throw new IllegalStateException(
+                "BF-621 BLOCKED: selected Sleeper league is not exactly present in requesting user's 2026 league list: "
+                    + bound.sleeperLeagueId());
+        }
+        LeagueObservation selected = selectedMatches.get(0);
+
+        LeagueObservation directLeague = parseLeague(leaguePayload);
+        if (!selected.equals(directLeague)) {
+            throw new IllegalStateException("BF-621 BLOCKED: user-league list and direct league observation disagree");
+        }
+
+        List<RosterObservation> rosters = parseRosters(rostersPayload);
+        List<RosterObservation> memberships = rosters.stream()
+            .filter(value -> user.userId().equals(value.ownerId()) || value.coOwnerIds().contains(user.userId()))
+            .toList();
+        if (memberships.size() != 1) {
+            throw new IllegalStateException(
+                "BF-621 BLOCKED: requesting user resolves to " + memberships.size()
+                    + " current roster memberships instead of exactly one");
+        }
+        RosterObservation roster = memberships.get(0);
+
+        ProviderLeagueUser leagueUser = parseLeagueUsers(usersPayload).stream()
+            .filter(value -> user.userId().equals(value.userId()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "BF-621 BLOCKED: requesting user is absent from selected league users surface"));
+
+        DiscoveryReport live = new DiscoveryReport(
+            BF621_POLICY_ID,
+            user.username(),
+            user.userId(),
+            user.displayName(),
+            List.copyOf(currentLeagues),
+            selected.leagueId(),
+            selected.name(),
+            selected.season(),
+            selected.status(),
+            roster.rosterId(),
+            user.userId().equals(roster.ownerId()) ? MembershipRole.OWNER : MembershipRole.CO_OWNER,
+            leagueUser.displayName(),
+            leagueUser.teamName(),
+            roster.playerCount(),
+            DiscoveryState.EXACT_USER_LEAGUE_ROSTER_DISCOVERED);
+
+        VerifiedTarget result = verifyResolvedTarget(leagueId, bound, live);
+        timing.observe("verify_total", elapsedMs(totalStarted));
+        return result;
+    }
+
+    private CompletableFuture<TimedPayload> timedAsync(
+        ExecutorService executor,
+        String stage,
+        CheckedPayloadSupplier supplier) {
+        return CompletableFuture.supplyAsync(() -> {
+            long started = System.nanoTime();
+            try {
+                return new TimedPayload(stage, supplier.get(), elapsedMs(started));
+            } catch (IOException | InterruptedException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException(e);
+            }
+        }, executor);
+    }
+
+    private static TimedPayload await(CompletableFuture<TimedPayload> future)
+        throws IOException, InterruptedException {
+        try {
+            return future.join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw interrupted;
+            }
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException("BF-862 BLOCKED: parallel provider read failed", cause);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedPayloadSupplier {
+        String get() throws IOException, InterruptedException;
+    }
+
+    private record TimedPayload(String stage, String payload, double elapsedMs) {}
 
     private VerifiedTarget verifyResolvedTarget(
         String leagueId,
