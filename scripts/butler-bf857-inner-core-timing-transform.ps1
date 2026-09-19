@@ -197,6 +197,12 @@ $pathReplacement = @'
                 $bf857Timing = @{
                     dashboard_summary_ms = 0.0
                     dashboard_html_ms = 0.0
+                    dashboard_parse_base_ms = 0.0
+                    dashboard_snapshot_ms = 0.0
+                    dashboard_priority_ms = 0.0
+                    dashboard_decision_ms = 0.0
+                    dashboard_manager_ms = 0.0
+                    dashboard_materialize_ms = 0.0
                 }
             }
 '@
@@ -236,7 +242,16 @@ $dashboardHeaderReplacement = @'
     $bf857Header = ''
     if ($bf857CoreTimingEnabled -and $null -ne $Bf857Timing) {
         $bf857Pairs = New-Object System.Collections.Generic.List[string]
-        foreach ($bf857Key in @('dashboard_summary_ms', 'dashboard_html_ms')) {
+        foreach ($bf857Key in @(
+            'dashboard_summary_ms',
+            'dashboard_html_ms',
+            'dashboard_parse_base_ms',
+            'dashboard_snapshot_ms',
+            'dashboard_priority_ms',
+            'dashboard_decision_ms',
+            'dashboard_manager_ms',
+            'dashboard_materialize_ms'
+        )) {
             $bf857Value = if ($Bf857Timing.ContainsKey($bf857Key)) { [double]$Bf857Timing[$bf857Key] } else { 0.0 }
             $bf857Pairs.Add(
                 $bf857Key + '=' +
@@ -266,6 +281,95 @@ $dashboardSuccessSendReplacement = @'
                 Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html -Bf857Timing $bf857Timing
 '@
 $dashboardText = Replace-ExactOnce -Text $dashboardText -Original $dashboardSuccessSendOriginal -Replacement $dashboardSuccessSendReplacement -Contract 'Dashboard timing propagation'
+
+# BF-859: diagnostic-only renderer substage timing. This transform already runs
+# last against the final staged Dashboard, so these anchors describe the exact
+# manager renderer that BF-857 measured as dashboard_html_ms.
+$dashboardStart = $dashboardText.IndexOf('function ConvertTo-DashboardHtml {', [StringComparison]::Ordinal)
+$dashboardEnd = $dashboardText.IndexOf('function ConvertTo-TeamHtml {', $dashboardStart, [StringComparison]::Ordinal)
+if ($dashboardStart -lt 0 -or $dashboardEnd -le $dashboardStart) {
+    throw 'BF-859 BLOCKED: final Dashboard renderer boundary is missing.'
+}
+$dashboardBlock = $dashboardText.Substring($dashboardStart, $dashboardEnd - $dashboardStart)
+
+$baseAnchor = '    $target = Get-LineValue -Text $Summary -Label "Target:"'
+$snapshotAnchor = '    $lineupSnapshot = Get-Bf809AutoFillSnapshot -LeagueKey ([string]$LeagueId) -TargetHuman ([string]$target)'
+$priorityAnchor = '    $priorityQueueHtml = $priorityCardList -join "`n"'
+$managerAnchor = '    # BF-819 is presentation-only. It reuses the already-derived priority, evidence, record,'
+$finalReturnToken = '    return @"'
+
+foreach ($anchor in @($baseAnchor, $snapshotAnchor, $priorityAnchor, $managerAnchor)) {
+    if ([regex]::Matches($dashboardBlock, [regex]::Escape($anchor)).Count -ne 1) {
+        throw "BF-859 BLOCKED: renderer timing anchor missing or ambiguous: $anchor"
+    }
+}
+
+$baseReplacement = @'
+    $bf859StageStarted = if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        [System.Diagnostics.Stopwatch]::GetTimestamp()
+    } else {
+        [long]0
+    }
+    $target = Get-LineValue -Text $Summary -Label "Target:"
+'@
+$dashboardBlock = $dashboardBlock.Replace($baseAnchor, $baseReplacement.TrimEnd())
+
+$snapshotReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_parse_base_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
+        $bf859SnapshotStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $lineupSnapshot = Get-Bf809AutoFillSnapshot -LeagueKey ([string]$LeagueId) -TargetHuman ([string]$target)
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_snapshot_ms = Get-Bf857ElapsedMs -StartedTicks $bf859SnapshotStarted
+        $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+'@
+$dashboardBlock = $dashboardBlock.Replace($snapshotAnchor, $snapshotReplacement.TrimEnd())
+
+$priorityReplacement = @'
+    $priorityQueueHtml = $priorityCardList -join "`n"
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_priority_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
+        $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+'@
+$dashboardBlock = $dashboardBlock.Replace($priorityAnchor, $priorityReplacement.TrimEnd())
+
+$managerReplacement = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_decision_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
+        $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    # BF-819 is presentation-only. It reuses the already-derived priority, evidence, record,
+'@
+$dashboardBlock = $dashboardBlock.Replace($managerAnchor, $managerReplacement.TrimEnd())
+
+$finalReturn = $dashboardBlock.LastIndexOf($finalReturnToken, [StringComparison]::Ordinal)
+$functionClose = $dashboardBlock.LastIndexOf('}', [StringComparison]::Ordinal)
+if ($finalReturn -lt 0 -or $functionClose -le $finalReturn) {
+    throw 'BF-859 BLOCKED: final Dashboard HTML return boundary is missing.'
+}
+
+$finalPrefix = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_manager_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
+        $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    }
+    $bf859HtmlResult = @"
+'@
+$dashboardBlock = $dashboardBlock.Substring(0, $finalReturn) + $finalPrefix.TrimEnd() + $dashboardBlock.Substring($finalReturn + $finalReturnToken.Length)
+
+$functionClose = $dashboardBlock.LastIndexOf('}', [StringComparison]::Ordinal)
+$finalSuffix = @'
+    if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
+        $bf857Timing.dashboard_materialize_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
+    }
+    return $bf859HtmlResult
+'@
+$dashboardBlock = $dashboardBlock.Substring(0, $functionClose) + $finalSuffix.TrimEnd() + "`r`n" + $dashboardBlock.Substring($functionClose)
+
+$dashboardText = $dashboardText.Substring(0, $dashboardStart) + $dashboardBlock + $dashboardText.Substring($dashboardEnd)
 
 [IO.File]::WriteAllText($CorePath, $coreText, [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText($DashboardPath, $dashboardText, [Text.UTF8Encoding]::new($false))

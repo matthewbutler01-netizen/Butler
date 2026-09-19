@@ -95,7 +95,16 @@ function Invoke-TimedDashboard {
             'cache_hit','core_proxy_ms','server_before_write_ms'
         )
         $bf857 = Parse-TimingHeader -Header ([string]$response.Headers['X-Butler-BF857-Timing']) -Name 'X-Butler-BF857-Timing' -Required @(
-            'pool_backend_ms','preserved_dashboard_ms','dashboard_summary_ms','dashboard_html_ms'
+            'pool_backend_ms',
+            'preserved_dashboard_ms',
+            'dashboard_summary_ms',
+            'dashboard_html_ms',
+            'dashboard_parse_base_ms',
+            'dashboard_snapshot_ms',
+            'dashboard_priority_ms',
+            'dashboard_decision_ms',
+            'dashboard_manager_ms',
+            'dashboard_materialize_ms'
         )
         $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
         try { [void]$reader.ReadToEnd() } finally { $reader.Dispose() }
@@ -109,6 +118,13 @@ function Invoke-TimedDashboard {
         $preserved = [double]$bf857.preserved_dashboard_ms
         $summary = [double]$bf857.dashboard_summary_ms
         $html = [double]$bf857.dashboard_html_ms
+        $parseBase = [double]$bf857.dashboard_parse_base_ms
+        $snapshot = [double]$bf857.dashboard_snapshot_ms
+        $priority = [double]$bf857.dashboard_priority_ms
+        $decision = [double]$bf857.dashboard_decision_ms
+        $manager = [double]$bf857.dashboard_manager_ms
+        $materialize = [double]$bf857.dashboard_materialize_ms
+        $htmlAccounted = $parseBase + $snapshot + $priority + $decision + $manager + $materialize
 
         return [pscustomobject]@{
             Id = $Id
@@ -117,6 +133,13 @@ function Invoke-TimedDashboard {
             PreservedDashboardMs = $preserved
             DashboardSummaryMs = $summary
             DashboardHtmlMs = $html
+            DashboardParseBaseMs = $parseBase
+            DashboardSnapshotMs = $snapshot
+            DashboardPriorityMs = $priority
+            DashboardDecisionMs = $decision
+            DashboardManagerMs = $manager
+            DashboardMaterializeMs = $materialize
+            DashboardHtmlResidualMs = [Math]::Max(0.0, $html - $htmlAccounted)
             OuterToPoolResidualMs = [Math]::Max(0.0, $core - $pool)
             PoolToPreservedResidualMs = [Math]::Max(0.0, $pool - $preserved)
             DashboardOtherResidualMs = [Math]::Max(0.0, $preserved - $summary - $html)
@@ -144,6 +167,15 @@ function Write-Result {
         $Result.DashboardOtherResidualMs,
         $Result.ServerBeforeWriteMs,
         $Result.ClientWallMs)
+    Write-Host (
+        "       html-stages parse={0,6:N1}ms snapshot={1,6:N1}ms priority={2,6:N1}ms decision={3,6:N1}ms manager={4,6:N1}ms materialize={5,6:N1}ms residual={6,6:N1}ms" -f
+        $Result.DashboardParseBaseMs,
+        $Result.DashboardSnapshotMs,
+        $Result.DashboardPriorityMs,
+        $Result.DashboardDecisionMs,
+        $Result.DashboardManagerMs,
+        $Result.DashboardMaterializeMs,
+        $Result.DashboardHtmlResidualMs)
 }
 
 function Get-Median {
@@ -181,11 +213,11 @@ $process = $null
 $oldBf856 = $env:BUTLER_APP_BF856_ROUTE_TIMING
 $oldBf857 = $env:BUTLER_APP_BF857_CORE_TIMING
 
-Write-Host 'Butler Dashboard inner-core timing diagnostic (BF-857)'
+Write-Host 'Butler Dashboard HTML substage timing diagnostic (BF-859)'
 Write-Host "Commit: $head"
 Write-Host "Worktree: $worktree"
 Write-Host "Target: $root/"
-Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857 timing enabled only for this owned process.'
+Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859 timing is diagnostic-only for this owned process.'
 
 try {
     Push-Location $sourceRepoRoot
@@ -262,8 +294,17 @@ try {
         (Get-Median -Items $results -Property 'OuterToPoolResidualMs'),
         (Get-Median -Items $results -Property 'PoolToPreservedResidualMs'),
         (Get-Median -Items $results -Property 'DashboardOtherResidualMs'))
+    Write-Host (
+        "html-stages parse={0:N1}ms snapshot={1:N1}ms priority={2:N1}ms decision={3:N1}ms manager={4:N1}ms materialize={5:N1}ms residual={6:N1}ms" -f
+        (Get-Median -Items $results -Property 'DashboardParseBaseMs'),
+        (Get-Median -Items $results -Property 'DashboardSnapshotMs'),
+        (Get-Median -Items $results -Property 'DashboardPriorityMs'),
+        (Get-Median -Items $results -Property 'DashboardDecisionMs'),
+        (Get-Median -Items $results -Property 'DashboardManagerMs'),
+        (Get-Median -Items $results -Property 'DashboardMaterializeMs'),
+        (Get-Median -Items $results -Property 'DashboardHtmlResidualMs'))
 
-    Write-Host 'BF-857 RESULT: COMPLETE'
+    Write-Host 'BF-859 RESULT: COMPLETE'
 }
 finally {
     Stop-OwnedTree -Process $process
