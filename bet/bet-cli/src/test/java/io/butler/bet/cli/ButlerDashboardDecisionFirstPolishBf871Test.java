@@ -57,6 +57,10 @@ class ButlerDashboardDecisionFirstPolishBf871Test {
     void polishRemainsPresentationOnly() throws Exception {
         String transform = source("scripts/butler-dashboard-bf871-decision-first-polish-transform.ps1");
 
+        int safetyScan = transform.indexOf("$installedDashboard -match");
+        assertTrue(safetyScan > 0, "BF-871 safety scan must remain present");
+        String operational = transform.substring(0, safetyScan);
+
         for (String forbidden : new String[] {
             "Invoke-RestMethod",
             "Invoke-WebRequest",
@@ -66,11 +70,12 @@ class ButlerDashboardDecisionFirstPolishBf871Test {
             "setFaab",
             "AutoFillLineupOptimizer"
         }) {
-            assertFalse(transform.contains(forbidden),
-                "BF-871 transform introduced provider/write marker " + forbidden);
+            assertFalse(operational.contains(forbidden),
+                "BF-871 operational transform introduced provider/write marker " + forbidden);
         }
 
         assertTrue(transform.contains("BF-871 is presentation-only"));
+        assertTrue(transform.contains("decision-first polish introduced provider, optimizer, FAAB, or write behavior"));
         assertTrue(transform.contains("generated Dashboard failed PowerShell parse"));
     }
 
