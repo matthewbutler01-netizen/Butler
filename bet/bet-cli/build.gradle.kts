@@ -13,6 +13,10 @@ application {
     mainClass.set("io.butler.bet.cli.ButlerCommandRouter")
 }
 
+providers.gradleProperty("butlerIsolatedBuildDir").orNull
+    ?.takeIf { it.isNotBlank() }
+    ?.let { layout.buildDirectory.set(file(it)) }
+
 dependencyLocking {
     lockAllConfigurations()
 }
