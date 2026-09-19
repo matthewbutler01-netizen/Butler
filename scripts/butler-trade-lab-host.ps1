@@ -94,10 +94,12 @@ function Get-AppNav {
     param([Parameter(Mandatory = $true)][string]$Active)
     $dashboardClass = if ($Active -ceq 'dashboard') { ' class="active"' } else { '' }
     $teamClass = if ($Active -ceq 'team') { ' class="active"' } else { '' }
+    $matchupClass = if ($Active -ceq 'matchup') { ' class="active"' } else { '' }
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a></nav>"
+    $historyClass = if ($Active -ceq 'history') { ' class="active"' } else { '' }
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history`">History</a></nav>"
 }
 
 function Get-TradeLabLoadingHtml {
@@ -136,12 +138,23 @@ $nav
 
 function Add-TradeNavigation {
     param([Parameter(Mandatory = $true)][string]$Html)
-    if ($Html -match 'href="/trade"' -and $Html -match 'href="/matchup"') { return $Html }
     if ($Html -notmatch '<nav class="nav" aria-label="Butler sections">') {
         throw 'BF-670 BLOCKED: proxied Butler HTML is missing the navigation contract.'
     }
-    $links = ''
-    if ($Html -notmatch 'href="/matchup"') { $links += '<a href="/matchup">Matchup</a>' }
-    if ($Html -notmatch 'href="/trade"') { $links += '<a href="/trade">Trade Analyzer</a>' }
-    return $Html.Replace('</nav>', "$links</nav>")
+    if ($Html -notmatch 'href="/matchup"') {
+        $anchor = [regex]'(<a[^>]*href="/team"[^>]*>My Team</a>)'
+        if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: My Team navigation anchor is missing.' }
+        $Html = $anchor.Replace($Html, '$1<a href="/matchup">Matchup</a>', 1)
+    }
+    if ($Html -notmatch 'href="/trade"') {
+        $anchor = [regex]'(<a[^>]*href="/league"[^>]*>League</a>)'
+        if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: League navigation anchor is missing.' }
+        $Html = $anchor.Replace($Html, '$1<a href="/trade">Trade Analyzer</a>', 1)
+    }
+    if ($Html -notmatch 'href="/history"') {
+        $anchor = [regex]'(<a[^>]*href="/trade"[^>]*>Trade Analyzer</a>)'
+        if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: Trade Analyzer navigation anchor is missing.' }
+        $Html = $anchor.Replace($Html, '$1<a href="/history">History</a>', 1)
+    }
+    return $Html
 }

@@ -51,7 +51,9 @@ function Get-AppNav {
     $matchupClass = if ($Active -ceq "matchup") { ' class="active"' } else { "" }
     $waiversClass = if ($Active -ceq "waivers") { ' class="active"' } else { "" }
     $leagueClass = if ($Active -ceq "league") { ' class="active"' } else { "" }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a></nav>"
+    $tradeClass = if ($Active -ceq "trade") { ' class="active"' } else { "" }
+    $historyClass = if ($Active -ceq "history") { ' class="active"' } else { "" }
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history`">History</a></nav>"
 }
 '@
 $core = Replace-FunctionBlock -Text $core -StartMarker 'function Get-AppNav {' -NextMarker 'function ConvertTo-LeagueHtml {' -Replacement $navReplacement -Contract 'manager navigation'
