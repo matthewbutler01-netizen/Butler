@@ -215,7 +215,7 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
         var service = new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> revalidation,
             ignored -> evidence,
-            ignored -> telemetry(evidence, "audit", 10L, 20L, 30L),
+            (ignoredTarget, ignoredLineage) -> telemetry(evidence, "audit", 10L, 20L, 30L),
             sleeperId -> "12503".equals(sleeperId)
                 ? new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "12503", "Isaiah Bond", "WR", "CLE")
@@ -345,7 +345,7 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
         return new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> revalidation,
             ignored -> evidence,
-            ignored -> telemetry,
+            (ignoredTarget, ignoredLineage) -> telemetry,
             sleeperId -> switch (sleeperId) {
                 case "7049" -> new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "7049", "Jauan Jennings", "WR", "MIN");

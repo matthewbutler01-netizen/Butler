@@ -14,7 +14,7 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryBf649Test {
         var service = new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> actionability(),
             ignored -> evidence,
-            ignored -> telemetry(evidence),
+            (ignoredTarget, ignoredLineage) -> telemetry(evidence),
             sleeperId -> switch (sleeperId) {
                 case "7049" -> new SleeperLiveWaiverLatestGovernedDecisionSummary.PlayerDisplay(
                     "7049", "Jauan Jennings", "WR", "MIN");
@@ -54,7 +54,7 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryBf649Test {
         var service = new SleeperLiveWaiverLatestGovernedDecisionSummary(
             ignored -> actionability,
             ignored -> evidence,
-            ignored -> telemetry,
+            (ignoredTarget, ignoredLineage) -> telemetry,
             sleeperId -> null);
 
         var report = service.summarize(target());

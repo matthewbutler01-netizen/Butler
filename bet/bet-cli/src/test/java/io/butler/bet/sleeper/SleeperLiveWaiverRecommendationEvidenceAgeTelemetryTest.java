@@ -102,6 +102,49 @@ class SleeperLiveWaiverRecommendationEvidenceAgeTelemetryTest {
     }
 
     @Test
+    void suppliedLineagePathDoesNotRequeryBf631() throws Exception {
+        var resolved = lineage(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED,
+            "2026-09-08T09:53:19Z",
+            "2026-09-08T08:10:17Z",
+            "2026-09-08T08:10:00Z");
+        var service = new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry(
+            ignored -> {
+                throw new AssertionError("BF-865 duplicate BF-631 read");
+            },
+            CLOCK);
+
+        var report = service.inspect(target(), resolved);
+
+        assertEquals(SleeperLiveWaiverRecommendationEvidenceAgeTelemetry.TelemetryState.EVIDENCE_AGE_REPORTED,
+            report.state());
+        assertEquals(17_441L, report.auditAgeSeconds());
+        assertEquals(23_623L, report.latestMarketAgeSeconds());
+        assertEquals(23_640L, report.latestWaiverAgeSeconds());
+    }
+
+    @Test
+    void suppliedLineageStillFailsClosedOnIdentityMismatch() {
+        var mismatch = new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.POLICY_ID,
+            "otherLeague", "owner", "sleeperLeague", 6,
+            "audit", "2026-09-08T09:53:19Z", "market-old", "waiver-old",
+            "market-old", "2026-09-08T08:10:17Z", "waiver-old",
+            "waiver-old", "2026-09-08T08:10:00Z",
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var service = new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry(
+            ignored -> {
+                throw new AssertionError("BF-865 duplicate BF-631 read");
+            },
+            CLOCK);
+
+        var error = assertThrows(IllegalStateException.class, () -> service.inspect(target(), mismatch));
+
+        assertEquals("BF-633 BLOCKED: BF-631 evidence lineage does not reconcile to BF-623 target",
+            error.getMessage());
+    }
+
+    @Test
     void mismatchedBf631IdentityFailsClosed() {
         var mismatch = new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.RevalidationReport(
             SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.POLICY_ID,
