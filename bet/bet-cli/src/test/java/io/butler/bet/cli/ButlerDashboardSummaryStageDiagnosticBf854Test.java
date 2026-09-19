@@ -52,6 +52,11 @@ class ButlerDashboardSummaryStageDiagnosticBf854Test {
         assertTrue(script.contains("LATEST_SUMMARY_DIAGNOSTIC"));
         assertTrue(script.contains("Stage p50 (5 warm persistent-JVM samples)"));
         assertTrue(script.contains("BF-854 RESULT: COMPLETE"));
+        assertTrue(script.contains("Butler-bf854-bet-cli-build-"));
+        assertTrue(script.contains("-PbutlerIsolatedBuildDir="));
+        assertTrue(script.contains("Join-Path $isolatedBuildDir 'install\\bet-cli\\lib'"));
+        assertFalse(script.contains(":bet:bet-cli:clean"));
+        assertFalse(script.contains("bet\\bet-cli\\build\\install\\bet-cli\\lib"));
         assertFalse(script.contains("'/refresh'"));
         assertFalse(script.contains("POST"));
         assertFalse(script.contains("submitTransaction"));
