@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/** BF-855 diagnostic-only timing of exact BF-623 live Sleeper surfaces. */
+/** BF-855/BF-862 diagnostic-only timing of exact BF-623 live Sleeper surfaces. */
 public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
     private ButlerSleeperPersonalTargetVerificationDiagnosticCli() {}
 
@@ -33,14 +33,7 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
             var target = new SleeperPersonalizedTargetService(database)
                 .verifyBoundTarget(leagueId, stages::put);
 
-            for (String stage : new String[] {
-                "user",
-                "user_leagues",
-                "league",
-                "rosters",
-                "league_users",
-                "verify_total"
-            }) {
+            for (String stage : stages()) {
                 Double elapsed = stages.get(stage);
                 if (elapsed == null) {
                     throw new IllegalStateException("BF-855 BLOCKED: missing provider stage " + stage);
@@ -55,6 +48,8 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
             System.err.println("Error: " + e.getMessage());
             return 2;
         }
+    }
+
     static int runParallelEmbedded(String[] args) {
         try {
             if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
@@ -69,14 +64,7 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
             var target = new SleeperPersonalizedTargetService(database)
                 .verifyBoundTargetParallelDiagnostic(leagueId, stages::put);
 
-            for (String stage : new String[] {
-                "user",
-                "user_leagues",
-                "league",
-                "rosters",
-                "league_users",
-                "verify_total"
-            }) {
+            for (String stage : stages()) {
                 Double elapsed = stages.get(stage);
                 if (elapsed == null) {
                     throw new IllegalStateException("BF-862 BLOCKED: missing provider stage " + stage);
@@ -93,6 +81,17 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
             System.err.println("Error: " + e.getMessage());
             return 2;
         }
+    }
+
+    private static String[] stages() {
+        return new String[] {
+            "user",
+            "user_leagues",
+            "league",
+            "rosters",
+            "league_users",
+            "verify_total"
+        };
     }
 
     private static String signature(SleeperPersonalizedTargetService.VerifiedTarget target) {
@@ -113,7 +112,5 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
 
     private static String value(String value) {
         return value == null || value.isBlank() ? "none" : value.trim();
-    }
-
     }
 }
