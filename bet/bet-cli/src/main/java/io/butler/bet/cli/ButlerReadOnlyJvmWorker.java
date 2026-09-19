@@ -67,7 +67,7 @@ public final class ButlerReadOnlyJvmWorker {
             if (request == null) {
                 reject(protocol,
                     "BF-742 BLOCKED: worker accepts only HELP<TAB><request-id>, "
-                        + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, LATEST_SUMMARY_DIAGNOSTIC, WAIVER_DASHBOARD_BUNDLE, or MATCHUP_BUNDLE "
+                        + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, LATEST_SUMMARY_DIAGNOSTIC, TARGET_VERIFY_DIAGNOSTIC, WAIVER_DASHBOARD_BUNDLE, or MATCHUP_BUNDLE "
                         + "with <request-id><TAB><league-id>, EXPLANATION_LOOKUP with "
                         + "<request-id><TAB><league-id><TAB><audit-id>, or QUIT.");
                 continue;
@@ -117,6 +117,8 @@ public final class ButlerReadOnlyJvmWorker {
                 case "LATEST_SUMMARY" -> new CommandRequest(Operation.LATEST_SUMMARY, fields[1], fields[2], null);
                 case "LATEST_SUMMARY_DIAGNOSTIC" ->
                     new CommandRequest(Operation.LATEST_SUMMARY_DIAGNOSTIC, fields[1], fields[2], null);
+                case "TARGET_VERIFY_DIAGNOSTIC" ->
+                    new CommandRequest(Operation.TARGET_VERIFY_DIAGNOSTIC, fields[1], fields[2], null);
                 case "WAIVER_DASHBOARD_BUNDLE" ->
                     new CommandRequest(Operation.WAIVER_DASHBOARD_BUNDLE, fields[1], fields[2], null);
                 case "MATCHUP_BUNDLE" ->
@@ -146,6 +148,9 @@ public final class ButlerReadOnlyJvmWorker {
                     new String[] {request.leagueId()}));
             case LATEST_SUMMARY_DIAGNOSTIC -> executeCapturedWithExitCode(() ->
                 ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runDiagnosticEmbedded(
+                    new String[] {request.leagueId()}));
+            case TARGET_VERIFY_DIAGNOSTIC -> executeCapturedWithExitCode(() ->
+                ButlerSleeperPersonalTargetVerificationDiagnosticCli.runEmbedded(
                     new String[] {request.leagueId()}));
             case WAIVER_DASHBOARD_BUNDLE -> executeCapturedWithExitCode(() ->
                 ButlerWaiverDashboardEvidenceBundleCli.runEmbedded(
@@ -224,6 +229,7 @@ public final class ButlerReadOnlyJvmWorker {
         TEAM_BUNDLE,
         LATEST_SUMMARY,
         LATEST_SUMMARY_DIAGNOSTIC,
+        TARGET_VERIFY_DIAGNOSTIC,
         WAIVER_DASHBOARD_BUNDLE,
         MATCHUP_BUNDLE,
         EXPLANATION_LOOKUP
