@@ -260,6 +260,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-843 BLOCKED: Dashboard Matchup routing transform not found at $bf843DashboardTransform"
     }
     & $bf843DashboardTransform -DashboardPath $DashboardPath
+
+    # BF-871: final Dashboard presentation polish binds the hero to the exact
+    # priority-01 card after BF-843 has finalized any Matchup-aware action route.
+    $bf871DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf871-decision-first-polish-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf871DashboardTransform -PathType Leaf)) {
+        throw "BF-871 BLOCKED: Dashboard decision-first polish transform not found at $bf871DashboardTransform"
+    }
+    & $bf871DashboardTransform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
