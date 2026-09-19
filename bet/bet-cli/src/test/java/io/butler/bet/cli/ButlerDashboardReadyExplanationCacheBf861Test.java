@@ -46,6 +46,20 @@ class ButlerDashboardReadyExplanationCacheBf861Test {
     }
 
     @Test
+    void everyPreservedCorePrimesDashboardBeforePublicEligibility() throws Exception {
+        String core = source("scripts/butler-app-shell-core.ps1");
+
+        String dashboardUrl = "http://127.0.0.1:$BackendPort/";
+        assertTrue(core.contains(dashboardUrl));
+        assertTrue(core.contains("BF-861 preserved-core dashboard warmup skipped"));
+        assertTrue(core.contains("Invoke-PreservedCoreWarmup -BackendPort $replacementPort"));
+        assertTrue(core.contains("Invoke-PreservedCoreWarmup -BackendPort $backendPort"));
+        assertTrue(core.indexOf("Invoke-PreservedCoreWarmup -BackendPort $backendPort")
+            < core.indexOf("$requestPool.Open()"));
+        assertFalse(core.contains("Method = 'POST'"));
+    }
+
+    @Test
     void cacheDoesNotChangeExplanationGenerationOrWrites() throws Exception {
         String transform = source("scripts/butler-core-bf742-transform.ps1");
 
