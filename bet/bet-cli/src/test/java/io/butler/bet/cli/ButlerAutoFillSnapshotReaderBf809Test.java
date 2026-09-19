@@ -25,6 +25,22 @@ class ButlerAutoFillSnapshotReaderBf809Test {
     }
 
     @Test
+    void exactLeagueSnapshotIsValidatedBeforeFallbackDirectoryEnumeration() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf809-autofill-snapshot-reader-transform.ps1");
+
+        int directRead = transform.indexOf("Read-Bf809AutoFillSnapshotFile -Path $directPath");
+        int directReturn = transform.indexOf("return $directSnapshot");
+        int directoryEnumeration = transform.indexOf("Get-ChildItem -LiteralPath $directory -Filter '*.json'");
+
+        assertTrue(directRead >= 0, "BF-858 exact snapshot read must remain present");
+        assertTrue(directReturn > directRead, "BF-858 exact snapshot must be validated before return");
+        assertTrue(directoryEnumeration > directReturn,
+            "BF-858 fallback directory enumeration must occur only after the exact fast path fails");
+        assertTrue(transform.contains("$directLeagueMatches -or $directTargetMatches"));
+        assertTrue(transform.contains("$leagueMatches -or $targetMatches"));
+    }
+
+    @Test
     void readerRemainsProviderFreeAndReadOnly() throws Exception {
         String transform = source("scripts/butler-dashboard-bf809-autofill-snapshot-reader-transform.ps1");
 
