@@ -42,7 +42,7 @@ class ButlerMatchupPersistentWorkerBf852Test {
         assertTrue(transform.contains("$bundleText = if ($requestAutoFill)"));
         assertTrue(transform.contains("Invoke-ButlerReadOnlyTask -Task \":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit\""));
         assertTrue(transform.contains("--weekly-matchup-bundle-autofill"));
-        assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead -Path \\"/__butler/internal/matchup-bundle\\" -BoundaryName \\"BF-852\\""));
+        assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead -Path \"/__butler/internal/matchup-bundle\" -BoundaryName \"BF-852\""));
         assertFalse(transform.contains("Method = \"POST\""));
         assertFalse(transform.contains("submitTransaction"));
         assertFalse(transform.contains("setFaab"));
