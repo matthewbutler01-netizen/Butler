@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerDashboardSummaryStageDiagnosticBf854Test {
 
     @Test
-    void normalSummaryWorkerOperationRemainsOnOriginalEntryPoint() throws Exception {
+    void productionSummaryWorkerOperationUsesPersistentReuseEntrypoint() throws Exception {
         String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
 
         int normal = worker.indexOf("case LATEST_SUMMARY -> executeCapturedWithExitCode");
@@ -20,8 +20,9 @@ class ButlerDashboardSummaryStageDiagnosticBf854Test {
         assertTrue(normal >= 0 && diagnostic > normal);
 
         String normalBlock = worker.substring(normal, diagnostic);
-        assertTrue(normalBlock.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
+        assertTrue(normalBlock.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runPersistentWorkerEmbedded("));
         assertFalse(normalBlock.contains("runDiagnosticEmbedded"));
+        assertFalse(normalBlock.contains("runDatabaseReuseDiagnosticEmbedded"));
     }
 
     @Test
