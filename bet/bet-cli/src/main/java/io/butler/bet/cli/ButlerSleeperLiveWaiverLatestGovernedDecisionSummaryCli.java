@@ -46,6 +46,26 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
         }
     }
 
+    static int runPersistentWorkerEmbedded(String[] args) {
+        try {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
+                throw new IllegalArgumentException(
+                    "Usage: sleeperLiveWaiverLatestGovernedDecisionSummary <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
+            }
+            String leagueId = args[0].trim();
+            Database database = bf866DatabaseHandle().database();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
+            var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database).summarize(target);
+            var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
+            print(summary, convergence);
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            return 2;
+        }
+    }
+
     static int runDiagnosticEmbedded(String[] args) {
         long totalStarted = System.nanoTime();
         try {

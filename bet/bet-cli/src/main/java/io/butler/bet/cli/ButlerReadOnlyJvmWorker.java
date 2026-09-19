@@ -148,7 +148,7 @@ public final class ButlerReadOnlyJvmWorker {
             case TEAM_BUNDLE -> executeCapturedWithExitCode(() -> ButlerMyTeamEvidenceBundleCli.runEmbedded(
                 new String[] {request.leagueId()}));
             case LATEST_SUMMARY -> executeCapturedWithExitCode(() ->
-                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded(
+                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runPersistentWorkerEmbedded(
                     new String[] {request.leagueId()}));
             case LATEST_SUMMARY_DIAGNOSTIC -> executeCapturedWithExitCode(() ->
                 ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runDiagnosticEmbedded(

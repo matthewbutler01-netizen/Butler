@@ -240,7 +240,7 @@ function Stop-DiagnosticWorker {
 Write-Host 'Butler persistent-worker DB initialization reuse diagnostic (BF-866)'
 Write-Host "League: $leagueId"
 Write-Host "Data: $dataDir"
-Write-Host 'Boundary: diagnostic-only DB initialization reuse in one persistent JVM; no shared JDBC connection; production LATEST_SUMMARY unchanged; no refresh or Butler/Sleeper write.'
+Write-Host 'Boundary: diagnostic comparison of repeated vs reused DB initialization; no shared JDBC connection; production persistent-worker LATEST_SUMMARY uses proven reuse; direct CLI remains unchanged; no refresh or Butler/Sleeper write.'
 
 $worker = $null
 $restartWorker = $null

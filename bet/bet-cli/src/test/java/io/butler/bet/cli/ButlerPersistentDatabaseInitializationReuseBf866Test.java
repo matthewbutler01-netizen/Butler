@@ -29,7 +29,7 @@ class ButlerPersistentDatabaseInitializationReuseBf866Test {
     }
 
     @Test
-    void normalProductionSummaryRemainsUnchangedAndReuseHasDedicatedWorkerOperation() throws Exception {
+    void productionWorkerUsesProvenReuseWhileDiagnosticOperationRemainsDedicated() throws Exception {
         String worker = source(
             "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
 
@@ -37,7 +37,7 @@ class ButlerPersistentDatabaseInitializationReuseBf866Test {
         assertTrue(worker.contains("runDatabaseReuseDiagnosticEmbedded("));
         assertTrue(worker.contains(
             "case LATEST_SUMMARY -> executeCapturedWithExitCode(() ->\n"
-                + "                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
+                + "                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runPersistentWorkerEmbedded("));
         assertFalse(worker.contains(
             "case LATEST_SUMMARY -> executeCapturedWithExitCode(() ->\n"
                 + "                ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runDatabaseReuseDiagnosticEmbedded("));
@@ -72,7 +72,8 @@ class ButlerPersistentDatabaseInitializationReuseBf866Test {
         assertTrue(script.contains("warm_reuse_reinitialized=FALSE"));
         assertTrue(script.contains("restart_reinitialized=TRUE"));
         assertTrue(script.contains("shared_connection=false"));
-        assertTrue(script.contains("production LATEST_SUMMARY unchanged"));
+        assertTrue(script.contains("production persistent-worker LATEST_SUMMARY uses proven reuse"));
+        assertTrue(script.contains("direct CLI remains unchanged"));
         assertTrue(script.contains("BF-866 RESULT: COMPLETE"));
         assertFalse(script.contains("'/refresh'"));
         assertFalse(script.contains("submitTransaction"));
