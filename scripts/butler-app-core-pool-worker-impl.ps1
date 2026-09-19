@@ -9,22 +9,36 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$bf857CoreTimingEnabled = ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1')
+
+function Get-Bf857ElapsedMs {
+    param([Parameter(Mandatory = $true)][long]$StartedTicks)
+    $elapsedTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $StartedTicks
+    return ([double]$elapsedTicks * 1000.0) / [double][System.Diagnostics.Stopwatch]::Frequency
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
         [Parameter(Mandatory = $true)][int]$StatusCode,
         [Parameter(Mandatory = $true)][string]$StatusText,
         [Parameter(Mandatory = $true)][string]$ContentType,
-        [Parameter(Mandatory = $true)][string]$Body
+        [Parameter(Mandatory = $true)][string]$Body,
+        [string]$Bf857Timing
     )
 
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
+    $bf857Header = ''
+    if ($bf857CoreTimingEnabled -and -not [string]::IsNullOrWhiteSpace($Bf857Timing)) {
+        $bf857Header = 'X-Butler-BF857-Timing: ' + $Bf857Timing + "`r`n"
+    }
     $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" +
         "Content-Type: $ContentType`r`n" +
         "Content-Length: $($bodyBytes.Length)`r`n" +
         "Cache-Control: no-store`r`n" +
         "X-Content-Type-Options: nosniff`r`n" +
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`r`n" +
+        $bf857Header +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
@@ -35,6 +49,11 @@ function Send-HttpResponse {
 function Invoke-PreservedCoreGet {
     param([Parameter(Mandatory = $true)][string]$RequestTarget)
 
+    $bf857Started = if ($bf857CoreTimingEnabled -and $RequestTarget -ceq '/') {
+        [System.Diagnostics.Stopwatch]::GetTimestamp()
+    } else {
+        [long]0
+    }
     $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort$RequestTarget")
     $request.Method = 'GET'
     $request.Timeout = 180000
@@ -60,11 +79,21 @@ function Invoke-PreservedCoreGet {
             $bodyReader.Dispose()
         }
 
+        $bf857Timing = $null
+        if ($bf857CoreTimingEnabled -and $RequestTarget -ceq '/') {
+            $backendMs = Get-Bf857ElapsedMs -StartedTicks $bf857Started
+            $childTiming = [string]$response.Headers['X-Butler-BF857-Timing']
+            $bf857Timing = 'pool_backend_ms=' + [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:0.0}', $backendMs)
+            if (-not [string]::IsNullOrWhiteSpace($childTiming)) {
+                $bf857Timing += ';' + $childTiming
+            }
+        }
         return [pscustomobject]@{
             StatusCode = [int]$response.StatusCode
             StatusText = [string]$response.StatusDescription
             ContentType = if ([string]::IsNullOrWhiteSpace($response.ContentType)) { 'text/plain; charset=utf-8' } else { [string]$response.ContentType }
             Body = $body
+            Bf857Timing = $bf857Timing
         }
     }
     finally {
@@ -115,7 +144,7 @@ try {
 
     try {
         $proxied = Invoke-PreservedCoreGet -RequestTarget $requestTarget
-        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $proxied.Body
+        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $proxied.Body -Bf857Timing $proxied.Bf857Timing
     }
     catch {
         $message = [System.Net.WebUtility]::HtmlEncode($_.Exception.Message)
