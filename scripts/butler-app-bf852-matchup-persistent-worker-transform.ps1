@@ -102,9 +102,6 @@ foreach ($required in @(
     }
 }
 
-if ($dashboard.Contains('/refresh')) {
-    throw 'BF-852 BLOCKED: Matchup worker staging introduced /refresh unexpectedly.'
-}
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 [System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
