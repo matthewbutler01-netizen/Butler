@@ -163,7 +163,12 @@ public final class SleeperPersonalizedTargetService {
 
     public VerifiedTarget verifyBoundTarget(String butlerLeagueId)
         throws SQLException, IOException, InterruptedException {
-        return verifyBoundTarget(butlerLeagueId, ProviderStageObserver.NO_OP);
+        String leagueId = requireText(butlerLeagueId, "butlerLeagueId");
+        var bound = targets.findByButlerLeagueId(leagueId)
+            .orElseThrow(() -> new IllegalStateException(
+                "BF-623 BLOCKED: no personalized Sleeper target is bound for Butler league " + leagueId));
+        DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());
+        return verifyResolvedTarget(leagueId, bound, live);
     }
 
     public VerifiedTarget verifyBoundTarget(
@@ -177,6 +182,16 @@ public final class SleeperPersonalizedTargetService {
             .orElseThrow(() -> new IllegalStateException(
                 "BF-623 BLOCKED: no personalized Sleeper target is bound for Butler league " + leagueId));
         DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId(), timing);
+        VerifiedTarget result = verifyResolvedTarget(leagueId, bound, live);
+        timing.observe("verify_total", elapsedMs(totalStarted));
+        return result;
+    }
+
+    private VerifiedTarget verifyResolvedTarget(
+        String leagueId,
+        PersonalizedSleeperTargetRepository.Target bound,
+        DiscoveryReport live)
+        throws SQLException {
         if (!bound.sleeperUserId().equals(live.sleeperUserId())) {
             throw new IllegalStateException("BF-623 BLOCKED: bound username now resolves to a different Sleeper user id");
         }
@@ -206,7 +221,7 @@ public final class SleeperPersonalizedTargetService {
         if (!Integer.valueOf(TARGET_SEASON).equals(butlerLeague.getSeason())) {
             throw new IllegalStateException("BF-623 BLOCKED: Butler league season drifted from personalized 2026 target");
         }
-        VerifiedTarget result = new VerifiedTarget(
+        return new VerifiedTarget(
             BF623_POLICY_ID,
             leagueId,
             live.sleeperUsername(),
@@ -219,8 +234,6 @@ public final class SleeperPersonalizedTargetService {
             live.leagueDisplayName(),
             live.teamName(),
             VerificationState.BOUND_TARGET_LIVE_VERIFIED);
-        timing.observe("verify_total", elapsedMs(totalStarted));
-        return result;
     }
 
     private UserObservation parseUser(String json) throws IOException {
