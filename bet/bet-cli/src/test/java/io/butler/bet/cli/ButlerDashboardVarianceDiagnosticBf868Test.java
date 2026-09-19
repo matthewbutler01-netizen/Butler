@@ -58,7 +58,7 @@ class ButlerDashboardVarianceDiagnosticBf868Test {
         assertTrue(runner.contains("BF-860 RESULT: COMPLETE"));
         assertTrue(runner.contains("BF-868 RESULT: COMPLETE"));
         assertTrue(runner.contains("read-only Dashboard GET only"));
-        assertTrue(runner.contains("BF-856/BF-857/BF-859/BF-860/BF-868 timing is diagnostic-only"));
+        assertTrue(runner.contains("BF-856/BF-857/BF-859/BF-860/BF-868/BF-869 timing is diagnostic-only"));
 
         assertFalse(runner.contains("'/refresh'"));
         assertFalse(runner.contains("Method = 'POST'"));

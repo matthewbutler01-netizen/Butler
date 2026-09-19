@@ -195,6 +195,7 @@ $pathReplacement = @'
             $bf857Timing = $null
             if ($bf857CoreTimingEnabled -and $path -ceq '/') {
                 $bf857Timing = @{
+                    dashboard_process_id = [double]$PID
                     dashboard_summary_ms = 0.0
                     dashboard_html_ms = 0.0
                     dashboard_parse_base_ms = 0.0
@@ -249,6 +250,7 @@ $dashboardHeaderReplacement = @'
     if ($bf857CoreTimingEnabled -and $null -ne $Bf857Timing) {
         $bf857Pairs = New-Object System.Collections.Generic.List[string]
         foreach ($bf857Key in @(
+            'dashboard_process_id',
             'dashboard_summary_ms',
             'dashboard_html_ms',
             'dashboard_parse_base_ms',

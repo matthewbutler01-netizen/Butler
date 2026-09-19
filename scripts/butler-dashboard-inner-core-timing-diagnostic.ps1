@@ -100,8 +100,10 @@ function Invoke-TimedDashboard {
             'cache_hit','core_proxy_ms','server_before_write_ms'
         )
         $bf857 = Parse-TimingHeader -Header ([string]$response.Headers['X-Butler-BF857-Timing']) -Name 'X-Butler-BF857-Timing' -Required @(
+            'pool_backend_port',
             'pool_backend_ms',
             'preserved_dashboard_ms',
+            'dashboard_process_id',
             'dashboard_summary_ms',
             'dashboard_html_ms',
             'dashboard_parse_base_ms',
@@ -125,8 +127,10 @@ function Invoke-TimedDashboard {
         }
 
         $core = [double]$bf856.core_proxy_ms
+        $backendPort = [int][Math]::Round([double]$bf857.pool_backend_port)
         $pool = [double]$bf857.pool_backend_ms
         $preserved = [double]$bf857.preserved_dashboard_ms
+        $dashboardProcessId = [int][Math]::Round([double]$bf857.dashboard_process_id)
         $summary = [double]$bf857.dashboard_summary_ms
         $html = [double]$bf857.dashboard_html_ms
         $parseBase = [double]$bf857.dashboard_parse_base_ms
@@ -146,6 +150,8 @@ function Invoke-TimedDashboard {
 
         return [pscustomobject]@{
             Id = $Id
+            BackendPort = $backendPort
+            DashboardProcessId = $dashboardProcessId
             CoreProxyMs = $core
             PoolBackendMs = $pool
             PreservedDashboardMs = $preserved
@@ -210,6 +216,7 @@ function Write-Result {
         $Result.DashboardExplanationLookupMs,
         $Result.DashboardPreSnapshotTailMs,
         $Result.DashboardPreSnapshotResidualMs)
+    Write-Host ("       identity backend={0} dashboard-pid={1}" -f $Result.BackendPort, $Result.DashboardProcessId)
 }
 
 function Get-Median {
@@ -254,6 +261,53 @@ function Get-Maximum {
     return [double](($Items | ForEach-Object { [double]($_.$Property) } | Measure-Object -Maximum).Maximum)
 }
 
+function Write-Bf869BackendGroup {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Items,
+        [Parameter(Mandatory = $true)][int]$BackendPort,
+        [Parameter(Mandatory = $true)][int]$DashboardProcessId
+    )
+
+    Write-Host ("backend={0} dashboard-pid={1} samples={2}" -f $BackendPort, $DashboardProcessId, $Items.Count)
+    Write-Host (
+        "  route p50/p90/max core={0:N1}/{1:N1}/{2:N1} pool={3:N1}/{4:N1}/{5:N1} preserved={6:N1}/{7:N1}/{8:N1} summary={9:N1}/{10:N1}/{11:N1} html={12:N1}/{13:N1}/{14:N1} ms" -f
+        (Get-Median -Items $Items -Property 'CoreProxyMs'),
+        (Get-Percentile -Items $Items -Property 'CoreProxyMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'CoreProxyMs'),
+        (Get-Median -Items $Items -Property 'PoolBackendMs'),
+        (Get-Percentile -Items $Items -Property 'PoolBackendMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'PoolBackendMs'),
+        (Get-Median -Items $Items -Property 'PreservedDashboardMs'),
+        (Get-Percentile -Items $Items -Property 'PreservedDashboardMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'PreservedDashboardMs'),
+        (Get-Median -Items $Items -Property 'DashboardSummaryMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardSummaryMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardSummaryMs'),
+        (Get-Median -Items $Items -Property 'DashboardHtmlMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardHtmlMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardHtmlMs'))
+    Write-Host (
+        "  html p50/p90/max parse={0:N1}/{1:N1}/{2:N1} snapshot={3:N1}/{4:N1}/{5:N1} priority={6:N1}/{7:N1}/{8:N1} decision={9:N1}/{10:N1}/{11:N1} manager={12:N1}/{13:N1}/{14:N1} materialize={15:N1}/{16:N1}/{17:N1} ms" -f
+        (Get-Median -Items $Items -Property 'DashboardParseBaseMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardParseBaseMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardParseBaseMs'),
+        (Get-Median -Items $Items -Property 'DashboardSnapshotMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardSnapshotMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardSnapshotMs'),
+        (Get-Median -Items $Items -Property 'DashboardPriorityMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardPriorityMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardPriorityMs'),
+        (Get-Median -Items $Items -Property 'DashboardDecisionMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardDecisionMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardDecisionMs'),
+        (Get-Median -Items $Items -Property 'DashboardManagerMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardManagerMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardManagerMs'),
+        (Get-Median -Items $Items -Property 'DashboardMaterializeMs'),
+        (Get-Percentile -Items $Items -Property 'DashboardMaterializeMs' -Percentile 0.90),
+        (Get-Maximum -Items $Items -Property 'DashboardMaterializeMs'))
+}
+
 function Stop-OwnedTree {
     param([AllowNull()]$Process)
     if ($null -eq $Process) { return }
@@ -285,7 +339,7 @@ Write-Host "Commit: $head"
 Write-Host "Worktree: $worktree"
 Write-Host "Target: $root/"
 Write-Host "Samples: $SampleCount warm miss-path requests"
-Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860/BF-868 timing is diagnostic-only for this owned process.'
+Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860/BF-868/BF-869 timing is diagnostic-only for this owned process.'
 
 try {
     Push-Location $sourceRepoRoot
@@ -402,7 +456,28 @@ try {
         (Get-Percentile -Items $results -Property 'DashboardOtherResidualMs' -Percentile 0.90),
         (Get-Maximum -Items $results -Property 'DashboardOtherResidualMs'))
 
+    $backendPortsSeen = @($results | ForEach-Object { [int]$_.BackendPort } | Sort-Object -Unique)
+    $dashboardPidsSeen = @($results | ForEach-Object { [int]$_.DashboardProcessId } | Sort-Object -Unique)
+    $groupKeys = @($results | ForEach-Object { "{0}|{1}" -f ([int]$_.BackendPort), ([int]$_.DashboardProcessId) } | Sort-Object -Unique)
+
+    Write-Host ''
+    Write-Host 'Backend/PID grouped variance (p50 / p90 / max)'
+    foreach ($groupKey in $groupKeys) {
+        $parts = $groupKey.Split('|')
+        $groupPort = [int]$parts[0]
+        $groupPid = [int]$parts[1]
+        $groupItems = @($results | Where-Object {
+            [int]$_.BackendPort -eq $groupPort -and [int]$_.DashboardProcessId -eq $groupPid
+        })
+        Write-Bf869BackendGroup -Items $groupItems -BackendPort $groupPort -DashboardProcessId $groupPid
+    }
+
+    Write-Host ("BF869_BACKENDS={0}" -f ($backendPortsSeen -join ','))
+    Write-Host ("BF869_DASHBOARD_PIDS={0}" -f ($dashboardPidsSeen -join ','))
+    Write-Host ("BF869_BACKEND_COUNT={0}; BF869_DASHBOARD_PID_COUNT={1}; BF869_GROUP_COUNT={2}" -f
+        $backendPortsSeen.Count, $dashboardPidsSeen.Count, $groupKeys.Count)
     Write-Host ("BF868_SAMPLE_COUNT={0}" -f $results.Count)
+    Write-Host 'BF-869 RESULT: COMPLETE'
     Write-Host 'BF-868 RESULT: COMPLETE'
     Write-Host 'BF-860 RESULT: COMPLETE'
 }
