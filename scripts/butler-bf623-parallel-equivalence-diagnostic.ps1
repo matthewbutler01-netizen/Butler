@@ -139,7 +139,7 @@ function Read-Result {
     $boundary = if ($Mode -ceq 'SERIAL') {
         'BF855_BOUNDARY read_only=true; persistent_jvm=true; refresh=false; sleeper_write=false'
     } else {
-        'BF862_BOUNDARY read_only=true; persistent_jvm=true; production_serial_unchanged=true; refresh=false; sleeper_write=false'
+        'BF862_BOUNDARY read_only=true; persistent_jvm=true; serial_reference_available=true; production_parallel=true; refresh=false; sleeper_write=false'
     }
     if ($stdout.IndexOf($boundary, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-862 BLOCKED: $Mode output is missing the read-only boundary marker."
@@ -232,7 +232,7 @@ function Stop-DiagnosticWorker {
 Write-Host 'Butler BF-623 parallel equivalence diagnostic (BF-862)'
 Write-Host "League: $leagueId"
 Write-Host "Data: $dataDir"
-Write-Host 'Boundary: diagnostic-only exact BF-623 reads; production serial verification remains unchanged; no refresh or write path.'
+Write-Host 'Boundary: diagnostic-only exact BF-623 comparison; serial reference retained; production uses proven parallel verification; no refresh or write path.'
 
 try {
     $workers.Add((Start-DiagnosticWorker))
