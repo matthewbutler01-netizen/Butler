@@ -229,6 +229,132 @@ function ConvertTo-TradeRecommendationView {
     }
 }
 
+function ConvertTo-TradeCounterProposalView {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    $perspective = [regex]::Match($Text, '(?m)^Perspective:\s+(?<name>.*?)\s+\[(?<id>[^\]]+)\]\s*$')
+    $v5Action = [regex]::Match($Text, '(?m)^V5 team action:\s+(?<value>\S+)\s*$')
+    $opportunity = [regex]::Match($Text, '(?m)^Counter opportunity:\s+(?<value>\S+)\s*$')
+    $selection = [regex]::Match($Text, '(?m)^Counter candidate selection:\s+(?<value>\S+)\s*$')
+    $action = [regex]::Match($Text, '(?m)^Counter action:\s+(?<value>\S+)\s*$')
+    $reason = [regex]::Match($Text, '(?m)^Counter action reason:\s+(?<value>\S+)\s*$')
+    $materialized = [regex]::Match($Text, '(?m)^Counter materialized package state:\s+(?<value>\S+)\s*$')
+    $materializedReason = [regex]::Match($Text, '(?m)^Counter materialized package reason:\s+(?<value>\S+)\s*$')
+    $messageState = [regex]::Match($Text, '(?m)^Counter negotiation message state:\s+(?<value>\S+)\s*$')
+    $messageReason = [regex]::Match($Text, '(?m)^Counter negotiation message reason:\s+(?<value>\S+)\s*$')
+    if (-not $perspective.Success -or -not $v5Action.Success -or -not $opportunity.Success -or
+        -not $selection.Success -or -not $action.Success -or -not $reason.Success -or
+        -not $materialized.Success -or -not $materializedReason.Success -or
+        -not $messageState.Success -or -not $messageReason.Success) {
+        throw 'BF-878 BLOCKED: governed counter proposal is missing required app fields.'
+    }
+
+    $counter = [regex]::Match($Text, '(?m)^COUNTER:\s+(?<value>.+?)\s*$')
+    $revisedA = [regex]::Match($Text, '(?m)^Revised Side A package:\s+(?<value>.+?)\s*$')
+    $revisedB = [regex]::Match($Text, '(?m)^Revised Side B package:\s+(?<value>.+?)\s*$')
+    $message = [regex]::Match($Text, '(?m)^Negotiation message:\s+(?<value>.+?)\s*$')
+    $actor = [regex]::Match($Text, '(?m)^Counter negotiation actor:\s+(?<value>\S+)\s*$')
+    $fingerprint = [regex]::Match($Text, '(?m)^Counter proposal fingerprint:\s+(?<value>\S+)\s*$')
+
+    $view = [pscustomobject]@{
+        PerspectiveName = $perspective.Groups['name'].Value.Trim()
+        PerspectiveTeamId = $perspective.Groups['id'].Value.Trim()
+        V5Action = $v5Action.Groups['value'].Value.Trim()
+        Opportunity = $opportunity.Groups['value'].Value.Trim()
+        Selection = $selection.Groups['value'].Value.Trim()
+        Action = $action.Groups['value'].Value.Trim()
+        Reason = $reason.Groups['value'].Value.Trim()
+        MaterializedState = $materialized.Groups['value'].Value.Trim()
+        MaterializedReason = $materializedReason.Groups['value'].Value.Trim()
+        CounterText = if ($counter.Success) { $counter.Groups['value'].Value.Trim() } else { '' }
+        RevisedSideA = if ($revisedA.Success) { $revisedA.Groups['value'].Value.Trim() } else { '' }
+        RevisedSideB = if ($revisedB.Success) { $revisedB.Groups['value'].Value.Trim() } else { '' }
+        MessageState = $messageState.Groups['value'].Value.Trim()
+        MessageReason = $messageReason.Groups['value'].Value.Trim()
+        MessageActor = if ($actor.Success) { $actor.Groups['value'].Value.Trim() } else { '' }
+        Message = if ($message.Success) { $message.Groups['value'].Value.Trim() } else { '' }
+        Fingerprint = if ($fingerprint.Success) { $fingerprint.Groups['value'].Value.Trim() } else { '' }
+        Raw = $Text
+    }
+
+    switch ($view.Action) {
+        'COUNTER' {
+            if ($view.MaterializedState -cne 'MATERIALIZED' -or $view.MessageState -cne 'MESSAGE_AVAILABLE' -or
+                [string]::IsNullOrWhiteSpace($view.CounterText) -or [string]::IsNullOrWhiteSpace($view.RevisedSideA) -or
+                [string]::IsNullOrWhiteSpace($view.RevisedSideB) -or [string]::IsNullOrWhiteSpace($view.Message)) {
+                throw 'BF-878 BLOCKED: governed COUNTER is missing its materialized package or negotiation message.'
+            }
+        }
+        'NO_ACTION' {
+            if ($view.MaterializedState -cne 'NO_PACKAGE' -or $view.MessageState -cne 'NO_MESSAGE') {
+                throw 'BF-878 BLOCKED: governed NO_ACTION counter state is inconsistent.'
+            }
+        }
+        'INCONCLUSIVE' {
+            if ($view.MaterializedState -cne 'INCONCLUSIVE' -or $view.MessageState -cne 'INCONCLUSIVE') {
+                throw 'BF-878 BLOCKED: governed INCONCLUSIVE counter state is inconsistent.'
+            }
+        }
+        default { throw "BF-878 BLOCKED: unsupported governed counter action $($view.Action)." }
+    }
+    return $view
+}
+
+function ConvertTo-TradeCounterManagerText {
+    param(
+        [Parameter(Mandatory = $true)][string]$CounterText,
+        [Parameter(Mandatory = $true)][string]$OpponentName
+    )
+    $match = [regex]::Match($CounterText, '^(?<operation>ADD|REMOVE)\s+(?<type>PLAYER|DRAFT_PICK)\s+(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+(?<direction>TO|FROM)\s+(?<side>SIDE_A|SIDE_B)$')
+    if (-not $match.Success) { throw 'BF-878 BLOCKED: governed COUNTER adjustment has an unsupported display shape.' }
+    $operation = $match.Groups['operation'].Value
+    $name = $match.Groups['name'].Value.Trim()
+    $side = $match.Groups['side'].Value
+    if ($operation -ceq 'ADD' -and $side -ceq 'SIDE_A') { return "Add $name to your side." }
+    if ($operation -ceq 'ADD' -and $side -ceq 'SIDE_B') { return "Ask $OpponentName to add $name to their side." }
+    if ($operation -ceq 'REMOVE' -and $side -ceq 'SIDE_A') { return "Remove $name from your side." }
+    if ($operation -ceq 'REMOVE' -and $side -ceq 'SIDE_B') { return "Ask $OpponentName to remove $name from their side." }
+    throw 'BF-878 BLOCKED: governed COUNTER adjustment could not be translated for the bound side-a perspective.'
+}
+
+function ConvertTo-TradePackageDisplay {
+    param(
+        [Parameter(Mandatory = $true)]$Inventory,
+        [Parameter(Mandatory = $true)][string]$PackageText
+    )
+    $match = [regex]::Match($PackageText, '^players=\[(?<players>[^\]]*)\]\s+picks=\[(?<picks>[^\]]*)\]$')
+    if (-not $match.Success) { throw 'BF-878 BLOCKED: governed materialized package has an unsupported display shape.' }
+
+    $labels = @()
+    foreach ($spec in @(
+        [pscustomobject]@{ Type = 'player'; Values = $match.Groups['players'].Value },
+        [pscustomobject]@{ Type = 'pick'; Values = $match.Groups['picks'].Value }
+    )) {
+        if ([string]::IsNullOrWhiteSpace($spec.Values)) { continue }
+        foreach ($id in @($spec.Values -split ',' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            $matches = @($Inventory.Teams | ForEach-Object { $_.Assets } | Where-Object { $_.Type -ceq $spec.Type -and $_.Id -ceq $id })
+            if ($matches.Count -ne 1) {
+                throw "BF-878 BLOCKED: materialized $($spec.Type) $id did not resolve exactly once in current league inventory."
+            }
+            $labels += [string]$matches[0].Label
+        }
+    }
+    if ($labels.Count -eq 0) { return 'No assets' }
+    return ($labels -join ', ')
+}
+
+function ConvertTo-TradeHiddenInputs {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [object[]]$Values = @()
+    )
+    $html = ''
+    foreach ($value in @($Values)) {
+        $html += "<input type=`"hidden`" name=`"$(ConvertTo-HtmlText $Name)`" value=`"$(ConvertTo-HtmlText $value)`">"
+    }
+    return $html
+}
+
 function Get-TradeSelectionSet {
     param([object[]]$Values)
     $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
