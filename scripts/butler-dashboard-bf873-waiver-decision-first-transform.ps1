@@ -34,18 +34,28 @@ if ($waiverStart -lt 0 -or $waiverEnd -le $waiverStart) {
 }
 $waiverBlock = $text.Substring($waiverStart, $waiverEnd - $waiverStart)
 
-# Keep the exact governed pair visible while removing raw provider IDs from the first scan.
+# Keep the exact governed pair visible while removing raw provider IDs from the
+# BF-834 first-scan pair only. Older supporting variables can retain similar strings.
+$pairBlockStart = $waiverBlock.IndexOf('    $waiverPairHtml = ""', [System.StringComparison]::Ordinal)
+$pairBlockEnd = $waiverBlock.IndexOf('    $waiverNextActionCopy = switch', $pairBlockStart, [System.StringComparison]::Ordinal)
+if ($pairBlockStart -lt 0 -or $pairBlockEnd -le $pairBlockStart) {
+    throw 'BF-873 BLOCKED: BF-834 governed pair presentation block is missing.'
+}
+$pairBlock = $waiverBlock.Substring($pairBlockStart, $pairBlockEnd - $pairBlockStart)
+
 $addMetaOld = '$(ConvertTo-HtmlText $pair.Add.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Add.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Add.SleeperId)'
 $addMetaNew = '$(ConvertTo-HtmlText $pair.Add.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Add.Team)'
-$waiverBlock = Replace-ExactlyOnce -Text $waiverBlock -Old $addMetaOld -New $addMetaNew -Contract 'ADD first-scan metadata'
+$pairBlock = Replace-ExactlyOnce -Text $pairBlock -Old $addMetaOld -New $addMetaNew -Contract 'ADD first-scan metadata'
 
 $dropMetaOld = '$(ConvertTo-HtmlText $pair.Drop.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Drop.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Drop.SleeperId)'
 $dropMetaNew = '$(ConvertTo-HtmlText $pair.Drop.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Drop.Team)'
-$waiverBlock = Replace-ExactlyOnce -Text $waiverBlock -Old $dropMetaOld -New $dropMetaNew -Contract 'DROP first-scan metadata'
+$pairBlock = Replace-ExactlyOnce -Text $pairBlock -Old $dropMetaOld -New $dropMetaNew -Contract 'DROP first-scan metadata'
 
 $pairNoteOld = 'This is Butler''s already-audited exact pair; it is not inferred from board order.'
 $pairNoteNew = 'This is Butler''s exact governed pair; board order does not create this decision.'
-$waiverBlock = Replace-ExactlyOnce -Text $waiverBlock -Old $pairNoteOld -New $pairNoteNew -Contract 'pair first-scan copy'
+$pairBlock = Replace-ExactlyOnce -Text $pairBlock -Old $pairNoteOld -New $pairNoteNew -Contract 'pair first-scan copy'
+
+$waiverBlock = $waiverBlock.Substring(0, $pairBlockStart) + $pairBlock + $waiverBlock.Substring($pairBlockEnd)
 
 $returnStart = $waiverBlock.LastIndexOf('    return @"', [System.StringComparison]::Ordinal)
 if ($returnStart -lt 0) {
