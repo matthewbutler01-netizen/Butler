@@ -53,7 +53,7 @@ class ButlerAppShellBf672DecisionDetailTest {
         assertTrue(detail.contains("$Explanation.WaiverSnapshotId -cne $Entry.WaiverSnapshotId"));
         assertTrue(detail.contains("$Explanation.AddSleeperId -cne $Entry.AddSleeperId"));
         assertTrue(detail.contains("$Explanation.DropSleeperId -cne $Entry.DropSleeperId"));
-        assertTrue(detail.contains("Butler will not reconstruct or generate historical reasoning"));
+        assertTrue(detail.contains("Butler will not reconstruct or generate reasoning"));
     }
 
     @Test

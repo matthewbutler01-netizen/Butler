@@ -32,8 +32,8 @@ class ButlerAppShellBf682DecisionDetailReadableTimestampTest {
         String detail = script("scripts/butler-decision-detail.ps1");
         String detailHtml = section(detail, "function ConvertTo-DecisionDetailHtml", "function Invoke-DecisionHistoryHtml");
 
-        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). This detail view is reconciled"));
-        assertFalse(detailHtml.contains("Captured $(ConvertTo-HtmlText $Entry.Captured). This detail view is reconciled"));
+        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). Butler verified this against the saved decision record"));
+        assertFalse(detailHtml.contains("Captured $(ConvertTo-HtmlText $Entry.Captured). Butler verified this against the saved decision record"));
         assertTrue(detailHtml.contains("Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)"));
         assertTrue(detailHtml.contains("Audit: $(ConvertTo-HtmlText $Entry.AuditId)"));
     }
@@ -44,7 +44,7 @@ class ButlerAppShellBf682DecisionDetailReadableTimestampTest {
         String detailHtml = section(detail, "function ConvertTo-DecisionDetailHtml", "function Invoke-DecisionHistoryHtml");
 
         assertTrue(detailHtml.contains("$capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $Entry.Captured"));
-        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). This detail view is reconciled"));
+        assertTrue(detailHtml.contains("Captured $(ConvertTo-HtmlText $capturedLabel). Butler verified this against the saved decision record"));
         assertTrue(detailHtml.contains("Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)"));
     }
 
