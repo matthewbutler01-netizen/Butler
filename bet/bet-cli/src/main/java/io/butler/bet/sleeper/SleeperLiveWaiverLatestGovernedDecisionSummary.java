@@ -34,6 +34,25 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
     }
 
     SleeperLiveWaiverLatestGovernedDecisionSummary(
+        Database database,
+        String sleeperLeagueId,
+        java.util.List<SleeperJsonParser.SleeperRoster> sharedRosters) {
+        Objects.requireNonNull(database, "database must not be null");
+        Objects.requireNonNull(sharedRosters, "sharedRosters must not be null");
+        PlayerRepository players = new PlayerRepository(database);
+        this.revalidationSource = target ->
+            new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+                database, sleeperLeagueId, sharedRosters).revalidate(target);
+        this.evidenceLineageSource = target ->
+            new SleeperLiveWaiverRecommendationEvidenceLineageRevalidation(database).revalidate(target);
+        this.evidenceAgeSource = target ->
+            new SleeperLiveWaiverRecommendationEvidenceAgeTelemetry(database).inspect(target);
+        this.playerLookup = sleeperId -> players.findByExternalId(sleeperId)
+            .map(SleeperLiveWaiverLatestGovernedDecisionSummary::display)
+            .orElse(null);
+    }
+
+    SleeperLiveWaiverLatestGovernedDecisionSummary(
         RevalidationSource revalidationSource,
         EvidenceLineageSource evidenceLineageSource,
         EvidenceAgeSource evidenceAgeSource,
