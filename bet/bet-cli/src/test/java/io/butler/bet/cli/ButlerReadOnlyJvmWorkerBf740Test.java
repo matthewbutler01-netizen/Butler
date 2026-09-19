@@ -34,6 +34,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
                     + "TEAM_BUNDLE\tteam-1\t" + LEAGUE_ID + "\n"
                     + "LATEST_SUMMARY\tsummary-1\t" + LEAGUE_ID + "\n"
                     + "LATEST_SUMMARY_DIAGNOSTIC\tdiagnostic-1\t" + LEAGUE_ID + "\n"
+                    + "TARGET_VERIFY_DIAGNOSTIC\ttarget-diagnostic-1\t" + LEAGUE_ID + "\n"
                     + "WAIVER_DASHBOARD_BUNDLE\twaiver-1\t" + LEAGUE_ID + "\n"
                     + "MATCHUP_BUNDLE\tmatchup-1\t" + LEAGUE_ID + "\n"
                     + "EXPLANATION_LOOKUP\texplanation-1\t" + LEAGUE_ID + "\t" + AUDIT_ID + "\n"
@@ -43,31 +44,33 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         }
 
         List<String> lines = output.toString().lines().toList();
-        assertEquals(9, lines.size());
+        assertEquals(10, lines.size());
         assertEquals(ButlerReadOnlyJvmWorker.READY, lines.get(0));
-        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(8));
+        assertEquals(ButlerReadOnlyJvmWorker.BYE, lines.get(9));
 
         assertResult(lines.get(1), "overview-1", "LEAGUE_OVERVIEW:" + LEAGUE_ID + ":null");
         assertResult(lines.get(2), "team-1", "TEAM_BUNDLE:" + LEAGUE_ID + ":null");
         assertResult(lines.get(3), "summary-1", "LATEST_SUMMARY:" + LEAGUE_ID + ":null");
         assertResult(lines.get(4), "diagnostic-1", "LATEST_SUMMARY_DIAGNOSTIC:" + LEAGUE_ID + ":null");
-        assertResult(lines.get(5), "waiver-1", "WAIVER_DASHBOARD_BUNDLE:" + LEAGUE_ID + ":null");
-        assertResult(lines.get(6), "matchup-1", "MATCHUP_BUNDLE:" + LEAGUE_ID + ":null");
-        assertResult(lines.get(7), "explanation-1", "EXPLANATION_LOOKUP:" + LEAGUE_ID + ":" + AUDIT_ID);
+        assertResult(lines.get(5), "target-diagnostic-1", "TARGET_VERIFY_DIAGNOSTIC:" + LEAGUE_ID + ":null");
+        assertResult(lines.get(6), "waiver-1", "WAIVER_DASHBOARD_BUNDLE:" + LEAGUE_ID + ":null");
+        assertResult(lines.get(7), "matchup-1", "MATCHUP_BUNDLE:" + LEAGUE_ID + ":null");
+        assertResult(lines.get(8), "explanation-1", "EXPLANATION_LOOKUP:" + LEAGUE_ID + ":" + AUDIT_ID);
 
-        assertEquals(7, requests.size());
+        assertEquals(8, requests.size());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LEAGUE_OVERVIEW, requests.get(0).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.TEAM_BUNDLE, requests.get(1).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LATEST_SUMMARY, requests.get(2).operation());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.LATEST_SUMMARY_DIAGNOSTIC, requests.get(3).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.WAIVER_DASHBOARD_BUNDLE, requests.get(4).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.MATCHUP_BUNDLE, requests.get(5).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.EXPLANATION_LOOKUP, requests.get(6).operation());
-        for (int index = 0; index < 6; index++) {
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.TARGET_VERIFY_DIAGNOSTIC, requests.get(4).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.WAIVER_DASHBOARD_BUNDLE, requests.get(5).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.MATCHUP_BUNDLE, requests.get(6).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.EXPLANATION_LOOKUP, requests.get(7).operation());
+        for (int index = 0; index < 7; index++) {
             assertEquals(LEAGUE_ID, requests.get(index).leagueId());
             assertNull(requests.get(index).argument());
         }
-        assertEquals(AUDIT_ID, requests.get(6).argument());
+        assertEquals(AUDIT_ID, requests.get(7).argument());
     }
 
     @Test
@@ -121,6 +124,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         assertTrue(message.contains("TEAM_BUNDLE"));
         assertTrue(message.contains("LATEST_SUMMARY"));
         assertTrue(message.contains("LATEST_SUMMARY_DIAGNOSTIC"));
+        assertTrue(message.contains("TARGET_VERIFY_DIAGNOSTIC"));
         assertTrue(message.contains("WAIVER_DASHBOARD_BUNDLE"));
         assertTrue(message.contains("MATCHUP_BUNDLE"));
         assertTrue(message.contains("EXPLANATION_LOOKUP"));
