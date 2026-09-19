@@ -240,14 +240,15 @@ try {
     $result = Invoke-Get -Url $url -TimeoutMs $timeoutMs
     Assert-Ok -Response $result -Stage 'governed recommendation'
 
-    foreach ($marker in @('Butler recommendation:','This is evaluated from your team''s perspective.','Deal-breaker check','<strong>Market</strong>','READ ONLY.')) {
+    foreach ($marker in @('Butler recommendation','Package recommendation:','Why Butler says this','Raw decision record','READ ONLY.')) {
         if ($result.Body.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-839 BLOCKED: recommendation is missing marker: $marker"
         }
     }
     if ($result.Body.IndexOf('Butler Trade Analyzer blocked', [System.StringComparison]::Ordinal) -ge 0 -or
-        $result.Body.IndexOf('Trade Lab', [System.StringComparison]::Ordinal) -ge 0) {
-        throw 'BF-839 BLOCKED: recommendation rendered a blocked or retired Trade Lab surface.'
+        $result.Body.IndexOf('Trade Lab', [System.StringComparison]::Ordinal) -ge 0 -or
+        $result.Body.IndexOf('governed v5', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-839 BLOCKED: recommendation rendered a blocked, retired, or implementation-facing manager surface.'
     }
 
     foreach ($internalLabel in @('Technical governed output','Technical details','Advanced technical record')) {
