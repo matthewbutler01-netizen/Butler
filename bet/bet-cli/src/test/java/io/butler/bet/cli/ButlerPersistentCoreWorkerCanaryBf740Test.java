@@ -32,7 +32,7 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(transform.contains("Stop-Bf740PersistentCoreWorker"));
         assertTrue(transform.contains("staged core still owns a JVM worker"));
 
-        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'WAIVER_DASHBOARD_BUNDLE', 'EXPLANATION_LOOKUP')"));
+        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')"));
         assertTrue(helper.contains("TimeoutMs 180000"));
         assertTrue(helper.contains("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
         assertTrue(helper.contains("^[A-Za-z0-9._:-]{1,128}$"));
@@ -130,6 +130,8 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
         assertTrue(worker.contains("case WAIVER_DASHBOARD_BUNDLE -> executeCapturedWithExitCode"));
         assertTrue(worker.contains("ButlerWaiverDashboardEvidenceBundleCli.runEmbedded("));
+        assertTrue(worker.contains("case MATCHUP_BUNDLE -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerWeeklyMatchupEvidenceBundleCli.runEmbedded("));
         assertTrue(worker.contains("case EXPLANATION_LOOKUP -> executeCapturedWithExitCode"));
         assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.runEmbedded("));
         assertTrue(worker.contains("new String[] {request.leagueId(), request.argument()}"));
