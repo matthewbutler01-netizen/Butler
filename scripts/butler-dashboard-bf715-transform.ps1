@@ -243,6 +243,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         }
         & $bf852Transform -CorePath $stagedCore -DashboardPath $DashboardPath
     }
+
+    # BF-872: final My Team presentation polish runs after Weekly Matchup routing
+    # and persistent-worker staging so no later staged-core transform restores
+    # the dense roster-intelligence cards or changes the manager action routes.
+    $bf872CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf872-my-team-at-a-glance-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf872CoreTransform -PathType Leaf)) {
+        throw "BF-872 BLOCKED: My Team at-a-glance transform not found at $bf872CoreTransform"
+    }
+    & $bf872CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
