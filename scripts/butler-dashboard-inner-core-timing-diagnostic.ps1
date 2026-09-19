@@ -185,8 +185,10 @@ function Enable-Bf858StartupErrorCapture {
 
     $appShell = Join-Path $Worktree 'scripts\butler-app-shell.ps1'
     $coreShell = Join-Path $Worktree 'scripts\butler-app-shell-core.ps1'
-    $coreSingle = Join-Path $Worktree 'scripts\butler-app-shell-core-single.ps1'
 
+    # BF-858 diagnostic capture must not rewrite butler-app-shell-core-single.ps1.
+    # BF-742 later stages that file by exact source contract; mutating it here would
+    # invalidate the very startup path this diagnostic is trying to observe.
     $startOld = @'
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -200,7 +202,7 @@ function Enable-Bf858StartupErrorCapture {
     $process = [System.Diagnostics.Process]::Start($start)
 '@
 
-    foreach ($path in @($appShell, $coreShell, $coreSingle)) {
+    foreach ($path in @($appShell, $coreShell)) {
         Replace-Bf858ExactOnce -Path $path -Old $startOld -New $startNew -Contract ("redirect child output in " + [IO.Path]::GetFileName($path))
     }
 
@@ -263,36 +265,6 @@ function Enable-Bf858StartupErrorCapture {
         }
 '@
     Replace-Bf858ExactOnce -Path $coreShell -Old $waitOldCore -New $waitNewCore -Contract 'preserved-core startup error detail'
-
-    $returnOldSingle = @'
-    if ($null -eq $process) {
-        throw "BF-667 BLOCKED: unable to start governed Butler dashboard."
-    }
-    return $process
-'@
-    $returnNewSingle = @'
-    if ($null -eq $process) {
-        throw "BF-667 BLOCKED: unable to start governed Butler dashboard."
-    }
-    $process | Add-Member -NotePropertyName Bf858StdoutTask -NotePropertyValue $process.StandardOutput.ReadToEndAsync()
-    $process | Add-Member -NotePropertyName Bf858StderrTask -NotePropertyValue $process.StandardError.ReadToEndAsync()
-    return $process
-'@
-    Replace-Bf858ExactOnce -Path $coreSingle -Old $returnOldSingle -New $returnNewSingle -Contract 'Dashboard output task capture'
-
-    $waitOldSingle = @'
-        if ($Process.HasExited) {
-            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup."
-        }
-'@
-    $waitNewSingle = @'
-        if ($Process.HasExited) {
-            $childOut = if ($Process.Bf858StdoutTask.IsCompleted) { [string]$Process.Bf858StdoutTask.Result } else { '' }
-            $childErr = if ($Process.Bf858StderrTask.IsCompleted) { [string]$Process.Bf858StderrTask.Result } else { '' }
-            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup. child_stdout=$childOut child_stderr=$childErr"
-        }
-'@
-    Replace-Bf858ExactOnce -Path $coreSingle -Old $waitOldSingle -New $waitNewSingle -Contract 'Dashboard startup error detail'
 }
 
 Push-Location $sourceRepoRoot
