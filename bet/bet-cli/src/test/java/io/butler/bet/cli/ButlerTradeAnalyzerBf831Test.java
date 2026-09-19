@@ -62,6 +62,7 @@ class ButlerTradeAnalyzerBf831Test {
                 "Analyze a trade",
                 "Get Butler recommendation",
                 ".trade-result{border-left:4px solid var(--turf)}",
+                ".trade-proof",
                 ".gate-grid",
                 ".veto-item",
                 ".raw-output"
@@ -126,7 +127,8 @@ class ButlerTradeAnalyzerBf831Test {
                 "EvidenceComplete",
                 "TransitionCoverage",
                 "ProtectedCoverage",
-                "Technical governed output",
+                "Why Butler says this",
+                "Raw decision record",
                 "READ ONLY"
         }) {
             assertTrue(tradeLab.contains(marker), "current BF-670 trade contract missing " + marker);
