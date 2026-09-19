@@ -163,6 +163,138 @@ function Stop-OwnedTree {
     try { [void]$Process.WaitForExit(5000) } catch {}
 }
 
+function Replace-Bf858ExactOnce {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Old,
+        [Parameter(Mandatory = $true)][string]$New,
+        [Parameter(Mandatory = $true)][string]$Contract
+    )
+
+    $text = [System.IO.File]::ReadAllText($Path)
+    $count = [regex]::Matches($text, [regex]::Escape($Old)).Count
+    if ($count -ne 1) {
+        throw "BF-858 BLOCKED: diagnostic $Contract contract count was $count, expected 1."
+    }
+    $text = $text.Replace($Old, $New)
+    [System.IO.File]::WriteAllText($Path, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Enable-Bf858StartupErrorCapture {
+    param([Parameter(Mandatory = $true)][string]$Worktree)
+
+    $appShell = Join-Path $Worktree 'scripts\butler-app-shell.ps1'
+    $coreShell = Join-Path $Worktree 'scripts\butler-app-shell-core.ps1'
+    $coreSingle = Join-Path $Worktree 'scripts\butler-app-shell-core-single.ps1'
+
+    $startOld = @'
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+'@
+    $startNew = @'
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+'@
+
+    foreach ($path in @($appShell, $coreShell, $coreSingle)) {
+        Replace-Bf858ExactOnce -Path $path -Old $startOld -New $startNew -Contract ("redirect child output in " + [IO.Path]::GetFileName($path))
+    }
+
+    $returnOldApp = @'
+    if ($null -eq $process) {
+        throw 'BF-670 BLOCKED: unable to start the preserved Butler app core.'
+    }
+    return $process
+'@
+    $returnNewApp = @'
+    if ($null -eq $process) {
+        throw 'BF-670 BLOCKED: unable to start the preserved Butler app core.'
+    }
+    $process | Add-Member -NotePropertyName Bf858StdoutTask -NotePropertyValue $process.StandardOutput.ReadToEndAsync()
+    $process | Add-Member -NotePropertyName Bf858StderrTask -NotePropertyValue $process.StandardError.ReadToEndAsync()
+    return $process
+'@
+    Replace-Bf858ExactOnce -Path $appShell -Old $returnOldApp -New $returnNewApp -Contract 'app-core output task capture'
+
+    $waitOldApp = @'
+        if ($Process.HasExited) {
+            throw 'BF-670 BLOCKED: preserved Butler app core exited during startup.'
+        }
+'@
+    $waitNewApp = @'
+        if ($Process.HasExited) {
+            $childOut = if ($Process.Bf858StdoutTask.IsCompleted) { [string]$Process.Bf858StdoutTask.Result } else { '' }
+            $childErr = if ($Process.Bf858StderrTask.IsCompleted) { [string]$Process.Bf858StderrTask.Result } else { '' }
+            throw "BF-670 BLOCKED: preserved Butler app core exited during startup. child_stdout=$childOut child_stderr=$childErr"
+        }
+'@
+    Replace-Bf858ExactOnce -Path $appShell -Old $waitOldApp -New $waitNewApp -Contract 'app-core startup error detail'
+
+    $returnOldCore = @'
+    if ($null -eq $process) {
+        throw "BF-690 BLOCKED: unable to start preserved inner core on port $BackendPort."
+    }
+    return $process
+'@
+    $returnNewCore = @'
+    if ($null -eq $process) {
+        throw "BF-690 BLOCKED: unable to start preserved inner core on port $BackendPort."
+    }
+    $process | Add-Member -NotePropertyName Bf858StdoutTask -NotePropertyValue $process.StandardOutput.ReadToEndAsync()
+    $process | Add-Member -NotePropertyName Bf858StderrTask -NotePropertyValue $process.StandardError.ReadToEndAsync()
+    return $process
+'@
+    Replace-Bf858ExactOnce -Path $coreShell -Old $returnOldCore -New $returnNewCore -Contract 'preserved-core output task capture'
+
+    $waitOldCore = @'
+        if ($Process.HasExited) {
+            throw "BF-690 BLOCKED: preserved inner core on port $BackendPort exited during startup."
+        }
+'@
+    $waitNewCore = @'
+        if ($Process.HasExited) {
+            $childOut = if ($Process.Bf858StdoutTask.IsCompleted) { [string]$Process.Bf858StdoutTask.Result } else { '' }
+            $childErr = if ($Process.Bf858StderrTask.IsCompleted) { [string]$Process.Bf858StderrTask.Result } else { '' }
+            throw "BF-690 BLOCKED: preserved inner core on port $BackendPort exited during startup. child_stdout=$childOut child_stderr=$childErr"
+        }
+'@
+    Replace-Bf858ExactOnce -Path $coreShell -Old $waitOldCore -New $waitNewCore -Contract 'preserved-core startup error detail'
+
+    $returnOldSingle = @'
+    if ($null -eq $process) {
+        throw "BF-667 BLOCKED: unable to start governed Butler dashboard."
+    }
+    return $process
+'@
+    $returnNewSingle = @'
+    if ($null -eq $process) {
+        throw "BF-667 BLOCKED: unable to start governed Butler dashboard."
+    }
+    $process | Add-Member -NotePropertyName Bf858StdoutTask -NotePropertyValue $process.StandardOutput.ReadToEndAsync()
+    $process | Add-Member -NotePropertyName Bf858StderrTask -NotePropertyValue $process.StandardError.ReadToEndAsync()
+    return $process
+'@
+    Replace-Bf858ExactOnce -Path $coreSingle -Old $returnOldSingle -New $returnNewSingle -Contract 'Dashboard output task capture'
+
+    $waitOldSingle = @'
+        if ($Process.HasExited) {
+            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup."
+        }
+'@
+    $waitNewSingle = @'
+        if ($Process.HasExited) {
+            $childOut = if ($Process.Bf858StdoutTask.IsCompleted) { [string]$Process.Bf858StdoutTask.Result } else { '' }
+            $childErr = if ($Process.Bf858StderrTask.IsCompleted) { [string]$Process.Bf858StderrTask.Result } else { '' }
+            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup. child_stdout=$childOut child_stderr=$childErr"
+        }
+'@
+    Replace-Bf858ExactOnce -Path $coreSingle -Old $waitOldSingle -New $waitNewSingle -Contract 'Dashboard startup error detail'
+}
+
 Push-Location $sourceRepoRoot
 try {
     $head = (& $git rev-parse HEAD).Trim()
@@ -198,6 +330,8 @@ try {
     finally {
         Pop-Location
     }
+
+    Enable-Bf858StartupErrorCapture -Worktree $worktree
 
     $appLauncher = Join-Path $worktree 'scripts\butler-app.ps1'
     if (-not (Test-Path -LiteralPath $appLauncher -PathType Leaf)) {
