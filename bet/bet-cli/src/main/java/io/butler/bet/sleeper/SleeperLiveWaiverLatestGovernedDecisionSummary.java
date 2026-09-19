@@ -46,25 +46,48 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
 
     public SummaryReport summarize(SleeperPersonalizedTargetService.VerifiedTarget target)
         throws SQLException, IOException, InterruptedException {
+        return summarize(target, StageObserver.NO_OP);
+    }
+
+    public SummaryReport summarize(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        StageObserver observer)
+        throws SQLException, IOException, InterruptedException {
         validateVerifiedTarget(target);
+        StageObserver timing = observer == null ? StageObserver.NO_OP : observer;
+
+        long started = System.nanoTime();
         var revalidation = revalidationSource.revalidate(target);
+        timing.observe("bf629_actionability", elapsedMs(started));
         validateRevalidation(target, revalidation);
+
+        started = System.nanoTime();
         var evidenceLineage = evidenceLineageSource.revalidate(target);
+        timing.observe("bf631_lineage", elapsedMs(started));
         validateEvidenceLineage(target, evidenceLineage);
         validateCrossGateAudit(revalidation, evidenceLineage);
+
+        started = System.nanoTime();
         var evidenceAge = evidenceAgeSource.inspect(target);
+        timing.observe("bf633_age", elapsedMs(started));
         validateEvidenceAge(target, evidenceLineage, evidenceAge);
         validateCrossGateTelemetry(revalidation, evidenceLineage, evidenceAge);
 
+        started = System.nanoTime();
+        SummaryReport result;
         if (revalidation.state()
             == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_AUDITED_DECISION) {
-            return report(target, revalidation, evidenceLineage, evidenceAge,
+            result = report(target, revalidation, evidenceLineage, evidenceAge,
                 SummaryState.NO_AUDITED_DECISION, null, null);
+            timing.observe("assembly", elapsedMs(started));
+            return result;
         }
         if (revalidation.state()
             == SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.NO_TRANSACTION_TO_REVALIDATE) {
-            return report(target, revalidation, evidenceLineage, evidenceAge,
+            result = report(target, revalidation, evidenceLineage, evidenceAge,
                 SummaryState.NO_TRANSACTION_TO_ACT_ON, null, null);
+            timing.observe("assembly", elapsedMs(started));
+            return result;
         }
 
         String addId = requireText(revalidation.addSleeperPlayerId(), "addSleeperPlayerId");
@@ -95,7 +118,9 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
         } else {
             state = SummaryState.CURRENT_AND_ACTIONABLE;
         }
-        return report(target, revalidation, evidenceLineage, evidenceAge, state, add, drop);
+        result = report(target, revalidation, evidenceLineage, evidenceAge, state, add, drop);
+        timing.observe("assembly", elapsedMs(started));
+        return result;
     }
 
     private static boolean refreshWarningTriggered(
@@ -282,6 +307,17 @@ public final class SleeperLiveWaiverLatestGovernedDecisionSummary {
             throw new IllegalStateException("BF-630 BLOCKED: " + field + " is blank");
         }
         return value.trim();
+    }
+
+    private static double elapsedMs(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000.0;
+    }
+
+    @FunctionalInterface
+    public interface StageObserver {
+        StageObserver NO_OP = (stage, elapsedMs) -> {};
+
+        void observe(String stage, double elapsedMs);
     }
 
     @FunctionalInterface
