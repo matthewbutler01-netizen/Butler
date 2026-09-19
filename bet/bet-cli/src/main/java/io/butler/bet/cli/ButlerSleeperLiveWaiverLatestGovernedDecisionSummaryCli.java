@@ -7,6 +7,9 @@ import io.butler.bet.sleeper.SleeperLiveWaiverPostTransactionRosterConvergence;
 import io.butler.bet.sleeper.SleeperLiveWaiverRecommendationManualRefreshPlan;
 
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /** BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639/BF-640/BF-649 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
@@ -38,6 +41,58 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             System.err.println("Error: " + e.getMessage());
             return 2;
         }
+    }
+
+    static int runDiagnosticEmbedded(String[] args) {
+        long totalStarted = System.nanoTime();
+        try {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
+                throw new IllegalArgumentException(
+                    "Usage: dashboardSummaryStageDiagnostic <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
+            }
+            String leagueId = args[0].trim();
+            Map<String, Double> stages = new LinkedHashMap<>();
+
+            Database database = new Database(Path.of("butler.db"));
+            long started = System.nanoTime();
+            database.initialize();
+            stages.put("database_initialize", elapsedMs(started));
+
+            started = System.nanoTime();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            stages.put("bf623_target_verify", elapsedMs(started));
+
+            started = System.nanoTime();
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
+            stages.put("target_print", elapsedMs(started));
+
+            started = System.nanoTime();
+            var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database)
+                .summarize(target, stages::put);
+            stages.put("summary_total", elapsedMs(started));
+
+            started = System.nanoTime();
+            var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
+            stages.put("bf639_convergence", elapsedMs(started));
+
+            started = System.nanoTime();
+            print(summary, convergence);
+            stages.put("summary_print", elapsedMs(started));
+            stages.put("total", elapsedMs(totalStarted));
+
+            for (var entry : stages.entrySet()) {
+                System.out.printf(Locale.ROOT, "BF854_STAGE %s_ms=%.3f%n", entry.getKey(), entry.getValue());
+            }
+            System.out.println("BF854_BOUNDARY read_only=true; persistent_jvm=true; refresh=false; sleeper_write=false");
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    private static double elapsedMs(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000.0;
     }
 
     static void print(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport report) {
