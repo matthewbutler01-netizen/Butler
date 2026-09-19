@@ -127,7 +127,7 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(worker.contains("new String[] {request.leagueId()}"));
         assertFalse(worker.contains("new String[] {request.leagueId(), \"--team-bundle\"}"));
         assertTrue(worker.contains("case LATEST_SUMMARY -> executeCapturedWithExitCode"));
-        assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runEmbedded("));
+        assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runPersistentWorkerEmbedded("));
         assertTrue(worker.contains("case LATEST_SUMMARY_DIAGNOSTIC -> executeCapturedWithExitCode"));
         assertTrue(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.runDiagnosticEmbedded("));
         assertTrue(worker.contains("case TARGET_VERIFY_DIAGNOSTIC -> executeCapturedWithExitCode"));
