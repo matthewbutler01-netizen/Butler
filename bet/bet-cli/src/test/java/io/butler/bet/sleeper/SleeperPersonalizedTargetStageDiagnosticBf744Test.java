@@ -26,8 +26,8 @@ class SleeperPersonalizedTargetStageDiagnosticBf744Test {
         assertTrue(script.contains("/refresh excluded"));
         assertFalse(script.contains("production-refresh"));
 
-        assertTrue(service.contains("DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
-        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetParallelDiagnostic("));
+        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetSerialDiagnostic("));
+        assertTrue(service.contains("return verifyBoundTargetParallel(butlerLeagueId, ProviderStageObserver.NO_OP);"));
         assertTrue(service.contains("Executors.newFixedThreadPool(4)"));
     }
 

@@ -12,18 +12,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerBf623ParallelEquivalenceBf862Test {
 
     @Test
-    void productionVerificationRemainsSerialAndDiagnosticIsSeparate() throws Exception {
+    void productionVerificationUsesProvenParallelPathAndSerialReferenceRemainsSeparate() throws Exception {
         String service = source(
             "bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
 
         assertTrue(service.contains(
-            "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
+            "return verifyBoundTargetParallel(butlerLeagueId, ProviderStageObserver.NO_OP);"));
+        assertTrue(service.contains(
+            "return verifyBoundTargetParallel(butlerLeagueId, observer);"));
+        assertTrue(service.contains("verifyBoundTargetSerialDiagnostic("));
         assertTrue(service.contains(
             "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId(), timing);"));
         assertTrue(service.contains("verifyBoundTargetParallelDiagnostic("));
         assertTrue(service.contains("Executors.newFixedThreadPool(4)"));
         assertTrue(service.contains("CompletableFuture<TimedPayload>"));
-        assertFalse(service.contains("verifyBoundTarget(String butlerLeagueId)\n        throws SQLException, IOException, InterruptedException {\n        return verifyBoundTargetParallelDiagnostic"));
     }
 
     @Test
@@ -63,7 +65,8 @@ class ButlerBf623ParallelEquivalenceBf862Test {
         assertTrue(script.contains("serial and parallel warm target signatures differ"));
         assertTrue(script.contains("exact target signature drifted"));
         assertTrue(script.contains("target_equivalence=EXACT"));
-        assertTrue(script.contains("production serial verification remains unchanged"));
+        assertTrue(script.contains("serial reference retained"));
+        assertTrue(script.contains("production uses proven parallel verification"));
         assertTrue(script.contains("parallel_c2_ms"));
         assertTrue(script.contains("BF-862 RESULT: COMPLETE"));
         assertFalse(script.contains("'/refresh'"));

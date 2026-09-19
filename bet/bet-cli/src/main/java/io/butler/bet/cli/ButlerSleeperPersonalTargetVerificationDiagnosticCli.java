@@ -31,7 +31,7 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
 
             Map<String, Double> stages = new LinkedHashMap<>();
             var target = new SleeperPersonalizedTargetService(database)
-                .verifyBoundTarget(leagueId, stages::put);
+                .verifyBoundTargetSerialDiagnostic(leagueId, stages::put);
 
             for (String stage : stages()) {
                 Double elapsed = stages.get(stage);
@@ -74,8 +74,8 @@ public final class ButlerSleeperPersonalTargetVerificationDiagnosticCli {
             System.out.println("BF862_STATE " + target.state());
             System.out.println("BF862_TARGET " + signature(target));
             System.out.println(
-                "BF862_BOUNDARY read_only=true; persistent_jvm=true; production_serial_unchanged=true; "
-                    + "refresh=false; sleeper_write=false");
+                "BF862_BOUNDARY read_only=true; persistent_jvm=true; serial_reference_available=true; "
+                    + "production_parallel=true; refresh=false; sleeper_write=false");
             return 0;
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());

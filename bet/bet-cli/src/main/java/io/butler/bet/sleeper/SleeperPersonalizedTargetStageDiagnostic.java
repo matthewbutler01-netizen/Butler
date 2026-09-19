@@ -37,7 +37,7 @@ public final class SleeperPersonalizedTargetStageDiagnostic {
                 SleeperPersonalizedTargetService service =
                     new SleeperPersonalizedTargetService(database, targets, source);
                 long verifyStarted = System.nanoTime();
-                service.verifyBoundTarget(leagueId);
+                service.verifyBoundTargetSerialDiagnostic(leagueId, SleeperPersonalizedTargetService.ProviderStageObserver.NO_OP);
                 long verifyWallMs = elapsedMillis(verifyStarted);
                 StageTiming timing = source.snapshot();
                 timing.requireExactSinglePass();

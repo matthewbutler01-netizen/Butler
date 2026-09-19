@@ -80,13 +80,12 @@ class SleeperSameClientTransportDiagnosticBf747Test {
         assertTrue(diagnostic.contains("liveSource(client)"));
         assertTrue(diagnostic.contains("liveWarmup(client)"));
         assertTrue(diagnostic.contains("client::getNflState"));
-        assertTrue(diagnostic.contains("service.verifyBoundTarget(leagueId.trim())"));
+        assertTrue(diagnostic.contains("service.verifyBoundTargetSerialDiagnostic(leagueId.trim()"));
         assertFalse(diagnostic.contains("CompletableFuture"));
         assertFalse(diagnostic.contains("newFixedThreadPool"));
 
-        assertTrue(service.contains(
-            "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
-        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetParallelDiagnostic("));
+        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetSerialDiagnostic("));
+        assertTrue(service.contains("return verifyBoundTargetParallel(butlerLeagueId, ProviderStageObserver.NO_OP);"));
         assertTrue(service.contains("Executors.newFixedThreadPool(4)"));
 
         assertTrue(script.contains("[ValidateSet('baseline', 'prewarm')]"));

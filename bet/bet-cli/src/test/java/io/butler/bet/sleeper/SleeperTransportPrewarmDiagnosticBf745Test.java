@@ -59,12 +59,12 @@ class SleeperTransportPrewarmDiagnosticBf745Test {
         assertTrue(diagnostic.contains("client.getNflState();"));
         assertEquals(1, occurrences(diagnostic, "client.getNflState();"));
         assertTrue(diagnostic.contains("new SleeperPersonalizedTargetStageDiagnostic.TimingSource(source)"));
-        assertTrue(diagnostic.contains("service.verifyBoundTarget(leagueId.trim())"));
+        assertTrue(diagnostic.contains("service.verifyBoundTargetSerialDiagnostic(leagueId.trim()"));
         assertFalse(diagnostic.contains("CompletableFuture"));
         assertFalse(diagnostic.contains("newFixedThreadPool"));
 
-        assertTrue(service.contains("DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
-        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetParallelDiagnostic("));
+        assertTrue(service.contains("public VerifiedTarget verifyBoundTargetSerialDiagnostic("));
+        assertTrue(service.contains("return verifyBoundTargetParallel(butlerLeagueId, ProviderStageObserver.NO_OP);"));
         assertTrue(service.contains("Executors.newFixedThreadPool(4)"));
 
         assertTrue(script.contains("app-league.txt"));
