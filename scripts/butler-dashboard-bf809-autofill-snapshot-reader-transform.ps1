@@ -82,33 +82,43 @@ function Get-Bf809AutoFillSnapshot {
     )
 
     $directPath = Get-Bf808AutoFillSnapshotPath -LeagueKey $LeagueKey
-    $candidatePaths = New-Object System.Collections.Generic.List[string]
+    $targetKey = ConvertTo-Bf809AutoFillTargetKey -Value $TargetHuman
+
+    # BF-858: BF-808 persists the normal snapshot directly at <league-key>.json.
+    # Validate that exact file first so the common Dashboard path does not enumerate
+    # and sort every historical/fallback JSON file on every render.
     if (Test-Path -LiteralPath $directPath -PathType Leaf) {
-        $candidatePaths.Add($directPath)
+        $directSnapshot = Read-Bf809AutoFillSnapshotFile -Path $directPath
+        if ($null -ne $directSnapshot) {
+            $directLeagueMatches = [string]$directSnapshot.LeagueId -ceq $LeagueKey
+            $directTargetKey = ConvertTo-Bf809AutoFillTargetKey -Value ([string]$directSnapshot.TargetHuman)
+            $directTargetMatches = -not [string]::IsNullOrWhiteSpace($targetKey) -and $directTargetKey -ceq $targetKey
+            if ($directLeagueMatches -or $directTargetMatches) {
+                return $directSnapshot
+            }
+        }
     }
 
+    # Preserve BF-809 recovery semantics only when the exact file is absent,
+    # malformed, stale-by-identity, or otherwise unusable.
     $directory = Split-Path -Parent $directPath
     if (Test-Path -LiteralPath $directory -PathType Container) {
         foreach ($candidate in @(Get-ChildItem -LiteralPath $directory -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTimeUtc -Descending)) {
             if ([string]::Equals($candidate.FullName, $directPath, [System.StringComparison]::OrdinalIgnoreCase)) {
                 continue
             }
-            $candidatePaths.Add($candidate.FullName)
-        }
-    }
 
-    $targetKey = ConvertTo-Bf809AutoFillTargetKey -Value $TargetHuman
-    foreach ($path in $candidatePaths) {
-        $snapshot = Read-Bf809AutoFillSnapshotFile -Path $path
-        if ($null -eq $snapshot) {
-            continue
-        }
+            $snapshot = Read-Bf809AutoFillSnapshotFile -Path $candidate.FullName
+            if ($null -eq $snapshot) {
+                continue
+            }
 
-        $leagueMatches = [string]$snapshot.LeagueId -ceq $LeagueKey
-        $snapshotTargetKey = ConvertTo-Bf809AutoFillTargetKey -Value ([string]$snapshot.TargetHuman)
-        $targetMatches = -not [string]::IsNullOrWhiteSpace($targetKey) -and $snapshotTargetKey -ceq $targetKey
-        if ($leagueMatches -or $targetMatches) {
-            return $snapshot
+            $leagueMatches = [string]$snapshot.LeagueId -ceq $LeagueKey
+            $snapshotTargetKey = ConvertTo-Bf809AutoFillTargetKey -Value ([string]$snapshot.TargetHuman)
+            $targetMatches = -not [string]::IsNullOrWhiteSpace($targetKey) -and $snapshotTargetKey -ceq $targetKey
+            if ($leagueMatches -or $targetMatches) {
+                return $snapshot
+            }
         }
     }
 
