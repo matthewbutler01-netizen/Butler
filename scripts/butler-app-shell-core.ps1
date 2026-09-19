@@ -250,6 +250,33 @@ function Invoke-PreservedCoreWarmup {
     finally {
         if ($null -ne $teamResponse) { $teamResponse.Close() }
     }
+
+    $dashboardRequest = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/")
+    $dashboardRequest.Method = 'GET'
+    $dashboardRequest.Timeout = 3000
+    $dashboardRequest.ReadWriteTimeout = 3000
+    $dashboardRequest.Proxy = $null
+    $dashboardRequest.KeepAlive = $false
+    $dashboardResponse = $null
+    try {
+        $dashboardResponse = $dashboardRequest.GetResponse()
+        if ([int]$dashboardResponse.StatusCode -ne 200) {
+            throw "HTTP $([int]$dashboardResponse.StatusCode)"
+        }
+        $dashboardReader = [System.IO.StreamReader]::new($dashboardResponse.GetResponseStream(), [System.Text.Encoding]::UTF8)
+        try {
+            [void]$dashboardReader.ReadToEnd()
+        }
+        finally {
+            $dashboardReader.Dispose()
+        }
+    }
+    catch {
+        Write-Warning ("BF-861 preserved-core dashboard warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+    }
+    finally {
+        if ($null -ne $dashboardResponse) { $dashboardResponse.Close() }
+    }
 }
 
 function Stop-OwnedProcessTree {
