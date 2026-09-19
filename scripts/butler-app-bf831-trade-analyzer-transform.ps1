@@ -81,6 +81,12 @@ foreach ($required in @(
     'ProtectedCoverage',
     'Why Butler says this',
     'Raw decision record',
+    'Build Counteroffer',
+    'trade counter-proposal $LeagueId',
+    'ConvertTo-TradeCounterProposalView',
+    'Counter available',
+    'Message you can send manually',
+    '.counter-result',
     'READ ONLY',
     'Butler recommendation',
     'Analyze a trade',
@@ -101,7 +107,9 @@ foreach ($forbidden in @(
     'Start-Process',
     'Invoke-RestMethod',
     'Invoke-WebRequest',
-    'Method = "POST"'
+    'Method = "POST"',
+    'counter-handoff',
+    'counter-authorization'
 )) {
     if ($tradeHostText.Contains($forbidden) -or $lab.Contains($forbidden)) {
         throw "BF-831 BLOCKED: Trade Analyzer introduced provider, API, or write behavior marker $forbidden"
