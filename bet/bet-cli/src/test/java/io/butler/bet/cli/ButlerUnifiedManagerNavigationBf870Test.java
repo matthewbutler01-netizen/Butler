@@ -94,7 +94,7 @@ class ButlerUnifiedManagerNavigationBf870Test {
         assertTrue(start >= 0, "manager nav return is missing");
         int end = source.indexOf("</nav>\"", start);
         assertTrue(end > start, "manager nav close is missing");
-        return source.substring(start, end + "</nav>\"".length());
+        return source.substring(start, end + "</nav>\"".length()).replace("`", "");
     }
 
     private static String source(String relativePath) throws IOException {
