@@ -135,7 +135,7 @@ public final class SleeperLiveWaiverSharedTargetContext {
         }
     }
 
-    private static final class LiveSnapshotLoader implements SnapshotLoader {
+    static final class LiveSnapshotLoader implements SnapshotLoader {
         private final SleeperClient client = new SleeperClient();
         private final ObjectMapper mapper = new ObjectMapper();
 
