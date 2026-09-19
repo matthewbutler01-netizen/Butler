@@ -29,8 +29,9 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         assertEquals(2, occurrences(block, "\n            2,"));
         assertTrue(block.contains("$companionSemaphore.WaitOne(180000)"));
         assertTrue(block.contains("BF-694 BLOCKED: finite wait for companion heavy read capacity expired."));
-        assertFalse(block.contains("catch [System.Threading.AbandonedMutexException]"));
-        assertTrue(block.contains("[void]$companionSemaphore.Release()"));
+        String companionBlock = block.substring(companionCreate);
+        assertFalse(companionBlock.contains("catch [System.Threading.AbandonedMutexException]"));
+        assertTrue(companionBlock.contains("[void]$companionSemaphore.Release()"));
         assertTrue(block.contains("$companionSemaphore.Dispose()"));
     }
 
