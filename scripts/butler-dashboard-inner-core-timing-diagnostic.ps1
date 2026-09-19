@@ -100,16 +100,25 @@ function Invoke-TimedDashboard {
             'cache_hit','core_proxy_ms','server_before_write_ms'
         )
         $bf857 = Parse-TimingHeader -Header ([string]$response.Headers['X-Butler-BF857-Timing']) -Name 'X-Butler-BF857-Timing' -Required @(
+            'pool_backend_port',
             'pool_backend_ms',
             'preserved_dashboard_ms',
+            'dashboard_process_id',
             'dashboard_summary_ms',
+            'dashboard_summary_cpu_ms',
             'dashboard_html_ms',
             'dashboard_parse_base_ms',
+            'dashboard_parse_base_cpu_ms',
             'dashboard_snapshot_ms',
+            'dashboard_snapshot_cpu_ms',
             'dashboard_priority_ms',
+            'dashboard_priority_cpu_ms',
             'dashboard_decision_ms',
+            'dashboard_decision_cpu_ms',
             'dashboard_manager_ms',
+            'dashboard_manager_cpu_ms',
             'dashboard_materialize_ms',
+            'dashboard_materialize_cpu_ms',
             'dashboard_base_fields_ms',
             'dashboard_shell_ms',
             'dashboard_refresh_block_ms',
@@ -125,16 +134,25 @@ function Invoke-TimedDashboard {
         }
 
         $core = [double]$bf856.core_proxy_ms
+        $backendPort = [int][Math]::Round([double]$bf857.pool_backend_port)
         $pool = [double]$bf857.pool_backend_ms
         $preserved = [double]$bf857.preserved_dashboard_ms
+        $dashboardProcessId = [int][Math]::Round([double]$bf857.dashboard_process_id)
         $summary = [double]$bf857.dashboard_summary_ms
+        $summaryCpu = [double]$bf857.dashboard_summary_cpu_ms
         $html = [double]$bf857.dashboard_html_ms
         $parseBase = [double]$bf857.dashboard_parse_base_ms
+        $parseBaseCpu = [double]$bf857.dashboard_parse_base_cpu_ms
         $snapshot = [double]$bf857.dashboard_snapshot_ms
+        $snapshotCpu = [double]$bf857.dashboard_snapshot_cpu_ms
         $priority = [double]$bf857.dashboard_priority_ms
+        $priorityCpu = [double]$bf857.dashboard_priority_cpu_ms
         $decision = [double]$bf857.dashboard_decision_ms
+        $decisionCpu = [double]$bf857.dashboard_decision_cpu_ms
         $manager = [double]$bf857.dashboard_manager_ms
+        $managerCpu = [double]$bf857.dashboard_manager_cpu_ms
         $materialize = [double]$bf857.dashboard_materialize_ms
+        $materializeCpu = [double]$bf857.dashboard_materialize_cpu_ms
         $baseFields = [double]$bf857.dashboard_base_fields_ms
         $shell = [double]$bf857.dashboard_shell_ms
         $refreshBlock = [double]$bf857.dashboard_refresh_block_ms
@@ -146,17 +164,26 @@ function Invoke-TimedDashboard {
 
         return [pscustomobject]@{
             Id = $Id
+            BackendPort = $backendPort
+            DashboardProcessId = $dashboardProcessId
             CoreProxyMs = $core
             PoolBackendMs = $pool
             PreservedDashboardMs = $preserved
             DashboardSummaryMs = $summary
+            DashboardSummaryCpuMs = $summaryCpu
             DashboardHtmlMs = $html
             DashboardParseBaseMs = $parseBase
+            DashboardParseBaseCpuMs = $parseBaseCpu
             DashboardSnapshotMs = $snapshot
+            DashboardSnapshotCpuMs = $snapshotCpu
             DashboardPriorityMs = $priority
+            DashboardPriorityCpuMs = $priorityCpu
             DashboardDecisionMs = $decision
+            DashboardDecisionCpuMs = $decisionCpu
             DashboardManagerMs = $manager
+            DashboardManagerCpuMs = $managerCpu
             DashboardMaterializeMs = $materialize
+            DashboardMaterializeCpuMs = $materializeCpu
             DashboardBaseFieldsMs = $baseFields
             DashboardShellMs = $shell
             DashboardRefreshBlockMs = $refreshBlock
@@ -210,6 +237,24 @@ function Write-Result {
         $Result.DashboardExplanationLookupMs,
         $Result.DashboardPreSnapshotTailMs,
         $Result.DashboardPreSnapshotResidualMs)
+    Write-Host (
+        "       cpu/wall summary={0:N1}/{1:N1}ms parse={2:N1}/{3:N1}ms snapshot={4:N1}/{5:N1}ms priority={6:N1}/{7:N1}ms decision={8:N1}/{9:N1}ms manager={10:N1}/{11:N1}ms materialize={12:N1}/{13:N1}ms | backend={14} dashboard-pid={15}" -f
+        $Result.DashboardSummaryCpuMs,
+        $Result.DashboardSummaryMs,
+        $Result.DashboardParseBaseCpuMs,
+        $Result.DashboardParseBaseMs,
+        $Result.DashboardSnapshotCpuMs,
+        $Result.DashboardSnapshotMs,
+        $Result.DashboardPriorityCpuMs,
+        $Result.DashboardPriorityMs,
+        $Result.DashboardDecisionCpuMs,
+        $Result.DashboardDecisionMs,
+        $Result.DashboardManagerCpuMs,
+        $Result.DashboardManagerMs,
+        $Result.DashboardMaterializeCpuMs,
+        $Result.DashboardMaterializeMs,
+        $Result.BackendPort,
+        $Result.DashboardProcessId)
 }
 
 function Get-Median {
@@ -285,7 +330,7 @@ Write-Host "Commit: $head"
 Write-Host "Worktree: $worktree"
 Write-Host "Target: $root/"
 Write-Host "Samples: $SampleCount warm miss-path requests"
-Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860/BF-868 timing is diagnostic-only for this owned process.'
+Write-Host 'Boundary: read-only Dashboard GET only; BF-856/BF-857/BF-859/BF-860/BF-868/BF-869 timing is diagnostic-only for this owned process.'
 
 try {
     Push-Location $sourceRepoRoot
@@ -380,6 +425,15 @@ try {
         (Get-Median -Items $results -Property 'DashboardExplanationLookupMs'),
         (Get-Median -Items $results -Property 'DashboardPreSnapshotTailMs'),
         (Get-Median -Items $results -Property 'DashboardPreSnapshotResidualMs'))
+    Write-Host (
+        "cpu p50 summary={0:N1}ms parse={1:N1}ms snapshot={2:N1}ms priority={3:N1}ms decision={4:N1}ms manager={5:N1}ms materialize={6:N1}ms" -f
+        (Get-Median -Items $results -Property 'DashboardSummaryCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardParseBaseCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardSnapshotCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardPriorityCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardDecisionCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardManagerCpuMs'),
+        (Get-Median -Items $results -Property 'DashboardMaterializeCpuMs'))
 
     Write-Host ''
     Write-Host 'Warm miss-path variance (p90 / max)'
@@ -401,8 +455,30 @@ try {
         (Get-Maximum -Items $results -Property 'PoolToPreservedResidualMs'),
         (Get-Percentile -Items $results -Property 'DashboardOtherResidualMs' -Percentile 0.90),
         (Get-Maximum -Items $results -Property 'DashboardOtherResidualMs'))
+    Write-Host (
+        "cpu p90/max summary={0:N1}/{1:N1}ms parse={2:N1}/{3:N1}ms snapshot={4:N1}/{5:N1}ms priority={6:N1}/{7:N1}ms decision={8:N1}/{9:N1}ms manager={10:N1}/{11:N1}ms materialize={12:N1}/{13:N1}ms" -f
+        (Get-Percentile -Items $results -Property 'DashboardSummaryCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardSummaryCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardParseBaseCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardParseBaseCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardSnapshotCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardSnapshotCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardPriorityCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardPriorityCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardDecisionCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardDecisionCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardManagerCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardManagerCpuMs'),
+        (Get-Percentile -Items $results -Property 'DashboardMaterializeCpuMs' -Percentile 0.90),
+        (Get-Maximum -Items $results -Property 'DashboardMaterializeCpuMs'))
 
+    $backendPortsSeen = @($results | ForEach-Object { [int]$_.BackendPort } | Sort-Object -Unique)
+    $dashboardPidsSeen = @($results | ForEach-Object { [int]$_.DashboardProcessId } | Sort-Object -Unique)
+    Write-Host ("BF869_BACKENDS={0}" -f ($backendPortsSeen -join ','))
+    Write-Host ("BF869_DASHBOARD_PIDS={0}" -f ($dashboardPidsSeen -join ','))
+    Write-Host ("BF869_BACKEND_COUNT={0}; BF869_DASHBOARD_PID_COUNT={1}" -f $backendPortsSeen.Count, $dashboardPidsSeen.Count)
     Write-Host ("BF868_SAMPLE_COUNT={0}" -f $results.Count)
+    Write-Host 'BF-869 RESULT: COMPLETE'
     Write-Host 'BF-868 RESULT: COMPLETE'
     Write-Host 'BF-860 RESULT: COMPLETE'
 }
