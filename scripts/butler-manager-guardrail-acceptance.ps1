@@ -265,8 +265,7 @@ try {
     $dashboard = Invoke-Get -Url ($root + '/') -TimeoutMs $timeoutMs
     Assert-Ok -Response $dashboard -Stage 'Dashboard'
     Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @(
-        'Butler Command Center',
-        'What matters now',
+        'Priority 01',
         'Your decision queue',
         'View decision details',
         '<details'
@@ -277,9 +276,11 @@ try {
     $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
     Assert-Ok -Response $team -Stage 'My Team'
     Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @(
-        'Lineup advisor',
+        'How Butler reads this roster',
+        'Review Matchup',
         'Review Lineup',
-        'href="/team/autofill"',
+        'href="/matchup/autofill"',
+        'Lineup advisor',
         'READ ONLY.'
     )
     foreach ($legacyLineupPhrase in @(
@@ -319,7 +320,8 @@ try {
     Assert-Ok -Response $waivers -Stage 'Waiver Board'
     Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @(
         'Butler waiver decision',
-        'What to do now',
+        'Next step',
+        'Decision details',
         'Technical and audit details',
         '<details',
         'READ ONLY'
