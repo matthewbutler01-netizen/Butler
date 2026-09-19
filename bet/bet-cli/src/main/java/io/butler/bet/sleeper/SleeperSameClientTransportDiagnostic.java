@@ -81,7 +81,7 @@ public final class SleeperSameClientTransportDiagnostic {
         SleeperPersonalizedTargetService service =
             new SleeperPersonalizedTargetService(database, targets, timingSource);
         long verifyStarted = System.nanoTime();
-        service.verifyBoundTarget(leagueId.trim());
+        service.verifyBoundTargetSerialDiagnostic(leagueId.trim(), SleeperPersonalizedTargetService.ProviderStageObserver.NO_OP);
         long verifyWallMs = elapsedMillis(verifyStarted);
         SleeperPersonalizedTargetStageDiagnostic.StageTiming stageTiming = timingSource.snapshot();
         stageTiming.requireExactSinglePass();
