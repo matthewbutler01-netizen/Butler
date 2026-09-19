@@ -160,10 +160,6 @@ function Get-Bf857ElapsedMs {
     $elapsedTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $StartedTicks
     return ([double]$elapsedTicks * 1000.0) / [double][System.Diagnostics.Stopwatch]::Frequency
 }
-
-function Get-Bf869ProcessCpuMs {
-    return [System.Diagnostics.Process]::GetCurrentProcess().TotalProcessorTime.TotalMilliseconds
-}
 '@
 $dashboardText = Replace-ExactOnce -Text $dashboardText -Original $dashboardBootstrapOriginal -Replacement $dashboardBootstrapReplacement -Contract 'Dashboard timing bootstrap'
 
@@ -179,18 +175,12 @@ function Invoke-ButlerReadOnlySummary {
     } else {
         [long]0
     }
-    $bf869SummaryCpuStarted = if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
-        Get-Bf869ProcessCpuMs
-    } else {
-        [double]0.0
-    }
     try {
         return Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY' -BoundaryName "BF-643"
     }
     finally {
         if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
             $bf857Timing.dashboard_summary_ms = Get-Bf857ElapsedMs -StartedTicks $bf857SummaryStarted
-            $bf857Timing.dashboard_summary_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869SummaryCpuStarted)
         }
     }
 }
@@ -207,20 +197,13 @@ $pathReplacement = @'
                 $bf857Timing = @{
                     dashboard_process_id = [double]$PID
                     dashboard_summary_ms = 0.0
-                    dashboard_summary_cpu_ms = 0.0
                     dashboard_html_ms = 0.0
                     dashboard_parse_base_ms = 0.0
-                    dashboard_parse_base_cpu_ms = 0.0
                     dashboard_snapshot_ms = 0.0
-                    dashboard_snapshot_cpu_ms = 0.0
                     dashboard_priority_ms = 0.0
-                    dashboard_priority_cpu_ms = 0.0
                     dashboard_decision_ms = 0.0
-                    dashboard_decision_cpu_ms = 0.0
                     dashboard_manager_ms = 0.0
-                    dashboard_manager_cpu_ms = 0.0
                     dashboard_materialize_ms = 0.0
-                    dashboard_materialize_cpu_ms = 0.0
                     dashboard_base_fields_ms = 0.0
                     dashboard_shell_ms = 0.0
                     dashboard_refresh_block_ms = 0.0
@@ -269,20 +252,13 @@ $dashboardHeaderReplacement = @'
         foreach ($bf857Key in @(
             'dashboard_process_id',
             'dashboard_summary_ms',
-            'dashboard_summary_cpu_ms',
             'dashboard_html_ms',
             'dashboard_parse_base_ms',
-            'dashboard_parse_base_cpu_ms',
             'dashboard_snapshot_ms',
-            'dashboard_snapshot_cpu_ms',
             'dashboard_priority_ms',
-            'dashboard_priority_cpu_ms',
             'dashboard_decision_ms',
-            'dashboard_decision_cpu_ms',
             'dashboard_manager_ms',
-            'dashboard_manager_cpu_ms',
             'dashboard_materialize_ms',
-            'dashboard_materialize_cpu_ms',
             'dashboard_base_fields_ms',
             'dashboard_shell_ms',
             'dashboard_refresh_block_ms',
@@ -349,11 +325,6 @@ $baseReplacement = @'
         [long]0
     }
     $bf860StageStarted = $bf859StageStarted
-    $bf869StageCpuStarted = if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
-        Get-Bf869ProcessCpuMs
-    } else {
-        [double]0.0
-    }
     $target = Get-LineValue -Text $Summary -Label "Target:"
 '@
 $dashboardBlock = $dashboardBlock.Replace($baseAnchor, $baseReplacement.TrimEnd())
@@ -413,16 +384,12 @@ $snapshotReplacement = @'
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_presnapshot_tail_ms = Get-Bf857ElapsedMs -StartedTicks $bf860StageStarted
         $bf857Timing.dashboard_parse_base_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
-        $bf857Timing.dashboard_parse_base_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
         $bf859SnapshotStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        $bf869StageCpuStarted = Get-Bf869ProcessCpuMs
     }
     $lineupSnapshot = Get-Bf809AutoFillSnapshot -LeagueKey ([string]$LeagueId) -TargetHuman ([string]$target)
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_snapshot_ms = Get-Bf857ElapsedMs -StartedTicks $bf859SnapshotStarted
-        $bf857Timing.dashboard_snapshot_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
         $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        $bf869StageCpuStarted = Get-Bf869ProcessCpuMs
     }
 '@
 $dashboardBlock = $dashboardBlock.Replace($snapshotAnchor, $snapshotReplacement.TrimEnd())
@@ -431,9 +398,7 @@ $priorityReplacement = @'
     $priorityQueueHtml = $priorityCardList -join "`n"
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_priority_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
-        $bf857Timing.dashboard_priority_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
         $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        $bf869StageCpuStarted = Get-Bf869ProcessCpuMs
     }
 '@
 $dashboardBlock = $dashboardBlock.Replace($priorityAnchor, $priorityReplacement.TrimEnd())
@@ -441,9 +406,7 @@ $dashboardBlock = $dashboardBlock.Replace($priorityAnchor, $priorityReplacement.
 $managerReplacement = @'
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_decision_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
-        $bf857Timing.dashboard_decision_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
         $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        $bf869StageCpuStarted = Get-Bf869ProcessCpuMs
     }
     # BF-819 is presentation-only. It reuses the already-derived priority, evidence, record,
 '@
@@ -458,9 +421,7 @@ if ($finalReturn -lt 0 -or $functionClose -le $finalReturn) {
 $finalPrefix = @'
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_manager_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
-        $bf857Timing.dashboard_manager_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
         $bf859StageStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
-        $bf869StageCpuStarted = Get-Bf869ProcessCpuMs
     }
     $bf859HtmlResult = @"
 '@
@@ -470,7 +431,6 @@ $functionClose = $dashboardBlock.LastIndexOf('}', [StringComparison]::Ordinal)
 $finalSuffix = @'
     if ($bf857CoreTimingEnabled -and $null -ne $bf857Timing) {
         $bf857Timing.dashboard_materialize_ms = Get-Bf857ElapsedMs -StartedTicks $bf859StageStarted
-        $bf857Timing.dashboard_materialize_cpu_ms = [Math]::Max(0.0, (Get-Bf869ProcessCpuMs) - $bf869StageCpuStarted)
     }
     return $bf859HtmlResult
 '@
