@@ -12,14 +12,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerBf623ProviderContentionDiagnosticBf855Test {
 
     @Test
-    void normalBf623VerificationRemainsOnOriginalSerialDiscoverPath() throws Exception {
+    void bf855RetainsOriginalSerialReferenceAfterProductionParallelAdoption() throws Exception {
         String service = source(
             "bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
 
-        assertTrue(service.contains(
-            "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
+        assertTrue(service.contains("verifyBoundTargetSerialDiagnostic("));
         assertTrue(service.contains(
             "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId(), timing);"));
+        assertTrue(service.contains(
+            "return verifyBoundTargetParallel(butlerLeagueId, observer);"));
         assertTrue(service.contains("timing.observe(\"user\""));
         assertTrue(service.contains("timing.observe(\"user_leagues\""));
         assertTrue(service.contains("timing.observe(\"league\""));
@@ -43,7 +44,7 @@ class ButlerBf623ProviderContentionDiagnosticBf855Test {
         String cli = source(
             "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerSleeperPersonalTargetVerificationDiagnosticCli.java");
 
-        assertTrue(cli.contains(".verifyBoundTarget(leagueId, stages::put)"));
+        assertTrue(cli.contains(".verifyBoundTargetSerialDiagnostic(leagueId, stages::put)"));
         for (String stage : new String[] {
             "user",
             "user_leagues",
