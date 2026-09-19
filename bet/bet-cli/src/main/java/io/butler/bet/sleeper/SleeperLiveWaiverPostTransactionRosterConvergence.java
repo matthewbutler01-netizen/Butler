@@ -17,6 +17,18 @@ public final class SleeperLiveWaiverPostTransactionRosterConvergence {
         this(leagueId -> new SleeperApiGateway().fetchRosters(leagueId));
     }
 
+    SleeperLiveWaiverPostTransactionRosterConvergence(
+        String sleeperLeagueId,
+        List<SleeperJsonParser.SleeperRoster> sharedRosters) {
+        this(requestedLeagueId -> {
+            if (!Objects.equals(sleeperLeagueId, requestedLeagueId)) {
+                throw new IllegalStateException(
+                    "BF-853 BLOCKED: shared BF-639 roster snapshot requested for a different league");
+            }
+            return List.copyOf(sharedRosters);
+        });
+    }
+
     SleeperLiveWaiverPostTransactionRosterConvergence(RosterSource rosterSource) {
         this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
     }
