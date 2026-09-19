@@ -13,6 +13,9 @@ import java.util.Map;
 
 /** BF-630/BF-632/BF-634/BF-635/BF-636/BF-637/BF-638/BF-639/BF-640/BF-649 compact read-only operator view of the latest governed waiver decision. */
 public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
+    private static final Object BF866_DATABASE_LOCK = new Object();
+    private static Database bf866Database;
+
     private ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli() {}
 
     public static void main(String[] args) {
@@ -74,6 +77,7 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             started = System.nanoTime();
             var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
             stages.put("bf639_convergence", elapsedMs(started));
+            System.out.println("BF854_SIGNATURE " + decisionSignature(target, summary, convergence));
 
             started = System.nanoTime();
             print(summary, convergence);
@@ -90,6 +94,102 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             return 2;
         }
     }
+
+    static int runDatabaseReuseDiagnosticEmbedded(String[] args) {
+        long totalStarted = System.nanoTime();
+        try {
+            if (args == null || args.length != 1 || args[0] == null || args[0].isBlank()) {
+                throw new IllegalArgumentException(
+                    "Usage: dashboardSummaryDbReuseDiagnostic <butler-league-id>; exact Sleeper user/league/roster must be bound by BF-622");
+            }
+            String leagueId = args[0].trim();
+            Map<String, Double> stages = new LinkedHashMap<>();
+
+            Bf866DatabaseHandle handle = bf866DatabaseHandle();
+            Database database = handle.database();
+            stages.put("database_initialize", handle.initializeMs());
+
+            long started = System.nanoTime();
+            var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+            stages.put("bf623_target_verify", elapsedMs(started));
+
+            started = System.nanoTime();
+            ButlerPersonalizedTargetCliSupport.printVerified(target);
+            stages.put("target_print", elapsedMs(started));
+
+            started = System.nanoTime();
+            var summary = new SleeperLiveWaiverLatestGovernedDecisionSummary(database)
+                .summarize(target, stages::put);
+            stages.put("summary_total", elapsedMs(started));
+
+            started = System.nanoTime();
+            var convergence = new SleeperLiveWaiverPostTransactionRosterConvergence().inspect(target, summary);
+            stages.put("bf639_convergence", elapsedMs(started));
+            System.out.println("BF866_SIGNATURE " + decisionSignature(target, summary, convergence));
+
+            started = System.nanoTime();
+            print(summary, convergence);
+            stages.put("summary_print", elapsedMs(started));
+            stages.put("total", elapsedMs(totalStarted));
+
+            for (var entry : stages.entrySet()) {
+                System.out.printf(Locale.ROOT, "BF866_STAGE %s_ms=%.3f%n", entry.getKey(), entry.getValue());
+            }
+            System.out.println("BF866_INIT initialized_this_call=" + handle.initializedThisCall());
+            System.out.println(
+                "BF866_BOUNDARY read_only=true; persistent_jvm=true; db_init_reuse_diagnostic=true; "
+                    + "shared_connection=false; refresh=false; sleeper_write=false");
+            return 0;
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    private static Bf866DatabaseHandle bf866DatabaseHandle() throws java.sql.SQLException {
+        synchronized (BF866_DATABASE_LOCK) {
+            if (bf866Database != null) {
+                return new Bf866DatabaseHandle(bf866Database, false, 0.0);
+            }
+            Database database = new Database(Path.of("butler.db"));
+            long started = System.nanoTime();
+            database.initialize();
+            double initializeMs = elapsedMs(started);
+            bf866Database = database;
+            return new Bf866DatabaseHandle(database, true, initializeMs);
+        }
+    }
+
+    private static String decisionSignature(
+        io.butler.bet.sleeper.SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryReport summary,
+        SleeperLiveWaiverPostTransactionRosterConvergence.ConvergenceReport convergence) {
+        return String.join("|",
+            target.policyId(),
+            target.butlerLeagueId(),
+            target.sleeperUserId(),
+            target.sleeperLeagueId(),
+            Integer.toString(target.rosterId()),
+            target.providerStatus(),
+            summary.policyId(),
+            value(summary.auditId()),
+            value(summary.capturedAtUtc()),
+            value(summary.recommendationState()),
+            value(summary.auditedMarketSnapshotId()),
+            value(summary.auditedWaiverSnapshotId()),
+            summary.addPlayer() == null ? "none" : summary.addPlayer().sleeperPlayerId(),
+            summary.dropPlayer() == null ? "none" : summary.dropPlayer().sleeperPlayerId(),
+            summary.bf629State().name(),
+            summary.bf631State().name(),
+            summary.bf633State().name(),
+            summary.state().name(),
+            convergence == null ? "none" : convergence.state().name());
+    }
+
+    private record Bf866DatabaseHandle(
+        Database database,
+        boolean initializedThisCall,
+        double initializeMs) {}
 
     private static double elapsedMs(long startedNanos) {
         return (System.nanoTime() - startedNanos) / 1_000_000.0;
