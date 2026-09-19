@@ -26,7 +26,7 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         int coreRead = block.indexOf("$proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget");
         assertTrue(cacheCheck >= 0 && companionCreate > cacheCheck && coreRead > companionCreate);
         assertTrue(block.contains("[System.Threading.Semaphore]::new("));
-        assertTrue(block.contains("            2,"));
+        assertEquals(2, occurrences(block, "\n            2,"));
         assertTrue(block.contains("$companionSemaphore.WaitOne(180000)"));
         assertTrue(block.contains("BF-694 BLOCKED: finite wait for companion heavy read capacity expired."));
         assertFalse(block.contains("catch [System.Threading.AbandonedMutexException]"));
@@ -80,6 +80,12 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         String worker = source("scripts/butler-app-request-worker.ps1");
         byte[] encoded = worker.getBytes(StandardCharsets.US_ASCII);
         assertEquals(worker, new String(encoded, StandardCharsets.US_ASCII));
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        for (int at = 0; (at = text.indexOf(needle, at)) >= 0; at += needle.length()) count++;
+        return count;
     }
 
     private static String source(String relativePath) throws IOException {
