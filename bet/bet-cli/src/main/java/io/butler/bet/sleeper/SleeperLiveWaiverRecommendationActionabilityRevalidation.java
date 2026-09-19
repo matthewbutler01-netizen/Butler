@@ -29,6 +29,22 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
     }
 
     SleeperLiveWaiverRecommendationActionabilityRevalidation(
+        Database database,
+        String sleeperLeagueId,
+        List<SleeperJsonParser.SleeperRoster> sharedRosters) {
+        this(
+            target -> new SleeperLiveWaiverRecommendationAuditHistory(database).inspect(target),
+            requestedLeagueId -> {
+                if (!Objects.equals(sleeperLeagueId, requestedLeagueId)) {
+                    throw new IllegalStateException(
+                        "BF-853 BLOCKED: shared BF-629 roster snapshot requested for a different league");
+                }
+                return List.copyOf(sharedRosters);
+            },
+            (leagueId, round) -> new SleeperClient().getLeagueTransactions(leagueId, round));
+    }
+
+    SleeperLiveWaiverRecommendationActionabilityRevalidation(
         HistorySource historySource,
         RosterSource rosterSource) {
         this(historySource, rosterSource, (leagueId, round) -> "[]");
