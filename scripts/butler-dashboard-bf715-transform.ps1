@@ -261,3 +261,16 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf843DashboardTransform -DashboardPath $DashboardPath
 }
+
+# BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
+# staged Dashboard/core code without changing normal runtime when the flag is absent.
+if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
+    if (-not (Test-Path -LiteralPath $stagedCore -PathType Leaf)) {
+        throw "BF-857 BLOCKED: staged core is required for inner-core timing."
+    }
+    $bf857Transform = Join-Path $PSScriptRoot 'butler-bf857-inner-core-timing-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf857Transform -PathType Leaf)) {
+        throw "BF-857 BLOCKED: inner-core timing transform not found at $bf857Transform"
+    }
+    & $bf857Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+}

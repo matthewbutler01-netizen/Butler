@@ -45,6 +45,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $bf856RouteTimingEnabled = ([string]$env:BUTLER_APP_BF856_ROUTE_TIMING -ceq '1')
+$bf857CoreTimingEnabled = ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1')
 $bf856WorkerStartedTicks = if ($bf856RouteTimingEnabled) {
     [System.Diagnostics.Stopwatch]::GetTimestamp()
 } else {
@@ -136,11 +137,17 @@ function Invoke-AppCoreGet {
         }
         $bodyReader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
         try { $body = $bodyReader.ReadToEnd() } finally { $bodyReader.Dispose() }
+        $bf857Timing = if ($bf857CoreTimingEnabled -and $RequestTarget -ceq '/') {
+            [string]$response.Headers['X-Butler-BF857-Timing']
+        } else {
+            $null
+        }
         return [pscustomobject]@{
             StatusCode = [int]$response.StatusCode
             StatusText = [string]$response.StatusDescription
             ContentType = if ([string]::IsNullOrWhiteSpace($response.ContentType)) { 'text/plain; charset=utf-8' } else { [string]$response.ContentType }
             Body = $body
+            Bf857Timing = $bf857Timing
         }
     }
     finally {
@@ -340,7 +347,9 @@ function Send-HttpResponse {
         [Parameter(Mandatory = $true)][string]$ContentType,
         [Parameter(Mandatory = $true)][string]$Body,
 
-        [hashtable]$DiagnosticTimings
+        [hashtable]$DiagnosticTimings,
+
+        [string]$Bf857Timing
     )
 
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
@@ -372,6 +381,10 @@ function Send-HttpResponse {
         }
         $bf856Header = 'X-Butler-BF856-Timing: ' + ($bf856Pairs -join ';') + "`r`n"
     }
+    $bf857Header = ''
+    if ($bf857CoreTimingEnabled -and -not [string]::IsNullOrWhiteSpace($Bf857Timing)) {
+        $bf857Header = 'X-Butler-BF857-Timing: ' + $Bf857Timing + "`r`n"
+    }
     $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" +
         "Content-Type: $ContentType`r`n" +
         "Content-Length: $($bodyBytes.Length)`r`n" +
@@ -379,6 +392,7 @@ function Send-HttpResponse {
         "X-Content-Type-Options: nosniff`r`n" +
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
         $bf856Header +
+        $bf857Header +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
@@ -587,7 +601,14 @@ try {
             $bf856Timings.navigation_ms = Get-Bf856ElapsedMs -StartedTicks $bf856NavigationStarted
         }
 
-        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body -DiagnosticTimings $bf856Timings
+        $bf857Timing = if ($bf857CoreTimingEnabled -and
+            $requestTarget -ceq '/' -and
+            $null -ne $proxied.PSObject.Properties['Bf857Timing']) {
+            [string]$proxied.Bf857Timing
+        } else {
+            $null
+        }
+        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing
     }
     catch {
         $errorHtml = "<!doctype html><html><body><h1>Butler app blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
