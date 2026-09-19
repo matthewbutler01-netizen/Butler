@@ -62,6 +62,16 @@ class ButlerManagerGuardrailBf844Test {
     }
 
     @Test
+    void phaseTwoStartupFailureSurfacesOwnedButlerOutput() throws Exception {
+        String script = source("scripts/butler-manager-guardrail-acceptance.ps1");
+
+        assertTrue(script.contains("$start.RedirectStandardOutput = $true"));
+        assertTrue(script.contains("$start.RedirectStandardError = $true"));
+        assertTrue(script.contains("Get-BoundedStartupOutput"));
+        assertTrue(script.contains("startup=$diagnostic"));
+    }
+
+    @Test
     void guardrailRemainsGetOnlyAndDoesNotRequestAutofillOrRefresh() throws Exception {
         String script = source("scripts/butler-manager-guardrail-acceptance.ps1");
 
