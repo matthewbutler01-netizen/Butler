@@ -135,7 +135,7 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
