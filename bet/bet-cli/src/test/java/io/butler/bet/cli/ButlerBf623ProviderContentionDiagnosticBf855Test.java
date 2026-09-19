@@ -12,12 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerBf623ProviderContentionDiagnosticBf855Test {
 
     @Test
-    void normalBf623VerificationStillDelegatesToNoOpObserver() throws Exception {
+    void normalBf623VerificationRemainsOnOriginalSerialDiscoverPath() throws Exception {
         String service = source(
             "bet/bet-cli/src/main/java/io/butler/bet/sleeper/SleeperPersonalizedTargetService.java");
 
         assertTrue(service.contains(
-            "return verifyBoundTarget(butlerLeagueId, ProviderStageObserver.NO_OP);"));
+            "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId());"));
+        assertTrue(service.contains(
+            "DiscoveryReport live = discover(bound.sleeperUsername(), bound.sleeperLeagueId(), timing);"));
         assertTrue(service.contains("timing.observe(\"user\""));
         assertTrue(service.contains("timing.observe(\"user_leagues\""));
         assertTrue(service.contains("timing.observe(\"league\""));
