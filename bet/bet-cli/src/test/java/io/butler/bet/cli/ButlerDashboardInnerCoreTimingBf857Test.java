@@ -63,7 +63,7 @@ class ButlerDashboardInnerCoreTimingBf857Test {
         assertTrue(script.contains("$env:BUTLER_APP_BF856_ROUTE_TIMING = '1'"));
         assertTrue(script.contains("$env:BUTLER_APP_BF857_CORE_TIMING = '1'"));
         assertTrue(script.contains("Warm miss-path p50"));
-        assertTrue(script.contains("BF-859 RESULT: COMPLETE"));
+        assertTrue(script.contains("BF-860 RESULT: COMPLETE"));
         assertTrue(script.contains("rd /s /q"));
         assertFalse(script.contains("'/refresh'"));
         assertFalse(script.contains("POST"));
