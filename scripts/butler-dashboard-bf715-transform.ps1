@@ -337,6 +337,19 @@ if (-not (Test-Path -LiteralPath $bf873DashboardTransform -PathType Leaf)) {
 }
 & $bf873DashboardTransform -DashboardPath $DashboardPath
 
+# BF-898: final mobile-manager polish runs after all manager presentation and route
+# transforms so the swipe navigation and stale-lineup copy are the last UI authority.
+$bf898Transform = Join-Path $PSScriptRoot 'butler-bf898-mobile-manager-polish-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf898Transform -PathType Leaf)) {
+    throw "BF-898 BLOCKED: mobile manager polish transform not found at $bf898Transform"
+}
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf898Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf898Transform -DashboardPath $DashboardPath
+}
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
