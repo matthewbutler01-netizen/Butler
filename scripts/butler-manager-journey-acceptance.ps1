@@ -59,6 +59,7 @@ function Start-OwnedButler {
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    $start.EnvironmentVariables['BUTLER_APP_ACCEPTANCE_DIAGNOSTICS'] = '1'
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $start
