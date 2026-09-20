@@ -268,6 +268,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-880 BLOCKED: Franchise Detail transform not found at $bf880CoreTransform"
     }
     & $bf880CoreTransform -CorePath $stagedCore
+
+    # BF-881: Weekly Matchup becomes lineup-decision first only after the accepted
+    # Player/Franchise detail extensions are installed. This pass changes presentation
+    # order and manager copy only; existing matchup and AutoFill semantics remain authoritative.
+    $bf881CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf881-matchup-decision-first-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf881CoreTransform -PathType Leaf)) {
+        throw "BF-881 BLOCKED: Matchup decision-first transform not found at $bf881CoreTransform"
+    }
+    & $bf881CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
