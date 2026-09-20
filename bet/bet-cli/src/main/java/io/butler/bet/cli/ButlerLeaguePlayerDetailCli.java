@@ -28,12 +28,13 @@ public final class ButlerLeaguePlayerDetailCli {
             Database database = initializedDatabase();
             var ageProduction = new LeagueAgeProductionContextAnalyzer(database);
             var profiles = new LeaguePlayerEvidenceProfileAnalyzer(database);
+            LocalDate ageAsOf = LocalDate.now(ZoneOffset.UTC);
             var ageReport = options.season() == null
-                ? ageProduction.analyze(options.leagueId())
-                : ageProduction.analyze(options.leagueId(), options.season());
+                ? ageProduction.analyze(options.leagueId(), ageAsOf, null)
+                : ageProduction.analyze(options.leagueId(), options.season(), ageAsOf, null);
             var profileReport = options.season() == null
-                ? profiles.analyze(options.leagueId())
-                : profiles.analyze(options.leagueId(), options.season());
+                ? profiles.analyze(options.leagueId(), ageAsOf, null)
+                : profiles.analyze(options.leagueId(), options.season(), ageAsOf, null);
             print(select(options.playerId(), ageReport, profileReport));
         } catch (SQLException e) {
             System.err.println("Database error while building player detail evidence: " + e.getMessage());
