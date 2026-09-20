@@ -95,6 +95,19 @@ class ButlerManagerJourneyAcceptanceBf885Test {
     }
 
     @Test
+    void playerDetailHttpFailureRunsExactReadOnlyCliDiagnostic() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("function Invoke-PlayerDetailDirectDiagnostic"));
+        assertTrue(script.contains("ButlerCommandRouter' 'league' 'player-detail'"));
+        assertTrue(script.contains("app-league.txt"));
+        assertTrue(script.contains("build\\install\\bet-cli\\lib"));
+        assertTrue(script.contains("direct-cli exit="));
+        assertTrue(script.contains("if ($player.StatusCode -ne 200)"));
+        assertTrue(script.contains("Invoke-PlayerDetailDirectDiagnostic -PlayerHref $playerHref"));
+    }
+
+    @Test
     void recoveryAndHealthArePartOfTheSameJourney() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
