@@ -97,7 +97,7 @@ class ButlerPlayerDetailCliTest {
     void missingProductionRemainsMissingWithoutBecomingZeroGameEvidence() {
         var player = new LeagueAgeProductionContextAnalyzer.PlayerAgeProductionContext(
             "p1", "Player One", "WR", "BENCH",
-            null, LeagueAgeContextAnalyzer.AgeProvenance.MISSING,
+            null, LeagueAgeContextAnalyzer.AgeProvenance.UNAVAILABLE,
             false, 0,
             null, null, null, null, null, null, null, null, null);
 
