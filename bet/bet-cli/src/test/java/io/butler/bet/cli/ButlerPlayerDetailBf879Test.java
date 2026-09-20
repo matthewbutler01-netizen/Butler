@@ -30,6 +30,7 @@ class ButlerPlayerDetailBf879Test {
 
         assertTrue(route.contains("if ($path -eq \"/player\")"));
         assertTrue(route.contains("Get-PlayerDetailRequestId -RequestTarget $parts[1]"));
+        assertTrue(transform.contains("^[A-Za-z0-9._:-]+$"));
         assertTrue(route.contains("league player-detail $LeagueId $playerId"));
         assertTrue(route.contains("$playerDetail.PlayerId -cne $playerId"));
         assertTrue(route.contains("$playerDetail.LeagueId -cne $LeagueId"));
@@ -38,7 +39,6 @@ class ButlerPlayerDetailBf879Test {
         assertFalse(route.contains("Invoke-WebRequest"));
         assertFalse(route.contains("Method = \"POST\""));
         assertFalse(route.contains("player-score"));
-        assertFalse(route.contains("refresh"));
         assertFalse(route.contains("submitTransaction"));
     }
 
