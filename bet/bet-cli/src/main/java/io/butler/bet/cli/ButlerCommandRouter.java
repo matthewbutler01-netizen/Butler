@@ -79,6 +79,7 @@ public final class ButlerCommandRouter {
             case TRADE_COUNTER_NO_ACTION_FINALIZE -> ButlerTradeCounterNoActionFinalizeCli.main(args);
             case TRADE_RECOMMENDATION -> TRADE_RECOMMENDATION_TARGET.run(args);
             case PLAYER_EVIDENCE_PROFILE -> ButlerPlayerEvidenceProfileCli.main(args);
+            case PLAYER_DETAIL -> ButlerPlayerDetailCli.main(args);
             case LONGITUDINAL_EVIDENCE -> ButlerLongitudinalEvidenceCli.main(args);
             case AGING_MODEL_UNIVERSE -> ButlerAgingModelUniverseCli.main(args);
             case AGING_MODEL_SAMPLE_AUDIT -> ButlerAgingModelSampleAuditCli.main(args);
@@ -172,6 +173,7 @@ public final class ButlerCommandRouter {
             if (equals(args[0], "trade") && equals(args[1], "counter-no-action-finalize")) return Route.TRADE_COUNTER_NO_ACTION_FINALIZE;
             if (equals(args[0], "trade") && equals(args[1], "recommendation")) return Route.TRADE_RECOMMENDATION;
             if (equals(args[0], "league") && equals(args[1], "player-evidence-profile")) return Route.PLAYER_EVIDENCE_PROFILE;
+            if (equals(args[0], "league") && equals(args[1], "player-detail")) return Route.PLAYER_DETAIL;
             if (equals(args[0], "league") && equals(args[1], "longitudinal-evidence")) return Route.LONGITUDINAL_EVIDENCE;
             if (equals(args[0], "nflverse")
                 && (equals(args[1], "aging-model-players-preview") || equals(args[1], "aging-model-players-refresh")
@@ -243,7 +245,7 @@ public final class ButlerCommandRouter {
                  TRADE_COUNTER_HANDOFF, TRADE_COUNTER_RECONCILE, TRADE_COUNTER_FINALIZE, TRADE_COUNTER_STATUS,
                  TRADE_COUNTER_MESSAGE_ACK, TRADE_COUNTER_MESSAGE_FINALIZE, TRADE_COUNTER_MESSAGE_STATUS,
                  TRADE_COUNTER_NO_ACTION_ACK, TRADE_COUNTER_NO_ACTION_FINALIZE, TRADE_RECOMMENDATION,
-                 PLAYER_EVIDENCE_PROFILE, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
+                 PLAYER_EVIDENCE_PROFILE, PLAYER_DETAIL, LONGITUDINAL_EVIDENCE, AGING_MODEL_UNIVERSE, AGING_MODEL_SAMPLE_AUDIT,
                  AGING_MODEL_SAMPLE_BREADTH, AGING_MODEL_LOCAL_SMOOTHER, AGING_MODEL_PUBLISHED_SMOOTHER,
                  AGING_MODEL_PUBLICATION_VALIDATION, AGING_MODEL_AGE_OUTLOOK, AGING_MODEL_PUBLISHED_CELL,
                  AGING_MODEL_POSITION_AGE_EVIDENCE, AGING_MODEL_POSITION_AGE_COVERAGE,
