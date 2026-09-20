@@ -119,6 +119,14 @@ class ButlerManagerJourneyAcceptanceBf885Test {
     }
 
     @Test
+    void decisionHistoryJourneyUsesPublicReadOnlyPromise() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')"));
+        assertFalse(script.contains("Markers @('Recorded waiver decisions','Decision History reads recorded governed waiver history only')"));
+    }
+
+    @Test
     void recoveryAndHealthArePartOfTheSameJourney() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
