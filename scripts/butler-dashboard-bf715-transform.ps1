@@ -293,6 +293,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-883 BLOCKED: contextual navigation transform not found at $bf883CoreTransform"
     }
     & $bf883CoreTransform -CorePath $stagedCore
+
+    # BF-884: final manager recovery-page polish runs after every manager/detail route
+    # has been installed so blocked and unknown-route pages can be styled without
+    # changing the underlying fail-closed catches or HTTP status codes.
+    $bf884CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf884-manager-error-pages-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf884CoreTransform -PathType Leaf)) {
+        throw "BF-884 BLOCKED: manager recovery-page transform not found at $bf884CoreTransform"
+    }
+    & $bf884CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
