@@ -68,7 +68,7 @@ public final class ButlerLeaguePlayerDetailCli {
         String playerId,
         LeagueAgeProductionContextAnalyzer.AgeProductionReport ageReport,
         LeaguePlayerEvidenceProfileAnalyzer.PlayerEvidenceProfileReport profileReport) {
-        playerId = requireText(playerId, "player-id");
+        String exactPlayerId = requireText(playerId, "player-id");
         Objects.requireNonNull(ageReport, "ageReport must not be null");
         Objects.requireNonNull(profileReport, "profileReport must not be null");
 
@@ -85,14 +85,14 @@ public final class ButlerLeaguePlayerDetailCli {
         List<SelectedAgePlayer> matches = new ArrayList<>();
         for (var team : ageReport.teams()) {
             for (var player : team.players()) {
-                if (player.playerId().equals(playerId)) {
+                if (player.playerId().equals(exactPlayerId)) {
                     matches.add(new SelectedAgePlayer(team.teamId(), team.teamName(), player));
                 }
             }
         }
         if (matches.size() != 1) {
             throw new IllegalArgumentException(
-                "player must resolve exactly once in league age/production evidence: " + playerId
+                "player must resolve exactly once in league age/production evidence: " + exactPlayerId
                     + " (matches=" + matches.size() + ")");
         }
 
@@ -109,7 +109,7 @@ public final class ButlerLeaguePlayerDetailCli {
                 .toList();
         if (supportingMatches.size() > 1) {
             throw new IllegalStateException(
-                "supporting evidence resolved selected player more than once: " + playerId);
+                "supporting evidence resolved selected player more than once: " + exactPlayerId);
         }
 
         LeagueAgeOutlookSupportingEvidenceAnalyzer.PlayerSupportingEvidence supporting =
@@ -120,7 +120,7 @@ public final class ButlerLeaguePlayerDetailCli {
                 || !supporting.playerName().equals(selected.player().playerName())
                 || !supporting.position().equals(selected.player().position())) {
                 throw new IllegalStateException(
-                    "supporting evidence identity does not match selected player: " + playerId);
+                    "supporting evidence identity does not match selected player: " + exactPlayerId);
             }
         }
 
