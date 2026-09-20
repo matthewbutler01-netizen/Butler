@@ -418,7 +418,11 @@ function ConvertTo-ButlerUserFacingHtml {
         } else {
             [long]0
         }
-        $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+        $acceptanceFailureDetail = [int]$StatusCode -ge 400 -and
+            [string]$env:BUTLER_APP_ACCEPTANCE_DIAGNOSTICS -ceq '1'
+        if (-not $acceptanceFailureDetail) {
+            $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+        }
         if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             $DiagnosticTimings.presentation_ms = Get-Bf856ElapsedMs -StartedTicks $bf856PresentationStarted
         }
