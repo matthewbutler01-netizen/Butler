@@ -191,6 +191,8 @@ try {
         'scripts/butler-app.cmd',
         'scripts/butler-app.ps1',
         'scripts/butler-app-shell-core.ps1',
+        'scripts/butler-runtime-data-backup.ps1',
+        'scripts/butler-runtime-data-restore.ps1',
         'gradlew.bat',
         $requiredAppJarEntry
     )) {
