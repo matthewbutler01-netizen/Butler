@@ -84,7 +84,7 @@ $replacements = @(
     [pscustomobject]@{
         Contract = 'Player Detail blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Player Detail blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "team"'
+        New = '$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail $playerDetailFailure -Active "team"'
     },
     [pscustomobject]@{
         Contract = 'Franchise Detail blocked page'
