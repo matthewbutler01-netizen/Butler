@@ -201,10 +201,15 @@ function Assert-Status {
             throw "BF-885 FAILED: $Stage returned HTTP $($Response.StatusCode), expected $Expected. technical=$detail"
         }
 
-        $plain = [regex]::Replace([string]$Response.Body, '<[^>]+>', ' ')
+        $plainHtml = [regex]::Replace(
+            [string]$Response.Body,
+            '(?is)<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>',
+            ' '
+        )
+        $plain = [regex]::Replace($plainHtml, '<[^>]+>', ' ')
         $plain = [System.Net.WebUtility]::HtmlDecode($plain)
         $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
-        if ($plain.Length -gt 700) { $plain = $plain.Substring(0, 700) + '...' }
+        if ($plain.Length -gt 1600) { $plain = '...' + $plain.Substring($plain.Length - 1600) }
         throw "BF-885 FAILED: $Stage returned HTTP $($Response.StatusCode), expected $Expected. body=$plain"
     }
 }

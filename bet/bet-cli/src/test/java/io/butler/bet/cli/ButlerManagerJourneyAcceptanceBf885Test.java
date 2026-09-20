@@ -85,6 +85,16 @@ class ButlerManagerJourneyAcceptanceBf885Test {
     }
 
     @Test
+    void failedHtmlFallbackStripsStyleAndKeepsRecoveryTail() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("(?is)<style\\b[^>]*>.*?</style>|<script\\b[^>]*>.*?</script>"));
+        assertTrue(script.contains("if ($plain.Length -gt 1600)"));
+        assertTrue(script.contains("$plain.Substring($plain.Length - 1600)"));
+        assertFalse(script.contains("$plain.Substring(0, 700)"));
+    }
+
+    @Test
     void recoveryAndHealthArePartOfTheSameJourney() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
