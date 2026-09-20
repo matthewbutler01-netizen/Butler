@@ -318,7 +318,7 @@ function ConvertTo-ButlerUserFacingHtml {
     # diagnostics; they are not part of the fantasy-manager product surface.
     $result = [regex]::Replace(
         $result,
-        '(?is)<details(?:\s+open)?><summary>Advanced technical record</summary>.*?</details>',
+        '(?is)<details\b[^>]*>\s*<summary>Advanced technical record</summary>.*?</details>',
         ''
     )
 
