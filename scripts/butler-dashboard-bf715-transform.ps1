@@ -285,6 +285,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-882 BLOCKED: Player Search transform not found at $bf882CoreTransform"
     }
     & $bf882CoreTransform -CorePath $stagedCore
+
+    # BF-883: add safe contextual return paths after Player Search and both detail
+    # surfaces are installed. This is presentation/navigation only and accepts no arbitrary return URL.
+    $bf883CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf883-context-navigation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf883CoreTransform -PathType Leaf)) {
+        throw "BF-883 BLOCKED: contextual navigation transform not found at $bf883CoreTransform"
+    }
+    & $bf883CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
