@@ -277,6 +277,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-881 BLOCKED: Matchup decision-first transform not found at $bf881CoreTransform"
     }
     & $bf881CoreTransform -CorePath $stagedCore
+
+    # BF-882: add secondary rostered-player discovery after the final Matchup polish.
+    # This stays outside primary navigation and reuses existing persisted asset-search evidence.
+    $bf882CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf882-player-search-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf882CoreTransform -PathType Leaf)) {
+        throw "BF-882 BLOCKED: Player Search transform not found at $bf882CoreTransform"
+    }
+    & $bf882CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
