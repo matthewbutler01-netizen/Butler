@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerHideTechnicalRecordsBf794Test {
@@ -16,8 +17,18 @@ class ButlerHideTechnicalRecordsBf794Test {
         String cache = source("scripts/butler-app-request-worker-cache.ps1");
 
         assertTrue(cache.contains("BF-794 removes technical record disclosures from normal user-facing HTML"));
-        assertTrue(cache.contains("<summary>Advanced technical record</summary>.*?</details>"));
+        assertTrue(cache.contains("<details\\b[^>]*>\\s*<summary>Advanced technical record</summary>.*?</details>"));
         assertTrue(cache.contains("[regex]::Replace"));
+        assertFalse(cache.contains("<details(?:\\s+open)?><summary>Advanced technical record</summary>.*?</details>"));
+    }
+
+    @Test
+    void attributedWaiverDetailsAreCoveredByTechnicalRecordRemoval() throws Exception {
+        String cache = source("scripts/butler-app-request-worker-cache.ps1");
+        String waiver = source("scripts/butler-dashboard-bf873-waiver-decision-first-transform.ps1");
+
+        assertTrue(waiver.contains("<details class=\"waiver-decision-details\"><summary>Decision details</summary>"));
+        assertTrue(cache.contains("<details\\b[^>]*>\\s*<summary>Advanced technical record</summary>.*?</details>"));
     }
 
     @Test
