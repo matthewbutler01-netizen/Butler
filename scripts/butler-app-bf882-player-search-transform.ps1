@@ -280,7 +280,7 @@ foreach ($required in @(
     'NOT A RANKING',
     'Fantasy-team names are context only and do not cause matches',
     'league player-search $LeagueId $query',
-    'href="/player?id=$hrefId"',
+    'href=`"/player?id=$hrefId`"',
     'href="/players">Find a player</a>',
     'href="/players">Find another player</a>'
 )) {
