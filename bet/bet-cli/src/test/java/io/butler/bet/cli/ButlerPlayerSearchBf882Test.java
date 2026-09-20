@@ -41,7 +41,7 @@ class ButlerPlayerSearchBf882Test {
         String transform = source("scripts/butler-app-bf882-player-search-transform.ps1");
 
         assertTrue(transform.contains("$hrefId = [System.Uri]::EscapeDataString([string]$player.PlayerId)"));
-        assertTrue(transform.contains("href=`"/player?id=$hrefId`""));
+        assertTrue(transform.contains("href=`\"/player?id=$hrefId`\""));
         assertTrue(transform.contains("NOT A RANKING"));
         assertTrue(transform.contains("Persisted value is descriptive evidence, not a ranking"));
         assertTrue(transform.contains("Fantasy-team names are context only and do not cause matches"));
