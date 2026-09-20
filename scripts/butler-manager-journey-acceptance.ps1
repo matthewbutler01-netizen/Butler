@@ -169,6 +169,25 @@ function Invoke-Get {
     }
 }
 
+function Get-ManagerRecoveryTechnicalDetail {
+    param([Parameter(Mandatory = $true)][string]$Html)
+
+    $match = [regex]::Match(
+        $Html,
+        '<details><summary>Technical details</summary><div class="technical">(?<detail>.*?)</div></details>',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if (-not $match.Success) { return $null }
+
+    $detail = [regex]::Replace($match.Groups['detail'].Value, '<[^>]+>', ' ')
+    $detail = [System.Net.WebUtility]::HtmlDecode($detail)
+    $detail = [regex]::Replace($detail, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($detail)) { return $null }
+    if ($detail.Length -gt 1200) { $detail = $detail.Substring(0, 1200) + '...' }
+    return $detail
+}
+
 function Assert-Status {
     param(
         [Parameter(Mandatory = $true)]$Response,
@@ -177,6 +196,11 @@ function Assert-Status {
     )
 
     if ($Response.StatusCode -ne $Expected) {
+        $detail = Get-ManagerRecoveryTechnicalDetail -Html ([string]$Response.Body)
+        if (-not [string]::IsNullOrWhiteSpace([string]$detail)) {
+            throw "BF-885 FAILED: $Stage returned HTTP $($Response.StatusCode), expected $Expected. technical=$detail"
+        }
+
         $plain = [regex]::Replace([string]$Response.Body, '<[^>]+>', ' ')
         $plain = [System.Net.WebUtility]::HtmlDecode($plain)
         $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
