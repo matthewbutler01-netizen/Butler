@@ -268,6 +268,53 @@ function Get-FirstSafeHref {
     return $href
 }
 
+function Invoke-PlayerDetailDirectDiagnostic {
+    param([Parameter(Mandatory = $true)][string]$PlayerHref)
+
+    $match = [regex]::Match($PlayerHref, '(?:\?|&)id=(?<id>[^&]+)', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $match.Success) { return 'direct-cli=BLOCKED player id missing from canonical Player Detail href' }
+    $playerId = [System.Uri]::UnescapeDataString($match.Groups['id'].Value)
+
+    $localAppData = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($localAppData)) { $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) }
+    if ([string]::IsNullOrWhiteSpace($localAppData)) { return 'direct-cli=BLOCKED LocalApplicationData unavailable' }
+
+    $configDir = Join-Path $localAppData 'Butler'
+    $leaguePath = Join-Path $configDir 'app-league.txt'
+    if (-not (Test-Path -LiteralPath $leaguePath -PathType Leaf)) { return 'direct-cli=BLOCKED configured league id unavailable' }
+    $leagueId = [IO.File]::ReadAllText($leaguePath, [Text.Encoding]::ASCII).Trim()
+    if ([string]::IsNullOrWhiteSpace($leagueId)) { return 'direct-cli=BLOCKED configured league id empty' }
+
+    $dataDir = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($dataDir)) { $dataDir = Join-Path $configDir 'data' }
+    $runtimeLib = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+    if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) { return 'direct-cli=BLOCKED governed runtime data directory unavailable' }
+    if (-not (Test-Path -LiteralPath $runtimeLib -PathType Container)) { return 'direct-cli=BLOCKED prepared Butler Java runtime unavailable' }
+
+    try { $java = (Get-Command java.exe -ErrorAction Stop).Source }
+    catch { return 'direct-cli=BLOCKED java.exe unavailable' }
+
+    $classPath = Join-Path $runtimeLib '*'
+    $previousPreference = $ErrorActionPreference
+    $lines = $null
+    $exitCode = $null
+    Push-Location $dataDir
+    try {
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath 'io.butler.bet.cli.ButlerCommandRouter' 'league' 'player-detail' $leagueId $playerId 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $previousPreference }
+    }
+    finally { Pop-Location }
+
+    $text = (($lines | ForEach-Object { "$_" }) -join ' | ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ($text.Length -gt 2400) { $text = '...' + $text.Substring($text.Length - 2400) }
+    return ("direct-cli exit={0}; player={1}; output={2}" -f $exitCode, $playerId, $text)
+}
+
 function Write-Pass {
     param([Parameter(Mandatory = $true)][string]$Label)
     Write-Host ("{0}: PASS" -f $Label)
@@ -362,7 +409,10 @@ try {
     }
     else {
         $player = Invoke-Get -Url ($root + $playerHref) -TimeoutMs $timeoutMs
-        Assert-Status -Response $player -Expected 200 -Stage 'Player Detail'
+        if ($player.StatusCode -ne 200) {
+            $directDiagnostic = Invoke-PlayerDetailDirectDiagnostic -PlayerHref $playerHref
+            throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
+        }
         Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Back to My Team','Player Search','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $player.Body -Stage 'Player Detail'
         Write-Pass -Label 'Player Detail'
