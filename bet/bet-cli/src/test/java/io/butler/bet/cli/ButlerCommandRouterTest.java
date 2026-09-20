@@ -31,6 +31,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"trade", "recommendation", "l1", "2026", "p1", "p2", "side-a"}));
         assertEquals(ButlerCommandRouter.Route.PLAYER_EVIDENCE_PROFILE,
             ButlerCommandRouter.route(new String[]{"league", "player-evidence-profile", "l1"}));
+        assertEquals(ButlerCommandRouter.Route.LEAGUE_PLAYER_DETAIL,
+            ButlerCommandRouter.route(new String[]{"league", "player-detail", "l1", "p1"}));
         assertEquals(ButlerCommandRouter.Route.LONGITUDINAL_EVIDENCE,
             ButlerCommandRouter.route(new String[]{"league", "longitudinal-evidence", "l1"}));
         assertEquals(ButlerCommandRouter.Route.AGING_MODEL_UNIVERSE,
