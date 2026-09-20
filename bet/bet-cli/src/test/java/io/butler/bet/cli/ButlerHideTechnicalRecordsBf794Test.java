@@ -21,6 +21,18 @@ class ButlerHideTechnicalRecordsBf794Test {
     }
 
     @Test
+    void acceptanceMayInspectFailedRecoveryDetailWithoutChangingNormalProductHtml() throws Exception {
+        String cache = source("scripts/butler-app-request-worker-cache.ps1");
+        String acceptance = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(acceptance.contains("BUTLER_APP_ACCEPTANCE_DIAGNOSTICS"));
+        assertTrue(cache.contains("[int]$StatusCode -ge 400"));
+        assertTrue(cache.contains("[string]$env:BUTLER_APP_ACCEPTANCE_DIAGNOSTICS -ceq '1'"));
+        assertTrue(cache.contains("if (-not $acceptanceFailureDetail)"));
+        assertTrue(cache.contains("$Body = ConvertTo-ButlerUserFacingHtml -Html $Body"));
+    }
+
+    @Test
     void underlyingTechnicalEvidenceRemainsAvailableInSourceRecords() throws Exception {
         String history = source("scripts/butler-decision-history.ps1");
         String detail = source("scripts/butler-decision-detail.ps1");
