@@ -228,6 +228,20 @@ function Assert-Markers {
     }
 }
 
+function Assert-AbsentMarkers {
+    param(
+        [Parameter(Mandatory = $true)][string]$Html,
+        [Parameter(Mandatory = $true)][string]$Stage,
+        [Parameter(Mandatory = $true)][string[]]$Markers
+    )
+
+    foreach ($marker in $Markers) {
+        if ($Html.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "BF-885 FAILED: $Stage exposed hidden technical marker: $marker"
+        }
+    }
+}
+
 function Assert-NoRawDeveloperFailure {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -438,7 +452,8 @@ try {
 
     $waivers = Invoke-Get -Url ($root + '/waivers') -TimeoutMs $timeoutMs
     Assert-Status -Response $waivers -Expected 200 -Stage 'Waiver Board'
-    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','Decision details','READ ONLY')
+    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','READ ONLY')
+    Assert-AbsentMarkers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Decision details','Advanced technical record','Current audit ID:','Sleeper ID:')
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
     Write-Pass -Label 'Waiver Board'
 
