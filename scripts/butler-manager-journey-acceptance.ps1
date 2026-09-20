@@ -465,7 +465,7 @@ try {
 
     $history = Invoke-Get -Url ($root + '/history?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $history -Expected 200 -Stage 'Decision History'
-    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Recorded waiver decisions','Decision History reads recorded governed waiver history only')
+    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')
     Assert-NoRawDeveloperFailure -Html $history.Body -Stage 'Decision History'
     Write-Pass -Label 'Decision History'
 
