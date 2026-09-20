@@ -44,6 +44,11 @@ public final class LeagueAgeProductionContextAnalyzer {
         return build(profiles.analyze(leagueId, ageAsOf, minimumProfileAsOf));
     }
 
+    public AgeProductionReport analyze(
+        LeaguePlayerEvidenceProfileAnalyzer.PlayerEvidenceProfileReport profile) throws SQLException {
+        return build(Objects.requireNonNull(profile, "profile must not be null"));
+    }
+
     private AgeProductionReport build(LeaguePlayerEvidenceProfileAnalyzer.PlayerEvidenceProfileReport profile)
         throws SQLException {
         List<TeamAgeProductionContext> teams = new ArrayList<>();
