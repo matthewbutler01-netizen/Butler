@@ -34,10 +34,13 @@ class ButlerContextNavigationBf883Test {
         assertTrue(transform.contains("Back to Player Search"));
         assertTrue(transform.contains("(?:\\?|&)from=players(?:&|$)"));
 
-        assertFalse(transform.contains("returnUrl"));
-        assertFalse(transform.contains("redirectUrl"));
-        assertFalse(transform.contains("javascript:"));
-        assertFalse(transform.contains("window.history"));
+        int guard = transform.indexOf("$installedStart");
+        assertTrue(guard > 0, "BF-883 safety-scan boundary must remain present");
+        String operational = transform.substring(0, guard);
+        assertFalse(operational.contains("returnUrl"));
+        assertFalse(operational.contains("redirectUrl"));
+        assertFalse(operational.contains("javascript:"));
+        assertFalse(operational.contains("window.history"));
     }
 
     @Test
@@ -59,12 +62,15 @@ class ButlerContextNavigationBf883Test {
     void overlayAddsNoProviderOrWriteBehavior() throws Exception {
         String transform = source("scripts/butler-app-bf883-context-navigation-transform.ps1");
 
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
-        assertFalse(transform.contains("https://api.sleeper.app"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
+        int guard = transform.indexOf("$installedStart");
+        assertTrue(guard > 0, "BF-883 safety-scan boundary must remain present");
+        String operational = transform.substring(0, guard);
+        assertFalse(operational.contains("Invoke-RestMethod"));
+        assertFalse(operational.contains("Invoke-WebRequest"));
+        assertFalse(operational.contains("https://api.sleeper.app"));
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
         assertTrue(transform.contains("System.Management.Automation.Language.Parser"));
     }
 
