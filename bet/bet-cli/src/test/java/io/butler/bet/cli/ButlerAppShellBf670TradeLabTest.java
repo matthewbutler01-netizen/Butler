@@ -95,15 +95,19 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
-    void tradeLabDoesNotExposeMutationCounterOrExecutionCommands() throws Exception {
+    void tradeLabExposesOnlyReadOnlyCounterProposalAndNoExecutionCommands() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
         String worker = script("scripts/butler-app-request-worker.ps1");
 
-        assertFalse(trade.contains("trade counter-proposal"));
+        assertEquals(1, count(trade, "trade counter-proposal $LeagueId"));
+        assertTrue(trade.contains("Build Counteroffer"));
+        assertTrue(trade.contains("Read-only. Butler will not send or submit anything."));
         assertFalse(trade.contains("trade counter-authorize"));
+        assertFalse(trade.contains("trade counter-authorization"));
         assertFalse(trade.contains("trade counter-finalize"));
         assertFalse(trade.contains("trade counter-handoff"));
+        assertFalse(trade.contains("trade counter-reconcile"));
         assertFalse(trade.contains("sleeperLiveWaiverSnapshotSync"));
         assertFalse(trade.contains("sleeperLiveWaiverMarketAttentionSync"));
         assertFalse(trade.contains("Invoke-Expression"));
@@ -125,6 +129,19 @@ class ButlerAppShellBf670TradeLabTest {
         assertAscii(script("scripts/butler-app-shell-core-single.ps1"));
         assertAscii(script("scripts/butler-trade-lab-host.ps1"));
         assertAscii(script("scripts/butler-trade-lab.ps1"));
+    }
+
+    private static int count(String text, String needle) {
+        int total = 0;
+        int from = 0;
+        while (true) {
+            int index = text.indexOf(needle, from);
+            if (index < 0) {
+                return total;
+            }
+            total++;
+            from = index + needle.length();
+        }
     }
 
     private static void assertAscii(String text) {
