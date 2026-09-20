@@ -58,9 +58,10 @@ function ConvertTo-MyTeamPlayerNameHtml {
     if ($mapped -and -not [string]::IsNullOrWhiteSpace($playerId) -and
         $playerId -cne '-' -and $playerId -cne 'none') {
         $hrefId = [System.Uri]::EscapeDataString($playerId)
-        return @"
+        $link = @"
 <a href="/player?id=$hrefId">$(ConvertTo-HtmlText $Player.Name)</a>
-"@.Trim()
+"@
+        return $link.Trim()
     }
 
     return ConvertTo-HtmlText $Player.Name
