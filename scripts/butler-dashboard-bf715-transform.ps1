@@ -252,6 +252,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-872 BLOCKED: My Team at-a-glance transform not found at $bf872CoreTransform"
     }
     & $bf872CoreTransform -CorePath $stagedCore
+
+    # BF-879: Player Detail is the final My Team extension. Install it after
+    # BF-872 so mapped roster names link to exact read-only player evidence.
+    $bf879CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf879-player-detail-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf879CoreTransform -PathType Leaf)) {
+        throw "BF-879 BLOCKED: Player Detail transform not found at $bf879CoreTransform"
+    }
+    & $bf879CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
