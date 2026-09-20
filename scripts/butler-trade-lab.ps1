@@ -229,6 +229,132 @@ function ConvertTo-TradeRecommendationView {
     }
 }
 
+function ConvertTo-TradeCounterProposalView {
+    param([Parameter(Mandatory = $true)][string]$Text)
+
+    $perspective = [regex]::Match($Text, '(?m)^Perspective:\s+(?<name>.*?)\s+\[(?<id>[^\]]+)\]\s*$')
+    $v5Action = [regex]::Match($Text, '(?m)^V5 team action:\s+(?<value>\S+)\s*$')
+    $opportunity = [regex]::Match($Text, '(?m)^Counter opportunity:\s+(?<value>\S+)\s*$')
+    $selection = [regex]::Match($Text, '(?m)^Counter candidate selection:\s+(?<value>\S+)\s*$')
+    $action = [regex]::Match($Text, '(?m)^Counter action:\s+(?<value>\S+)\s*$')
+    $reason = [regex]::Match($Text, '(?m)^Counter action reason:\s+(?<value>\S+)\s*$')
+    $materialized = [regex]::Match($Text, '(?m)^Counter materialized package state:\s+(?<value>\S+)\s*$')
+    $materializedReason = [regex]::Match($Text, '(?m)^Counter materialized package reason:\s+(?<value>\S+)\s*$')
+    $messageState = [regex]::Match($Text, '(?m)^Counter negotiation message state:\s+(?<value>\S+)\s*$')
+    $messageReason = [regex]::Match($Text, '(?m)^Counter negotiation message reason:\s+(?<value>\S+)\s*$')
+    if (-not $perspective.Success -or -not $v5Action.Success -or -not $opportunity.Success -or
+        -not $selection.Success -or -not $action.Success -or -not $reason.Success -or
+        -not $materialized.Success -or -not $materializedReason.Success -or
+        -not $messageState.Success -or -not $messageReason.Success) {
+        throw 'BF-878 BLOCKED: governed counter proposal is missing required app fields.'
+    }
+
+    $counter = [regex]::Match($Text, '(?m)^COUNTER:\s+(?<value>.+?)\s*$')
+    $revisedA = [regex]::Match($Text, '(?m)^Revised Side A package:\s+(?<value>.+?)\s*$')
+    $revisedB = [regex]::Match($Text, '(?m)^Revised Side B package:\s+(?<value>.+?)\s*$')
+    $message = [regex]::Match($Text, '(?m)^Negotiation message:\s+(?<value>.+?)\s*$')
+    $actor = [regex]::Match($Text, '(?m)^Counter negotiation actor:\s+(?<value>\S+)\s*$')
+    $fingerprint = [regex]::Match($Text, '(?m)^Counter proposal fingerprint:\s+(?<value>\S+)\s*$')
+
+    $view = [pscustomobject]@{
+        PerspectiveName = $perspective.Groups['name'].Value.Trim()
+        PerspectiveTeamId = $perspective.Groups['id'].Value.Trim()
+        V5Action = $v5Action.Groups['value'].Value.Trim()
+        Opportunity = $opportunity.Groups['value'].Value.Trim()
+        Selection = $selection.Groups['value'].Value.Trim()
+        Action = $action.Groups['value'].Value.Trim()
+        Reason = $reason.Groups['value'].Value.Trim()
+        MaterializedState = $materialized.Groups['value'].Value.Trim()
+        MaterializedReason = $materializedReason.Groups['value'].Value.Trim()
+        CounterText = if ($counter.Success) { $counter.Groups['value'].Value.Trim() } else { '' }
+        RevisedSideA = if ($revisedA.Success) { $revisedA.Groups['value'].Value.Trim() } else { '' }
+        RevisedSideB = if ($revisedB.Success) { $revisedB.Groups['value'].Value.Trim() } else { '' }
+        MessageState = $messageState.Groups['value'].Value.Trim()
+        MessageReason = $messageReason.Groups['value'].Value.Trim()
+        MessageActor = if ($actor.Success) { $actor.Groups['value'].Value.Trim() } else { '' }
+        Message = if ($message.Success) { $message.Groups['value'].Value.Trim() } else { '' }
+        Fingerprint = if ($fingerprint.Success) { $fingerprint.Groups['value'].Value.Trim() } else { '' }
+        Raw = $Text
+    }
+
+    switch ($view.Action) {
+        'COUNTER' {
+            if ($view.MaterializedState -cne 'MATERIALIZED' -or $view.MessageState -cne 'MESSAGE_AVAILABLE' -or
+                [string]::IsNullOrWhiteSpace($view.CounterText) -or [string]::IsNullOrWhiteSpace($view.RevisedSideA) -or
+                [string]::IsNullOrWhiteSpace($view.RevisedSideB) -or [string]::IsNullOrWhiteSpace($view.Message)) {
+                throw 'BF-878 BLOCKED: governed COUNTER is missing its materialized package or negotiation message.'
+            }
+        }
+        'NO_ACTION' {
+            if ($view.MaterializedState -cne 'NO_PACKAGE' -or $view.MessageState -cne 'NO_MESSAGE') {
+                throw 'BF-878 BLOCKED: governed NO_ACTION counter state is inconsistent.'
+            }
+        }
+        'INCONCLUSIVE' {
+            if ($view.MaterializedState -cne 'INCONCLUSIVE' -or $view.MessageState -cne 'INCONCLUSIVE') {
+                throw 'BF-878 BLOCKED: governed INCONCLUSIVE counter state is inconsistent.'
+            }
+        }
+        default { throw "BF-878 BLOCKED: unsupported governed counter action $($view.Action)." }
+    }
+    return $view
+}
+
+function ConvertTo-TradeCounterManagerText {
+    param(
+        [Parameter(Mandatory = $true)][string]$CounterText,
+        [Parameter(Mandatory = $true)][string]$OpponentName
+    )
+    $match = [regex]::Match($CounterText, '^(?<operation>ADD|REMOVE)\s+(?<type>PLAYER|DRAFT_PICK)\s+(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+(?<direction>TO|FROM)\s+(?<side>SIDE_A|SIDE_B)$')
+    if (-not $match.Success) { throw 'BF-878 BLOCKED: governed COUNTER adjustment has an unsupported display shape.' }
+    $operation = $match.Groups['operation'].Value
+    $name = $match.Groups['name'].Value.Trim()
+    $side = $match.Groups['side'].Value
+    if ($operation -ceq 'ADD' -and $side -ceq 'SIDE_A') { return "Add $name to your side." }
+    if ($operation -ceq 'ADD' -and $side -ceq 'SIDE_B') { return "Ask $OpponentName to add $name to their side." }
+    if ($operation -ceq 'REMOVE' -and $side -ceq 'SIDE_A') { return "Remove $name from your side." }
+    if ($operation -ceq 'REMOVE' -and $side -ceq 'SIDE_B') { return "Ask $OpponentName to remove $name from their side." }
+    throw 'BF-878 BLOCKED: governed COUNTER adjustment could not be translated for the bound side-a perspective.'
+}
+
+function ConvertTo-TradePackageDisplay {
+    param(
+        [Parameter(Mandatory = $true)]$Inventory,
+        [Parameter(Mandatory = $true)][string]$PackageText
+    )
+    $match = [regex]::Match($PackageText, '^players=\[(?<players>[^\]]*)\]\s+picks=\[(?<picks>[^\]]*)\]$')
+    if (-not $match.Success) { throw 'BF-878 BLOCKED: governed materialized package has an unsupported display shape.' }
+
+    $labels = @()
+    foreach ($spec in @(
+        [pscustomobject]@{ Type = 'player'; Values = $match.Groups['players'].Value },
+        [pscustomobject]@{ Type = 'pick'; Values = $match.Groups['picks'].Value }
+    )) {
+        if ([string]::IsNullOrWhiteSpace($spec.Values)) { continue }
+        foreach ($id in @($spec.Values -split ',' | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            $matches = @($Inventory.Teams | ForEach-Object { $_.Assets } | Where-Object { $_.Type -ceq $spec.Type -and $_.Id -ceq $id })
+            if ($matches.Count -ne 1) {
+                throw "BF-878 BLOCKED: materialized $($spec.Type) $id did not resolve exactly once in current league inventory."
+            }
+            $labels += [string]$matches[0].Label
+        }
+    }
+    if ($labels.Count -eq 0) { return 'No assets' }
+    return ($labels -join ', ')
+}
+
+function ConvertTo-TradeHiddenInputs {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [object[]]$Values = @()
+    )
+    $html = ''
+    foreach ($value in @($Values)) {
+        $html += "<input type=`"hidden`" name=`"$(ConvertTo-HtmlText $Name)`" value=`"$(ConvertTo-HtmlText $value)`">"
+    }
+    return $html
+}
+
 function Get-TradeSelectionSet {
     param([object[]]$Values)
     $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
@@ -264,13 +390,14 @@ function ConvertTo-TradeLabHtml {
         $Opponent,
         [object[]]$Give = @(),
         [object[]]$Receive = @(),
-        $Evaluation
+        $Evaluation,
+        $CounterProposal
     )
 
     $nav = Get-AppNav -Active 'trade'
     $css = Get-AppCss
     $tradeCss = @'
-.trade-setup{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:16px}.field label{display:block;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}.field select,.trade-button{font:inherit;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px 12px}.field select{width:100%}.trade-button{cursor:pointer;background:var(--turf);border-color:var(--turf);color:#fff;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.trade-button:hover{background:var(--turf-deep);border-color:var(--turf-deep)}.trade-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.asset-list{display:grid;gap:8px;margin-top:12px}.asset-option{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);cursor:pointer}.asset-option:hover{background:var(--surface-2)}.asset-option input{margin-top:4px}.asset-option strong{display:block}.asset-option small{display:block;color:var(--muted);margin-top:3px}.asset-value{color:var(--turf)}.asset-missing{color:#8a6319}.trade-submit{margin-top:16px}.trade-result{border-left:4px solid var(--turf)}.trade-result>.empty{font-size:14px;color:var(--ink)}.trade-proof{margin-top:14px}.trade-proof>summary{font-size:13px}.trade-proof-body{margin-top:12px}.gate-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:14px;border-top:1px solid var(--line);border-left:1px solid var(--line)}.gate{padding:10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface);font-size:12px}.gate strong{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.gate span{display:block;margin-top:4px;font-weight:900}.raw-output{white-space:pre-wrap;word-break:break-word;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;color:var(--ink);font:12px Consolas,monospace}.veto-list{display:grid;gap:8px;margin-top:10px}.veto-item{padding:10px;border:1px solid var(--brick);border-radius:var(--radius);background:color-mix(in srgb,var(--brick) 7%,var(--surface));color:var(--brick)}@media(max-width:800px){.trade-setup,.trade-columns{grid-template-columns:1fr}.gate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.trade-setup{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;margin-top:16px}.field label{display:block;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}.field select,.trade-button{font:inherit;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px 12px}.field select{width:100%}.trade-button{cursor:pointer;background:var(--turf);border-color:var(--turf);color:#fff;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.trade-button:hover{background:var(--turf-deep);border-color:var(--turf-deep)}.trade-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.asset-list{display:grid;gap:8px;margin-top:12px}.asset-option{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);cursor:pointer}.asset-option:hover{background:var(--surface-2)}.asset-option input{margin-top:4px}.asset-option strong{display:block}.asset-option small{display:block;color:var(--muted);margin-top:3px}.asset-value{color:var(--turf)}.asset-missing{color:#8a6319}.trade-submit{margin-top:16px}.trade-result{border-left:4px solid var(--turf)}.trade-result>.empty{font-size:14px;color:var(--ink)}.trade-proof{margin-top:14px}.trade-proof>summary{font-size:13px}.trade-proof-body{margin-top:12px}.counter-form{margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}.counter-form .meta{margin:0}.counter-result{border-left:4px solid var(--gold)}.counter-message{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font-size:16px;line-height:1.55}.counter-packages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.counter-package{padding:13px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}.counter-package strong{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}.counter-package span{display:block;margin-top:5px;font-weight:800}.gate-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;margin-top:14px;border-top:1px solid var(--line);border-left:1px solid var(--line)}.gate{padding:10px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--surface);font-size:12px}.gate strong{display:block;color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}.gate span{display:block;margin-top:4px;font-weight:900}.raw-output{white-space:pre-wrap;word-break:break-word;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius);padding:12px;color:var(--ink);font:12px Consolas,monospace}.veto-list{display:grid;gap:8px;margin-top:10px}.veto-item{padding:10px;border:1px solid var(--brick);border-radius:var(--radius);background:color-mix(in srgb,var(--brick) 7%,var(--surface));color:var(--brick)}@media(max-width:800px){.trade-setup,.trade-columns,.counter-packages{grid-template-columns:1fr}.gate-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 '@
 $opponentOptions = '<option value="">Choose a league opponent</option>'
     foreach ($team in @($Inventory.Teams | Where-Object { $_.TeamId -cne $UserTeam.TeamId } | Sort-Object Name)) {
@@ -288,6 +415,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
     }
 
     $resultHtml = ''
+    $counterHtml = ''
     if ($null -ne $Evaluation) {
         $evidenceState = if ($Evaluation.EvidenceComplete) { 'COMPLETE' } else { 'INCOMPLETE' }
         $evidenceClass = if ($Evaluation.EvidenceComplete) { 'good' } else { 'warn' }
@@ -301,9 +429,39 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
         $vetoReasons = ''
         foreach ($reason in $Evaluation.VetoReasons) { $vetoReasons += "<div class=`"veto-item`">$(ConvertTo-HtmlText $reason)</div>" }
         if ([string]::IsNullOrWhiteSpace($vetoReasons)) { $vetoReasons = '<div class="empty">No governed material-loss veto reason was returned.</div>' }
+        $counterActionHtml = ''
+        if ($Evaluation.EvidenceComplete -and $Evaluation.Action -ceq 'REJECT' -and $null -eq $CounterProposal) {
+            $giveHidden = ConvertTo-TradeHiddenInputs -Name 'give' -Values @($Give)
+            $receiveHidden = ConvertTo-TradeHiddenInputs -Name 'receive' -Values @($Receive)
+            $counterActionHtml = "<form class=`"counter-form`" method=`"get`" action=`"/trade`"><input type=`"hidden`" name=`"opponent`" value=`"$(ConvertTo-HtmlText $Opponent.TeamId)`"><input type=`"hidden`" name=`"evaluate`" value=`"1`"><input type=`"hidden`" name=`"counter`" value=`"1`">$giveHidden$receiveHidden<button class=`"trade-button`" type=`"submit`">Build Counteroffer</button><span class=`"meta`">Read-only. Butler will not send or submit anything.</span></form>"
+        }
         $resultHtml = @"
-<section class="panel trade-result"><div class="eyebrow">Butler recommendation</div><div class="statusrow"><div><h2 class="headline">$(ConvertTo-HtmlText $Evaluation.Action)</h2><p class="lede">Package recommendation: <strong>$(ConvertTo-HtmlText $Evaluation.PackageRecommendation)</strong>. This is evaluated from your exact bound team's perspective.</p></div><div class="status $evidenceClass">$evidenceState EVIDENCE</div></div>$reasonHtml<details class="trade-proof"><summary>Why Butler says this</summary><div class="trade-proof-body"><div class="stats"><div class="stat"><strong>Strategic veto</strong><span class="$vetoClass">$(ConvertTo-HtmlText $Evaluation.StrategicVeto)</span></div><div class="stat"><strong>Flexible pressure</strong><span>$(ConvertTo-HtmlText $Evaluation.FlexiblePressure)</span>$flexDetail</div><div class="stat"><strong>Pressure transition</strong><span>$(ConvertTo-HtmlText $transitionText)</span><div class="meta">$transitionMeta</div></div></div><div class="gate-grid"><div class="gate"><strong>Market direction</strong><span>$(if ($Evaluation.MarketGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Posture</strong><span>$(if ($Evaluation.PostureGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Future capital</strong><span>$(if ($Evaluation.FutureCapitalGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Position pressure</strong><span>$(if ($Evaluation.PositionGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Flexible pressure</strong><span>$(if ($Evaluation.FlexibleGate) {'READY'} else {'BLOCKED'})</span></div></div><h3>Material-loss veto evidence</h3><div class="veto-list">$vetoReasons</div></div></details><details><summary>Raw decision record</summary><pre class="raw-output">$(ConvertTo-HtmlText $Evaluation.Raw)</pre></details></section>
+<section class="panel trade-result"><div class="eyebrow">Butler recommendation</div><div class="statusrow"><div><h2 class="headline">$(ConvertTo-HtmlText $Evaluation.Action)</h2><p class="lede">Package recommendation: <strong>$(ConvertTo-HtmlText $Evaluation.PackageRecommendation)</strong>. This is evaluated from your exact bound team's perspective.</p></div><div class="status $evidenceClass">$evidenceState EVIDENCE</div></div>$reasonHtml$counterActionHtml<details class="trade-proof"><summary>Why Butler says this</summary><div class="trade-proof-body"><div class="stats"><div class="stat"><strong>Strategic veto</strong><span class="$vetoClass">$(ConvertTo-HtmlText $Evaluation.StrategicVeto)</span></div><div class="stat"><strong>Flexible pressure</strong><span>$(ConvertTo-HtmlText $Evaluation.FlexiblePressure)</span>$flexDetail</div><div class="stat"><strong>Pressure transition</strong><span>$(ConvertTo-HtmlText $transitionText)</span><div class="meta">$transitionMeta</div></div></div><div class="gate-grid"><div class="gate"><strong>Market direction</strong><span>$(if ($Evaluation.MarketGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Posture</strong><span>$(if ($Evaluation.PostureGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Future capital</strong><span>$(if ($Evaluation.FutureCapitalGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Position pressure</strong><span>$(if ($Evaluation.PositionGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Flexible pressure</strong><span>$(if ($Evaluation.FlexibleGate) {'READY'} else {'BLOCKED'})</span></div></div><h3>Material-loss veto evidence</h3><div class="veto-list">$vetoReasons</div></div></details><details><summary>Raw decision record</summary><pre class="raw-output">$(ConvertTo-HtmlText $Evaluation.Raw)</pre></details></section>
 "@
+    }
+
+    if ($null -ne $CounterProposal) {
+        if ($null -eq $Opponent) { throw 'BF-878 BLOCKED: counter proposal rendering requires the exact selected opponent.' }
+        switch ($CounterProposal.Action) {
+            'COUNTER' {
+                $managerCounter = ConvertTo-TradeCounterManagerText -CounterText $CounterProposal.CounterText -OpponentName $Opponent.Name
+                $yourPackage = ConvertTo-TradePackageDisplay -Inventory $Inventory -PackageText $CounterProposal.RevisedSideA
+                $theirPackage = ConvertTo-TradePackageDisplay -Inventory $Inventory -PackageText $CounterProposal.RevisedSideB
+                $counterHtml = @"
+<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">Counter available</h2><p class="lede">$(ConvertTo-HtmlText $managerCounter)</p></div><div class="status good">COUNTER</div></div><div class="counter-packages"><div class="counter-package"><strong>Your revised package</strong><span>$(ConvertTo-HtmlText $yourPackage)</span></div><div class="counter-package"><strong>Their revised package</strong><span>$(ConvertTo-HtmlText $theirPackage)</span></div></div><h3>Message you can send manually</h3><div class="counter-message">$(ConvertTo-HtmlText $CounterProposal.Message)</div><p class="meta">Butler generated this wording from the governed counter proposal. It has not been sent and the trade has not been submitted.</p><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason) &middot; message actor: $(ConvertTo-HtmlText $CounterProposal.MessageActor) &middot; fingerprint: $(ConvertTo-HtmlText $CounterProposal.Fingerprint)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
+"@
+            }
+            'NO_ACTION' {
+                $counterHtml = @"
+<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">No governed counteroffer</h2><p class="lede">Butler did not find one uniquely governed counter package for this rejected deal.</p></div><div class="status done">NO ACTION</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
+"@
+            }
+            'INCONCLUSIVE' {
+                $counterHtml = @"
+<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">Counteroffer unavailable</h2><p class="lede">Butler does not have enough governed counter evidence to construct a safe proposal for this deal.</p></div><div class="status warn">INCONCLUSIVE</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
+"@
+            }
+        }
     }
 
     return @"
@@ -313,7 +471,8 @@ $nav
 <section class="panel"><div class="eyebrow">Trade Analyzer</div><div class="statusrow"><div><h1 class="headline">Analyze a trade</h1><p class="lede">Build an exact deal and review Butler's governed recommendation. No new trade score is created here.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Your side</strong><span>$(ConvertTo-HtmlText $UserTeam.Name)</span></div><div class="stat"><strong>Season</strong><span>$(ConvertTo-HtmlText $Roster.Season)</span></div><div class="stat"><strong>Asset coverage</strong><span>$(ConvertTo-HtmlText $Inventory.Coverage)%</span></div></div><form method="get" action="/trade"><div class="trade-setup"><div class="field"><label for="opponent">Trade partner</label><select id="opponent" name="opponent">$opponentOptions</select></div><button class="trade-button" type="submit">Load opponent</button></div></form></section>
 $builder
 $resultHtml
-<section class="panel boundary"><span class="lock">READ ONLY.</span> Butler evaluates exact currently owned assets through its existing governed trade recommendation. It cannot refresh evidence, generate or submit a counter, authorize or finalize a trade, alter a roster, or submit a Sleeper transaction.</section>
+$counterHtml
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Butler can evaluate exact currently owned assets and, after an explicit request, build an existing governed read-only counteroffer. It cannot refresh evidence, authorize, hand off, send, finalize, or submit a counter, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
 }
@@ -345,7 +504,12 @@ function Invoke-TradeLabHtml {
     $give = @(Get-TradeQueryValues -Query $query -Name 'give')
     $receive = @(Get-TradeQueryValues -Query $query -Name 'receive')
     $evaluate = (Get-TradeQueryFirst -Query $query -Name 'evaluate') -ceq '1'
+    $counterRequested = (Get-TradeQueryFirst -Query $query -Name 'counter') -ceq '1'
+    if ($counterRequested -and -not $evaluate) {
+        throw 'BF-878 BLOCKED: counter proposal requires the exact evaluated trade coordinates.'
+    }
     $evaluation = $null
+    $counterProposal = $null
     if ($evaluate) {
         if ($null -eq $opponent) {
             throw 'BF-670 BLOCKED: choose one current league opponent before evaluation.'
@@ -359,7 +523,21 @@ function Invoke-TradeLabHtml {
         if ($evaluation.PerspectiveTeamId -cne $userTeam.TeamId) {
             throw 'BF-670 BLOCKED: governed trade recommendation perspective does not match the exact bound user team.'
         }
+
+        if ($counterRequested) {
+            if (-not $evaluation.EvidenceComplete -or $evaluation.Action -cne 'REJECT') {
+                throw 'BF-878 BLOCKED: counter proposal is available only for an evidence-complete REJECT.'
+            }
+            $counterRaw = Invoke-ButlerReadOnly -Arguments "trade counter-proposal $LeagueId $($roster.Season) $sideA $sideB side-a" -BoundaryName 'BF-878'
+            $counterProposal = ConvertTo-TradeCounterProposalView -Text $counterRaw
+            if ($counterProposal.PerspectiveTeamId -cne $userTeam.TeamId) {
+                throw 'BF-878 BLOCKED: governed counter proposal perspective does not match the exact bound user team.'
+            }
+            if ($counterProposal.V5Action -cne $evaluation.Action) {
+                throw 'BF-878 BLOCKED: governed counter proposal v5 action does not match the rendered recommendation.'
+            }
+        }
     }
 
-    return ConvertTo-TradeLabHtml -Roster $roster -Inventory $inventory -UserTeam $userTeam -Opponent $opponent -Give $give -Receive $receive -Evaluation $evaluation
+    return ConvertTo-TradeLabHtml -Roster $roster -Inventory $inventory -UserTeam $userTeam -Opponent $opponent -Give $give -Receive $receive -Evaluation $evaluation -CounterProposal $counterProposal
 }

@@ -129,6 +129,12 @@ class ButlerTradeAnalyzerBf831Test {
                 "ProtectedCoverage",
                 "Why Butler says this",
                 "Raw decision record",
+                "Build Counteroffer",
+                "trade counter-proposal $LeagueId",
+                "ConvertTo-TradeCounterProposalView",
+                "Counter available",
+                "Message you can send manually",
+                ".counter-result",
                 "READ ONLY"
         }) {
             assertTrue(tradeLab.contains(marker), "current BF-670 trade contract missing " + marker);
@@ -138,6 +144,8 @@ class ButlerTradeAnalyzerBf831Test {
         assertTrue(transform.contains("BF-831 BLOCKED: Trade Analyzer introduced provider, API, or write behavior marker"));
         assertFalse(tradeLab.contains("Method = \"POST\""));
         assertFalse(tradeLab.contains("https://api.sleeper.app"));
+        assertFalse(tradeLab.contains("counter-handoff"));
+        assertFalse(tradeLab.contains("counter-authorization"));
         assertFalse(transform.contains("$env:"));
     }
 

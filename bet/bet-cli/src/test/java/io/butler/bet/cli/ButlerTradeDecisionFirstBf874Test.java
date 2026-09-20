@@ -62,7 +62,7 @@ class ButlerTradeDecisionFirstBf874Test {
 
         assertTrue(trade.contains("trade recommendation $LeagueId"));
         assertTrue(trade.contains("Build an exact deal and review Butler's governed recommendation."));
-        assertTrue(trade.contains("Butler evaluates exact currently owned assets through its existing governed trade recommendation."));
+        assertTrue(trade.contains("Butler can evaluate exact currently owned assets and, after an explicit request, build an existing governed read-only counteroffer."));
 
         assertFalse(trade.contains("existing governed v5 trade recommendation"));
         assertFalse(trade.contains("existing routed v5 recommendation"));
