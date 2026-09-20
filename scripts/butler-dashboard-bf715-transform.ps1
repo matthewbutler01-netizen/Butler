@@ -260,6 +260,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-879 BLOCKED: Player Detail transform not found at $bf879CoreTransform"
     }
     & $bf879CoreTransform -CorePath $stagedCore
+
+    # BF-880: Franchise Detail is the final League Intelligence extension. Install it
+    # after BF-879 so both read-only detail surfaces share the final staged app shell.
+    $bf880CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf880-franchise-detail-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf880CoreTransform -PathType Leaf)) {
+        throw "BF-880 BLOCKED: Franchise Detail transform not found at $bf880CoreTransform"
+    }
+    & $bf880CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
