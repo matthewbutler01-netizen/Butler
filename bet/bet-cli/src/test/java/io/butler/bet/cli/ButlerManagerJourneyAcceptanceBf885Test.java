@@ -75,6 +75,16 @@ class ButlerManagerJourneyAcceptanceBf885Test {
     }
 
     @Test
+    void unexpectedManagerStatusSurfacesRecoveryTechnicalDetailBeforeCss() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("function Get-ManagerRecoveryTechnicalDetail"));
+        assertTrue(script.contains("<summary>Technical details</summary><div class=\"technical\">"));
+        assertTrue(script.contains("technical=$detail"));
+        assertTrue(script.contains("if ($detail.Length -gt 1200)"));
+    }
+
+    @Test
     void recoveryAndHealthArePartOfTheSameJourney() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
