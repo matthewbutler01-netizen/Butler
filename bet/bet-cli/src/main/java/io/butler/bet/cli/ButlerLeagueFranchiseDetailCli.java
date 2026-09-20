@@ -102,6 +102,7 @@ public final class ButlerLeagueFranchiseDetailCli {
         System.out.printf("Draft coverage: valued=%d total=%d stale=%d missing=%d percent=%.1f%% seasons=%d%n",
             picks.valuedPicks(), picks.totalPicks(), picks.stalePicks(), picks.missingPicks(),
             picks.coveragePercent(), picks.seasons().size());
+        System.out.println("Positions: " + team.positionalDepth().positions().size());
 
         team.positionalDepth().positions().values().stream()
             .sorted(java.util.Comparator.comparing(
