@@ -91,8 +91,8 @@ public final class ButlerLeagueFranchiseDetailCli {
         System.out.printf("Usable player value: %.2f%n", team.usablePlayerValue());
         System.out.printf("Usable draft-pick value: %.2f%n", team.usableDraftPickValue());
         System.out.printf("Starter value share: %.1f%%%n", team.starterValueSharePercent());
-        System.out.printf("Top asset share: %.1f%%%n", team.topAssetSharePercent());
-        System.out.printf("Top three asset share: %.1f%%%n", team.topThreeAssetSharePercent());
+        System.out.println("Top asset share: " + percent(team.topAssetSharePercent()));
+        System.out.println("Top three asset share: " + percent(team.topThreeAssetSharePercent()));
         System.out.printf("Concentration index: %.4f%n", team.concentrationIndex());
         System.out.printf("Asset coverage: valued=%d total=%d stale=%d missing=%d percent=%.1f%%%n",
             concentration.valuedAssets(), concentration.totalAssets(), concentration.staleAssets(),
@@ -114,6 +114,12 @@ public final class ButlerLeagueFranchiseDetailCli {
 
         System.out.println(
             "Neutral franchise evidence only; no new ranking, contender/rebuilder label, trade-target label, manager grade, or strategy recommendation is produced.");
+    }
+
+    private static String percent(double value) {
+        return Double.isFinite(value)
+            ? String.format(java.util.Locale.ROOT, "%.1f%%", value)
+            : "UNAVAILABLE";
     }
 
     private static String requireText(String value, String field) {
