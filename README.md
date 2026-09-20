@@ -64,7 +64,29 @@ BF-787 packages only the BF-778-verified runtime ZIP, runtime checksum, runtime 
 
 Normal packaged deployment therefore assumes that the target machine already has a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Supplying `-LeagueId` selects which persisted Butler league the app should use; the league UUID does not recreate that league's database or evidence.
 
-BF-770 `scripts\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database into the governed external data location without overwriting an existing governed database. It is not a portable backup/export/restore or cross-machine transfer design. Portable Butler data backup/restore and fresh-machine data transfer are intentionally deferred to a separate future objective.
+BF-770 `scripts\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database into the governed external data location without overwriting an existing governed database. It is not the portable cross-machine transfer path.
+
+BF-897 adds a separate private runtime-data backup/restore path for moving an existing governed Butler database to a fresh Windows host. These private backups are never part of BF-773 runtime releases, BF-777 verification records, or BF-787 release-evidence archives.
+
+### Portable private runtime-data backup and fresh-host restore
+
+Stop Butler before creating a backup. The backup command fails closed if a live Butler run-state marker or SQLite `-wal`, `-shm`, or `-journal` sidecar exists:
+
+```text
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\scripts\butler-runtime-data-backup.ps1"
+```
+
+By default, BF-897 writes a private ZIP and SHA-256 sidecar under `%LOCALAPPDATA%\Butler\backups`. The archive contains the verified `butler.db`, its checksum and manifest, and the saved `app-league.txt` selection when present. It contains user runtime data and must be kept private; do not upload it to GitHub or attach it to a public Butler release.
+
+Copy both the backup ZIP and its `.sha256` sidecar to the fresh Windows host. From the extracted Butler runtime package, restore into the default governed external data location with:
+
+```text
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\scripts\butler-runtime-data-restore.ps1" -BackupZip "C:\Butler-transfer\Butler-runtime-data-<timestamp>-<hash>.zip"
+```
+
+The restore verifies the archive checksum, manifest, database checksum, SQLite header, and saved league UUID before writing anything. It is fresh-host only: it refuses to overwrite an existing governed `butler.db` or a different saved Butler league selection. Use `-DataDir <absolute-external-path>` only when the target host intentionally uses an external `BUTLER_APP_DATA_DIR`.
+
+After restore, launch the packaged Butler runtime normally. If the backup included the saved league selection, no `-LeagueId` argument is required.
 
 ### Run a packaged release
 

@@ -87,6 +87,17 @@ jobs:
               exit 1
           }
 
+      - name: Exercise BF-897 portable runtime-data backup/restore acceptance
+        shell: powershell
+        run: |
+          try {
+              & '.\scripts\butler-runtime-data-backup-acceptance.ps1'
+          }
+          catch {
+              Write-Error $_
+              exit 1
+          }
+
       - name: Exercise BF-707 staging transform under Windows PowerShell 5.1
         shell: powershell
         run: |

@@ -38,12 +38,16 @@ class ButlerRuntimeDeploymentBoundaryBf784Test {
     }
 
     @Test
-    void migrationAndPortableDataTransferRemainSeparateObjectives() throws Exception {
+    void migrationAndPortablePrivateTransferRemainSeparateGovernedPaths() throws Exception {
         String readme = source("README.md");
 
         assertTrue(readme.contains("BF-770 `scripts\\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database"));
-        assertTrue(readme.contains("It is not a portable backup/export/restore or cross-machine transfer design."));
-        assertTrue(readme.contains("Portable Butler data backup/restore and fresh-machine data transfer are intentionally deferred to a separate future objective."));
+        assertTrue(readme.contains("It is not the portable cross-machine transfer path."));
+        assertTrue(readme.contains("BF-897 adds a separate private runtime-data backup/restore path"));
+        assertTrue(readme.contains("scripts\\butler-runtime-data-backup.ps1"));
+        assertTrue(readme.contains("scripts\\butler-runtime-data-restore.ps1"));
+        assertTrue(readme.contains("It contains user runtime data and must be kept private"));
+        assertTrue(readme.contains("fresh-host only"));
         assertTrue(readme.contains("does not execute a Butler or Sleeper transaction write"));
     }
 
