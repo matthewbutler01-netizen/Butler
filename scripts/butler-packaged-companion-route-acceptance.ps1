@@ -240,14 +240,14 @@ try {
         -Port $port `
         -Process $process `
         -RequestTarget '/trade?load=1' `
-        -ExpectedMarker 'Evaluate a trade' `
+        -ExpectedMarker 'Analyze a trade' `
         -BoundaryName 'fully loaded Trade Lab'
 
     Invoke-PackagedReadRoute `
         -Port $port `
         -Process $process `
         -RequestTarget '/history?load=1' `
-        -ExpectedMarker 'Waiver decision history' `
+        -ExpectedMarker 'Recorded waiver decisions' `
         -BoundaryName 'fully loaded Decision History'
 
     Write-Host 'Butler packaged companion-route acceptance (BF-789)'
