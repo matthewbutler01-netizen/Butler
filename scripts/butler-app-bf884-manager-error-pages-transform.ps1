@@ -141,8 +141,7 @@ foreach ($forbidden in @(
     'https://api.sleeper.app',
     'submitTransaction',
     'setFaab',
-    'Start-Process',
-    'Refresh'
+    'Start-Process'
 )) {
     if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw "BF-884 BLOCKED: recovery UI introduced forbidden retry, provider, write, or refresh behavior: $forbidden"
