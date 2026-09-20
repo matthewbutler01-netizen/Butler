@@ -44,6 +44,21 @@ class ButlerContextNavigationBf883Test {
     }
 
     @Test
+    void injectedRuntimeNavigationIsSelfContained() throws Exception {
+        String transform = source("scripts/butler-app-bf883-context-navigation-transform.ps1");
+
+        int start = transform.indexOf("function Add-PlayerDetailContextNavigation");
+        int end = transform.indexOf("'@", start);
+        assertTrue(start >= 0 && end > start, "BF-883 injected runtime function boundary must remain present");
+        String injected = transform.substring(start, end);
+
+        assertFalse(injected.contains("Replace-ExactlyOnce"));
+        assertTrue(injected.contains("[regex]::Matches($Html, [regex]::Escape($current)).Count"));
+        assertTrue(injected.contains("$Html.Replace($current, $replacement)"));
+        assertTrue(injected.contains("expected one match, found $matches"));
+    }
+
+    @Test
     void primaryNavigationIsNotModified() throws Exception {
         String transform = source("scripts/butler-app-bf883-context-navigation-transform.ps1");
 

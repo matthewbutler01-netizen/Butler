@@ -60,7 +60,11 @@ function Add-PlayerDetailContextNavigation {
         $replacement = '<div class="button-row"><a class="btn btn-secondary" href="/team">Back to My Team</a><a class="btn btn-secondary" href="/players">Player Search</a></div>'
     }
 
-    return Replace-ExactlyOnce -Text $Html -Old $current -New $replacement -Contract 'Player Detail contextual return actions'
+    $matches = [regex]::Matches($Html, [regex]::Escape($current)).Count
+    if ($matches -ne 1) {
+        throw "BF-883 BLOCKED: Player Detail contextual return actions expected one match, found $matches."
+    }
+    return $Html.Replace($current, $replacement)
 }
 
 '@
