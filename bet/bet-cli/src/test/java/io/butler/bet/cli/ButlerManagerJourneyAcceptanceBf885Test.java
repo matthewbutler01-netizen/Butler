@@ -108,6 +108,17 @@ class ButlerManagerJourneyAcceptanceBf885Test {
     }
 
     @Test
+    void waiverJourneyUsesPublicManagerContractAndHidesTechnicalAuditDisclosure() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("function Assert-AbsentMarkers"));
+        assertTrue(script.contains("Markers @('Butler waiver decision','Next step','READ ONLY')"));
+        assertTrue(script.contains("Markers @('Decision details','Advanced technical record','Current audit ID:','Sleeper ID:')"));
+        assertTrue(script.contains("exposed hidden technical marker"));
+        assertFalse(script.contains("Markers @('Butler waiver decision','Next step','Decision details','READ ONLY')"));
+    }
+
+    @Test
     void recoveryAndHealthArePartOfTheSameJourney() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
