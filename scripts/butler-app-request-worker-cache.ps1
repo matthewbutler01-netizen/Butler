@@ -277,6 +277,7 @@ function ConvertTo-ButlerUserFacingHtml {
         'Capture a later provider value snapshot when available; movement analysis needs two source snapshots.' = 'Butler needs another value update before it can show a meaningful trend. Check back after the next snapshot is available.'
         'Comparator traceability' = 'Advanced comparison details'
         'Technical details' = 'Advanced technical record'
+        'Technical and audit details' = 'Advanced technical record'
         'Show decision details' = 'Advanced technical record'
         'Decision details' = 'Advanced technical record'
         'BF-603 market:' = 'Value snapshot ID:'

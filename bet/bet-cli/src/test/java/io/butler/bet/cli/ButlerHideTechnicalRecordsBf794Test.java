@@ -23,6 +23,16 @@ class ButlerHideTechnicalRecordsBf794Test {
     }
 
     @Test
+    void bf834TechnicalAuditSummaryIsNormalizedIntoTheHiddenTechnicalRecordPath() throws Exception {
+        String cache = source("scripts/butler-app-request-worker-cache.ps1");
+        String waiverSurface = source("scripts/butler-dashboard-bf834-waiver-decision-surface-transform.ps1");
+
+        assertTrue(waiverSurface.contains("<summary>Technical and audit details</summary>"));
+        assertTrue(cache.contains("'Technical and audit details' = 'Advanced technical record'"));
+        assertTrue(cache.contains("<details\\b[^>]*>\\s*<summary>Advanced technical record</summary>.*?</details>"));
+    }
+
+    @Test
     void attributedWaiverDetailsAreCoveredByTechnicalRecordRemoval() throws Exception {
         String cache = source("scripts/butler-app-request-worker-cache.ps1");
         String waiver = source("scripts/butler-dashboard-bf873-waiver-decision-first-transform.ps1");
