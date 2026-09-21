@@ -92,9 +92,10 @@ class ButlerWaiverDecisionFirstBf873Test {
 
         assertTrue(acceptance.contains("'Butler waiver decision'"));
         assertTrue(acceptance.contains("'Next step'"));
-        assertTrue(acceptance.contains("'Decision details'"));
+        assertTrue(acceptance.contains("'Authorized review pool'"));
         assertTrue(acceptance.contains("'Technical and audit details'"));
         assertTrue(acceptance.contains("'READ ONLY'"));
+        assertFalse(acceptance.contains("'Decision details'"));
         assertFalse(acceptance.contains("'What to do now'"));
     }
 
@@ -125,12 +126,13 @@ class ButlerWaiverDecisionFirstBf873Test {
     }
 
     private static String hereString(String text, String startMarker, String endMarker) {
-        int start = text.indexOf(startMarker);
+        String normalized = text.replace("\r\n", "\n");
+        int start = normalized.indexOf(startMarker);
         assertTrue(start >= 0, "start marker missing: " + startMarker);
         start += startMarker.length();
-        int end = text.indexOf(endMarker, start);
+        int end = normalized.indexOf(endMarker, start);
         assertTrue(end > start, "end marker missing: " + endMarker);
-        return text.substring(start, end);
+        return normalized.substring(start, end);
     }
 
     private static String source(String relativePath) throws IOException {
