@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -167,6 +168,9 @@ public final class AutoFillLineupOptimizer {
             throw new IllegalStateException("Open starter count does not match solved open-slot count");
         }
 
+        List<OptimalLegalLineupSolver.Assignment> normalizedAssignments =
+            preserveCurrentOrderWithinEquivalentSlots(solved.assignments(), currentOpenStarters);
+
         Map<String, RosterPlayer> byId = new HashMap<>();
         for (RosterPlayer player : rosterPlayers) byId.put(player.playerId(), player);
 
@@ -180,8 +184,8 @@ public final class AutoFillLineupOptimizer {
             }
         }
 
-        for (int index = 0; index < solved.assignments().size(); index++) {
-            var assignment = solved.assignments().get(index);
+        for (int index = 0; index < normalizedAssignments.size(); index++) {
+            var assignment = normalizedAssignments.get(index);
             RosterPlayer current = currentOpenStarters.get(index);
             RosterPlayer recommended = byId.get(assignment.playerId());
             if (recommended == null) {
@@ -213,6 +217,69 @@ public final class AutoFillLineupOptimizer {
         return Recommendation.ready(
             solved.policyId(), solved.eligibilityPolicyId(), solved.totalPoints(),
             assignments, movesToBench, promotions);
+    }
+
+    /**
+     * Preserve the provider's existing player order inside repeated identical starting slots
+     * whenever the solver selected the same starter set for that slot type. This removes
+     * meaningless RB1/RB2 or WR1/WR2 permutations without changing legality or projected total.
+     */
+    private static List<OptimalLegalLineupSolver.Assignment> preserveCurrentOrderWithinEquivalentSlots(
+        List<OptimalLegalLineupSolver.Assignment> solvedAssignments,
+        List<RosterPlayer> currentOpenStarters) {
+        if (solvedAssignments.size() != currentOpenStarters.size()) {
+            throw new IllegalArgumentException("solved assignments and current starters must align");
+        }
+
+        List<OptimalLegalLineupSolver.Assignment> normalized = new ArrayList<>(solvedAssignments);
+        Map<String, List<Integer>> indicesBySlot = new LinkedHashMap<>();
+        for (int index = 0; index < solvedAssignments.size(); index++) {
+            var assignment = solvedAssignments.get(index);
+            if (!assignment.filled()) {
+                throw new IllegalStateException("Equivalent-slot normalization requires a complete solved lineup");
+            }
+            indicesBySlot.computeIfAbsent(assignment.slot(), ignored -> new ArrayList<>()).add(index);
+        }
+
+        for (List<Integer> indices : indicesBySlot.values()) {
+            if (indices.size() < 2) continue;
+
+            Map<String, OptimalLegalLineupSolver.Assignment> byPlayerId = new LinkedHashMap<>();
+            for (int index : indices) {
+                var assignment = solvedAssignments.get(index);
+                byPlayerId.put(assignment.playerId(), assignment);
+            }
+
+            Set<String> preservedPlayerIds = new LinkedHashSet<>();
+            Set<Integer> preservedIndices = new HashSet<>();
+            for (int index : indices) {
+                String currentPlayerId = currentOpenStarters.get(index).playerId();
+                var selected = byPlayerId.get(currentPlayerId);
+                if (selected == null || !preservedPlayerIds.add(currentPlayerId)) continue;
+
+                var slot = solvedAssignments.get(index);
+                normalized.set(index, new OptimalLegalLineupSolver.Assignment(
+                    slot.slotOrdinal(), slot.slot(), currentPlayerId, selected.fantasyPoints()));
+                preservedIndices.add(index);
+            }
+
+            List<OptimalLegalLineupSolver.Assignment> remaining = new ArrayList<>();
+            for (int index : indices) {
+                var assignment = solvedAssignments.get(index);
+                if (!preservedPlayerIds.contains(assignment.playerId())) remaining.add(assignment);
+            }
+
+            int remainingIndex = 0;
+            for (int index : indices) {
+                if (preservedIndices.contains(index)) continue;
+                var slot = solvedAssignments.get(index);
+                var selected = remaining.get(remainingIndex++);
+                normalized.set(index, new OptimalLegalLineupSolver.Assignment(
+                    slot.slotOrdinal(), slot.slot(), selected.playerId(), selected.fantasyPoints()));
+            }
+        }
+
+        return List.copyOf(normalized);
     }
 
     public enum RosterSlot {
