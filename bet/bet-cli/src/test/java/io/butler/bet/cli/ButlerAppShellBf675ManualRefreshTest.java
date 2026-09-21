@@ -94,6 +94,24 @@ class ButlerAppShellBf675ManualRefreshTest {
     }
 
     @Test
+    void preflightOnlyModeStopsBeforeAnyGovernedWriteStage() throws Exception {
+        String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
+
+        assertTrue(runner.contains("[switch]$PreflightOnly"));
+        int preflightOnly = runner.indexOf("if ($PreflightOnly)");
+        int pass = runner.indexOf("BF-676 PREFLIGHT ONLY: PASS", preflightOnly);
+        int returnIndex = runner.indexOf("return", pass);
+        int matchupWrite = runner.indexOf("BF-840 PRE-STAGE - exact weekly matchup pairing");
+        int firstWaiverWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'");
+
+        assertTrue(preflightOnly >= 0 && pass > preflightOnly && returnIndex > pass,
+            "BF-902 preflight-only mode must emit a pass marker and return");
+        assertTrue(matchupWrite > returnIndex && firstWaiverWrite > returnIndex,
+            "BF-902 preflight-only mode must return before BF-840 and BF-602 writes");
+        assertTrue(runner.contains("preflight-only mode executed no BF-840/BF-602/BF-603/etc. write stage"));
+    }
+
+    @Test
     void runnerPinsEstablishedNineStageOrderAndStopsOnNativeFailure() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
         int stageBlock = runner.indexOf("$steps = @(");
