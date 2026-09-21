@@ -12,32 +12,50 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class SleeperLiveWaiverCrossPositionTransactionSelectorTest {
     @Test
-    void selectsUniqueCrossPositionTransactionImprovementWinner() throws Exception {
+    void selectsUniqueCompleteTransactionAcrossAllLiveDrops() throws Exception {
         var bundle = bundleReport();
         var production = productionRows("nflverse", "nflverse", 1000, 400, 800, 500);
         var selector = new SleeperLiveWaiverCrossPositionTransactionSelector(
             butlerId -> production.getOrDefault(butlerId, List.of()));
 
-        var result = selector.select(bundle, bundle.shortlist().shortlist());
+        var result = selector.select(bundle, bundle.shortlist().shortlist(), freshness());
 
         assertEquals(SleeperLiveWaiverFinalRecommendationBundle.SelectionState.UNIQUE_ADD_DROP_SELECTED,
             result.state());
         assertEquals("A", result.selectedAdd().sleeperPlayerId());
         assertEquals("D1", result.selectedDrop().sleeperPlayerId());
-        assertEquals(2, result.options().size());
+        assertEquals(4, result.options().size());
         assertEquals(6.0d, result.options().stream()
             .filter(value -> value.add().sleeperPlayerId().equals("A"))
+            .filter(value -> value.drop().sleeperPlayerId().equals("D1"))
             .findFirst().orElseThrow().improvementBySource().get("nflverse"), 0.000001d);
     }
 
     @Test
-    void equalCrossPositionTransactionImprovementRemainsUnresolved() throws Exception {
+    void crossPositionDropCanBeTheUniqueBestCompleteTransaction() throws Exception {
         var bundle = bundleReport();
-        var production = productionRows("nflverse", "nflverse", 1000, 400, 1100, 500);
+        var production = productionRows("nflverse", "nflverse", 800, 200, 1200, 800);
         var selector = new SleeperLiveWaiverCrossPositionTransactionSelector(
             butlerId -> production.getOrDefault(butlerId, List.of()));
 
-        var result = selector.select(bundle, bundle.shortlist().shortlist());
+        var result = selector.select(bundle, bundle.shortlist().shortlist(), freshness());
+
+        assertEquals(SleeperLiveWaiverFinalRecommendationBundle.SelectionState.UNIQUE_ADD_DROP_SELECTED,
+            result.state());
+        assertEquals("C", result.selectedAdd().sleeperPlayerId());
+        assertEquals("D1", result.selectedDrop().sleeperPlayerId());
+        assertEquals("WR", result.selectedAdd().position());
+        assertEquals("RB", result.selectedDrop().position());
+    }
+
+    @Test
+    void equalCompleteTransactionImprovementRemainsUnresolved() throws Exception {
+        var bundle = bundleReport();
+        var production = productionRows("nflverse", "nflverse", 1000, 400, 1000, 400);
+        var selector = new SleeperLiveWaiverCrossPositionTransactionSelector(
+            butlerId -> production.getOrDefault(butlerId, List.of()));
+
+        var result = selector.select(bundle, bundle.shortlist().shortlist(), freshness());
 
         assertEquals(
             SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_TRANSACTION_IMPROVEMENT_UNRESOLVED,
@@ -53,7 +71,7 @@ class SleeperLiveWaiverCrossPositionTransactionSelectorTest {
         var selector = new SleeperLiveWaiverCrossPositionTransactionSelector(
             butlerId -> production.getOrDefault(butlerId, List.of()));
 
-        var result = selector.select(bundle, bundle.shortlist().shortlist());
+        var result = selector.select(bundle, bundle.shortlist().shortlist(), freshness());
 
         assertEquals(
             SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_TRANSACTION_EVIDENCE_INCOMPATIBLE,
@@ -69,7 +87,7 @@ class SleeperLiveWaiverCrossPositionTransactionSelectorTest {
         var methodology = new SleeperLiveWaiverCandidateRosterComparisonMethodology.MethodologyReport(
             SleeperLiveWaiverCandidateRosterComparisonMethodology.POLICY_ID,
             "L", "O", "M", "W", "S", 2026, "in_season", 1, 1,
-            2, 2, 2, 0, 0, 0, 2, 0, 0, 2, 0, List.of(),
+            2, 2, 2, 0, 2, 0, 2, 0, 0, 2, 0, List.of(),
             scoring, Map.of(), Map.of(), List.of(), List.of("BENCH", "RESERVE"),
             "EXACT_POSITION_ONLY", "COMMON_2025_SOURCE_ONLY_ALL_COMMON_SOURCES_MUST_AGREE",
             "SUPPORTED_LEAGUE_SCORING_SUBTOTAL_PER_GAME_NOT_FULL_FANTASY_POINTS",
@@ -120,6 +138,18 @@ class SleeperLiveWaiverCrossPositionTransactionSelectorTest {
             "M", "L", "O", 2, 2, 0, List.of(rbShortlist, wrShortlist),
             SleeperLiveWaiverComparisonExecutionBundle.FinalDecisionAuthorizationState.READY_FOR_FINAL_WAIVER_DECISION_METHOD);
         return new SleeperLiveWaiverComparisonExecutionBundle.BundleReport(methodology, comparisons, shortlist, readiness);
+    }
+
+    private static SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness() {
+        var d1 = new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
+            "D1", "BENCH", null, null, "bD1", "RB Drop", "RB", "TM", "EXACT_CANONICAL");
+        var d2 = new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
+            "D2", "BENCH", null, null, "bD2", "WR Drop", "WR", "TM", "EXACT_CANONICAL");
+        return new SleeperLiveWaiverTargetRosterContextAudit.AuditReport(
+            SleeperLiveWaiverTargetRosterContextAudit.POLICY_ID,
+            "L", "M", "W", "S", 2026, "in_season", 1, "O", "Owner", "Team",
+            1, "T", "Team", List.of("RB", "WR", "BN", "BN"), List.of("RB", "WR"),
+            2, 2, 2, 0, 2, 0, 0, 2, 0, List.of(d1, d2));
     }
 
     private static SleeperLiveWaiverComparisonExecutionBundle.CandidateEntry candidate(
