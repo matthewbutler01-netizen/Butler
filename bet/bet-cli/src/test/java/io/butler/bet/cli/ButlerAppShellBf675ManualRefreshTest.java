@@ -112,6 +112,23 @@ class ButlerAppShellBf675ManualRefreshTest {
     }
 
     @Test
+    void runnerExecutesGovernedTasksFromPreparedRuntimeAgainstExternalRuntimeData() throws Exception {
+        String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
+
+        assertTrue(runner.contains("bet\\bet-cli\\build\\install\\bet-cli\\lib"));
+        assertTrue(runner.contains("Resolve-Bf676RuntimeDataDir"));
+        assertTrue(runner.contains("BUTLER_APP_DATA_DIR"));
+        assertTrue(runner.contains("runtime data directory must be outside the source/package tree"));
+        assertTrue(runner.contains("Push-Location $dataDir"));
+        assertTrue(runner.contains("'--enable-native-access=ALL-UNNAMED'"));
+        assertTrue(runner.contains("Get-Bf676MainClass -Task $Task"));
+        assertTrue(runner.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli"));
+        assertTrue(runner.contains("ButlerSleeperLiveWaiverSnapshotSyncCli"));
+        assertFalse(runner.contains("$gradle @gradleArgs"));
+        assertFalse(runner.contains("Gradle exit code"));
+    }
+
+    @Test
     void runnerPinsEstablishedNineStageOrderAndStopsOnNativeFailure() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
         int stageBlock = runner.indexOf("$steps = @(");
