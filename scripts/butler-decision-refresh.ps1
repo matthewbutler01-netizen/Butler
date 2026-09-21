@@ -198,7 +198,27 @@ function Invoke-DecisionRefreshRunner {
 
     $probeLines = @(& $recoveryRunner -LeagueId $LeagueId -ProbeOnly)
     $probeText = (($probeLines | ForEach-Object { "$_" }) -join "`n")
-    $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
+    $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*$'
+    $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*$'
+    $deferToBf676 = $probeText -match '(?m)^BF-823 PROBE: DEFER_TO_BF676\s*$'
+    $deferReason = $probeText -match '(?m)^BF-823 PROBE REASON: MARKET_CANONICAL_GAP\s*$'
+    $probeStateCount = (@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count
+
+    if ($probeStateCount -ne 1) {
+        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return exactly one governed state.'
+    }
+    if ($deferToBf676 -and -not $deferReason) {
+        throw 'BF-823 BLOCKED: BF-676 defer state is missing its exact market canonical gap reason.'
+    }
+    if ($requiresRecovery) {
+        $resultLines = @(& $recoveryRunner -LeagueId $LeagueId)
+        return ($resultLines -join "`n")
+    }
+
+    # No BF-823 lineup/roster recovery is required, or BF-823 proved that the
+    # blocker is the market-active canonical gap BF-605 is designed to repair.
+    # Preserve the existing BF-676 runner and its exact authorization gates.
+    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
     return ($resultLines -join "`n")
 }
 
