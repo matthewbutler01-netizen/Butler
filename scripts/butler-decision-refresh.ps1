@@ -202,7 +202,7 @@ function Invoke-DecisionRefreshRunner {
     $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*$'
     $deferToBf676 = $probeText -match '(?m)^BF-823 PROBE: DEFER_TO_BF676\s*$'
     $deferReason = $probeText -match '(?m)^BF-823 PROBE REASON: MARKET_CANONICAL_GAP\s*$'
-    $probeStateCount = (@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count
+    $probeStateCount = @(@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count
 
     if ($probeStateCount -ne 1) {
         throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return exactly one governed state.'
