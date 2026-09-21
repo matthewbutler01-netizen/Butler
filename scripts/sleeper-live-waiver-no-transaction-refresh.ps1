@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$LeagueId
+    [string]$LeagueId,
+
+    [switch]$PreflightOnly
 )
 
 Set-StrictMode -Version Latest
@@ -198,6 +200,15 @@ try {
     }
     else {
         throw "BF-676 BLOCKED: decision state '$decisionState' is not authorized for browser refresh. No BF-602/BF-603/etc. write stage was executed."
+    }
+
+    if ($PreflightOnly) {
+        Write-Output 'BF-676 PREFLIGHT ONLY: PASS'
+        Write-Output ("Decision status: {0}" -f $decisionState)
+        Write-Output ("BF-629 live actionability: {0}" -f $bf629State)
+        Write-Output ("BF-631 evidence lineage: {0}" -f $bf631State)
+        Write-Output 'Boundary: preflight-only mode executed no BF-840/BF-602/BF-603/etc. write stage and submitted no Sleeper transaction.'
+        return
     }
 
     Invoke-Bf676GradleStep `
