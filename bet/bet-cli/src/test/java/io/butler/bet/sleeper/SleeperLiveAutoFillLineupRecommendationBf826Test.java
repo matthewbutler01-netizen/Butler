@@ -72,7 +72,7 @@ class SleeperLiveAutoFillLineupRecommendationBf826Test {
     }
 
     @Test
-    void exactProjectionRowGapIsNotMisreportedAsMissingPlayerIdentity() throws Exception {
+    void exactProjectionRowGapBecomesExplicitProjectionHoldWithoutIdentityGuessing() throws Exception {
         Database database = initializedDatabase("league-gap");
         var snapshot = snapshot(
             List.of(projection("s-qb", "20"), projection("s-wr-b", "15")),
@@ -88,12 +88,14 @@ class SleeperLiveAutoFillLineupRecommendationBf826Test {
                 new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", null)))
             .recommend(rosterReport("league-gap"));
 
-        assertFalse(report.ready());
-        assertTrue(report.reason().contains("exact Sleeper player-id row"));
-        assertTrue(report.reason().contains("not scoreable"));
-        assertTrue(report.reason().contains("raw projected stats are incomplete"));
-        assertFalse(report.reason().contains("no exact Sleeper player-id row"));
-        assertTrue(report.reason().contains("does not explicitly prove unavailable"));
+        assertTrue(report.ready());
+        assertEquals(1, report.projectionHolds().size());
+        String reason = report.projectionHolds().getFirst().reason();
+        assertTrue(reason.contains("exact Sleeper player-id row"));
+        assertTrue(reason.contains("not scoreable"));
+        assertTrue(reason.contains("raw projected stats are incomplete"));
+        assertFalse(reason.contains("no exact Sleeper player-id row"));
+        assertTrue(reason.contains("does not explicitly prove unavailable"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {
