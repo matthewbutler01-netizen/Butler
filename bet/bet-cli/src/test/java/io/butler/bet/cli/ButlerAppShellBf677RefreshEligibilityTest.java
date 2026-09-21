@@ -50,6 +50,20 @@ class ButlerAppShellBf677RefreshEligibilityTest {
     }
 
     @Test
+    void managerDashboardPreservesHiddenRefreshEligibilityContract() throws Exception {
+        String managerTransform = script("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
+
+        assertTrue(managerTransform.contains("class=\"butler-refresh-contract\" hidden"));
+        assertTrue(managerTransform.contains("Decision state: $(ConvertTo-HtmlText $state)"));
+        assertTrue(managerTransform.contains("BF-629: $(ConvertTo-HtmlText $bf629)"));
+        assertTrue(managerTransform.contains("BF-631: $(ConvertTo-HtmlText $bf631)"));
+        assertTrue(managerTransform.contains("BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)"));
+        assertTrue(managerTransform.contains("BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)"));
+        assertTrue(managerTransform.contains("Governed step count: $($refreshPlan.Steps.Count)"));
+        assertFalse(managerTransform.contains("Method = \"POST\""));
+    }
+
+    @Test
     void warningStateAlsoRequiresValidatedBf636TechnicalContract() throws Exception {
         String eligibility = eligibilitySection(script("scripts/butler-decision-refresh.ps1"));
 
