@@ -69,6 +69,7 @@ class ButlerInAppEvidenceRecoveryBf823Test {
         assertTrue(recovery.contains("BF-823 PROBE: DEFER_TO_BF676"));
         assertTrue(recovery.contains("BF-823 PROBE REASON: MARKET_CANONICAL_GAP"));
         assertTrue(recovery.contains("BF-608 BLOCKED: BF-604 has"));
+        assertTrue(recovery.contains("unmapped canonical candidate\\(s\\)\\s*$'"));
         assertTrue(recovery.contains("BF-600 current-season roster/player bootstrap"));
         assertTrue(recovery.contains("Bootstrap state: HYDRATED_VERIFIED"));
         assertTrue(recovery.contains("BF-610 post-recovery target-roster verification"));
