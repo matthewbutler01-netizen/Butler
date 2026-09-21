@@ -239,7 +239,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
         AutoFillLineupOptimizer.Recommendation recommendation = new AutoFillLineupOptimizer()
             .optimize(
-                roster.lineupSlots(),
+                roster.startingSlots(),
                 optimizerRoster,
                 projectionsBySleeperId,
                 Set.copyOf(explicitlyUnavailablePlayerIds),
