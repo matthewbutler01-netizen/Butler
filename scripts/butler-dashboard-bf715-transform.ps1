@@ -358,6 +358,14 @@ if (-not (Test-Path -LiteralPath $bf899Transform -PathType Leaf)) {
 }
 & $bf899Transform -DashboardPath $DashboardPath
 
+# BF-900: final Dashboard information-hierarchy polish keeps priority 01 in the hero
+# and removes its duplicate card from the queue below without changing decision order.
+$bf900Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf900-priority-dedup-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf900Transform -PathType Leaf)) {
+    throw "BF-900 BLOCKED: Dashboard priority de-duplication transform not found at $bf900Transform"
+}
+& $bf900Transform -DashboardPath $DashboardPath
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
