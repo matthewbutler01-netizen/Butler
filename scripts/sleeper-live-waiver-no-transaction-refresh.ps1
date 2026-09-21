@@ -85,18 +85,18 @@ function Get-Bf676BoundedTail {
 function Get-Bf676MainClass {
     param([Parameter(Mandatory = $true)][string]$Task)
 
-    return switch ($Task) {
-        ':bet:bet-cli:sleeperCurrentWeekMatchupSync' { 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverSnapshotSync' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverMarketAttentionSync' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverProductionHydration' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverAvailabilitySync' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverCurrentWeekStatSync' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverTargetRosterProductionHydration' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverFinalRecommendationBundle' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditCapture' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli'; break }
-        ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' { 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli'; break }
-        default { $null }
+    switch ($Task) {
+        ':bet:bet-cli:sleeperCurrentWeekMatchupSync' { return 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverSnapshotSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverMarketAttentionSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverProductionHydration' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli' }
+        ':bet:bet-cli:sleeperLiveWaiverAvailabilitySync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverCurrentWeekStatSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverTargetRosterProductionHydration' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli' }
+        ':bet:bet-cli:sleeperLiveWaiverFinalRecommendationBundle' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli' }
+        ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditCapture' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli' }
+        ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli' }
+        default { return $null }
     }
 }
 
