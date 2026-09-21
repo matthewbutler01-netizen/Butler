@@ -198,21 +198,181 @@ function Invoke-DecisionRefreshRunner {
 
     $probeLines = @(& $recoveryRunner -LeagueId $LeagueId -ProbeOnly)
     $probeText = (($probeLines | ForEach-Object { "$_" }) -join "`n")
-    $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*$'
-    $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*$'
-    if ($requiresRecovery -and $noRecovery) {
-        throw 'BF-823 BLOCKED: lineup evidence recovery probe returned contradictory states.'
+    $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
+    return ($resultLines -join "`n")
+}
+
+function Get-DecisionRefreshSuccessHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$ResultText
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeLeague = ConvertTo-HtmlText $LeagueId
+    $safeResult = ConvertTo-HtmlText $ResultText
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
+.refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
+</style></head>
+<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
+</main></body></html>
+"@
+}
+
+function Get-DecisionRefreshFailureHtml {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeMessage = ConvertTo-HtmlText $Message
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
+<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
+"@
+}
+
+    $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
+    return ($resultLines -join "`n")
+}
+
+function Get-DecisionRefreshSuccessHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$ResultText
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeLeague = ConvertTo-HtmlText $LeagueId
+    $safeResult = ConvertTo-HtmlText $ResultText
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
+.refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
+</style></head>
+<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
+</main></body></html>
+"@
+}
+
+function Get-DecisionRefreshFailureHtml {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeMessage = ConvertTo-HtmlText $Message
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
+<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
+"@
+}
+
+    $deferToBf676 = $probeText -match '(?m)^BF-823 PROBE: DEFER_TO_BF676\s*    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
+    return ($resultLines -join "`n")
+}
+
+function Get-DecisionRefreshSuccessHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$ResultText
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeLeague = ConvertTo-HtmlText $LeagueId
+    $safeResult = ConvertTo-HtmlText $ResultText
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
+.refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
+</style></head>
+<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
+</main></body></html>
+"@
+}
+
+function Get-DecisionRefreshFailureHtml {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeMessage = ConvertTo-HtmlText $Message
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
+<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
+"@
+}
+
+    $deferReason = $probeText -match '(?m)^BF-823 PROBE REASON: MARKET_CANONICAL_GAP\s*    $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
+    return ($resultLines -join "`n")
+}
+
+function Get-DecisionRefreshSuccessHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$ResultText
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeLeague = ConvertTo-HtmlText $LeagueId
+    $safeResult = ConvertTo-HtmlText $ResultText
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
+.refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
+</style></head>
+<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
+</main></body></html>
+"@
+}
+
+function Get-DecisionRefreshFailureHtml {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'dashboard'
+    $safeMessage = ConvertTo-HtmlText $Message
+    return @"
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
+<body><main class="shell">$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
+"@
+}
+
+    $probeStateCount = (@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count
+    if ($probeStateCount -ne 1) {
+        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return exactly one governed state.'
+    }
+    if ($deferToBf676 -and -not $deferReason) {
+        throw 'BF-823 BLOCKED: BF-676 defer state is missing its exact market canonical gap reason.'
     }
     if ($requiresRecovery) {
         $resultLines = @(& $recoveryRunner -LeagueId $LeagueId)
         return ($resultLines -join "`n")
     }
-    if (-not $noRecovery) {
-        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return an exact governed state.'
-    }
 
-    # No lineup/roster recovery is required. Preserve the existing BF-676 runner and
-    # its exact authorization gates without weakening or reimplementing them here.
+    # No BF-823 lineup/roster recovery is required, or BF-823 proved that the
+    # blocker is the market-active canonical gap BF-605 is designed to repair.
+    # Preserve the existing BF-676 runner and its exact authorization gates.
     $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
     return ($resultLines -join "`n")
 }
