@@ -32,21 +32,29 @@ function Replace-ExactlyOnce {
 
 $core = [System.IO.File]::ReadAllText($CorePath)
 
-$shapeOld = @'
+$idleShapeOld = @'
         Gain = ''
         Assignments = @()
 '@
-$shapeNew = @'
+$idleShapeNew = @'
         Gain = ''
         ProjectionCoverage = 'NONE'
         ProjectionHolds = @()
         Assignments = @()
 '@
-$shapeCount = [regex]::Matches($core, [regex]::Escape($shapeOld)).Count
-if ($shapeCount -ne 2) {
-    throw "BF-902 BLOCKED: expected two idle/unavailable AutoFill shapes, found $shapeCount."
-}
-$core = $core.Replace($shapeOld, $shapeNew)
+$core = Replace-ExactlyOnce -Text $core -Old $idleShapeOld -New $idleShapeNew -Contract 'idle AutoFill projection-hold shape'
+
+$unavailableShapeOld = @'
+            Gain = ''
+            Assignments = @()
+'@
+$unavailableShapeNew = @'
+            Gain = ''
+            ProjectionCoverage = 'NONE'
+            ProjectionHolds = @()
+            Assignments = @()
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $unavailableShapeOld -New $unavailableShapeNew -Contract 'unavailable AutoFill projection-hold shape'
 
 $sourceOld = @'
     $source = [regex]::Match($Text, '(?m)^Projection source:\s+(?<value>.+?)\s*$')
