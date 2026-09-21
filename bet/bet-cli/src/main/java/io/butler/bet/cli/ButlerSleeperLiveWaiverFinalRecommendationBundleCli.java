@@ -26,13 +26,13 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
             var recommendation = new SleeperLiveWaiverFinalRecommendationBundle(database)
                 .run(leagueId, target.sleeperUserId());
             print(recommendation);
-            if (recommendation.methodology().historicalFinalistPositions().size() > 1) {
+            if (recommendation.methodology().historicalFinalists() > 0) {
                 try {
                     printEvidence(new SleeperLiveWaiverCrossPositionTransactionEvidence(database)
                         .explain(recommendation));
                 } catch (Exception evidenceError) {
                     System.out.println();
-                    System.out.println("BF-625 - governed cross-position transaction evidence");
+                    System.out.println("BF-625 - governed complete transaction evidence");
                     System.out.println("Evidence state: UNAVAILABLE_RECONCILIATION_FAILED");
                     System.out.println("Reason: " + evidenceError.getMessage());
                     System.out.println("Boundary: BF-625 explainability failure does not mutate or replace the already-governed BF-620 recommendation.");
@@ -86,11 +86,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
                 + " (Sleeper " + report.recommendedAdd().sleeperPlayerId() + ")"
                 + " / DROP " + report.recommendedDrop().displayName()
                 + " (Sleeper " + report.recommendedDrop().sleeperPlayerId() + ")");
-            if (report.methodology().historicalFinalistPositions().size() > 1) {
-                System.out.println("Reason: BF-624 produced the unique complete add/drop transaction whose governed supported-subtotal-per-game improvement is strictly greater on every compatible common evidence source. No position preference or hidden market/depth/injury tiebreaker was used.");
-            } else {
-                System.out.println("Reason: the add is the unique historical finalist directionally supported over every other same-position historical finalist under the frozen BF-614 evidence method, and the drop is the unique weakest production-backed exact-position BENCH/RESERVE comparator already directionally supported for replacement by BF-615.");
-            }
+            System.out.println("Reason: BF-903/BF-624 produced the unique complete add/drop transaction whose governed supported-subtotal-per-game improvement is strictly greater than every other compatible positive transaction across the exact live BENCH/RESERVE drop pool. No position preference or hidden market/depth/injury tiebreaker was used.");
         } else {
             System.out.println("BUTLER RECOMMENDATION: NO GOVERNED TRANSACTION YET");
             System.out.println("Reason: the governed final method did not produce one unique evidence-supported add/drop pair. Cross-position ties or incompatible evidence remain unresolved; Butler will not manufacture a tiebreaker.");
@@ -115,7 +111,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
         System.out.println("Market / waiver snapshot: " + evidence.marketSnapshotId() + " / " + evidence.waiverSnapshotId());
         System.out.println("Reconciled selection state: " + evidence.selectionState());
         System.out.println("Evidence state: " + evidence.state());
-        System.out.println("Actionable cross-position transaction options: " + evidence.options().size());
+        System.out.println("Actionable complete transaction options: " + evidence.options().size());
         for (var option : evidence.options()) {
             System.out.println("  " + (option.selected() ? "[SELECTED] " : "[ALTERNATIVE] ")
                 + option.add().position()
@@ -128,7 +124,7 @@ public final class ButlerSleeperLiveWaiverFinalRecommendationBundleCli {
                     + " | scoring-keys=" + option.scoringKeysBySource().get(source.getKey()));
             }
         }
-        System.out.println("Boundary: BF-625 reports the BF-624 governed transaction evidence only. It does not rerank newcomers, add positional preference, set FAAB, or execute a Sleeper transaction.");
+        System.out.println("Boundary: BF-625 reports the BF-903/BF-624 governed complete-transaction evidence only. It does not rerank newcomers, add positional preference, set FAAB, or execute a Sleeper transaction.");
     }
 
     private static String player(SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer value) {
