@@ -65,6 +65,47 @@ class AutoFillLineupOptimizerBf825Test {
     }
 
     @Test
+    void projectionHeldStarterKeepsItsSlotWhileRemainingScoreableSlotsOptimize() {
+        var result = optimizer.optimize(
+            List.of("WR", "WR"),
+            List.of(
+                starter("wr-held", "Held Starter", 0),
+                starter("wr-start", "Scoreable Starter", 1),
+                bench("wr-bench", "Better Bench")),
+            Map.of(
+                "wr-start", points("10"),
+                "wr-bench", points("14")),
+            Set.of(),
+            Set.of("wr-held"));
+
+        assertTrue(result.ready());
+        assertEquals(1, result.assignments().size());
+        assertEquals(1, result.assignments().getFirst().starterOrdinal());
+        assertEquals("wr-bench", result.assignments().getFirst().recommendedPlayerId());
+        assertTrue(result.assignments().getFirst().changed());
+        assertEquals(List.of("wr-start"), result.movesToBench().stream()
+            .map(AutoFillLineupOptimizer.RosterPlayer::playerId).toList());
+        assertEquals(List.of("wr-bench"), result.promotions().stream()
+            .map(AutoFillLineupOptimizer.RosterPlayer::playerId).toList());
+    }
+
+    @Test
+    void projectionHeldBenchPlayerIsNotEligibleForPromotion() {
+        var result = optimizer.optimize(
+            List.of("WR"),
+            List.of(
+                starter("wr-start", "Starter", 0),
+                bench("wr-held", "Held Bench")),
+            Map.of("wr-start", points("10")),
+            Set.of(),
+            Set.of("wr-held"));
+
+        assertTrue(result.ready());
+        assertEquals("wr-start", result.assignments().getFirst().recommendedPlayerId());
+        assertTrue(result.promotions().isEmpty());
+    }
+
+    @Test
     void unavailableIdMustExactlyMatchActiveRosterEvidence() {
         assertThrows(IllegalArgumentException.class, () -> optimizer.optimize(
             List.of("WR"),
