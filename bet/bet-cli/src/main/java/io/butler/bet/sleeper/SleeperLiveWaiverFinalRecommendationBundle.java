@@ -21,9 +21,9 @@ import java.util.TreeSet;
 /** BF-618 through BF-620 final recommendation plus BF-624 governed cross-position transaction selection. */
 public final class SleeperLiveWaiverFinalRecommendationBundle {
     public static final String BF618_POLICY_ID =
-        "sleeper-live-waiver-final-selection-method-v2-bf624-cross-position-transaction-improvement";
+        "sleeper-live-waiver-final-selection-method-v3-bf903-transaction-first-supported-drop";
     public static final String BF619_POLICY_ID =
-        "sleeper-live-waiver-final-add-drop-selection-v2-bf624-cross-position-transaction-improvement";
+        "sleeper-live-waiver-final-add-drop-selection-v3-bf903-transaction-first-supported-drop";
     public static final String BF620_POLICY_ID =
         "sleeper-live-waiver-final-recommendation-v1-live-bf610-and-bf602-membership-reverified-read-only";
     public static final String BF624_POLICY_ID =
@@ -114,7 +114,7 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             historical.size(),
             bundle.shortlist().newcomerShortlistCount(),
             List.copyOf(positions),
-            "HISTORICAL_FINALISTS_DIRECT_ALL_OPPONENTS_DOMINANCE_WITHIN_POSITION",
+            "HISTORICAL_TRANSACTION_CANDIDATES_REQUIRE_AT_LEAST_ONE_SUPPORTED_DROP_THEN_FINALIST_DOMINANCE_WITHIN_POSITION",
             "LATEST_2025_COMMON_SOURCE_SUPPORTED_SUBTOTAL_PER_GAME_SCHEMA_EQUALITY",
             "BF624_COMPLETE_TRANSACTION_DELTA_STRICT_ALL_COMPATIBLE_COMMON_SOURCE_DOMINANCE",
             "NEWCOMERS_NONNUMERIC_NOT_ELIGIBLE_FOR_FINAL_WINNER",
