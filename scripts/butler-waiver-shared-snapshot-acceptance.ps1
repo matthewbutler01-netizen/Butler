@@ -102,7 +102,7 @@ function Assert-Waiver {
         if ($plain.Length -gt 900) { $plain = $plain.Substring(0, 900) + '...' }
         throw "BF-850 BLOCKED: $Stage returned HTTP $($Response.StatusCode). body=$plain"
     }
-    foreach ($marker in @('Butler waiver decision','Next step','Decision details','Technical and audit details','READ ONLY')) {
+    foreach ($marker in @('Butler waiver decision','Next step','Authorized review pool','Technical and audit details','READ ONLY')) {
         if ($Response.Body.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
             throw "BF-850 BLOCKED: $Stage is missing Waiver Board marker: $marker"
         }
