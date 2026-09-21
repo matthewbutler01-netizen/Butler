@@ -315,7 +315,8 @@ try {
     foreach ($marker in @(
         'Butler - Weekly Matchup',
         'Weekly matchup',
-        'OPPONENT CONFIRMED',
+        'lineup decision first',
+        'What to do now',
         'Lineup advisor',
         'NOT REVIEWED',
         'href="/matchup/autofill"',
@@ -374,7 +375,8 @@ try {
     Assert-Ok -Response $review -Stage 'Weekly Matchup explicit lineup review'
     foreach ($marker in @(
         'Butler - Weekly Matchup',
-        'OPPONENT CONFIRMED',
+        'lineup decision first',
+        'What to do now',
         'Lineup advisor',
         'href="/matchup/autofill"',
         'Opponent context',
@@ -385,6 +387,30 @@ try {
     }
     if ($review.Body.IndexOf('NOT REVIEWED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: explicit Matchup AutoFill request remained in NOT REVIEWED state.'
+    }
+    if ($review.Body.IndexOf('EVIDENCE GAP', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-901 FAILED: explicit lineup review did not produce a complete governed recommendation.'
+    }
+    $hasChanges = $review.Body.IndexOf('CHANGES FOUND', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $hasNoChanges = $review.Body.IndexOf('NO CHANGES', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if (-not $hasChanges -and -not $hasNoChanges) {
+        throw 'BF-901 FAILED: explicit lineup review produced neither CHANGES FOUND nor NO CHANGES.'
+    }
+
+    $decisionMatch = [regex]::Match(
+        $review.Body,
+        '<div class="next"><strong>What to do now</strong><p>(?<detail>.*?)</p></div>',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if (-not $decisionMatch.Success) {
+        throw 'BF-901 FAILED: explicit lineup review did not expose its decision detail.'
+    }
+    $decisionDetail = [regex]::Replace($decisionMatch.Groups['detail'].Value, '<[^>]+>', ' ')
+    $decisionDetail = [System.Net.WebUtility]::HtmlDecode($decisionDetail)
+    $decisionDetail = [regex]::Replace($decisionDetail, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($decisionDetail)) {
+        throw 'BF-901 FAILED: explicit lineup review decision detail was empty.'
     }
     if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
@@ -403,7 +429,9 @@ try {
         }
     }
 
-    Write-Host 'Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED'
+    $decisionState = if ($hasChanges) { 'CHANGES FOUND' } else { 'NO CHANGES' }
+    Write-Host ("Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED ({0})" -f $decisionState)
+    Write-Host ("Lineup decision: {0}" -f $decisionDetail)
     Write-Host 'Action copy: MATCHUP_CONTEXT_VERIFIED'
     Write-Host 'Opponent: GOVERNED_OPPONENT_CONTEXT_RENDERED'
     $passed = $true
