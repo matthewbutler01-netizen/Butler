@@ -18,6 +18,7 @@ class SleeperLiveWaiverCrossPositionTransactionEvidenceTest {
         var production = productionRows("nflverse", "nflverse", 1000, 400, 800, 500);
         var service = new SleeperLiveWaiverCrossPositionTransactionEvidence(
             (leagueId, ownerId) -> bundle,
+            (leagueId, ownerId) -> freshness(),
             butlerId -> production.getOrDefault(butlerId, List.of()));
 
         var evidence = service.explain(recommendation("M", "W"));
@@ -26,7 +27,7 @@ class SleeperLiveWaiverCrossPositionTransactionEvidenceTest {
             evidence.state());
         assertEquals(SleeperLiveWaiverFinalRecommendationBundle.SelectionState.UNIQUE_ADD_DROP_SELECTED,
             evidence.selectionState());
-        assertEquals(2, evidence.options().size());
+        assertEquals(4, evidence.options().size());
         assertEquals(1, evidence.options().stream().filter(
             SleeperLiveWaiverCrossPositionTransactionEvidence.TransactionEvidence::selected).count());
         var selected = evidence.options().stream().filter(
@@ -50,6 +51,18 @@ class SleeperLiveWaiverCrossPositionTransactionEvidenceTest {
 
         assertTrue(error.getMessage().contains("BF-625 BLOCKED"));
         assertTrue(error.getMessage().contains("lineage"));
+    }
+
+    private static SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness() {
+        var d1 = new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
+            "D1", "BENCH", null, null, "bD1", "RB Drop", "RB", "TM", "EXACT_CANONICAL");
+        var d2 = new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
+            "D2", "BENCH", null, null, "bD2", "WR Drop", "WR", "TM", "EXACT_CANONICAL");
+        return new SleeperLiveWaiverTargetRosterContextAudit.AuditReport(
+            SleeperLiveWaiverTargetRosterContextAudit.POLICY_ID,
+            "L", "M", "W", "S", 2026, "in_season", 1, "O", "Owner", "Team",
+            1, "T", "Team", List.of("RB", "WR", "BN", "BN"), List.of("RB", "WR"),
+            2, 2, 2, 0, 2, 0, 0, 2, 0, List.of(d1, d2));
     }
 
     private static SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation(
