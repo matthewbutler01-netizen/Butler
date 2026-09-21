@@ -23,6 +23,20 @@ if (-not (Test-Path -LiteralPath $gradle)) {
     throw "BF-676 BLOCKED: Gradle wrapper not found at $gradle"
 }
 
+function Get-Bf676BoundedTail {
+    param(
+        [AllowNull()][object[]]$Lines,
+        [int]$Limit = 2400
+    )
+
+    if ($null -eq $Lines -or @($Lines).Count -eq 0) { return 'no captured task output' }
+    $text = ((@($Lines) | ForEach-Object { "$_" }) -join ' ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) { return 'no captured task output' }
+    if ($text.Length -le $Limit) { return $text }
+    return '...' + $text.Substring($text.Length - $Limit)
+}
+
 function Invoke-Bf676GradleStep {
     param(
         [Parameter(Mandatory = $true)][string]$Label,
@@ -53,7 +67,8 @@ function Invoke-Bf676GradleStep {
     }
 
     if ($exitCode -ne 0) {
-        throw "BF-676 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed."
+        $tail = Get-Bf676BoundedTail -Lines $lines
+        throw "BF-676 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed. Captured output: $tail"
     }
 
     Write-Host ("BF-676 PASS: {0}" -f $Label)
