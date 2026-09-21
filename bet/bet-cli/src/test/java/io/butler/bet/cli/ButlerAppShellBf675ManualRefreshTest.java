@@ -81,7 +81,7 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(runner.contains("'MARKET_LINEAGE_SUPERSEDED'"));
         assertTrue(runner.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
         assertTrue(runner.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
-        assertFalse(runner.contains("'NO_AUDITED_DECISION'\n    ) -ccontains $LineageState"));
+        assertFalse(runner.contains("'NO_AUDITED_DECISION'"));
         assertTrue(runner.contains("No BF-602/BF-603/etc. write stage was executed"));
 
         int preflight = runner.indexOf("$decisionState = Get-Bf676SingleField");
