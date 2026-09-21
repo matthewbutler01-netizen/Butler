@@ -44,6 +44,7 @@ class SleeperLiveWaiverCrossPositionTransactionEvidenceTest {
         var production = productionRows("nflverse", "nflverse", 1000, 400, 800, 500);
         var service = new SleeperLiveWaiverCrossPositionTransactionEvidence(
             (leagueId, ownerId) -> bundle,
+            (leagueId, ownerId) -> freshness(),
             butlerId -> production.getOrDefault(butlerId, List.of()));
 
         var error = assertThrows(IllegalStateException.class,
