@@ -106,6 +106,27 @@ class AutoFillLineupOptimizerBf825Test {
     }
 
     @Test
+    void repeatedEquivalentSlotsPreserveCurrentOrderWhenStarterSetIsUnchanged() {
+        var result = optimizer.optimize(
+            List.of("WR", "WR"),
+            List.of(
+                starter("z-wr", "Current WR One", 0),
+                starter("a-wr", "Current WR Two", 1)),
+            Map.of(
+                "z-wr", points("10"),
+                "a-wr", points("12")),
+            Set.of());
+
+        assertTrue(result.ready());
+        assertEquals("z-wr", result.assignments().get(0).recommendedPlayerId());
+        assertEquals("a-wr", result.assignments().get(1).recommendedPlayerId());
+        assertFalse(result.assignments().get(0).changed());
+        assertFalse(result.assignments().get(1).changed());
+        assertTrue(result.movesToBench().isEmpty());
+        assertTrue(result.promotions().isEmpty());
+    }
+
+    @Test
     void unavailableIdMustExactlyMatchActiveRosterEvidence() {
         assertThrows(IllegalArgumentException.class, () -> optimizer.optimize(
             List.of("WR"),
