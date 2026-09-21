@@ -57,14 +57,16 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
 
         Map<String, Map<String, PlayerSeasonProduction>> production = new LinkedHashMap<>();
         for (var add : historical) {
-            production.computeIfAbsent(
-                add.candidate().butlerPlayerId(),
-                ignored -> loadLatest(add.candidate().butlerPlayerId()));
+            String butlerId = add.candidate().butlerPlayerId();
+            if (!production.containsKey(butlerId)) {
+                production.put(butlerId, latest2025BySource(productionSource.load(butlerId)));
+            }
         }
         for (var drop : drops) {
-            production.computeIfAbsent(
-                drop.butlerPlayerId(),
-                ignored -> loadLatest(drop.butlerPlayerId()));
+            String butlerId = drop.butlerPlayerId();
+            if (!production.containsKey(butlerId)) {
+                production.put(butlerId, latest2025BySource(productionSource.load(butlerId)));
+            }
         }
 
         List<TransactionOption> options = new ArrayList<>();
@@ -235,14 +237,6 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
                 immutableKeyMap(scoringKeysBySource)));
     }
 
-    private Map<String, PlayerSeasonProduction> loadLatest(String butlerPlayerId) {
-        try {
-            return latest2025BySource(productionSource.load(butlerPlayerId));
-        } catch (SQLException e) {
-            throw new ProductionLoadRuntimeException(e);
-        }
-    }
-
     private static void validateFreshnessLineage(
         SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
         SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness) {
@@ -342,9 +336,5 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
         }
     }
 
-    private static final class ProductionLoadRuntimeException extends RuntimeException {
-        private ProductionLoadRuntimeException(SQLException cause) {
-            super(cause);
-        }
-    }
+
 }
