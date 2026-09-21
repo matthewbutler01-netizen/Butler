@@ -120,6 +120,7 @@ class ButlerInAppEvidenceRecoveryBf823Test {
         assertTrue(recovery > probe);
         assertTrue(refresh.contains("BF-823 PROBE: DEFER_TO_BF676"));
         assertTrue(refresh.contains("BF-823 PROBE REASON: MARKET_CANONICAL_GAP"));
+        assertTrue(refresh.contains("$probeStateCount = @(@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count"));
         assertTrue(refresh.contains("$probeStateCount -ne 1"));
         assertTrue(fallback > recovery, "existing BF-676 runner must remain the fallback when lineup recovery is unnecessary or explicitly deferred");
         assertTrue(refresh.contains("If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized."));
