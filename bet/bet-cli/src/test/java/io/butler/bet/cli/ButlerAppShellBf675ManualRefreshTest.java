@@ -71,19 +71,26 @@ class ButlerAppShellBf675ManualRefreshTest {
     }
 
     @Test
-    void runnerRequiresExactGovernedNoTransactionStateBeforeBf602() throws Exception {
+    void runnerRequiresGovernedNoTransactionStateAndApprovedLineageBeforeBf602() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
         assertTrue(runner.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(runner.contains("$bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE'"));
-        assertTrue(runner.contains("$bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(runner.contains("Test-Bf676NoTransactionLineage -LineageState $bf631State"));
+        assertTrue(runner.contains("'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(runner.contains("'MARKET_LINEAGE_SUPERSEDED'"));
+        assertTrue(runner.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(runner.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
+        assertFalse(runner.contains("'NO_AUDITED_DECISION'\n    ) -ccontains $LineageState"));
         assertTrue(runner.contains("No BF-602/BF-603/etc. write stage was executed"));
 
         int preflight = runner.indexOf("$decisionState = Get-Bf676SingleField");
         int noTransactionGate = runner.indexOf("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'", preflight);
+        int lineageGate = runner.indexOf("Test-Bf676NoTransactionLineage -LineageState $bf631State", noTransactionGate);
         int firstWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'", noTransactionGate);
-        assertTrue(preflight >= 0 && noTransactionGate > preflight && firstWrite > noTransactionGate,
-            "BF-675 no-transaction authorization must still be checked before BF-602");
+        assertTrue(preflight >= 0 && noTransactionGate > preflight && lineageGate > noTransactionGate
+                && firstWrite > lineageGate,
+            "BF-675 no-transaction authorization and lineage whitelist must still be checked before BF-602");
     }
 
     @Test
