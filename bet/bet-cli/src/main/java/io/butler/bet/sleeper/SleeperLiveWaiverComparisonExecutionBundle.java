@@ -23,9 +23,9 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
     public static final String BF615_POLICY_ID =
         "sleeper-live-waiver-comparison-execution-v1-bf614-exact-position-replacement-pool-read-only";
     public static final String BF616_POLICY_ID =
-        "sleeper-live-waiver-shortlist-v1-bf615-directional-and-newcomer-lanes-read-only";
+        "sleeper-live-waiver-shortlist-v2-bf903-transaction-first-supported-drop-read-only";
     public static final String BF617_POLICY_ID =
-        "sleeper-live-waiver-final-decision-readiness-v1-bf616-reconciled-no-recommendation";
+        "sleeper-live-waiver-final-decision-readiness-v2-bf903-transaction-first-reconciled-no-recommendation";
     private static final int PRODUCTION_SEASON = 2025;
 
     private final MethodologySource methodologySource;
@@ -347,13 +347,18 @@ public final class SleeperLiveWaiverComparisonExecutionBundle {
             } else if (!candidate.candidate().priorProductionPresent()) {
                 state = CandidateShortlistState.NEWCOMER_REVIEW_SHORTLIST;
                 newcomer++;
-            } else if (frozen.rosterDirectionallySupported() > 0) {
-                state = CandidateShortlistState.HISTORICAL_ROSTER_DIRECTION_CONFLICT;
-            } else if (frozen.sourceDirectionUnresolved() > 0) {
-                state = CandidateShortlistState.HISTORICAL_SOURCE_DIRECTION_UNRESOLVED;
             } else if (frozen.candidateDirectionallySupported() > 0) {
+                // BF-903 transaction-first admission: a waiver candidate does not need to
+                // beat every same-position bench/reserve player. One exact supported drop
+                // is sufficient to keep the complete add/drop transaction alive for the
+                // governed final selector. Stronger roster players remain evidence, but
+                // they do not veto a different legitimate drop.
                 state = CandidateShortlistState.HISTORICAL_DIRECTIONAL_SHORTLIST;
                 historical++;
+            } else if (frozen.sourceDirectionUnresolved() > 0) {
+                state = CandidateShortlistState.HISTORICAL_SOURCE_DIRECTION_UNRESOLVED;
+            } else if (frozen.rosterDirectionallySupported() > 0) {
+                state = CandidateShortlistState.HISTORICAL_ROSTER_DIRECTION_CONFLICT;
             } else {
                 state = CandidateShortlistState.HISTORICAL_NO_DIRECTIONAL_SUPPORT;
             }
