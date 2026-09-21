@@ -78,7 +78,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     }
 
     @Test
-    void ambiguousAvailabilityStillFailsClosedWhenProjectionIsMissing() throws Exception {
+    void ambiguousAvailabilityCreatesProjectionHoldInsteadOfBlockingOtherScoreableSlots() throws Exception {
         Database database = initializedDatabase("league-ambiguous");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-b", "15")));
 
@@ -96,14 +96,18 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
                 ids -> Map.of("s-wr-a", availability))
                 .recommend(rosterReport("league-ambiguous"));
 
-            assertFalse(report.ready());
-            assertTrue(report.reason().contains("does not explicitly prove unavailable"));
-            assertTrue(report.reason().contains("Butler will not guess"));
+            assertTrue(report.ready());
+            assertEquals(1, report.projectionHolds().size());
+            assertEquals("s-wr-a", report.projectionHolds().getFirst().sleeperPlayerId());
+            assertTrue(report.projectionHolds().getFirst().reason().contains("preserved the player's current lineup state"));
+            assertEquals(new BigDecimal("20"), report.currentProjectedTotal());
+            assertEquals(new BigDecimal("20"), report.recommendation().projectedTotal());
+            assertEquals(BigDecimal.ZERO, report.projectedGain());
         }
     }
 
     @Test
-    void availabilityProviderFailureFailsClosed() throws Exception {
+    void availabilityProviderFailureCreatesProjectionHoldInsteadOfBlockingReview() throws Exception {
         Database database = initializedDatabase("league-provider-failure");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-b", "15")));
 
@@ -113,14 +117,15 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             ids -> { throw new IOException("provider down"); })
             .recommend(rosterReport("league-provider-failure"));
 
-        assertFalse(report.ready());
-        assertTrue(report.reason().contains("availability evidence is unavailable"));
-        assertTrue(report.reason().contains("provider down"));
-        assertTrue(report.reason().contains("will not guess"));
+        assertTrue(report.ready());
+        assertEquals(1, report.projectionHolds().size());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("availability evidence is unavailable"));
+        assertTrue(report.projectionHolds().getFirst().reason().contains("provider down"));
+        assertTrue(report.projectionHolds().getFirst().reason().contains("preserved the player's current lineup state"));
     }
 
     @Test
-    void availabilityEvidenceMustMatchExactSleeperPlayerId() throws Exception {
+    void missingExactAvailabilityCreatesProjectionHoldWithoutUsingWrongIdentity() throws Exception {
         Database database = initializedDatabase("league-exact-id");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-b", "15")));
 
@@ -132,9 +137,11 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
                 new SleeperPlayerAvailabilityProvider.PlayerAvailability("wrong-id", "Inactive", null)))
             .recommend(rosterReport("league-exact-id"));
 
-        assertFalse(report.ready());
-        assertTrue(report.reason().contains("availability evidence has no exact match"));
-        assertTrue(report.reason().contains("Butler will not guess"));
+        assertTrue(report.ready());
+        assertEquals(1, report.projectionHolds().size());
+        assertEquals("s-wr-a", report.projectionHolds().getFirst().sleeperPlayerId());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("availability evidence has no exact match"));
+        assertFalse(report.projectionHolds().getFirst().reason().contains("wrong-id"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {
