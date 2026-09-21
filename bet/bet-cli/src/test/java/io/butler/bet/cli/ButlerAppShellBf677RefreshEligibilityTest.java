@@ -34,12 +34,17 @@ class ButlerAppShellBf677RefreshEligibilityTest {
     }
 
     @Test
-    void exactNoTransactionStateExposesRefreshControl() throws Exception {
+    void noTransactionStateExposesRefreshControlForVerifiedOrSupersededLineage() throws Exception {
         String eligibility = eligibilitySection(script("scripts/butler-decision-refresh.ps1"));
 
         assertTrue(eligibility.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(eligibility.contains("$bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE'"));
-        assertTrue(eligibility.contains("$bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(eligibility.contains("Test-DecisionRefreshNoTransactionLineage -LineageState $bf631State"));
+        assertTrue(eligibility.contains("'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(eligibility.contains("'MARKET_LINEAGE_SUPERSEDED'"));
+        assertTrue(eligibility.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(eligibility.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
+        assertFalse(eligibility.contains("'NO_AUDITED_DECISION'"));
         assertTrue(eligibility.contains("$eligible = $true"));
         assertTrue(eligibility.contains("href=\"/refresh\">Refresh Butler data"));
     }
