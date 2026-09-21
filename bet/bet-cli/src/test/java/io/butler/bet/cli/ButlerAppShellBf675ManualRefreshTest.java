@@ -122,6 +122,8 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(runner.contains("Push-Location $dataDir"));
         assertTrue(runner.contains("'--enable-native-access=ALL-UNNAMED'"));
         assertTrue(runner.contains("Get-Bf676MainClass -Task $Task"));
+        assertTrue(runner.contains("switch ($Task)"));
+        assertFalse(runner.contains("return switch ($Task)"));
         assertTrue(runner.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli"));
         assertTrue(runner.contains("ButlerSleeperLiveWaiverSnapshotSyncCli"));
         assertFalse(runner.contains("$gradle @gradleArgs"));
