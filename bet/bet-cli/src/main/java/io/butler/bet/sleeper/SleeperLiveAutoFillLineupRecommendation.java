@@ -163,26 +163,24 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
 
         Set<String> explicitlyUnavailablePlayerIds = new LinkedHashSet<>();
+        Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
+        List<ProjectionHold> projectionHolds = new ArrayList<>();
         if (!missingProjectionTargets.isEmpty()) {
             Set<String> missingIds = new LinkedHashSet<>();
             for (var target : missingProjectionTargets) missingIds.add(target.sleeperPlayerId());
 
-            final Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId;
+            Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
+            String availabilityFailure = null;
             try {
                 availabilityBySleeperId = Objects.requireNonNull(
                     availabilitySource.load(Set.copyOf(missingIds)),
                     "availabilitySource returned null");
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return RecommendationReport.unavailable(
-                    roster.providerSeason(), roster.providerLeg(), scoring,
-                    "Current Sleeper player availability evidence request was interrupted; Butler will not guess around missing projections.");
+                availabilityFailure = "Current Sleeper player availability evidence request was interrupted.";
             } catch (IOException | IllegalStateException | NullPointerException e) {
-                return RecommendationReport.unavailable(
-                    roster.providerSeason(), roster.providerLeg(), scoring,
-                    "Current Sleeper player availability evidence is unavailable: " + safeMessage(e)
-                        + "; Butler will not guess around missing projections.");
+                availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
             }
 
             for (var target : missingProjectionTargets) {
@@ -194,33 +192,48 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
                 SleeperPlayerAvailabilityProvider.PlayerAvailability availability =
                     availabilityBySleeperId.get(target.sleeperPlayerId());
-                if (availability == null) {
-                    return RecommendationReport.unavailable(
-                        roster.providerSeason(), roster.providerLeg(), scoring,
-                        coverageDescription
-                            + ", and current availability evidence has no exact match either; Butler will not guess.");
-                }
-                if (!target.sleeperPlayerId().equals(availability.sleeperPlayerId())) {
-                    return RecommendationReport.unavailable(
-                        roster.providerSeason(), roster.providerLeg(), scoring,
-                        "Current availability evidence returned a mismatched Sleeper player id for " + display(target)
-                            + "; Butler will not guess.");
-                }
-                if (!availability.explicitlyUnavailable()) {
-                    return RecommendationReport.unavailable(
-                        roster.providerSeason(), roster.providerLeg(), scoring,
-                        coverageDescription + "; exact current availability (" + availability.evidenceDescription()
-                            + ") does not explicitly prove unavailable to play, so Butler will not guess.");
+
+                if (availabilityFailure == null
+                    && availability != null
+                    && target.sleeperPlayerId().equals(availability.sleeperPlayerId())
+                    && availability.explicitlyUnavailable()) {
+                    explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
+                    availabilityExclusions.add(new UnavailablePlayerExclusion(
+                        target.sleeperPlayerId(),
+                        display(target),
+                        availability.status(),
+                        availability.injuryStatus(),
+                        "Excluded from startable candidates because exact current Sleeper availability explicitly proves unavailable; "
+                            + "Butler did not synthesize a zero projection."));
+                    continue;
                 }
 
-                explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
-                availabilityExclusions.add(new UnavailablePlayerExclusion(
+                String holdReason;
+                String status = availability == null ? null : availability.status();
+                String injuryStatus = availability == null ? null : availability.injuryStatus();
+                if (availabilityFailure != null) {
+                    holdReason = coverageDescription + "; " + availabilityFailure
+                        + " Butler preserved the player's current lineup state instead of inventing availability or a projection.";
+                } else if (availability == null) {
+                    holdReason = coverageDescription
+                        + "; current availability evidence has no exact match. Butler preserved the player's current lineup state instead of guessing.";
+                } else if (!target.sleeperPlayerId().equals(availability.sleeperPlayerId())) {
+                    holdReason = coverageDescription
+                        + "; current availability evidence returned a mismatched Sleeper player id. Butler preserved the player's current lineup state instead of guessing.";
+                } else {
+                    holdReason = coverageDescription + "; exact current availability (" + availability.evidenceDescription()
+                        + ") does not explicitly prove unavailable. Butler preserved the player's current lineup state and did not synthesize a zero projection.";
+                }
+
+                projectionHoldPlayerIds.add(target.sleeperPlayerId());
+                projectionHolds.add(new ProjectionHold(
                     target.sleeperPlayerId(),
                     display(target),
-                    availability.status(),
-                    availability.injuryStatus(),
-                    "Excluded from startable candidates because exact current Sleeper availability explicitly proves unavailable; "
-                        + "Butler did not synthesize a zero projection."));
+                    target.rosterSlot(),
+                    target.lineupSlot(),
+                    status,
+                    injuryStatus,
+                    holdReason));
             }
         }
 
@@ -229,7 +242,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 roster.lineupSlots(),
                 optimizerRoster,
                 projectionsBySleeperId,
-                Set.copyOf(explicitlyUnavailablePlayerIds));
+                Set.copyOf(explicitlyUnavailablePlayerIds),
+                Set.copyOf(projectionHoldPlayerIds));
         if (!recommendation.ready()) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
@@ -238,12 +252,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         BigDecimal currentProjectedTotal = BigDecimal.ZERO;
         for (var player : optimizerRoster) {
             if (player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
-                && !explicitlyUnavailablePlayerIds.contains(player.playerId())) {
+                && !explicitlyUnavailablePlayerIds.contains(player.playerId())
+                && !projectionHoldPlayerIds.contains(player.playerId())) {
                 BigDecimal projection = projectionsBySleeperId.get(player.playerId());
                 if (projection == null) {
                     return RecommendationReport.unavailable(
                         roster.providerSeason(), roster.providerLeg(), scoring,
-                        "Current starter projection evidence became incomplete during AutoFill; Butler will not guess.");
+                        "Current scoreable starter projection evidence became incomplete during AutoFill; Butler will not guess.");
                 }
                 currentProjectedTotal = currentProjectedTotal.add(projection);
             }
@@ -253,7 +268,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             roster.providerSeason(), roster.providerLeg(), scoring,
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-            projectionProvenance(snapshot));
+            projectionHolds, projectionProvenance(snapshot));
     }
 
     private static ProjectionSource productionProjectionSource() {
@@ -361,6 +376,25 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
     }
 
+    public record ProjectionHold(
+        String sleeperPlayerId,
+        String displayName,
+        String rosterSlot,
+        String lineupSlot,
+        String status,
+        String injuryStatus,
+        String reason) {
+        public ProjectionHold {
+            sleeperPlayerId = requireText(sleeperPlayerId, "sleeperPlayerId");
+            displayName = requireText(displayName, "displayName");
+            rosterSlot = requireText(rosterSlot, "rosterSlot");
+            lineupSlot = clean(lineupSlot);
+            status = clean(status);
+            injuryStatus = clean(injuryStatus);
+            reason = requireText(reason, "reason");
+        }
+    }
+
     public record RecommendationReport(
         String policyId,
         boolean ready,
@@ -376,12 +410,15 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         BigDecimal projectedGain,
         AutoFillLineupOptimizer.Recommendation recommendation,
         List<UnavailablePlayerExclusion> availabilityExclusions,
+        List<ProjectionHold> projectionHolds,
         String projectionProvenance) {
         public RecommendationReport {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
             availabilityExclusions = List.copyOf(Objects.requireNonNull(
                 availabilityExclusions, "availabilityExclusions must not be null"));
+            projectionHolds = List.copyOf(Objects.requireNonNull(
+                projectionHolds, "projectionHolds must not be null"));
             if (ready) {
                 if (reason != null) throw new IllegalArgumentException("ready report cannot have a reason");
                 if (week == null || week <= 0) throw new IllegalArgumentException("ready report requires week");
@@ -399,7 +436,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 reason = requireText(reason, "reason");
                 if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
-                    || !availabilityExclusions.isEmpty() || projectionProvenance != null) {
+                    || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
             }
@@ -412,7 +449,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), null);
+                null, null, null, 0, null, null, null, List.of(), List.of(), null);
         }
 
         public static RecommendationReport ready(
@@ -427,11 +464,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             BigDecimal projectedGain,
             AutoFillLineupOptimizer.Recommendation recommendation,
             List<UnavailablePlayerExclusion> availabilityExclusions,
+            List<ProjectionHold> projectionHolds,
             String projectionProvenance) {
             return new RecommendationReport(
                 POLICY_ID, true, null, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
-                currentProjectedTotal, projectedGain, recommendation, availabilityExclusions, projectionProvenance);
+                currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
+                projectionHolds, projectionProvenance);
         }
     }
 
