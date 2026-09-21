@@ -365,15 +365,6 @@ try {
     if ($review.Body.IndexOf('NOT REVIEWED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: explicit Matchup AutoFill request remained in NOT REVIEWED state.'
     }
-    if ($review.Body.IndexOf('EVIDENCE GAP', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        throw 'BF-901 FAILED: explicit lineup review did not produce a complete governed recommendation.'
-    }
-    $hasChanges = $review.Body.IndexOf('CHANGES FOUND', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    $hasNoChanges = $review.Body.IndexOf('NO CHANGES', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    if (-not $hasChanges -and -not $hasNoChanges) {
-        throw 'BF-901 FAILED: explicit lineup review produced neither CHANGES FOUND nor NO CHANGES.'
-    }
-
     $decisionMatch = [regex]::Match(
         $review.Body,
         '<div class="next"><strong>What to do now</strong><p>(?<detail>.*?)</p></div>',
@@ -388,6 +379,15 @@ try {
     $decisionDetail = [regex]::Replace($decisionDetail, '\s+', ' ').Trim()
     if ([string]::IsNullOrWhiteSpace($decisionDetail)) {
         throw 'BF-901 FAILED: explicit lineup review decision detail was empty.'
+    }
+
+    if ($review.Body.IndexOf('EVIDENCE GAP', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw ("BF-901 FAILED: lineup evidence gap: {0}" -f $decisionDetail)
+    }
+    $hasChanges = $review.Body.IndexOf('CHANGES FOUND', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $hasNoChanges = $review.Body.IndexOf('NO CHANGES', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if (-not $hasChanges -and -not $hasNoChanges) {
+        throw ("BF-901 FAILED: explicit lineup review produced neither CHANGES FOUND nor NO CHANGES. detail={0}" -f $decisionDetail)
     }
     if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
