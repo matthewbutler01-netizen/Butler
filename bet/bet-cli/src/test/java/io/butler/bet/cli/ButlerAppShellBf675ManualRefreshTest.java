@@ -130,6 +130,8 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(runner.contains("$exitCode = $LASTEXITCODE"));
         assertTrue(runner.contains("$ErrorActionPreference = $previousErrorActionPreference"));
         assertTrue(runner.contains("if ($exitCode -ne 0)"));
+        assertTrue(runner.contains("Get-Bf676BoundedTail -Lines $lines"));
+        assertTrue(runner.contains("Captured output: $tail"));
         assertTrue(runner.contains("No later stage was executed."));
     }
 
