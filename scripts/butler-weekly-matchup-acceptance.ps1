@@ -386,8 +386,12 @@ try {
     }
     $hasChanges = $review.Body.IndexOf('CHANGES FOUND', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     $hasNoChanges = $review.Body.IndexOf('NO CHANGES', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-    if (-not $hasChanges -and -not $hasNoChanges) {
-        throw ("BF-901 FAILED: explicit lineup review produced neither CHANGES FOUND nor NO CHANGES. detail={0}" -f $decisionDetail)
+    $hasPartialReview = $review.Body.IndexOf('PARTIAL REVIEW', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if (-not $hasChanges -and -not $hasNoChanges -and -not $hasPartialReview) {
+        throw ("BF-902 FAILED: explicit lineup review produced no governed lineup decision state. detail={0}" -f $decisionDetail)
+    }
+    if ($hasPartialReview -and $decisionDetail.IndexOf('Projection hold:', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw ("BF-902 FAILED: partial lineup review did not expose its projection hold. detail={0}" -f $decisionDetail)
     }
     if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
@@ -402,7 +406,7 @@ try {
         }
     }
 
-    $decisionState = if ($hasChanges) { 'CHANGES FOUND' } else { 'NO CHANGES' }
+    $decisionState = if ($hasPartialReview) { 'PARTIAL REVIEW' } elseif ($hasChanges) { 'CHANGES FOUND' } else { 'NO CHANGES' }
     Write-Host ("Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED ({0})" -f $decisionState)
     Write-Host ("Lineup decision: {0}" -f $decisionDetail)
     Write-Host 'Action copy: MATCHUP_CONTEXT_VERIFIED'
