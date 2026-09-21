@@ -66,6 +66,27 @@ function Get-MatchupLineupDecisionView {
     }
 
     $changedAssignments = @($AutoFill.Assignments | Where-Object { $_.Changed })
+    $projectionHolds = @($AutoFill.ProjectionHolds)
+    if ($projectionHolds.Count -gt 0 -or [string]$AutoFill.ProjectionCoverage -ceq 'PARTIAL') {
+        $holdNames = @($projectionHolds | ForEach-Object { [string]$_.Name })
+        $holdText = if ($holdNames.Count -eq 0) { 'one or more active roster players' } else { $holdNames -join ', ' }
+        $changeText = if ($changedAssignments.Count -gt 0) {
+            "$($changedAssignments.Count) scoreable-slot change(s) found"
+        } else {
+            'No proven changes in scoreable slots'
+        }
+
+        return [pscustomobject]@{
+            Title = 'Partial lineup review'
+            Copy = 'Butler completed the scoreable portion of the lineup review, but one or more active players lack usable current-week projection evidence.'
+            Status = 'PARTIAL REVIEW'
+            StatusClass = 'warn'
+            Detail = "$changeText | Projection hold: $holdText | Held players remain unchanged and receive no synthetic projection."
+            ActionLabel = ''
+            ActionHref = ''
+        }
+    }
+
     if ($changedAssignments.Count -gt 0) {
         $changeWord = if ($changedAssignments.Count -eq 1) { 'change' } else { 'changes' }
         $startNames = @($AutoFill.Promotions | ForEach-Object { [string]$_.Name })
@@ -165,6 +186,9 @@ foreach ($required in @(
     'Lineup review needs evidence',
     'Make $($changedAssignments.Count) lineup $changeWord',
     'Keep the current lineup',
+    'Partial lineup review',
+    'PARTIAL REVIEW',
+    'Projection hold:',
     'Weekly matchup &middot; lineup decision first',
     'What to do now',
     '$autoFillHtml',
