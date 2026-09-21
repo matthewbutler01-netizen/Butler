@@ -29,6 +29,17 @@ function Get-DecisionRefreshTechnicalField {
     return $value
 }
 
+function Test-DecisionRefreshNoTransactionLineage {
+    param([Parameter(Mandatory = $true)][string]$LineageState)
+
+    return @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $LineageState
+}
+
 function Add-DecisionRefreshControl {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -57,7 +68,7 @@ function Add-DecisionRefreshControl {
     $eligible = $false
     if ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
         $bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
-        $bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        (Test-DecisionRefreshNoTransactionLineage -LineageState $bf631State)) {
         $eligible = $true
     }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
