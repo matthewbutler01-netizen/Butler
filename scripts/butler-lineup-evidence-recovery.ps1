@@ -163,7 +163,7 @@ $bf610Class = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAudit
 $comparisonClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'
 $driftPrefix = 'BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added='
 $driftSuffix = '; refresh BF-602/BF-603 and downstream live evidence before target-roster review'
-$marketCanonicalGapPattern = '(?m)^Error: BF-608 BLOCKED: BF-604 has \\d+ unmapped canonical candidate\\(s\\)\\s*
+$marketCanonicalGapPattern = '(?m)^Error: BF-608 BLOCKED: BF-604 has \d+ unmapped canonical candidate\(s\)\s*$'
 $audit = Get-HydrationAudit
 if ($audit.State -cne 'READY_TO_HYDRATE') {
     $tail = Get-BoundedTail -Text $audit.Text
