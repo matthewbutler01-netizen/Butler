@@ -163,6 +163,111 @@ $bf610Class = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAudit
 $comparisonClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'
 $driftPrefix = 'BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added='
 $driftSuffix = '; refresh BF-602/BF-603 and downstream live evidence before target-roster review'
+$marketCanonicalGapPattern = '(?m)^Error: BF-608 BLOCKED: BF-604 has \\d+ unmapped canonical candidate\\(s\\)\\s*
+$audit = Get-HydrationAudit
+if ($audit.State -cne 'READY_TO_HYDRATE') {
+    $tail = Get-BoundedTail -Text $audit.Text
+    throw "BF-823 BLOCKED: BF-599 did not authorize current-season hydration or roster recovery. output=$tail"
+}
+
+if ($audit.UnmappedCount -gt 0) {
+    if ($ProbeOnly) {
+        Write-Output 'BF-823 PROBE: RECOVERY_REQUIRED'
+        Write-Output 'BF-823 PROBE REASON: PLAYER_MAPPING'
+        return
+    }
+}
+else {
+    $preflight = Invoke-ButlerRuntimeCommand -MainClass $bf610Class -Arguments @($LeagueId)
+    if ($preflight.ExitCode -eq 0) {
+        if ($ProbeOnly) {
+            Write-Output 'BF-823 PROBE: NO_RECOVERY_REQUIRED'
+            return
+        }
+    }
+    elseif ($preflight.Text.IndexOf($driftPrefix, [System.StringComparison]::Ordinal) -ge 0 -and
+            $preflight.Text.IndexOf($driftSuffix, [System.StringComparison]::Ordinal) -ge 0) {
+        if ($ProbeOnly) {
+            Write-Output 'BF-823 PROBE: RECOVERY_REQUIRED'
+            Write-Output 'BF-823 PROBE REASON: ROSTER_DRIFT'
+            return
+        }
+    }
+    elseif ([regex]::IsMatch($preflight.Text, $marketCanonicalGapPattern)) {
+        if ($ProbeOnly) {
+            Write-Output 'BF-823 PROBE: DEFER_TO_BF676'
+            Write-Output 'BF-823 PROBE REASON: MARKET_CANONICAL_GAP'
+            return
+        }
+        throw 'BF-823 BLOCKED: market-active canonical coverage must be repaired by the governed BF-676 refresh chain.'
+    }
+    else {
+        $tail = Get-BoundedTail -Text $preflight.Text
+        throw "BF-823 BLOCKED: BF-610 failed for a reason other than exact roster drift. No Butler evidence write was attempted. output=$tail"
+    }
+}
+
+if ($ProbeOnly) {
+    throw 'BF-823 BLOCKED: recovery probe reached an ambiguous state.'
+}
+
+Write-Output 'Butler governed lineup evidence recovery (BF-823)'
+Write-Output "League: $LeagueId"
+Write-Output "Data: $dataDir"
+Write-Output 'Boundary: this action may refresh Butler local roster/player and lineup-supporting evidence only.'
+Write-Output 'Boundary: it does not submit, cancel, or replace a Sleeper transaction; it does not mutate a Sleeper lineup, roster, FAAB, waiver, or trade.'
+
+if ($audit.UnmappedCount -gt 0) {
+    Write-Output ("BF-823: BF-599 found {0} current player identity mapping(s) to bootstrap." -f $audit.UnmappedCount)
+    $bootstrap = Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentSeasonRosterBootstrapCli' -Label 'BF-600 current-season roster/player bootstrap' -Arguments @($LeagueId, $audit.SleeperLeagueId)
+    if ($bootstrap.Text.IndexOf('Bootstrap state: HYDRATED_VERIFIED', [System.StringComparison]::Ordinal) -lt 0) {
+        $tail = Get-BoundedTail -Text $bootstrap.Text
+        throw "BF-823 BLOCKED: BF-600 completed without HYDRATED_VERIFIED. output=$tail"
+    }
+
+    $postBootstrapAudit = Get-HydrationAudit
+    if ($postBootstrapAudit.State -cne 'READY_TO_HYDRATE' -or $postBootstrapAudit.UnmappedCount -ne 0) {
+        $tail = Get-BoundedTail -Text $postBootstrapAudit.Text
+        throw "BF-823 BLOCKED: post-bootstrap BF-599 verification is not fully mapped and ready. output=$tail"
+    }
+    Write-Output 'BF-823: current roster player identities are fully mapped.'
+}
+
+$rosterCheck = Invoke-ButlerRuntimeCommand -MainClass $bf610Class -Arguments @($LeagueId)
+$rebuildEvidence = $false
+if ($rosterCheck.ExitCode -eq 0) {
+    Write-Output 'BF-823: BF-610 roster evidence is already current; downstream evidence writes are not required.'
+}
+elseif ($rosterCheck.Text.IndexOf($driftPrefix, [System.StringComparison]::Ordinal) -ge 0 -and
+        $rosterCheck.Text.IndexOf($driftSuffix, [System.StringComparison]::Ordinal) -ge 0) {
+    $rebuildEvidence = $true
+    Write-Output 'BF-823: exact BF-610 roster drift verified; governed downstream evidence recovery is authorized.'
+}
+else {
+    $tail = Get-BoundedTail -Text $rosterCheck.Text
+    throw "BF-823 BLOCKED: BF-610 failed for a reason other than exact roster drift after mapping verification. output=$tail"
+}
+
+if ($rebuildEvidence) {
+    $stages = @(
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli'; Label = 'BF-602 waiver snapshot sync' },
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli'; Label = 'BF-603 market-attention sync' },
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli'; Label = 'BF-605 production hydration' },
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli'; Label = 'BF-606 availability sync' },
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli'; Label = 'BF-607 current-week stat sync' },
+        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli'; Label = 'BF-612 target-roster production hydration' }
+    )
+    foreach ($stage in $stages) {
+        [void](Invoke-RequiredSuccess -MainClass $stage.MainClass -Label $stage.Label -Arguments @($LeagueId))
+    }
+}
+
+[void](Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -Arguments @($LeagueId))
+[void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -Arguments @($LeagueId))
+
+Write-Output 'BF-823 RECOVERY: VERIFIED'
+Write-Output 'BF-823 RESULT: COMPLETE'
+
 
 $audit = Get-HydrationAudit
 if ($audit.State -cne 'READY_TO_HYDRATE') {
