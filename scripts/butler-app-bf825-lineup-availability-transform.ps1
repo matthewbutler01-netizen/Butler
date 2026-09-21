@@ -70,6 +70,8 @@ function New-AutoFillIdleView {
         CurrentTotal = ''
         RecommendedTotal = ''
         Gain = ''
+        ProjectionCoverage = 'NONE'
+        ProjectionHolds = @()
         Assignments = @()
         BenchMoves = @()
         Promotions = @()
@@ -107,6 +109,8 @@ function ConvertTo-AutoFillView {
             CurrentTotal = ''
             RecommendedTotal = ''
             Gain = ''
+            ProjectionCoverage = 'NONE'
+            ProjectionHolds = @()
             Assignments = @()
             BenchMoves = @()
             Promotions = @()
@@ -114,20 +118,2360 @@ function ConvertTo-AutoFillView {
         }
     }
 
-    $source = [regex]::Match($Text, '(?m)^Projection source:\s+(?<value>.+?)\s*$')
-    $sourceSurface = [regex]::Match($Text, '(?m)^Projection source surface:\s+(?<value>.+?)\s*$')
-    $current = [regex]::Match($Text, '(?m)^Current projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*$')
-    $recommended = [regex]::Match($Text, '(?m)^Recommended projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*$')
-    $gain = [regex]::Match($Text, '(?m)^Projected gain:\s+(?<value>[+-]?\d+(?:\.\d+)?)\s*$')
-    if (-not $source.Success -or -not $sourceSurface.Success -or -not $current.Success -or
+    $source = [regex]::Match($Text, '(?m)^Projection source:\s+(?<value>.+?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -ceq 'Projection holds:') { $mode = 'HOLD'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        ProjectionCoverage = $coverage.Groups['value'].Value
+        ProjectionHolds = @($projectionHolds)
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'ProjectionHolds' -or $core -notmatch 'ProjectionCoverage') {
+    throw 'BF-902 BLOCKED: parsed projection holds/coverage are missing after BF-825 staging.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $sourceSurface = [regex]::Match($Text, '(?m)^Projection source surface:\s+(?<value>.+?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $coverage = [regex]::Match($Text, '(?m)^Projection coverage:\s+(?<value>FULL|PARTIAL)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $current = [regex]::Match($Text, '(?m)^Current projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $recommended = [regex]::Match($Text, '(?m)^Recommended projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $gain = [regex]::Match($Text, '(?m)^Projected gain:\s+(?<value>[+-]?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    if (-not $source.Success -or -not $sourceSurface.Success -or -not $coverage.Success -or -not $current.Success -or
         -not $recommended.Success -or -not $gain.Success) {
-        throw 'BF-825 BLOCKED: ready AutoFill bundle section is missing projection summary fields.'
+        throw 'BF-902 BLOCKED: ready AutoFill bundle section is missing projection summary/coverage fields.'
     }
 
     $assignments = @()
     $benchMoves = @()
     $promotions = @()
     $availabilityExclusions = @()
+    $projectionHolds = @()
+    $mode = ''
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+) {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ceq 'HOLD' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+roster_slot=(?<rosterSlot>\S+)\s+\|\s+lineup_slot=(?<lineupSlot>.*?)\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $sourceSurface = [regex]::Match($Text, '(?m)^Projection source surface:\s+(?<value>.+?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $coverage = [regex]::Match($Text, '(?m)^Projection coverage:\s+(?<value>FULL|PARTIAL)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $current = [regex]::Match($Text, '(?m)^Current projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $recommended = [regex]::Match($Text, '(?m)^Recommended projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $gain = [regex]::Match($Text, '(?m)^Projected gain:\s+(?<value>[+-]?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    if (-not $source.Success -or -not $sourceSurface.Success -or -not $coverage.Success -or -not $current.Success -or
+        -not $recommended.Success -or -not $gain.Success) {
+        throw 'BF-902 BLOCKED: ready AutoFill bundle section is missing projection summary/coverage fields.'
+    }
+
+    $assignments = @()
+    $benchMoves = @()
+    $promotions = @()
+    $availabilityExclusions = @()
+    $projectionHolds = @()
+    $mode = ''
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+) {
+            $projectionHolds += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                RosterSlot = $Matches['rosterSlot'].Trim()
+                LineupSlot = $Matches['lineupSlot'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $sourceSurface = [regex]::Match($Text, '(?m)^Projection source surface:\s+(?<value>.+?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $coverage = [regex]::Match($Text, '(?m)^Projection coverage:\s+(?<value>FULL|PARTIAL)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $current = [regex]::Match($Text, '(?m)^Current projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $recommended = [regex]::Match($Text, '(?m)^Recommended projected starter total:\s+(?<value>-?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    $gain = [regex]::Match($Text, '(?m)^Projected gain:\s+(?<value>[+-]?\d+(?:\.\d+)?)\s*
+    foreach ($line in ($Text -split "`r?`n")) {
+        if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
+        if ($line -ceq 'Promotions to starting lineup:') { $mode = 'PROMOTE'; continue }
+        if ($line -ceq 'Availability exclusions:') { $mode = 'AVAILABILITY'; continue }
+        if ($line -match '^\s{2}#(?<ordinal>\d+)\s+(?<slot>\S+)\s+\|\s+current=(?<current>.*?)\s+\[(?<currentId>[^\]]+)\]\s+\|\s+recommended=(?<recommended>.*?)\s+\[(?<recommendedId>[^\]]+)\]\s+\|\s+projected=(?<points>-?\d+(?:\.\d+)?)\s+\|\s+action=(?<action>KEEP|CHANGE)\s*$') {
+            $assignments += [pscustomobject]@{
+                Ordinal = [int]$Matches['ordinal']
+                Slot = $Matches['slot']
+                Current = $Matches['current'].Trim()
+                CurrentId = $Matches['currentId'].Trim()
+                Recommended = $Matches['recommended'].Trim()
+                RecommendedId = $Matches['recommendedId'].Trim()
+                Points = $Matches['points']
+                Changed = $Matches['action'] -ceq 'CHANGE'
+            }
+            $mode = ''
+            continue
+        }
+        if (($mode -ceq 'BENCH' -or $mode -ceq 'PROMOTE') -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s*$') {
+            if ($Matches['name'] -ceq 'none') { continue }
+            $entry = [pscustomobject]@{ Name = $Matches['name'].Trim(); Id = $Matches['id'].Trim() }
+            if ($mode -ceq 'BENCH') { $benchMoves += $entry } else { $promotions += $entry }
+            continue
+        }
+        if ($mode -ceq 'AVAILABILITY' -and $line -match '^\s{2}(?<name>.+?)\s+\[(?<id>[^\]]+)\]\s+\|\s+status=(?<status>.*?)\s+\|\s+injury_status=(?<injury>.*?)\s+\|\s+reason=(?<reason>.+?)\s*$') {
+            $availabilityExclusions += [pscustomobject]@{
+                Name = $Matches['name'].Trim()
+                Id = $Matches['id'].Trim()
+                Status = $Matches['status'].Trim()
+                InjuryStatus = $Matches['injury'].Trim()
+                Reason = $Matches['reason'].Trim()
+            }
+            continue
+        }
+        if ($mode -ne '' -and $line -match '^\s{2}none\s*$') { continue }
+    }
+    if ($assignments.Count -eq 0) {
+        throw 'BF-825 BLOCKED: ready AutoFill bundle section contains no recommended lineup rows.'
+    }
+
+    return [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        Season = $frame.Groups['season'].Value
+        Week = $frame.Groups['week'].Value
+        Scoring = $scoring.Groups['value'].Value
+        Reason = ''
+        Source = $source.Groups['value'].Value.Trim()
+        SourceSurface = $sourceSurface.Groups['value'].Value.Trim()
+        CurrentTotal = $current.Groups['value'].Value
+        RecommendedTotal = $recommended.Groups['value'].Value
+        Gain = $gain.Groups['value'].Value
+        Assignments = @($assignments | Sort-Object Ordinal)
+        BenchMoves = @($benchMoves)
+        Promotions = @($promotions)
+        AvailabilityExclusions = @($availabilityExclusions)
+    }
+}
+'@
+$core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoFillView {' -NextMarker 'function ConvertTo-AutoFillHtml {' -Replacement $viewReplacement -Contract 'AutoFill availability evidence parser'
+
+$gainAnchor = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    if ($changedCount -gt 0) {
+'@
+$gainReplacement = @'
+    $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
+
+    $availabilityCount = @($AutoFill.AvailabilityExclusions).Count
+    $availabilityEvidence = ''
+    $availabilityWhySuffix = ''
+    if ($availabilityCount -gt 0) {
+        $availabilityRows = ''
+        foreach ($exclusion in $AutoFill.AvailabilityExclusions) {
+            $statusText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.Status) -or [string]$exclusion.Status -ceq 'none') { 'not reported' } else { [string]$exclusion.Status }
+            $injuryText = if ([string]::IsNullOrWhiteSpace([string]$exclusion.InjuryStatus) -or [string]$exclusion.InjuryStatus -ceq 'none') { 'not reported' } else { [string]$exclusion.InjuryStatus }
+            $availabilityRows += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $exclusion.Name)</strong><br><span>Status: $(ConvertTo-HtmlText $statusText) &middot; Injury status: $(ConvertTo-HtmlText $injuryText)</span><br><span>$(ConvertTo-HtmlText $exclusion.Reason)</span></div>"
+        }
+        $availabilityEvidence = "<details><summary>Availability evidence</summary>$availabilityRows</details>"
+        $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
+        $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
+    }
+
+    if ($changedCount -gt 0) {
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
+
+$readyReturnAnchor = @'
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$readyReturnReplacement = @'
+    $whyCopy = $whyCopy + $availabilityWhySuffix
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $readyReturnAnchor -New $readyReturnReplacement -Contract 'Lineup Advisor availability explanation'
+
+$evidenceAnchor = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections:
+'@
+$evidenceReplacement = @'
+<div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div>$availabilityEvidence<div class=`"source-note`"><span>Projections:
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $evidenceAnchor -New $evidenceReplacement -Contract 'Lineup Advisor availability detail disclosure'
+
+if ($core -notmatch 'AvailabilityExclusions') {
+    throw 'BF-825 BLOCKED: parsed availability exclusions are missing.'
+}
+if ($core -notmatch 'Availability evidence') {
+    throw 'BF-825 BLOCKED: manager-facing availability evidence disclosure is missing.'
+}
+if ($core -notmatch 'no zero projection was invented') {
+    throw 'BF-825 BLOCKED: no-zero-projection explanation is missing.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+)
+    if (-not $source.Success -or -not $sourceSurface.Success -or -not $coverage.Success -or -not $current.Success -or
+        -not $recommended.Success -or -not $gain.Success) {
+        throw 'BF-902 BLOCKED: ready AutoFill bundle section is missing projection summary/coverage fields.'
+    }
+
+    $assignments = @()
+    $benchMoves = @()
+    $promotions = @()
+    $availabilityExclusions = @()
+    $projectionHolds = @()
     $mode = ''
     foreach ($line in ($Text -split "`r?`n")) {
         if ($line -ceq 'Moves to bench:') { $mode = 'BENCH'; continue }
