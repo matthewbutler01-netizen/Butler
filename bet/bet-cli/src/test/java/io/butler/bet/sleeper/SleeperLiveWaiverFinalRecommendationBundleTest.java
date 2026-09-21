@@ -44,7 +44,8 @@ class SleeperLiveWaiverFinalRecommendationBundleTest {
 
         var report = service.run("L", "O");
 
-        assertEquals(SleeperLiveWaiverFinalRecommendationBundle.SelectionState.NO_UNIQUE_HISTORICAL_ADD,
+        assertEquals(
+            SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_TRANSACTION_IMPROVEMENT_UNRESOLVED,
             report.selection().state());
         assertEquals(SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.NO_GOVERNED_TRANSACTION,
             report.state());
@@ -60,11 +61,12 @@ class SleeperLiveWaiverFinalRecommendationBundleTest {
 
         var report = service.run("L", "O");
 
-        assertEquals(SleeperLiveWaiverFinalRecommendationBundle.SelectionState.NO_GOVERNED_DROP_FOR_SELECTED_ADD,
+        assertEquals(
+            SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_NO_ACTIONABLE_TRANSACTION,
             report.selection().state());
         assertEquals(SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.NO_GOVERNED_TRANSACTION,
             report.state());
-        assertEquals("A", report.selection().selectedAdd().sleeperPlayerId());
+        assertNull(report.selection().selectedAdd());
         assertNull(report.selection().selectedDrop());
     }
 
