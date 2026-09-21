@@ -146,6 +146,17 @@ function Assert-Bf676WarningRefreshPlan {
     }
 }
 
+function Test-Bf676NoTransactionLineage {
+    param([Parameter(Mandatory = $true)][string]$LineageState)
+
+    return @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $LineageState
+}
+
 Push-Location $repoRoot
 try {
     Write-Host 'BF-676 manual governed waiver refresh'
@@ -172,10 +183,11 @@ try {
         -Label 'BF-631 evidence lineage'
 
     if ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON') {
-        if ($bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
-            throw 'BF-676 BLOCKED: no-transaction preflight did not retain the exact BF-675 BF-629/BF-631 gates. No BF-602/BF-603/etc. write stage was executed.'
+        if ($bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE' -or
+            -not (Test-Bf676NoTransactionLineage -LineageState $bf631State)) {
+            throw 'BF-676 BLOCKED: no-transaction preflight did not retain the exact BF-629 gate and an approved BF-631 refresh lineage. No BF-602/BF-603/etc. write stage was executed.'
         }
-        Write-Host 'BF-676 PREFLIGHT VERIFIED: exact governed no-transaction state remains eligible for manual refresh.'
+        Write-Host ("BF-676 PREFLIGHT VERIFIED: governed no-transaction state is eligible for manual refresh with BF-631 lineage {0}." -f $bf631State)
     }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED') {
         if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
