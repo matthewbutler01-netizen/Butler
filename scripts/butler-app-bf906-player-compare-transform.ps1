@@ -304,9 +304,9 @@ function ConvertTo-PlayerCompareHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'league'
-    $compareCss = @'
+    $compareCss = @"
 .compare-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}.compare-player{padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.compare-player h2{margin:6px 0}.compare-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}.compare-summary-card,.compare-metric,.compare-flag{padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2)}.compare-summary-card strong,.compare-metric strong{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}.compare-summary-card span,.compare-metric span{display:block;margin-top:4px;font-weight:800}.compare-summary-card small{display:block;margin-top:3px;color:var(--muted)}.compare-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.compare-flags{display:grid;gap:8px;margin-top:10px}.compare-flag span{display:block;color:var(--muted);font-size:11px;margin-top:3px}.compare-flag p{margin:6px 0 0}.compare-search{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}.compare-search input[type=text]{flex:1;min-width:240px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:11px 12px;font:inherit}.compare-choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}@media(max-width:800px){.compare-grid,.compare-choice-grid,.compare-summary,.compare-metrics{grid-template-columns:1fr}}
-'@
+"@
 
     if ($null -ne $View) {
         $leftHtml = ConvertTo-PlayerCompareCardHtml -Player $View.Left
