@@ -448,12 +448,25 @@ $compareRoute = @'
                         }
                     }
                     elseif (-not [string]::IsNullOrWhiteSpace($compareRequest.LeftPlayerId)) {
-                        $detailPath = "/__butler/internal/player-detail?player=" + [System.Uri]::EscapeDataString($compareRequest.LeftPlayerId)
-                        $rawLeft = Invoke-Bf742DashboardWorkerRead -Path $detailPath -BoundaryName "BF-906"
-                        $selectedLeft = ConvertTo-PlayerDetailView -Text $rawLeft
-                        if ($selectedLeft.LeagueId -cne $LeagueId -or
-                            $selectedLeft.PlayerId -cne $compareRequest.LeftPlayerId) {
-                            throw 'BF-906 BLOCKED: selected Player Compare identity does not match the exact requested player.'
+                        $leftLookupPath = "/__butler/internal/player-search?q=" + [System.Uri]::EscapeDataString($compareRequest.LeftPlayerId)
+                        $rawLeftLookup = Invoke-Bf742DashboardWorkerRead -Path $leftLookupPath -BoundaryName "BF-906"
+                        $leftLookup = ConvertTo-PlayerSearchView -Text $rawLeftLookup
+                        if ($leftLookup.LeagueId -cne $LeagueId -or
+                            $leftLookup.Query -cne $compareRequest.LeftPlayerId) {
+                            throw 'BF-906 BLOCKED: selected Player Compare lookup does not match the exact requested player.'
+                        }
+                        $leftMatches = @($leftLookup.Players | Where-Object { [string]$_.PlayerId -ceq $compareRequest.LeftPlayerId })
+                        if ($leftMatches.Count -ne 1) {
+                            throw "BF-906 BLOCKED: selected Player Compare player must resolve exactly once in league inventory."
+                        }
+                        $leftMatch = $leftMatches[0]
+                        $selectedLeft = [pscustomobject]@{
+                            LeagueId = $leftLookup.LeagueId
+                            PlayerId = [string]$leftMatch.PlayerId
+                            PlayerName = [string]$leftMatch.PlayerName
+                            Position = [string]$leftMatch.Position
+                            TeamName = [string]$leftMatch.TeamName
+                            RosterSlot = [string]$leftMatch.RosterSlot
                         }
 
                         if (-not [string]::IsNullOrWhiteSpace($compareRequest.Query)) {
@@ -487,6 +500,7 @@ foreach ($required in @(
     'function Add-PlayerCompareDetailAction',
     'Invoke-Bf742DashboardWorkerRead',
     '/__butler/internal/player-compare?left=',
+    '/__butler/internal/player-search?q=',
     'Compare this player',
     'href=`"/compare?left=$hrefId`">Compare</a>',
     'href=`"/compare?left=$leftHref&right=$rightHref`"',
