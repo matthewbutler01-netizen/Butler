@@ -206,6 +206,11 @@ public final class ButlerReadOnlyJvmWorker {
                 return ButlerLeaguePlayerCompareCli.runEmbedded(
                     new String[] {"league", "player-compare", request.leagueId(), playerIds[0], playerIds[1]});
             });
+            case PLAYER_COMPARE_SUMMARY -> executeCapturedWithExitCode(() -> {
+                String[] playerIds = request.argument().split("\\|", -1);
+                return ButlerLeaguePlayerCompareCli.runEmbeddedSummary(
+                    new String[] {"league", "player-compare", request.leagueId(), playerIds[0], playerIds[1]});
+            });
         };
     }
 
