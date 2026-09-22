@@ -58,7 +58,7 @@ class ButlerDashboardDecisionCenterBf907Test {
     void decisionCenterRemainsPresentationOnly() throws Exception {
         String transform = source("scripts/butler-dashboard-bf907-decision-center-transform.ps1");
 
-        int safetyScan = transform.indexOf("$installed -match");
+        int safetyScan = transform.indexOf("$bf907InstalledSurface -match");
         assertTrue(safetyScan > 0, "BF-907 safety scan must remain present");
         String operational = transform.substring(0, safetyScan);
 
@@ -78,6 +78,7 @@ class ButlerDashboardDecisionCenterBf907Test {
         }
 
         assertTrue(transform.contains("generated Dashboard failed PowerShell parse"));
+        assertTrue(transform.contains("$bf907InstalledSurface = $bf907Css + [Environment]::NewLine + $bf907Prelude"));
         assertTrue(transform.contains("Decision Center presentation introduced an operational read/write marker"));
     }
 
