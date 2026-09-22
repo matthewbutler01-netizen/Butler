@@ -118,6 +118,9 @@ class ButlerAppShellBf670TradeLabTest {
         assertEquals(1, count(trade, "trade counter-proposal $LeagueId"));
         assertTrue(trade.contains("Build Counteroffer"));
         assertTrue(trade.contains("Read-only. Butler will not send or submit anything."));
+        assertTrue(trade.contains("$counterProposal.V5Action -cne $evaluation.Action -and $counterProposal.Action -ceq 'COUNTER'"));
+        assertTrue(trade.contains("legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation"));
+        assertFalse(trade.contains("governed counter proposal v5 action does not match the rendered recommendation"));
         assertFalse(trade.contains("trade counter-authorize"));
         assertFalse(trade.contains("trade counter-authorization"));
         assertFalse(trade.contains("trade counter-finalize"));
