@@ -463,7 +463,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
             }
             'NO_ACTION' {
                 $counterHtml = @"
-<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">No governed counteroffer</h2><p class="lede">Butler did not find one uniquely governed counter package for this rejected deal.</p></div><div class="status done">NO ACTION</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
+<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">No counteroffer</h2><p class="lede">Butler did not find one uniquely governed counter package for this rejected deal.</p></div><div class="status done">NO ACTION</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
 "@
             }
             'INCONCLUSIVE' {
