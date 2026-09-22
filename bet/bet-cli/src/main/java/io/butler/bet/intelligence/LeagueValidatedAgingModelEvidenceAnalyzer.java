@@ -25,7 +25,15 @@ public final class LeagueValidatedAgingModelEvidenceAnalyzer {
     }
 
     public ValidatedLeagueReport analyze(String leagueId, int season) throws SQLException {
-        return compose(leagueEvidence.analyze(leagueId, season), validation.analyze());
+        return analyze(leagueId, season, validation.analyze());
+    }
+
+    ValidatedLeagueReport analyze(
+        String leagueId,
+        int season,
+        AgingModelPublicationValidationAnalyzer.ValidationReport validationReport) throws SQLException {
+        return compose(leagueEvidence.analyze(leagueId, season),
+            Objects.requireNonNull(validationReport, "validationReport must not be null"));
     }
 
     static ValidatedLeagueReport compose(LeagueAgingModelEvidenceAnalyzer.LeagueAgingModelEvidenceReport league,
