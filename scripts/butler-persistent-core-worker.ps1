@@ -135,7 +135,7 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE', 'PLAYER_COMPARE_SUMMARY')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
@@ -183,7 +183,7 @@ function Invoke-Bf740PersistentCoreWorker {
             throw "$BoundaryName BLOCKED: BF-906 player search received an unauthorized extra argument."
         }
     }
-    elseif ($Operation -ceq 'PLAYER_COMPARE') {
+    elseif ($Operation -ceq 'PLAYER_COMPARE' -or $Operation -ceq 'PLAYER_COMPARE_SUMMARY') {
         if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$' -or
             [string]::IsNullOrWhiteSpace($RightPlayerId) -or $RightPlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$' -or
             $PlayerId -ceq $RightPlayerId) {
@@ -207,7 +207,7 @@ function Invoke-Bf740PersistentCoreWorker {
     elseif ($Operation -ceq 'PLAYER_SEARCH') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$Query")
     }
-    elseif ($Operation -ceq 'PLAYER_COMPARE') {
+    elseif ($Operation -ceq 'PLAYER_COMPARE' -or $Operation -ceq 'PLAYER_COMPARE_SUMMARY') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId`t$RightPlayerId")
     }
     else {
