@@ -463,10 +463,10 @@ $compareRoute = @'
                         $selectedLeft = [pscustomobject]@{
                             LeagueId = $leftLookup.LeagueId
                             PlayerId = [string]$leftMatch.PlayerId
-                            PlayerName = [string]$leftMatch.PlayerName
+                            PlayerName = [string]$leftMatch.Name
                             Position = [string]$leftMatch.Position
-                            TeamName = [string]$leftMatch.TeamName
-                            RosterSlot = [string]$leftMatch.RosterSlot
+                            TeamName = [string]$leftMatch.OwnerTeamName
+                            RosterSlot = [string]$leftMatch.Slot
                         }
 
                         if (-not [string]::IsNullOrWhiteSpace($compareRequest.Query)) {
