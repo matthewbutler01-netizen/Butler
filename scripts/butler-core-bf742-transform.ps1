@@ -88,7 +88,8 @@ function Invoke-Bf742DashboardWorkerRead {
         $Path -cne "/__butler/internal/league-overview" -and
         -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
-        -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal)) {
+        -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-compare-summary?", [System.StringComparison]::Ordinal)) {
         throw "$BoundaryName BLOCKED: BF-742 internal dashboard path is not authorized."
     }
 
@@ -313,6 +314,10 @@ $dashboardInternalReplacement = @'
                 $bf742InternalOperation = 'PLAYER_COMPARE'
                 $bf742InternalBoundary = 'BF-906'
             }
+            elseif ($path -ceq "/__butler/internal/player-compare-summary") {
+                $bf742InternalOperation = 'PLAYER_COMPARE_SUMMARY'
+                $bf742InternalBoundary = 'BF-906'
+            }
             if ($null -ne $bf742InternalOperation) {
                 if ([string]::IsNullOrWhiteSpace($bf742InternalTokenHeader) -or $bf742InternalTokenHeader -cne $script:Bf742DashboardToken) {
                     Send-HttpResponse -Stream $stream -StatusCode 403 -StatusText "Forbidden" -ContentType "text/plain; charset=utf-8" -Body "Forbidden"
@@ -404,6 +409,7 @@ if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
     -not $coreText.Contains('/__butler/internal/player-detail?') -or
     -not $coreText.Contains('/__butler/internal/player-search?') -or
     -not $coreText.Contains('/__butler/internal/player-compare?') -or
+    -not $coreText.Contains('/__butler/internal/player-compare-summary?') -or
     -not $coreText.Contains('X-Butler-Internal-Token')) {
     throw 'BF-742 BLOCKED: staged core is missing authenticated inner-dashboard routing.'
 }
@@ -421,9 +427,11 @@ foreach ($required in @(
     '/__butler/internal/player-detail',
     '/__butler/internal/player-search',
     '/__butler/internal/player-compare',
+    '/__butler/internal/player-compare-summary',
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'",
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'",
-    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"
+    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'",
+    "PLAYER_COMPARE_SUMMARY"
 )) {
     if (-not $dashboardText.Contains($required)) {
         throw "BF-742 BLOCKED: staged dashboard is missing required shared-worker contract: $required"
