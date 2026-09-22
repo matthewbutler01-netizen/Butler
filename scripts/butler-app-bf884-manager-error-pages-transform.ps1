@@ -74,7 +74,7 @@ $replacements = @(
     [pscustomobject]@{
         Contract = 'My Team blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler My Team view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Butler stopped My Team rather than continue with incomplete or unsafe evidence." -Detail $_.Exception.Message -Active "team"'
+        New = '$teamFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($teamFailure) -and $null -ne $_.Exception) { $teamFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($teamFailure)) { $teamFailure = "My Team failed without diagnostic text." }; $errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Butler stopped My Team rather than continue with incomplete or unsafe evidence." -Detail $teamFailure -Active "team"'
     },
     [pscustomobject]@{
         Contract = 'generic app blocked page'
