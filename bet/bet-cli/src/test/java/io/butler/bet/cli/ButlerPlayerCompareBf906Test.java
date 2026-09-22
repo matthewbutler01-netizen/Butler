@@ -25,6 +25,12 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead"));
         assertTrue(transform.contains("response does not match the exact requested players"));
         assertTrue(transform.contains("selected Player Compare player must resolve exactly once in league inventory"));
+        assertTrue(transform.contains("PlayerName = [string]$leftMatch.Name"));
+        assertTrue(transform.contains("TeamName = [string]$leftMatch.OwnerTeamName"));
+        assertTrue(transform.contains("RosterSlot = [string]$leftMatch.Slot"));
+        assertFalse(transform.contains("PlayerName = [string]$leftMatch.PlayerName"));
+        assertFalse(transform.contains("TeamName = [string]$leftMatch.TeamName"));
+        assertFalse(transform.contains("RosterSlot = [string]$leftMatch.RosterSlot"));
     }
 
     @Test
