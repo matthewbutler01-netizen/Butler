@@ -19,11 +19,12 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(transform.contains("function Get-PlayerCompareRequest"));
         assertTrue(transform.contains("Player Compare requires exact Butler player IDs"));
         assertTrue(transform.contains("Player Compare requires two different exact players"));
-        assertTrue(transform.contains("/__butler/internal/player-detail?player="));
         assertTrue(transform.contains("/__butler/internal/player-search?q="));
+        assertFalse(transform.contains("/__butler/internal/player-detail?player="));
         assertTrue(transform.contains("/__butler/internal/player-compare?left="));
         assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead"));
         assertTrue(transform.contains("response does not match the exact requested players"));
+        assertTrue(transform.contains("selected Player Compare player must resolve exactly once in league inventory"));
     }
 
     @Test
