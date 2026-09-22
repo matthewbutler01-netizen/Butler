@@ -88,7 +88,7 @@ class TradeCounterProposalPolicyTest {
         var selection = TradeCounterCandidateSelectionPolicy.classify(opportunity, eligibility);
         var differentOpportunity = new TradeCounterOpportunityPolicy.Decision(
             TradeCounterOpportunityPolicy.POLICY_ID,
-            TradeRecommendationFlexibleTransitionMaterialLossPolicy.POLICY_ID,
+            TradeRecommendationAdvisoryPosturePolicy.POLICY_ID,
             TradeTeamPerspectiveRecommendationPolicy.POLICY_ID,
             TradeCounterStrategicEligibilityPolicy.POLICY_ID,
             TradeCounterOpportunityPolicy.State.COUNTER_AVAILABLE,

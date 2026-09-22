@@ -266,13 +266,18 @@ function Parse-Counter {
             Summary = if ($instruction.Success) { $instruction.Groups['value'].Value.Trim() } else { 'Counter available' }
         }
     }
-    if ($plain.IndexOf('No governed counteroffer', [System.StringComparison]::Ordinal) -ge 0) {
-        return [pscustomobject]@{ State = 'NO_ACTION'; Summary = 'No governed counteroffer' }
+    if ($plain.IndexOf('No counteroffer', [System.StringComparison]::Ordinal) -ge 0 -or
+        $plain.IndexOf('No governed counteroffer', [System.StringComparison]::Ordinal) -ge 0) {
+        return [pscustomobject]@{ State = 'NO_ACTION'; Summary = 'No counteroffer' }
     }
     if ($plain.IndexOf('Counteroffer unavailable', [System.StringComparison]::Ordinal) -ge 0) {
         return [pscustomobject]@{ State = 'INCONCLUSIVE'; Summary = 'Counteroffer unavailable' }
     }
-    throw 'BF-904 BLOCKED: counter page did not expose a governed counter state.'
+    $snapshot = $plain.Trim()
+    if ($snapshot.Length -gt 1200) {
+        $snapshot = $snapshot.Substring([Math]::Max(0, $snapshot.Length - 1200))
+    }
+    throw ("BF-904 BLOCKED: counter page did not expose a governed counter state. page=" + $snapshot)
 }
 
 $before = Get-WorkingTreeState

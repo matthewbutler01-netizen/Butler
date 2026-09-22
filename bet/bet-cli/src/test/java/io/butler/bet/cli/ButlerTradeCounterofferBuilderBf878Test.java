@@ -36,16 +36,17 @@ class ButlerTradeCounterofferBuilderBf878Test {
         int recommendation = trade.indexOf("trade recommendation $LeagueId");
         int counter = trade.indexOf("trade counter-proposal $LeagueId");
         int counterPerspective = trade.indexOf("$counterProposal.PerspectiveTeamId -cne $userTeam.TeamId");
-        int actionMatch = trade.indexOf("$counterProposal.V5Action -cne $evaluation.Action");
 
         assertTrue(give >= 0 && receive > give);
         assertTrue(recommendation > receive);
         assertTrue(counter > recommendation);
         assertTrue(counterPerspective > counter);
-        assertTrue(actionMatch > counterPerspective);
+        assertTrue(trade.contains("$v6Action = [regex]::Match"));
+        assertTrue(trade.contains("V6Action = $v6Action.Groups['value'].Value.Trim()"));
+        assertFalse(trade.contains("$counterProposal.V5Action"));
+        assertFalse(trade.contains("legacy v5 counter engine attempted a COUNTER"));
         assertTrue(trade.contains("counter proposal requires the exact evaluated trade coordinates"));
         assertTrue(trade.contains("counter proposal perspective does not match the exact bound user team"));
-        assertTrue(trade.contains("legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation"));
     }
 
     @Test
@@ -53,6 +54,7 @@ class ButlerTradeCounterofferBuilderBf878Test {
         String trade = source("scripts/butler-trade-lab.ps1");
 
         for (String marker : new String[]{
+                "V6 team action:",
                 "Counter opportunity:",
                 "Counter candidate selection:",
                 "Counter action:",
@@ -91,7 +93,7 @@ class ButlerTradeCounterofferBuilderBf878Test {
                 "Their revised package",
                 "Message you can send manually",
                 "It has not been sent and the trade has not been submitted.",
-                "No governed counteroffer",
+                "No counteroffer",
                 "Counteroffer unavailable",
                 "Counteroffer details"
         }) {

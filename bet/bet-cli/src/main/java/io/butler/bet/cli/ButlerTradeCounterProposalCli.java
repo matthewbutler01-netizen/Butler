@@ -37,11 +37,11 @@ public final class ButlerTradeCounterProposalCli {
             Database database = initializedDatabase();
             var recommendationContext = analyzeRecommendation(
                 new TradeFlexibleRecommendationContextAnalyzer(database), options);
-            var v5 = ButlerTradeRecommendationV5Cli.recommend(
+            var v6 = ButlerTradeRecommendationV6Cli.recommend(
                 recommendationContext, options.perspective());
 
-            boolean eligibilityEvaluated = v5.evidenceStatus().complete()
-                && v5.action() == TradeTeamPerspectiveRecommendationPolicy.Action.REJECT;
+            boolean eligibilityEvaluated = v6.evidenceStatus().complete()
+                && v6.action() == TradeTeamPerspectiveRecommendationPolicy.Action.REJECT;
             TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility;
             if (eligibilityEvaluated) {
                 var strategic = analyzeStrategic(
@@ -52,10 +52,10 @@ public final class ButlerTradeCounterProposalCli {
             }
 
             var opportunity = TradeCounterOpportunityPolicy.classify(
-                v5.packageRecommendation(),
-                v5.action(),
+                v6.packageRecommendation(),
+                v6.action(),
                 options.perspective(),
-                v5.evidenceStatus().complete(),
+                v6.evidenceStatus().complete(),
                 eligibility);
             var selection = TradeCounterCandidateSelectionPolicy.classify(opportunity, eligibility);
             var proposal = TradeCounterProposalPolicy.classify(opportunity, selection);
@@ -64,7 +64,7 @@ public final class ButlerTradeCounterProposalCli {
             var materialized = TradeCounterMaterializedPackagePolicy.materialize(envelope);
             var identity = TradeCounterProposalIdentityPolicy.identify(envelope, materialized);
             var message = TradeCounterNegotiationMessagePolicy.compose(envelope);
-            print(recommendationContext, options, v5, opportunity, selection, proposal,
+            print(recommendationContext, options, v6, opportunity, selection, proposal,
                 envelope, materialized, identity, message);
         } catch (SQLException e) {
             System.err.println("Database error while building counter proposal: " + e.getMessage());
@@ -94,23 +94,23 @@ public final class ButlerTradeCounterProposalCli {
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal) {
-        printProposal(context, options, v5, opportunity, selection, proposal);
+        printProposal(context, options, v6, opportunity, selection, proposal);
     }
 
     /** Retained BF-377 renderer for compatibility. */
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal,
         TradeCounterProposalEnvelopePolicy.Envelope envelope) {
-        printProposal(context, options, v5, opportunity, selection, proposal);
+        printProposal(context, options, v6, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
     }
 
@@ -118,13 +118,13 @@ public final class ButlerTradeCounterProposalCli {
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal,
         TradeCounterProposalEnvelopePolicy.Envelope envelope,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
-        printProposal(context, options, v5, opportunity, selection, proposal);
+        printProposal(context, options, v6, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
         printMessage(envelope, message);
     }
@@ -133,14 +133,14 @@ public final class ButlerTradeCounterProposalCli {
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal,
         TradeCounterProposalEnvelopePolicy.Envelope envelope,
         TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
-        printProposal(context, options, v5, opportunity, selection, proposal);
+        printProposal(context, options, v6, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
         printMaterialized(envelope, materialized);
         printMessage(envelope, message);
@@ -149,7 +149,7 @@ public final class ButlerTradeCounterProposalCli {
     static void print(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal,
@@ -157,7 +157,7 @@ public final class ButlerTradeCounterProposalCli {
         TradeCounterMaterializedPackagePolicy.MaterializedCounter materialized,
         TradeCounterProposalIdentityPolicy.Identity identity,
         TradeCounterNegotiationMessagePolicy.MessageResult message) {
-        printProposal(context, options, v5, opportunity, selection, proposal);
+        printProposal(context, options, v6, opportunity, selection, proposal);
         printEnvelope(options, proposal, envelope);
         printMaterialized(envelope, materialized);
         printIdentity(envelope, materialized, identity);
@@ -167,11 +167,11 @@ public final class ButlerTradeCounterProposalCli {
     private static void printProposal(
         TradeFlexibleRecommendationContextAnalyzer.TradeFlexibleRecommendationContextReport context,
         ButlerTradeCounterDecisionCli.Options options,
-        ButlerTradeRecommendationV5Cli.V5RecommendationResult v5,
+        ButlerTradeRecommendationV6Cli.V6RecommendationResult v6,
         TradeCounterOpportunityPolicy.Decision opportunity,
         TradeCounterCandidateSelectionPolicy.Selection selection,
         TradeCounterProposalPolicy.Result proposal) {
-        if (context == null || options == null || v5 == null || opportunity == null
+        if (context == null || options == null || v6 == null || opportunity == null
             || selection == null || proposal == null) {
             throw new IllegalArgumentException("counter proposal output inputs must not be null");
         }
@@ -199,7 +199,7 @@ public final class ButlerTradeCounterProposalCli {
         System.out.println("Counter proposal policy: " + proposal.policyId());
         System.out.println("Counter opportunity policy: " + opportunity.policyId());
         System.out.println("Counter selection policy: " + selection.policyId());
-        System.out.println("V5 team action: " + v5.action());
+        System.out.println("V6 team action: " + v6.action());
         System.out.println("Counter opportunity: " + opportunity.state());
         System.out.println("Counter candidate selection: " + selection.state());
         System.out.println("Counter action: " + proposal.action());
@@ -344,7 +344,7 @@ public final class ButlerTradeCounterProposalCli {
 
     static void printUsage() {
         System.out.println("  butler trade counter-proposal <league-id> <season> <side-a-assets> <side-b-assets> <side-a|side-b> [source] [--minimum-as-of YYYY-MM-DD]");
-        System.out.println("  A read-only COUNTER proposal is emitted only for a complete v5 REJECT with a uniquely selected strategically eligible candidate.");
+        System.out.println("  A read-only COUNTER proposal is emitted only for a complete v6 REJECT with a uniquely selected strategically eligible candidate.");
         System.out.println("  Proposal binding verifies the explicit perspective and original trade packages.");
         System.out.println("  When a COUNTER exists, Butler displays the complete revised packages, audit fingerprint, and governed neutral negotiation wording.");
         System.out.println("  The fingerprint is not authorization. Butler does not submit, send, or mutate the trade or message.");
@@ -384,7 +384,7 @@ public final class ButlerTradeCounterProposalCli {
             TradeCounterStrategicEligibilityPolicy.POLICY_ID,
             TradeCounterStrategicCandidateVettingAnalyzer.POLICY_ID,
             trade.leagueId(), season, trade.source(), trade.minimumAsOfDate(), false,
-            "Strategic eligibility was not evaluated because the v5 action did not require a counter gate.",
+            "Strategic eligibility was not evaluated because the v6 action did not require a counter gate.",
             java.util.List.of(), java.util.List.of());
     }
 

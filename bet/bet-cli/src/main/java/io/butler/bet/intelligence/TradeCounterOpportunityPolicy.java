@@ -5,12 +5,12 @@ import java.util.Objects;
 
 /**
  * Perspective-aware gate that determines whether a governed counter opportunity exists.
- * It consumes the live v5 recommendation result and the strategically eligible candidate set,
+ * It consumes the live v6 recommendation result and the strategically eligible candidate set,
  * but deliberately does not select a candidate or emit a COUNTER action.
  */
 public final class TradeCounterOpportunityPolicy {
     public static final String POLICY_ID =
-        "trade-counter-opportunity-v1-v5-reject-plus-strategic-eligibility";
+        "trade-counter-opportunity-v2-v6-reject-plus-strategic-eligibility";
 
     private TradeCounterOpportunityPolicy() {}
 
@@ -21,8 +21,8 @@ public final class TradeCounterOpportunityPolicy {
     }
 
     public enum ReasonCode {
-        V5_EVIDENCE_INCOMPLETE,
-        V5_ACTION_NOT_REJECT,
+        V6_EVIDENCE_INCOMPLETE,
+        V6_ACTION_NOT_REJECT,
         STRATEGIC_ELIGIBILITY_UNAVAILABLE,
         NO_STRATEGICALLY_ELIGIBLE_CANDIDATE,
         MARKET_REJECT_WITH_ELIGIBLE_CANDIDATE
@@ -32,7 +32,7 @@ public final class TradeCounterOpportunityPolicy {
         TradeRecommendationPolicy.Recommendation packageRecommendation,
         TradeTeamPerspectiveRecommendationPolicy.Action action,
         TradeTeamPerspectiveRecommendationPolicy.Perspective perspective,
-        boolean v5EvidenceComplete,
+        boolean v6EvidenceComplete,
         TradeCounterStrategicEligibilityPolicy.EligibilityReport eligibility) {
         Objects.requireNonNull(packageRecommendation, "packageRecommendation must not be null");
         Objects.requireNonNull(action, "action must not be null");
@@ -45,11 +45,11 @@ public final class TradeCounterOpportunityPolicy {
             throw new IllegalArgumentException("action must match package recommendation and perspective");
         }
 
-        if (!v5EvidenceComplete || packageRecommendation == TradeRecommendationPolicy.Recommendation.INCONCLUSIVE) {
-            return decision(State.INCONCLUSIVE, ReasonCode.V5_EVIDENCE_INCOMPLETE, eligibility, List.of());
+        if (!v6EvidenceComplete || packageRecommendation == TradeRecommendationPolicy.Recommendation.INCONCLUSIVE) {
+            return decision(State.INCONCLUSIVE, ReasonCode.V6_EVIDENCE_INCOMPLETE, eligibility, List.of());
         }
         if (action != TradeTeamPerspectiveRecommendationPolicy.Action.REJECT) {
-            return decision(State.NO_COUNTER, ReasonCode.V5_ACTION_NOT_REJECT, eligibility, List.of());
+            return decision(State.NO_COUNTER, ReasonCode.V6_ACTION_NOT_REJECT, eligibility, List.of());
         }
         if (!eligibility.available()) {
             return decision(State.INCONCLUSIVE, ReasonCode.STRATEGIC_ELIGIBILITY_UNAVAILABLE, eligibility, List.of());
@@ -75,7 +75,7 @@ public final class TradeCounterOpportunityPolicy {
         List<Integer> eligibleMarketRanks) {
         return new Decision(
             POLICY_ID,
-            TradeRecommendationFlexibleTransitionMaterialLossPolicy.POLICY_ID,
+            TradeRecommendationAdvisoryPosturePolicy.POLICY_ID,
             TradeTeamPerspectiveRecommendationPolicy.POLICY_ID,
             TradeCounterStrategicEligibilityPolicy.POLICY_ID,
             state,
@@ -101,7 +101,7 @@ public final class TradeCounterOpportunityPolicy {
         List<Integer> eligibleMarketRanks) {
         public Decision {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
-            if (!TradeRecommendationFlexibleTransitionMaterialLossPolicy.POLICY_ID.equals(recommendationPolicyId)) {
+            if (!TradeRecommendationAdvisoryPosturePolicy.POLICY_ID.equals(recommendationPolicyId)) {
                 throw new IllegalArgumentException("unexpected recommendationPolicyId");
             }
             if (!TradeTeamPerspectiveRecommendationPolicy.POLICY_ID.equals(perspectivePolicyId)) {

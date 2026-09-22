@@ -237,7 +237,7 @@ function ConvertTo-TradeCounterProposalView {
     param([Parameter(Mandatory = $true)][string]$Text)
 
     $perspective = [regex]::Match($Text, '(?m)^Perspective:\s+(?<name>.*?)\s+\[(?<id>[^\]]+)\]\s*$')
-    $v5Action = [regex]::Match($Text, '(?m)^V5 team action:\s+(?<value>\S+)\s*$')
+    $v6Action = [regex]::Match($Text, '(?m)^V6 team action:\s+(?<value>\S+)\s*$')
     $opportunity = [regex]::Match($Text, '(?m)^Counter opportunity:\s+(?<value>\S+)\s*$')
     $selection = [regex]::Match($Text, '(?m)^Counter candidate selection:\s+(?<value>\S+)\s*$')
     $action = [regex]::Match($Text, '(?m)^Counter action:\s+(?<value>\S+)\s*$')
@@ -246,7 +246,7 @@ function ConvertTo-TradeCounterProposalView {
     $materializedReason = [regex]::Match($Text, '(?m)^Counter materialized package reason:\s+(?<value>\S+)\s*$')
     $messageState = [regex]::Match($Text, '(?m)^Counter negotiation message state:\s+(?<value>\S+)\s*$')
     $messageReason = [regex]::Match($Text, '(?m)^Counter negotiation message reason:\s+(?<value>\S+)\s*$')
-    if (-not $perspective.Success -or -not $v5Action.Success -or -not $opportunity.Success -or
+    if (-not $perspective.Success -or -not $v6Action.Success -or -not $opportunity.Success -or
         -not $selection.Success -or -not $action.Success -or -not $reason.Success -or
         -not $materialized.Success -or -not $materializedReason.Success -or
         -not $messageState.Success -or -not $messageReason.Success) {
@@ -263,7 +263,7 @@ function ConvertTo-TradeCounterProposalView {
     $view = [pscustomobject]@{
         PerspectiveName = $perspective.Groups['name'].Value.Trim()
         PerspectiveTeamId = $perspective.Groups['id'].Value.Trim()
-        V5Action = $v5Action.Groups['value'].Value.Trim()
+        V6Action = $v6Action.Groups['value'].Value.Trim()
         Opportunity = $opportunity.Groups['value'].Value.Trim()
         Selection = $selection.Groups['value'].Value.Trim()
         Action = $action.Groups['value'].Value.Trim()
@@ -463,7 +463,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
             }
             'NO_ACTION' {
                 $counterHtml = @"
-<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">No governed counteroffer</h2><p class="lede">Butler did not find one uniquely governed counter package for this rejected deal.</p></div><div class="status done">NO ACTION</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
+<section class="panel counter-result"><div class="eyebrow">Butler counteroffer</div><div class="statusrow"><div><h2 class="headline">No counteroffer</h2><p class="lede">Butler did not find one uniquely governed counter package for this rejected deal.</p></div><div class="status done">NO ACTION</div></div><details><summary>Counteroffer details</summary><div class="technical">Opportunity: $(ConvertTo-HtmlText $CounterProposal.Opportunity) &middot; selection: $(ConvertTo-HtmlText $CounterProposal.Selection) &middot; reason: $(ConvertTo-HtmlText $CounterProposal.Reason)</div><pre class="raw-output">$(ConvertTo-HtmlText $CounterProposal.Raw)</pre></details></section>
 "@
             }
             'INCONCLUSIVE' {
@@ -542,9 +542,6 @@ function Invoke-TradeLabHtml {
             $counterProposal = ConvertTo-TradeCounterProposalView -Text $counterRaw
             if ($counterProposal.PerspectiveTeamId -cne $userTeam.TeamId) {
                 throw 'BF-878 BLOCKED: governed counter proposal perspective does not match the exact bound user team.'
-            }
-            if ($counterProposal.V5Action -cne $evaluation.Action -and $counterProposal.Action -ceq 'COUNTER') {
-                throw 'BF-878 BLOCKED: legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation.'
             }
         }
     }

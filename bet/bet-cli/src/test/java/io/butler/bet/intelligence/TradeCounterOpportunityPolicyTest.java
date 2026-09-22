@@ -61,13 +61,13 @@ class TradeCounterOpportunityPolicyTest {
             unavailable);
 
         assertEquals(TradeCounterOpportunityPolicy.State.NO_COUNTER, accept.state());
-        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V5_ACTION_NOT_REJECT, accept.reasonCode());
+        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V6_ACTION_NOT_REJECT, accept.reasonCode());
         assertEquals(TradeCounterOpportunityPolicy.State.NO_COUNTER, hold.state());
-        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V5_ACTION_NOT_REJECT, hold.reasonCode());
+        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V6_ACTION_NOT_REJECT, hold.reasonCode());
     }
 
     @Test
-    void incompleteV5EvidenceIsInconclusiveBeforeEligibility() {
+    void incompleteV6EvidenceIsInconclusiveBeforeEligibility() {
         var decision = TradeCounterOpportunityPolicy.classify(
             TradeRecommendationPolicy.Recommendation.INCONCLUSIVE,
             TradeTeamPerspectiveRecommendationPolicy.Action.INCONCLUSIVE,
@@ -76,7 +76,7 @@ class TradeCounterOpportunityPolicyTest {
             unavailableEligibility());
 
         assertEquals(TradeCounterOpportunityPolicy.State.INCONCLUSIVE, decision.state());
-        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V5_EVIDENCE_INCOMPLETE,
+        assertEquals(TradeCounterOpportunityPolicy.ReasonCode.V6_EVIDENCE_INCOMPLETE,
             decision.reasonCode());
     }
 
@@ -113,9 +113,9 @@ class TradeCounterOpportunityPolicyTest {
             true,
             eligibility(List.of()));
 
-        assertEquals("trade-counter-opportunity-v1-v5-reject-plus-strategic-eligibility",
+        assertEquals("trade-counter-opportunity-v2-v6-reject-plus-strategic-eligibility",
             decision.policyId());
-        assertEquals(TradeRecommendationFlexibleTransitionMaterialLossPolicy.POLICY_ID,
+        assertEquals(TradeRecommendationAdvisoryPosturePolicy.POLICY_ID,
             decision.recommendationPolicyId());
         assertEquals(TradeTeamPerspectiveRecommendationPolicy.POLICY_ID,
             decision.perspectivePolicyId());
