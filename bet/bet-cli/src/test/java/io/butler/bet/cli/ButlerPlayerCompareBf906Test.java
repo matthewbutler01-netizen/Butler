@@ -56,6 +56,7 @@ class ButlerPlayerCompareBf906Test {
     @Test
     void compareRouteIsGetOnlyAndIntroducesNoProviderRefreshOrWritePath() throws Exception {
         String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+        String workerTransform = source("scripts/butler-core-bf742-transform.ps1");
 
         int guard = transform.indexOf("$installedStart");
         assertTrue(guard > 0, "BF-906 safety-scan boundary must remain present");
@@ -63,9 +64,9 @@ class ButlerPlayerCompareBf906Test {
 
         assertTrue(operational.contains("if ($path -eq \"/compare\")"));
         assertTrue(operational.contains("Invoke-Bf742DashboardWorkerRead"));
-        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
-        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'"));
-        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"));
         assertFalse(operational.contains("Invoke-ButlerReadOnly -Arguments \"league player-compare"));
         assertFalse(operational.contains("Invoke-RestMethod"));
         assertFalse(operational.contains("Invoke-WebRequest"));
@@ -87,7 +88,7 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(bf906 > bf883);
         assertTrue(bf884 > bf906);
         assertTrue(staging.contains("butler-app-bf906-player-compare-transform.ps1"));
-        assertTrue(staging.contains("-CorePath $stagedCore -DashboardPath $DashboardPath"));
+        assertTrue(staging.contains("& $bf906CoreTransform -CorePath $stagedCore"));
     }
 
     @Test
