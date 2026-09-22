@@ -300,7 +300,7 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     if (-not (Test-Path -LiteralPath $bf906CoreTransform -PathType Leaf)) {
         throw "BF-906 BLOCKED: Player Compare transform not found at $bf906CoreTransform"
     }
-    & $bf906CoreTransform -CorePath $stagedCore -DashboardPath $DashboardPath
+    & $bf906CoreTransform -CorePath $stagedCore
 
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
