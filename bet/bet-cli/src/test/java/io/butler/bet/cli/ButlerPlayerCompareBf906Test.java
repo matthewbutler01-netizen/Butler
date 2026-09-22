@@ -132,6 +132,33 @@ class ButlerPlayerCompareBf906Test {
     }
 
     @Test
+    void supportingEvidenceReusesOneHistoricalAuditPerOutlookRequest() throws Exception {
+        String outlook = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAgeOutlookEvidenceAnalyzer.java");
+        String validation = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelPublicationValidationAnalyzer.java");
+        String smoother = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelLocalSmootherAnalyzer.java");
+        String holdout = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelTemporalHoldoutAnalyzer.java");
+        String stability = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelTransitionStabilityAnalyzer.java");
+
+        assertTrue(outlook.contains("var auditReport = sampleAudit.analyze();"));
+        assertTrue(outlook.contains("var smootherReport = AgingModelLocalSmootherAnalyzer.smooth(auditReport);"));
+        assertTrue(outlook.contains("validation.analyze(auditReport, smootherReport)"));
+        assertTrue(outlook.contains("leagueEvidence.analyze(leagueId, season, smootherReport, validationReport)"));
+        assertTrue(outlook.contains("AgingModelAgeOutlookAnalyzer.apply(validationReport)"));
+        assertFalse(outlook.contains("outlook.analyze()"));
+
+        assertTrue(validation.contains("AgingModelTemporalHoldoutAnalyzer.evaluate(auditReport)"));
+        assertTrue(validation.contains("AgingModelTransitionStabilityAnalyzer.evaluate(auditReport)"));
+        assertTrue(validation.contains("AgingModelNormalizedStabilityAnalyzer.normalize(transitionStability, holdoutReport)"));
+        assertFalse(validation.contains("published.analyze()"));
+        assertFalse(validation.contains("holdout.analyze()"));
+        assertFalse(validation.contains("stability.analyze()"));
+
+        assertTrue(smoother.contains("return smooth(sampleAudit.analyze());"));
+        assertTrue(holdout.contains("return evaluate(sampleAudit.analyze());"));
+        assertTrue(stability.contains("return evaluate(sampleAudit.analyze());"));
+    }
+
+    @Test
     void transformSourceIsAsciiOnlyAndWindowsLineEndingAgnostic() throws Exception {
         String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
