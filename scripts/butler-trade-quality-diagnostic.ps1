@@ -52,8 +52,7 @@ function Start-OwnedButler {
     $quote = [char]34
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $powershell
-    $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File '
-        + $quote + $appLauncher + $quote + ' -Port ' + $Port + ' -NoBrowser'
+    $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Port {1} -NoBrowser' -f $appLauncher, $Port
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
     $process = [System.Diagnostics.Process]::Start($start)
@@ -170,9 +169,7 @@ function Get-ValuedAssets {
         [string]$Name
     )
 
-    $pattern = '<label\s+class="asset-option">\s*<input\s+type="checkbox"\s+name="'
-        + [regex]::Escape($Name)
-        + '"\s+value="(?<token>[^"]+)"[^>]*>\s*<span>\s*<strong>(?<label>.*?)</strong>\s*<small>.*?<span\s+class="asset-value">value\s+(?<value>-?\d+(?:\.\d+)?)</span>.*?</small>\s*</span>\s*</label>'
+    $pattern = '<label\s+class="asset-option">\s*<input\s+type="checkbox"\s+name="{0}"\s+value="(?<token>[^"]+)"[^>]*>\s*<span>\s*<strong>(?<label>.*?)</strong>\s*<small>.*?<span\s+class="asset-value">value\s+(?<value>-?\d+(?:\.\d+)?)</span>.*?</small>\s*</span>\s*</label>' -f [regex]::Escape($Name)
     $options = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
         [System.Text.RegularExpressions.RegexOptions]::Singleline
     $assets = @()
@@ -320,9 +317,7 @@ try {
     $firstCompleteRejectUrl = $null
     foreach ($give in $giveAssets) {
         foreach ($receive in $receiveAssets) {
-            $url = $root + '/trade?opponent=' + (Escape-Value -Value $opponent.Id)
-                + '&evaluate=1&give=' + (Escape-Value -Value $give.Token)
-                + '&receive=' + (Escape-Value -Value $receive.Token)
+            $url = '{0}/trade?opponent={1}&evaluate=1&give={2}&receive={3}' -f $root, (Escape-Value -Value $opponent.Id), (Escape-Value -Value $give.Token), (Escape-Value -Value $receive.Token)
             $page = Invoke-Get -Url $url -TimeoutMs $timeoutMs
             Assert-Ok -Response $page -Stage ("trade evaluation {0} for {1}" -f $give.Label, $receive.Label)
             $decision = Parse-Recommendation -Html $page.Body
