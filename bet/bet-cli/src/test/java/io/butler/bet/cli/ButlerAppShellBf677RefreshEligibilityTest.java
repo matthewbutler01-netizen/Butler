@@ -60,7 +60,7 @@ class ButlerAppShellBf677RefreshEligibilityTest {
         assertTrue(managerTransform.contains("BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)"));
         assertTrue(managerTransform.contains("BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)"));
         assertTrue(managerTransform.contains("Governed step count: $($refreshPlan.Steps.Count)"));
-        assertFalse(managerTransform.contains("Method = \"POST\""));
+        assertTrue(managerTransform.contains("($managerPrelude + $newReturn) -match 'Invoke-RestMethod|Invoke-ButlerReadOnly|Method = \"POST\"|AutoFillLineupOptimizer|BUTLER_FANTASYPROS_API_KEY'"));
     }
 
     @Test
