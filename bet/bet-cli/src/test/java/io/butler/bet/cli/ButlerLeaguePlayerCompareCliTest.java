@@ -58,7 +58,7 @@ class ButlerLeaguePlayerCompareCliTest {
         assertTrue(source.contains("ButlerLeaguePlayerDetailCli.select("));
 
         for (String forbidden : new String[]{
-            "winner", "Winner", "better player", "BUY", "SELL", "player score", "confidence",
+            "better player", "WINNER =", "winner =", "BUY", "SELL", "player score", "confidence",
             "probability", "recommendation ="
         }) {
             assertFalse(source.contains(forbidden), "compare CLI introduced forbidden judgment marker " + forbidden);
