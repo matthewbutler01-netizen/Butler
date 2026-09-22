@@ -71,7 +71,7 @@ public final class ButlerReadOnlyJvmWorker {
                     "BF-742 BLOCKED: worker accepts only HELP<TAB><request-id>, "
                         + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, LATEST_SUMMARY_DIAGNOSTIC, LATEST_SUMMARY_REUSE_DIAGNOSTIC, TARGET_VERIFY_DIAGNOSTIC, TARGET_VERIFY_PARALLEL_DIAGNOSTIC, WAIVER_DASHBOARD_BUNDLE, or MATCHUP_BUNDLE "
                         + "with <request-id><TAB><league-id>; PLAYER_DETAIL, PLAYER_SEARCH, or EXPLANATION_LOOKUP with "
-                        + "<request-id><TAB><league-id><TAB><validated-argument>; PLAYER_COMPARE with "
+                        + "<request-id><TAB><league-id><TAB><validated-argument>; PLAYER_COMPARE or PLAYER_COMPARE_SUMMARY with "
                         + "<request-id><TAB><league-id><TAB><left-player-id><TAB><right-player-id>; or QUIT.");
                 continue;
             }
@@ -150,13 +150,16 @@ public final class ButlerReadOnlyJvmWorker {
             };
         }
         if (fields.length == 5
-            && fields[0].equals("PLAYER_COMPARE")
+            && (fields[0].equals("PLAYER_COMPARE") || fields[0].equals("PLAYER_COMPARE_SUMMARY"))
             && REQUEST_ID.matcher(fields[1]).matches()
             && LEAGUE_ID.matcher(fields[2]).matches()
             && PLAYER_ID.matcher(fields[3]).matches()
             && PLAYER_ID.matcher(fields[4]).matches()
             && !fields[3].equals(fields[4])) {
-            return new CommandRequest(Operation.PLAYER_COMPARE, fields[1], fields[2], fields[3] + "|" + fields[4]);
+            Operation operation = fields[0].equals("PLAYER_COMPARE")
+                ? Operation.PLAYER_COMPARE
+                : Operation.PLAYER_COMPARE_SUMMARY;
+            return new CommandRequest(operation, fields[1], fields[2], fields[3] + "|" + fields[4]);
         }
         return null;
     }
@@ -279,7 +282,8 @@ public final class ButlerReadOnlyJvmWorker {
         EXPLANATION_LOOKUP,
         PLAYER_DETAIL,
         PLAYER_SEARCH,
-        PLAYER_COMPARE
+        PLAYER_COMPARE,
+        PLAYER_COMPARE_SUMMARY
     }
 
     record CommandRequest(Operation operation, String requestId, String leagueId, String argument) {}
