@@ -192,8 +192,6 @@ $core = Replace-FunctionBlock -Text $core -StartMarker 'function ConvertTo-AutoF
 
 $gainAnchor = @'
     $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
-
-    if ($changedCount -gt 0) {
 '@
 $gainReplacement = @'
     $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
@@ -212,8 +210,6 @@ $gainReplacement = @'
         $playerWord = if ($availabilityCount -eq 1) { 'player' } else { 'players' }
         $availabilityWhySuffix = " Butler excluded $availabilityCount explicitly unavailable $playerWord from startable candidates using exact current Sleeper status evidence; no zero projection was invented."
     }
-
-    if ($changedCount -gt 0) {
 '@
 $core = Replace-ExactlyOnce -Text $core -Old $gainAnchor -New $gainReplacement -Contract 'Lineup Advisor availability evidence summary'
 

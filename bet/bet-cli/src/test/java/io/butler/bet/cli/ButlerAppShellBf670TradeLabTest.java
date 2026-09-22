@@ -78,7 +78,7 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
-    void tradeModuleUsesExactPersistedOwnershipAndCurrentGovernedV5Route() throws Exception {
+    void tradeModuleUsesExactPersistedOwnershipAndCurrentGovernedRecommendationRoute() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
 
         assertTrue(trade.contains("league assets $LeagueId"));
@@ -95,6 +95,21 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
+    void tradeLabAcceptsV6AdvisoryPostureWithoutDroppingLegacyV5Parsing() throws Exception {
+        String trade = script("scripts/butler-trade-lab.ps1");
+
+        assertTrue(trade.contains("$gatesV6 = [regex]::Match"));
+        assertTrue(trade.contains("advisory-posture=(?<posture>true|false)"));
+        assertTrue(trade.contains("$gatesV5 = [regex]::Match"));
+        assertTrue(trade.contains("posture=(?<posture>true|false)"));
+        assertTrue(trade.contains("$postureAdvisory = $gatesV6.Success"));
+        assertTrue(trade.contains("PostureAdvisory = $postureAdvisory"));
+        assertTrue(trade.contains("Posture (advisory)"));
+        assertTrue(trade.contains("if ($Evaluation.PostureGate) { 'AVAILABLE' } else { 'UNAVAILABLE' }"));
+        assertFalse(trade.contains("governed v5 trade recommendation is missing required app fields"));
+    }
+
+    @Test
     void tradeLabExposesOnlyReadOnlyCounterProposalAndNoExecutionCommands() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
         String shell = script("scripts/butler-app-shell.ps1");
@@ -103,6 +118,9 @@ class ButlerAppShellBf670TradeLabTest {
         assertEquals(1, count(trade, "trade counter-proposal $LeagueId"));
         assertTrue(trade.contains("Build Counteroffer"));
         assertTrue(trade.contains("Read-only. Butler will not send or submit anything."));
+        assertTrue(trade.contains("$counterProposal.V5Action -cne $evaluation.Action -and $counterProposal.Action -ceq 'COUNTER'"));
+        assertTrue(trade.contains("legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation"));
+        assertFalse(trade.contains("governed counter proposal v5 action does not match the rendered recommendation"));
         assertFalse(trade.contains("trade counter-authorize"));
         assertFalse(trade.contains("trade counter-authorization"));
         assertFalse(trade.contains("trade counter-finalize"));

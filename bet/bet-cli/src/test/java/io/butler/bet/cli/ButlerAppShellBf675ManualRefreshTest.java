@@ -71,19 +71,63 @@ class ButlerAppShellBf675ManualRefreshTest {
     }
 
     @Test
-    void runnerRequiresExactGovernedNoTransactionStateBeforeBf602() throws Exception {
+    void runnerRequiresGovernedNoTransactionStateAndApprovedLineageBeforeBf602() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
         assertTrue(runner.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(runner.contains("$bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE'"));
-        assertTrue(runner.contains("$bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(runner.contains("Test-Bf676NoTransactionLineage -LineageState $bf631State"));
+        assertTrue(runner.contains("'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(runner.contains("'MARKET_LINEAGE_SUPERSEDED'"));
+        assertTrue(runner.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(runner.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
+        assertFalse(runner.contains("'NO_AUDITED_DECISION'"));
         assertTrue(runner.contains("No BF-602/BF-603/etc. write stage was executed"));
 
         int preflight = runner.indexOf("$decisionState = Get-Bf676SingleField");
         int noTransactionGate = runner.indexOf("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'", preflight);
+        int lineageGate = runner.indexOf("Test-Bf676NoTransactionLineage -LineageState $bf631State", noTransactionGate);
         int firstWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'", noTransactionGate);
-        assertTrue(preflight >= 0 && noTransactionGate > preflight && firstWrite > noTransactionGate,
-            "BF-675 no-transaction authorization must still be checked before BF-602");
+        assertTrue(preflight >= 0 && noTransactionGate > preflight && lineageGate > noTransactionGate
+                && firstWrite > lineageGate,
+            "BF-675 no-transaction authorization and lineage whitelist must still be checked before BF-602");
+    }
+
+    @Test
+    void preflightOnlyModeStopsBeforeAnyGovernedWriteStage() throws Exception {
+        String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
+
+        assertTrue(runner.contains("[switch]$PreflightOnly"));
+        int preflightOnly = runner.indexOf("if ($PreflightOnly)");
+        int pass = runner.indexOf("BF-676 PREFLIGHT ONLY: PASS", preflightOnly);
+        int returnIndex = runner.indexOf("return", pass);
+        int matchupWrite = runner.indexOf("BF-840 PRE-STAGE - exact weekly matchup pairing");
+        int firstWaiverWrite = runner.indexOf("Task = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'");
+
+        assertTrue(preflightOnly >= 0 && pass > preflightOnly && returnIndex > pass,
+            "BF-902 preflight-only mode must emit a pass marker and return");
+        assertTrue(matchupWrite > returnIndex && firstWaiverWrite > returnIndex,
+            "BF-902 preflight-only mode must return before BF-840 and BF-602 writes");
+        assertTrue(runner.contains("preflight-only mode executed no BF-840/BF-602/BF-603/etc. write stage"));
+    }
+
+    @Test
+    void runnerExecutesGovernedTasksFromPreparedRuntimeAgainstExternalRuntimeData() throws Exception {
+        String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
+
+        assertTrue(runner.contains("bet\\bet-cli\\build\\install\\bet-cli\\lib"));
+        assertTrue(runner.contains("Resolve-Bf676RuntimeDataDir"));
+        assertTrue(runner.contains("BUTLER_APP_DATA_DIR"));
+        assertTrue(runner.contains("runtime data directory must be outside the source/package tree"));
+        assertTrue(runner.contains("Push-Location $dataDir"));
+        assertTrue(runner.contains("'--enable-native-access=ALL-UNNAMED'"));
+        assertTrue(runner.contains("Get-Bf676MainClass -Task $Task"));
+        assertTrue(runner.contains("switch ($Task)"));
+        assertFalse(runner.contains("return switch ($Task)"));
+        assertTrue(runner.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli"));
+        assertTrue(runner.contains("ButlerSleeperLiveWaiverSnapshotSyncCli"));
+        assertFalse(runner.contains("$gradle @gradleArgs"));
+        assertFalse(runner.contains("Gradle exit code"));
     }
 
     @Test
@@ -105,6 +149,8 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(runner.contains("$exitCode = $LASTEXITCODE"));
         assertTrue(runner.contains("$ErrorActionPreference = $previousErrorActionPreference"));
         assertTrue(runner.contains("if ($exitCode -ne 0)"));
+        assertTrue(runner.contains("Get-Bf676BoundedTail -Lines $lines"));
+        assertTrue(runner.contains("Captured output: $tail"));
         assertTrue(runner.contains("No later stage was executed."));
     }
 

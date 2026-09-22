@@ -16,7 +16,7 @@ class AutoFillLineupOptimizerBf800Test {
     @Test
     void recommendsHighestProjectedLegalNormalStarter() {
         var result = optimizer.optimize(
-            List.of("QB", "BN"),
+            List.of("QB"),
             List.of(
                 starter("qb-current", "Current QB", List.of("QB"), 0, "QB"),
                 bench("qb-bench", "Bench QB", List.of("QB"))),

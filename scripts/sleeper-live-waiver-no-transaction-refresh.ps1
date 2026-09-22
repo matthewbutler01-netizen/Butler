@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$LeagueId
+    [string]$LeagueId,
+
+    [switch]$PreflightOnly
 )
 
 Set-StrictMode -Version Latest
@@ -15,13 +17,102 @@ $LeagueId = $parsedLeague.ToString('D').ToLowerInvariant()
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
-$gradle = Join-Path $repoRoot 'gradlew.bat'
+$runtimeLibDir = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
 
-if (-not (Test-Path -LiteralPath $gradle)) {
-    throw "BF-676 BLOCKED: Gradle wrapper not found at $gradle"
+$localAppData = [string]$env:LOCALAPPDATA
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+}
+if ([string]::IsNullOrWhiteSpace($localAppData)) {
+    throw 'BF-676 BLOCKED: LocalApplicationData is unavailable.'
 }
 
-function Invoke-Bf676GradleStep {
+function Resolve-Bf676RuntimeDataDir {
+    $configured = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($configured)) {
+        $candidate = Join-Path $localAppData 'Butler\data'
+    }
+    else {
+        if (-not [IO.Path]::IsPathRooted($configured)) {
+            throw 'BF-676 BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.'
+        }
+        $candidate = $configured
+    }
+
+    $resolved = [IO.Path]::GetFullPath($candidate)
+    $sourceRoot = [IO.Path]::GetFullPath($repoRoot).TrimEnd('\')
+    $sourcePrefix = $sourceRoot + '\'
+    if ($resolved.Equals($sourceRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $resolved.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'BF-676 BLOCKED: Butler runtime data directory must be outside the source/package tree.'
+    }
+    if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
+        throw "BF-676 BLOCKED: governed Butler runtime data directory not found at $resolved"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $resolved 'butler.db') -PathType Leaf)) {
+        throw "BF-676 BLOCKED: governed Butler runtime database not found at $resolved"
+    }
+    return $resolved
+}
+
+function Get-Bf676JavaExecutable {
+    if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
+        $candidate = Join-Path $env:JAVA_HOME 'bin\java.exe'
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    try {
+        return [string](Get-Command java.exe -ErrorAction Stop).Source
+    }
+    catch {
+        throw 'BF-676 BLOCKED: java.exe is unavailable for governed refresh.'
+    }
+}
+
+function Get-Bf676BoundedTail {
+    param(
+        [AllowNull()][object[]]$Lines,
+        [int]$Limit = 2400
+    )
+
+    if ($null -eq $Lines -or @($Lines).Count -eq 0) { return 'no captured task output' }
+    $text = ((@($Lines) | ForEach-Object { "$_" }) -join ' ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) { return 'no captured task output' }
+    if ($text.Length -le $Limit) { return $text }
+    return '...' + $text.Substring($text.Length - $Limit)
+}
+
+function Get-Bf676MainClass {
+    param([Parameter(Mandatory = $true)][string]$Task)
+
+    switch ($Task) {
+        ':bet:bet-cli:sleeperCurrentWeekMatchupSync' { return 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverSnapshotSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverMarketAttentionSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverProductionHydration' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli' }
+        ':bet:bet-cli:sleeperLiveWaiverAvailabilitySync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverCurrentWeekStatSync' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli' }
+        ':bet:bet-cli:sleeperLiveWaiverTargetRosterProductionHydration' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli' }
+        ':bet:bet-cli:sleeperLiveWaiverFinalRecommendationBundle' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli' }
+        ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditCapture' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli' }
+        ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' { return 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli' }
+        default { return $null }
+    }
+}
+
+$dataDir = Resolve-Bf676RuntimeDataDir
+$java = Get-Bf676JavaExecutable
+if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
+    throw "BF-676 BLOCKED: prepared Butler runtime library not found at $runtimeLibDir"
+}
+$runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
+$appJars = @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' })
+if ($runtimeJars.Count -eq 0 -or $appJars.Count -ne 1) {
+    throw 'BF-676 BLOCKED: prepared Butler runtime must contain exactly one bet-cli application JAR and its dependencies.'
+}
+$classPath = Join-Path $runtimeLibDir '*'
+
+function Invoke-Bf676RuntimeStep {
     param(
         [Parameter(Mandatory = $true)][string]$Label,
         [Parameter(Mandatory = $true)][string]$Task,
@@ -29,34 +120,42 @@ function Invoke-Bf676GradleStep {
     )
 
     Write-Host ("BF-676 START: {0}" -f $Label)
-    $gradleArgs = @($Task, "--args=$LeagueId")
+    $mainClass = Get-Bf676MainClass -Task $Task
+    if ([string]::IsNullOrWhiteSpace([string]$mainClass)) {
+        throw "BF-676 BLOCKED: refresh task is not authorized for direct runtime execution: $Task"
+    }
+
     $previousErrorActionPreference = $ErrorActionPreference
     $exitCode = -1
     $lines = @()
+    Push-Location $dataDir
     try {
-        # Preserve BF-642's Windows PowerShell 5.1 native-stderr rule: Gradle/JDK
-        # warnings may use stderr on a successful run, so LASTEXITCODE is the gate.
-        $ErrorActionPreference = 'Continue'
-        if ($CaptureOutput) {
-            $lines = @(& $gradle @gradleArgs 2>&1)
+        try {
+            # Windows PowerShell 5.1 can surface native stderr as error records.
+            # LASTEXITCODE remains the authoritative process-success gate.
+            $ErrorActionPreference = 'Continue'
+            $lines = @(& $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath $mainClass $LeagueId 2>&1)
             $exitCode = $LASTEXITCODE
         }
-        else {
-            & $gradle @gradleArgs
-            $exitCode = $LASTEXITCODE
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
         }
     }
     finally {
-        $ErrorActionPreference = $previousErrorActionPreference
+        Pop-Location
     }
 
     if ($exitCode -ne 0) {
-        throw "BF-676 STOPPED: $Label failed with Gradle exit code $exitCode. No later stage was executed."
+        $tail = Get-Bf676BoundedTail -Lines $lines
+        throw "BF-676 STOPPED: $Label failed with runtime exit code $exitCode. No later stage was executed. Captured output: $tail"
     }
 
     Write-Host ("BF-676 PASS: {0}" -f $Label)
     if ($CaptureOutput) {
         return $lines
+    }
+    foreach ($line in $lines) {
+        Write-Host "$line"
     }
 }
 
@@ -146,13 +245,24 @@ function Assert-Bf676WarningRefreshPlan {
     }
 }
 
+function Test-Bf676NoTransactionLineage {
+    param([Parameter(Mandatory = $true)][string]$LineageState)
+
+    return @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $LineageState
+}
+
 Push-Location $repoRoot
 try {
     Write-Host 'BF-676 manual governed waiver refresh'
     Write-Host ("Butler league: {0}" -f $LeagueId)
     Write-Host 'Boundary: explicit Butler evidence/recommendation refresh only. This runner never submits, cancels, or replaces a Sleeper transaction and never sets FAAB.'
 
-    $preflightLines = @(Invoke-Bf676GradleStep `
+    $preflightLines = @(Invoke-Bf676RuntimeStep `
         -Label 'PRECHECK - governed refresh eligibility' `
         -Task ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' `
         -CaptureOutput)
@@ -172,10 +282,11 @@ try {
         -Label 'BF-631 evidence lineage'
 
     if ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON') {
-        if ($bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
-            throw 'BF-676 BLOCKED: no-transaction preflight did not retain the exact BF-675 BF-629/BF-631 gates. No BF-602/BF-603/etc. write stage was executed.'
+        if ($bf629State -cne 'NO_TRANSACTION_TO_REVALIDATE' -or
+            -not (Test-Bf676NoTransactionLineage -LineageState $bf631State)) {
+            throw 'BF-676 BLOCKED: no-transaction preflight did not retain the exact BF-629 gate and an approved BF-631 refresh lineage. No BF-602/BF-603/etc. write stage was executed.'
         }
-        Write-Host 'BF-676 PREFLIGHT VERIFIED: exact governed no-transaction state remains eligible for manual refresh.'
+        Write-Host ("BF-676 PREFLIGHT VERIFIED: governed no-transaction state is eligible for manual refresh with BF-631 lineage {0}." -f $bf631State)
     }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED') {
         if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
@@ -188,7 +299,16 @@ try {
         throw "BF-676 BLOCKED: decision state '$decisionState' is not authorized for browser refresh. No BF-602/BF-603/etc. write stage was executed."
     }
 
-    Invoke-Bf676GradleStep `
+    if ($PreflightOnly) {
+        Write-Output 'BF-676 PREFLIGHT ONLY: PASS'
+        Write-Output ("Decision status: {0}" -f $decisionState)
+        Write-Output ("BF-629 live actionability: {0}" -f $bf629State)
+        Write-Output ("BF-631 evidence lineage: {0}" -f $bf631State)
+        Write-Output 'Boundary: preflight-only mode executed no BF-840/BF-602/BF-603/etc. write stage and submitted no Sleeper transaction.'
+        return
+    }
+
+    Invoke-Bf676RuntimeStep `
         -Label 'BF-840 PRE-STAGE - exact weekly matchup pairing' `
         -Task ':bet:bet-cli:sleeperCurrentWeekMatchupSync'
 
@@ -204,12 +324,12 @@ try {
     )
 
     foreach ($step in $steps) {
-        Invoke-Bf676GradleStep `
+        Invoke-Bf676RuntimeStep `
             -Label ("STEP {0}/9 - {1}" -f $step.Order, $step.Bf) `
             -Task $step.Task
     }
 
-    $finalLines = @(Invoke-Bf676GradleStep `
+    $finalLines = @(Invoke-Bf676RuntimeStep `
         -Label 'STEP 9/9 - BF-629/BF-631/BF-633/BF-635/BF-638/BF-639' `
         -Task ':bet:bet-cli:sleeperLiveWaiverLatestGovernedDecisionSummary' `
         -CaptureOutput)

@@ -163,6 +163,7 @@ function Get-ExpectedLineupRoute {
     param([string]$Title)
 
     switch ($Title) {
+        'Lineup needs a fresh review' { return @('/matchup/autofill','Refresh Lineup') }
         'Your lineup recommendation is out of date' { return @('/matchup/autofill','Refresh Lineup') }
         'Lineup review needs more evidence' { return @('/matchup','Review Matchup') }
         'Lineup changes are ready to review' { return @('/matchup','Review Matchup') }
@@ -219,9 +220,11 @@ try {
     $dashboard = Invoke-Get -Url ($root + '/') -TimeoutMs ($RequestTimeoutSeconds * 1000)
     Assert-Ok -Response $dashboard -Stage 'Dashboard'
 
-    foreach ($marker in @('Butler Command Center','Your decision queue','manager-decision-card','manager-kind')) {
+    # BF-871 retired the legacy "Butler Command Center" hero copy. Verify the
+    # current decision-first Dashboard structure instead of a presentation string.
+    foreach ($marker in @('Your decision queue','id="decision-details"','manager-decision-card','manager-kind')) {
         if ($dashboard.Body.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
-            throw "BF-843 BLOCKED: Dashboard is missing marker: $marker"
+            throw "BF-843 BLOCKED: Dashboard is missing current-layout marker: $marker"
         }
     }
 

@@ -163,6 +163,7 @@ $bf610Class = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterContextAudit
 $comparisonClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'
 $driftPrefix = 'BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added='
 $driftSuffix = '; refresh BF-602/BF-603 and downstream live evidence before target-roster review'
+$marketCanonicalGapPattern = '(?m)^Error: BF-608 BLOCKED: BF-604 has \d+ unmapped canonical candidate\(s\)\s*$'
 
 $audit = Get-HydrationAudit
 if ($audit.State -cne 'READY_TO_HYDRATE') {
@@ -192,6 +193,14 @@ else {
             Write-Output 'BF-823 PROBE REASON: ROSTER_DRIFT'
             return
         }
+    }
+    elseif ([regex]::IsMatch($preflight.Text, $marketCanonicalGapPattern)) {
+        if ($ProbeOnly) {
+            Write-Output 'BF-823 PROBE: DEFER_TO_BF676'
+            Write-Output 'BF-823 PROBE REASON: MARKET_CANONICAL_GAP'
+            return
+        }
+        throw 'BF-823 BLOCKED: market-active canonical coverage must be repaired by the governed BF-676 refresh chain.'
     }
     else {
         $tail = Get-BoundedTail -Text $preflight.Text

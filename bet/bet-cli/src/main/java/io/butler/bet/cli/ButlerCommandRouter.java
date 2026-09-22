@@ -9,8 +9,8 @@ import java.util.function.Consumer;
  */
 public final class ButlerCommandRouter {
     private static final CommandTarget TRADE_RECOMMENDATION_TARGET = new CommandTarget(
-        ButlerTradeRecommendationV5Cli.class,
-        ButlerTradeRecommendationV5Cli::main);
+        ButlerTradeRecommendationV6Cli.class,
+        ButlerTradeRecommendationV6Cli::main);
 
     private ButlerCommandRouter() {}
 

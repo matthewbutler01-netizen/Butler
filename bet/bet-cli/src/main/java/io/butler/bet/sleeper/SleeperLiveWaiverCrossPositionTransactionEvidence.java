@@ -13,12 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** BF-625 read-only evidence sidecar for an already-governed BF-624 cross-position recommendation. */
+/** BF-625 read-only evidence sidecar for the governed BF-903 complete-transaction recommendation. */
 public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
     public static final String POLICY_ID =
-        "sleeper-live-waiver-cross-position-evidence-v1-bf624-lineage-reconciled-read-only";
+        "sleeper-live-waiver-complete-transaction-evidence-v2-bf903-all-live-bench-reserve-drops";
 
     private final BundleSource bundleSource;
+    private final FreshnessSource freshnessSource;
     private final SleeperLiveWaiverFinalRecommendationBundle.ProductionSource productionSource;
 
     public SleeperLiveWaiverCrossPositionTransactionEvidence(Database database) {
@@ -26,20 +27,24 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
         PlayerSeasonProductionRepository productionRepository = new PlayerSeasonProductionRepository(database);
         this.bundleSource = (leagueId, ownerId) ->
             new SleeperLiveWaiverComparisonExecutionBundle(database).run(leagueId, ownerId);
+        this.freshnessSource = (leagueId, ownerId) ->
+            new SleeperLiveWaiverTargetRosterContextAudit(database).audit(leagueId, ownerId);
         this.productionSource = productionRepository::findByPlayerId;
     }
 
     SleeperLiveWaiverCrossPositionTransactionEvidence(
         BundleSource bundleSource,
+        FreshnessSource freshnessSource,
         SleeperLiveWaiverFinalRecommendationBundle.ProductionSource productionSource) {
         this.bundleSource = Objects.requireNonNull(bundleSource, "bundleSource must not be null");
+        this.freshnessSource = Objects.requireNonNull(freshnessSource, "freshnessSource must not be null");
         this.productionSource = Objects.requireNonNull(productionSource, "productionSource must not be null");
     }
 
     public EvidenceReport explain(SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation)
         throws SQLException, IOException, InterruptedException {
         Objects.requireNonNull(recommendation, "recommendation must not be null");
-        if (recommendation.methodology().historicalFinalistPositions().size() < 2) {
+        if (recommendation.methodology().historicalFinalists() <= 0) {
             return new EvidenceReport(
                 POLICY_ID,
                 recommendation.leagueId(),
@@ -48,12 +53,16 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
                 recommendation.waiverSnapshotId(),
                 recommendation.selection().state(),
                 List.of(),
-                EvidenceState.NOT_APPLICABLE_SAME_POSITION);
+                EvidenceState.NOT_APPLICABLE_NO_HISTORICAL_CANDIDATE);
         }
 
         SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle =
             bundleSource.run(recommendation.leagueId(), recommendation.sleeperOwnerId());
         validateLineage(recommendation, bundle);
+
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness =
+            freshnessSource.audit(recommendation.leagueId(), recommendation.sleeperOwnerId());
+        validateFreshness(recommendation, freshness);
 
         List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> historical =
             bundle.shortlist().shortlist().stream()
@@ -64,7 +73,7 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
 
         SleeperLiveWaiverCrossPositionTransactionSelector.Result result =
             new SleeperLiveWaiverCrossPositionTransactionSelector(productionSource)
-                .select(bundle, historical);
+                .select(bundle, historical, freshness);
         validateSelection(recommendation, result);
 
         List<TransactionEvidence> options = new ArrayList<>();
@@ -76,7 +85,9 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
             options.add(new TransactionEvidence(
                 option.add(), option.drop(), option.improvementBySource(), option.scoringKeysBySource(), selected));
         }
-        options.sort(Comparator.comparing(value -> value.add().sleeperPlayerId()));
+        options.sort(Comparator
+            .comparing((TransactionEvidence value) -> value.add().sleeperPlayerId())
+            .thenComparing(value -> value.drop().sleeperPlayerId()));
 
         return new EvidenceReport(
             POLICY_ID,
@@ -105,12 +116,27 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
         }
     }
 
+    private static void validateFreshness(
+        SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness) {
+        Objects.requireNonNull(freshness, "BF-625 freshness must not be null");
+        if (!recommendation.leagueId().equals(freshness.leagueId())
+            || !recommendation.sleeperOwnerId().equals(freshness.sleeperOwnerId())
+            || !recommendation.marketSnapshotId().equals(freshness.marketSnapshotId())
+            || !recommendation.waiverSnapshotId().equals(freshness.waiverSnapshotId())
+            || !recommendation.sleeperLeagueId().equals(freshness.sleeperLeagueId())
+            || recommendation.rosterId() != freshness.rosterId()) {
+            throw new IllegalStateException(
+                "BF-625 BLOCKED: live-roster evidence lineage differs from the emitted BF-620 recommendation");
+        }
+    }
+
     private static void validateSelection(
         SleeperLiveWaiverFinalRecommendationBundle.RecommendationReport recommendation,
         SleeperLiveWaiverCrossPositionTransactionSelector.Result result) {
         if (recommendation.selection().state() != result.state()) {
             throw new IllegalStateException(
-                "BF-625 BLOCKED: re-evaluated BF-624 selection state differs from emitted recommendation");
+                "BF-625 BLOCKED: re-evaluated BF-903 selection state differs from emitted recommendation");
         }
 
         String expectedAdd = recommendation.recommendedAdd() == null
@@ -121,7 +147,7 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
         String actualDrop = result.selectedDrop() == null ? null : result.selectedDrop().sleeperPlayerId();
         if (!Objects.equals(expectedAdd, actualAdd) || !Objects.equals(expectedDrop, actualDrop)) {
             throw new IllegalStateException(
-                "BF-625 BLOCKED: re-evaluated BF-624 selected pair differs from emitted recommendation");
+                "BF-625 BLOCKED: re-evaluated BF-903 selected pair differs from emitted recommendation");
         }
     }
 
@@ -131,9 +157,15 @@ public final class SleeperLiveWaiverCrossPositionTransactionEvidence {
             throws SQLException, IOException, InterruptedException;
     }
 
+    @FunctionalInterface
+    interface FreshnessSource {
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport audit(String leagueId, String ownerId)
+            throws SQLException, IOException, InterruptedException;
+    }
+
     public enum EvidenceState {
         RECONCILED,
-        NOT_APPLICABLE_SAME_POSITION
+        NOT_APPLICABLE_NO_HISTORICAL_CANDIDATE
     }
 
     public record TransactionEvidence(

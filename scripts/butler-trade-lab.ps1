@@ -183,14 +183,17 @@ function ConvertTo-TradeRecommendationView {
 
     $perspective = [regex]::Match($Text, '(?m)^Perspective:\s+(?<name>.*?)\s+\[(?<id>[^\]]+)\]\s*$')
     $evidence = [regex]::Match($Text, '(?m)^Evidence complete:\s+(?<value>true|false)\s*$')
-    $gates = [regex]::Match($Text, '(?m)^Evidence gates:\s+market-direction=(?<market>true|false)\s+posture=(?<posture>true|false)\s+future-capital=(?<capital>true|false)\s+positional-pressure=(?<position>true|false)\s+flexible-pressure=(?<flex>true|false)\s*$')
+    $gatesV6 = [regex]::Match($Text, '(?m)^Evidence gates:\s+market-direction=(?<market>true|false)\s+future-capital=(?<capital>true|false)\s+positional-pressure=(?<position>true|false)\s+flexible-pressure=(?<flex>true|false)\s+advisory-posture=(?<posture>true|false)\s*$')
+    $gatesV5 = [regex]::Match($Text, '(?m)^Evidence gates:\s+market-direction=(?<market>true|false)\s+posture=(?<posture>true|false)\s+future-capital=(?<capital>true|false)\s+positional-pressure=(?<position>true|false)\s+flexible-pressure=(?<flex>true|false)\s*$')
+    $gates = if ($gatesV6.Success) { $gatesV6 } else { $gatesV5 }
+    $postureAdvisory = $gatesV6.Success
     $pressure = [regex]::Match($Text, '(?m)^Flexible pressure:\s+(?<value>\S+)\s*$')
     $veto = [regex]::Match($Text, '(?m)^Strategic veto:\s+(?<value>\S+)\s*$')
     $recommendation = [regex]::Match($Text, '(?m)^Package recommendation:\s+(?<value>\S+)\s*$')
     $action = [regex]::Match($Text, '(?m)^Action:\s+(?<value>\S+)\s*$')
     if (-not $perspective.Success -or -not $evidence.Success -or -not $gates.Success -or
         -not $pressure.Success -or -not $veto.Success -or -not $recommendation.Success -or -not $action.Success) {
-        throw 'BF-670 BLOCKED: governed v5 trade recommendation is missing required app fields.'
+        throw 'BF-670 BLOCKED: governed trade recommendation is missing required app fields.'
     }
 
     $reason = [regex]::Match($Text, '(?m)^Reason:\s+(?<value>.+?)\s*$')
@@ -211,6 +214,7 @@ function ConvertTo-TradeRecommendationView {
         EvidenceComplete = $evidence.Groups['value'].Value -ceq 'true'
         MarketGate = $gates.Groups['market'].Value -ceq 'true'
         PostureGate = $gates.Groups['posture'].Value -ceq 'true'
+        PostureAdvisory = $postureAdvisory
         FutureCapitalGate = $gates.Groups['capital'].Value -ceq 'true'
         PositionGate = $gates.Groups['position'].Value -ceq 'true'
         FlexibleGate = $gates.Groups['flex'].Value -ceq 'true'
@@ -420,6 +424,12 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
         $evidenceState = if ($Evaluation.EvidenceComplete) { 'COMPLETE' } else { 'INCOMPLETE' }
         $evidenceClass = if ($Evaluation.EvidenceComplete) { 'good' } else { 'warn' }
         $vetoClass = if ($Evaluation.StrategicVeto -ceq 'BLOCKED') { 'danger' } else { 'done' }
+        $postureLabel = if ($Evaluation.PostureAdvisory) { 'Posture (advisory)' } else { 'Posture' }
+        $postureState = if ($Evaluation.PostureAdvisory) {
+            if ($Evaluation.PostureGate) { 'AVAILABLE' } else { 'UNAVAILABLE' }
+        } else {
+            if ($Evaluation.PostureGate) { 'READY' } else { 'BLOCKED' }
+        }
         $reasonHtml = if ([string]::IsNullOrWhiteSpace($Evaluation.Reason)) { '' } else { "<div class=`"empty`">$(ConvertTo-HtmlText $Evaluation.Reason)</div>" }
         $flexDetail = if ([string]::IsNullOrWhiteSpace($Evaluation.FlexiblePressureReason)) { '' } else { "<div class=`"meta`">$(ConvertTo-HtmlText $Evaluation.FlexiblePressureReason)</div>" }
         $transitionText = if ([string]::IsNullOrWhiteSpace($Evaluation.Transition)) { 'Not evaluated' } else { $Evaluation.Transition }
@@ -436,7 +446,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
             $counterActionHtml = "<form class=`"counter-form`" method=`"get`" action=`"/trade`"><input type=`"hidden`" name=`"opponent`" value=`"$(ConvertTo-HtmlText $Opponent.TeamId)`"><input type=`"hidden`" name=`"evaluate`" value=`"1`"><input type=`"hidden`" name=`"counter`" value=`"1`">$giveHidden$receiveHidden<button class=`"trade-button`" type=`"submit`">Build Counteroffer</button><span class=`"meta`">Read-only. Butler will not send or submit anything.</span></form>"
         }
         $resultHtml = @"
-<section class="panel trade-result"><div class="eyebrow">Butler recommendation</div><div class="statusrow"><div><h2 class="headline">$(ConvertTo-HtmlText $Evaluation.Action)</h2><p class="lede">Package recommendation: <strong>$(ConvertTo-HtmlText $Evaluation.PackageRecommendation)</strong>. This is evaluated from your exact bound team's perspective.</p></div><div class="status $evidenceClass">$evidenceState EVIDENCE</div></div>$reasonHtml$counterActionHtml<details class="trade-proof"><summary>Why Butler says this</summary><div class="trade-proof-body"><div class="stats"><div class="stat"><strong>Strategic veto</strong><span class="$vetoClass">$(ConvertTo-HtmlText $Evaluation.StrategicVeto)</span></div><div class="stat"><strong>Flexible pressure</strong><span>$(ConvertTo-HtmlText $Evaluation.FlexiblePressure)</span>$flexDetail</div><div class="stat"><strong>Pressure transition</strong><span>$(ConvertTo-HtmlText $transitionText)</span><div class="meta">$transitionMeta</div></div></div><div class="gate-grid"><div class="gate"><strong>Market direction</strong><span>$(if ($Evaluation.MarketGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Posture</strong><span>$(if ($Evaluation.PostureGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Future capital</strong><span>$(if ($Evaluation.FutureCapitalGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Position pressure</strong><span>$(if ($Evaluation.PositionGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Flexible pressure</strong><span>$(if ($Evaluation.FlexibleGate) {'READY'} else {'BLOCKED'})</span></div></div><h3>Material-loss veto evidence</h3><div class="veto-list">$vetoReasons</div></div></details><details><summary>Raw decision record</summary><pre class="raw-output">$(ConvertTo-HtmlText $Evaluation.Raw)</pre></details></section>
+<section class="panel trade-result"><div class="eyebrow">Butler recommendation</div><div class="statusrow"><div><h2 class="headline">$(ConvertTo-HtmlText $Evaluation.Action)</h2><p class="lede">Package recommendation: <strong>$(ConvertTo-HtmlText $Evaluation.PackageRecommendation)</strong>. This is evaluated from your exact bound team's perspective.</p></div><div class="status $evidenceClass">$evidenceState EVIDENCE</div></div>$reasonHtml$counterActionHtml<details class="trade-proof"><summary>Why Butler says this</summary><div class="trade-proof-body"><div class="stats"><div class="stat"><strong>Strategic veto</strong><span class="$vetoClass">$(ConvertTo-HtmlText $Evaluation.StrategicVeto)</span></div><div class="stat"><strong>Flexible pressure</strong><span>$(ConvertTo-HtmlText $Evaluation.FlexiblePressure)</span>$flexDetail</div><div class="stat"><strong>Pressure transition</strong><span>$(ConvertTo-HtmlText $transitionText)</span><div class="meta">$transitionMeta</div></div></div><div class="gate-grid"><div class="gate"><strong>Market direction</strong><span>$(if ($Evaluation.MarketGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>$(ConvertTo-HtmlText $postureLabel)</strong><span>$(ConvertTo-HtmlText $postureState)</span></div><div class="gate"><strong>Future capital</strong><span>$(if ($Evaluation.FutureCapitalGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Position pressure</strong><span>$(if ($Evaluation.PositionGate) {'READY'} else {'BLOCKED'})</span></div><div class="gate"><strong>Flexible pressure</strong><span>$(if ($Evaluation.FlexibleGate) {'READY'} else {'BLOCKED'})</span></div></div><h3>Material-loss veto evidence</h3><div class="veto-list">$vetoReasons</div></div></details><details><summary>Raw decision record</summary><pre class="raw-output">$(ConvertTo-HtmlText $Evaluation.Raw)</pre></details></section>
 "@
     }
 
@@ -533,8 +543,8 @@ function Invoke-TradeLabHtml {
             if ($counterProposal.PerspectiveTeamId -cne $userTeam.TeamId) {
                 throw 'BF-878 BLOCKED: governed counter proposal perspective does not match the exact bound user team.'
             }
-            if ($counterProposal.V5Action -cne $evaluation.Action) {
-                throw 'BF-878 BLOCKED: governed counter proposal v5 action does not match the rendered recommendation.'
+            if ($counterProposal.V5Action -cne $evaluation.Action -and $counterProposal.Action -ceq 'COUNTER') {
+                throw 'BF-878 BLOCKED: legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation.'
             }
         }
     }

@@ -29,6 +29,17 @@ function Get-DecisionRefreshTechnicalField {
     return $value
 }
 
+function Test-DecisionRefreshNoTransactionLineage {
+    param([Parameter(Mandatory = $true)][string]$LineageState)
+
+    return @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $LineageState
+}
+
 function Add-DecisionRefreshControl {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -57,7 +68,7 @@ function Add-DecisionRefreshControl {
     $eligible = $false
     if ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
         $bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
-        $bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        (Test-DecisionRefreshNoTransactionLineage -LineageState $bf631State)) {
         $eligible = $true
     }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
@@ -189,19 +200,24 @@ function Invoke-DecisionRefreshRunner {
     $probeText = (($probeLines | ForEach-Object { "$_" }) -join "`n")
     $requiresRecovery = $probeText -match '(?m)^BF-823 PROBE: RECOVERY_REQUIRED\s*$'
     $noRecovery = $probeText -match '(?m)^BF-823 PROBE: NO_RECOVERY_REQUIRED\s*$'
-    if ($requiresRecovery -and $noRecovery) {
-        throw 'BF-823 BLOCKED: lineup evidence recovery probe returned contradictory states.'
+    $deferToBf676 = $probeText -match '(?m)^BF-823 PROBE: DEFER_TO_BF676\s*$'
+    $deferReason = $probeText -match '(?m)^BF-823 PROBE REASON: MARKET_CANONICAL_GAP\s*$'
+    $probeStateCount = @(@($requiresRecovery, $noRecovery, $deferToBf676) | Where-Object { $_ }).Count
+
+    if ($probeStateCount -ne 1) {
+        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return exactly one governed state.'
+    }
+    if ($deferToBf676 -and -not $deferReason) {
+        throw 'BF-823 BLOCKED: BF-676 defer state is missing its exact market canonical gap reason.'
     }
     if ($requiresRecovery) {
         $resultLines = @(& $recoveryRunner -LeagueId $LeagueId)
         return ($resultLines -join "`n")
     }
-    if (-not $noRecovery) {
-        throw 'BF-823 BLOCKED: lineup evidence recovery probe did not return an exact governed state.'
-    }
 
-    # No lineup/roster recovery is required. Preserve the existing BF-676 runner and
-    # its exact authorization gates without weakening or reimplementing them here.
+    # No BF-823 lineup/roster recovery is required, or BF-823 proved that the
+    # blocker is the market-active canonical gap BF-605 is designed to repair.
+    # Preserve the existing BF-676 runner and its exact authorization gates.
     $resultLines = @(& $RunnerPath -LeagueId $LeagueId)
     return ($resultLines -join "`n")
 }

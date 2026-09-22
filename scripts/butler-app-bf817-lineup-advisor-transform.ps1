@@ -79,6 +79,11 @@ function ConvertTo-AutoFillHtml {
 
     $changedAssignments = @($AutoFill.Assignments | Where-Object { $_.Changed })
     $changedCount = $changedAssignments.Count
+    $projectionHolds = @($AutoFill.ProjectionHolds)
+    $holdCount = $projectionHolds.Count
+    $partialCoverage = ([string]$AutoFill.ProjectionCoverage -ceq 'PARTIAL') -or $holdCount -gt 0
+    $holdNames = @($projectionHolds | ForEach-Object { [string]$_.Name })
+    $holdText = if ($holdNames.Count -eq 0) { '' } else { $holdNames -join ', ' }
 
     $benchNames = @($AutoFill.BenchMoves | ForEach-Object { [string]$_.Name })
     $promotionNames = @($AutoFill.Promotions | ForEach-Object { [string]$_.Name })
@@ -97,7 +102,22 @@ function ConvertTo-AutoFillHtml {
     }
     $gainClass = if ([string]$AutoFill.Gain -match '^-') { 'metric-value metric-negative' } else { 'metric-value metric-positive' }
 
-    if ($changedCount -gt 0) {
+    if ($partialCoverage) {
+        $holdWord = if ($holdCount -eq 1) { 'player' } else { 'players' }
+        if ($changedCount -gt 0) {
+            $changeWord = if ($changedCount -eq 1) { 'change' } else { 'changes' }
+            $decisionTitle = "Make $changedCount lineup $changeWord; review $holdCount projection-held $holdWord"
+            $decisionCopy = 'Butler found actionable changes among scoreable slots, but incomplete projection evidence prevents a full-lineup claim.'
+        }
+        else {
+            $decisionTitle = "No proven changes in scoreable slots; review $holdCount projection-held $holdWord"
+            $decisionCopy = 'Butler found no proven change among the scoreable slots. Projection-held players remain unchanged and still need manual review.'
+        }
+        $decisionStatus = 'PARTIAL REVIEW'
+        $decisionStatusClass = 'warn'
+        $whyCopy = "Projection-held: $holdText. Butler preserved those players in their current lineup state and excluded them from projected totals. The comparable scoreable-slot projection is $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) recommended, a change of $($AutoFill.Gain)."
+    }
+    elseif ($changedCount -gt 0) {
         $changeWord = if ($changedCount -eq 1) { 'change' } else { 'changes' }
         $decisionTitle = "Make $changedCount lineup $changeWord"
         $decisionStatus = 'CHANGES FOUND'
@@ -113,7 +133,13 @@ function ConvertTo-AutoFillHtml {
         $whyCopy = "Within the current legal roster and weekly projection frame, no alternate starter assignment improved on the current projected starter total of $($AutoFill.CurrentTotal)."
     }
 
-    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)</h2><p class=`"lede`">$(ConvertTo-HtmlText $decisionCopy)</p></div><span class=`"status $decisionStatusClass`">$(ConvertTo-HtmlText $decisionStatus)</span></div><div class=`"grid four`"><div class=`"summary-card`"><h3>Decision</h3><p>$(ConvertTo-HtmlText $decisionTitle)</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $whyCopy)</p></div><div class=`"summary-card`"><h3>Start</h3><p>$(ConvertTo-HtmlText $promotionText)</p></div><div class=`"summary-card`"><h3>Sit</h3><p>$(ConvertTo-HtmlText $benchText)</p></div></div><div class=`"autofill-summary`"><div class=`"metric-card`"><span class=`"metric-label`">Current projection</span><span class=`"metric-value`">$(ConvertTo-HtmlText $AutoFill.CurrentTotal)</span></div><div class=`"metric-card`"><span class=`"metric-label`">Recommended</span><span class=`"metric-value`">$(ConvertTo-HtmlText $AutoFill.RecommendedTotal)</span></div><div class=`"metric-card`"><span class=`"metric-label`">Projected change</span><span class=`"$gainClass`">$(ConvertTo-HtmlText $AutoFill.Gain)</span></div></div><div class=`"lineup-board`">$rows</div><div class=`"movement-strip`"><div class=`"movement-box`"><strong>Promote to lineup</strong><div>$promotionChips</div></div><div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections: $(ConvertTo-HtmlText $AutoFill.Source) &middot; $frame &middot; Preview only</span><div class=`"button-row`"><a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit this lineup to Sleeper.</p></section>"
+    $currentMetricLabel = if ($partialCoverage) { 'Comparable current' } else { 'Current projection' }
+    $recommendedMetricLabel = if ($partialCoverage) { 'Comparable recommended' } else { 'Recommended' }
+    $holdCallout = if ($partialCoverage) {
+        "<div class=`"callout`"><strong>Projection hold:</strong> $(ConvertTo-HtmlText $holdText). Butler kept projection-held players in their current lineup state and did not assign synthetic points.</div>"
+    } else { '' }
+
+    return "<section class=`"panel recommendation-panel`"><div class=`"manager-head`"><div><div class=`"eyebrow`">Lineup advisor</div><h2>$(ConvertTo-HtmlText $decisionTitle)</h2><p class=`"lede`">$(ConvertTo-HtmlText $decisionCopy)</p></div><span class=`"status $decisionStatusClass`">$(ConvertTo-HtmlText $decisionStatus)</span></div><div class=`"grid four`"><div class=`"summary-card`"><h3>Decision</h3><p>$(ConvertTo-HtmlText $decisionTitle)</p></div><div class=`"summary-card`"><h3>Why</h3><p>$(ConvertTo-HtmlText $whyCopy)</p></div><div class=`"summary-card`"><h3>Start</h3><p>$(ConvertTo-HtmlText $promotionText)</p></div><div class=`"summary-card`"><h3>Sit</h3><p>$(ConvertTo-HtmlText $benchText)</p></div></div>$holdCallout<div class=`"autofill-summary`"><div class=`"metric-card`"><span class=`"metric-label`">$(ConvertTo-HtmlText $currentMetricLabel)</span><span class=`"metric-value`">$(ConvertTo-HtmlText $AutoFill.CurrentTotal)</span></div><div class=`"metric-card`"><span class=`"metric-label`">$(ConvertTo-HtmlText $recommendedMetricLabel)</span><span class=`"metric-value`">$(ConvertTo-HtmlText $AutoFill.RecommendedTotal)</span></div><div class=`"metric-card`"><span class=`"metric-label`">Projected change</span><span class=`"$gainClass`">$(ConvertTo-HtmlText $AutoFill.Gain)</span></div></div><div class=`"lineup-board`">$rows</div><div class=`"movement-strip`"><div class=`"movement-box`"><strong>Promote to lineup</strong><div>$promotionChips</div></div><div class=`"movement-box`"><strong>Move to bench</strong><div>$benchChips</div></div></div><div class=`"source-note`"><span>Projections: $(ConvertTo-HtmlText $AutoFill.Source) &middot; $frame &middot; Preview only</span><div class=`"button-row`"><a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div></div><p class=`"meta`"><strong>Read only:</strong> Butler did not submit this lineup to Sleeper.</p></section>"
 }
 '@
 
@@ -146,6 +172,12 @@ if (-not $autoFillReplacement.Contains('View evidence details')) {
 if (-not $autoFillReplacement.Contains('Keep the current lineup')) {
     throw 'BF-817 BLOCKED: no-change lineup decision summary is missing.'
 }
+if (-not $autoFillReplacement.Contains('PARTIAL REVIEW')) {
+    throw 'BF-902 BLOCKED: projection-hold partial review summary is missing.'
+}
+if (-not $autoFillReplacement.Contains('did not assign synthetic points')) {
+    throw 'BF-902 BLOCKED: projection-hold no-synthetic-points boundary is missing.'
+}
 if (-not $autoFillReplacement.Contains('Butler is not claiming a separate per-player delta')) {
     throw 'BF-817 BLOCKED: projection explanation boundary is missing.'
 }
@@ -175,6 +207,14 @@ if (-not (Test-Path -LiteralPath $bf825Transform -PathType Leaf)) {
     throw "BF-825 BLOCKED: lineup availability transform not found at $bf825Transform"
 }
 & $bf825Transform -CorePath $CorePath
+
+# BF-902: after BF-825 has restored the availability-aware parser, add partial
+# projection coverage and projection-hold parsing without changing lineup write behavior.
+$bf902Transform = Join-Path $PSScriptRoot 'butler-app-bf902-projection-hold-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf902Transform -PathType Leaf)) {
+    throw "BF-902 BLOCKED: projection-hold staging transform not found at $bf902Transform"
+}
+& $bf902Transform -CorePath $CorePath
 
 # BF-827: replace generic My Team placeholder cards with evidence-backed roster intelligence.
 $bf827Transform = Join-Path $PSScriptRoot 'butler-app-bf827-roster-intelligence-transform.ps1'

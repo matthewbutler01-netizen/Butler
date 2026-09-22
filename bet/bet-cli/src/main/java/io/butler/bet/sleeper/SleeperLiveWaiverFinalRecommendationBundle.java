@@ -21,13 +21,13 @@ import java.util.TreeSet;
 /** BF-618 through BF-620 final recommendation plus BF-624 governed cross-position transaction selection. */
 public final class SleeperLiveWaiverFinalRecommendationBundle {
     public static final String BF618_POLICY_ID =
-        "sleeper-live-waiver-final-selection-method-v2-bf624-cross-position-transaction-improvement";
+        "sleeper-live-waiver-final-selection-method-v4-bf903-all-live-drop-transaction-first";
     public static final String BF619_POLICY_ID =
-        "sleeper-live-waiver-final-add-drop-selection-v2-bf624-cross-position-transaction-improvement";
+        "sleeper-live-waiver-final-add-drop-selection-v4-bf903-all-live-drop-transaction-first";
     public static final String BF620_POLICY_ID =
         "sleeper-live-waiver-final-recommendation-v1-live-bf610-and-bf602-membership-reverified-read-only";
     public static final String BF624_POLICY_ID =
-        "sleeper-live-waiver-cross-position-transaction-improvement-v1-compatible-source-schema-strict-delta-dominance";
+        "sleeper-live-waiver-complete-transaction-improvement-v2-bf903-all-live-bench-reserve-drops";
     private static final int PRODUCTION_SEASON = 2025;
 
     private final Database database;
@@ -73,12 +73,12 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             bundleSource.run(normalizedLeagueId, normalizedOwnerId);
         validateBundle(bundle, normalizedLeagueId, normalizedOwnerId);
 
-        MethodologyReport methodology = methodology(bundle);
-        SelectionReport selection = select(bundle);
-
         SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness =
             freshnessSource.audit(normalizedLeagueId, normalizedOwnerId);
         validateFreshness(bundle, freshness, normalizedLeagueId, normalizedOwnerId);
+
+        MethodologyReport methodology = methodology(bundle);
+        SelectionReport selection = select(bundle, freshness);
 
         RecommendationReport recommendation;
         if (selection.state() != SelectionState.UNIQUE_ADD_DROP_SELECTED) {
@@ -114,163 +114,32 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
             historical.size(),
             bundle.shortlist().newcomerShortlistCount(),
             List.copyOf(positions),
-            "HISTORICAL_FINALISTS_DIRECT_ALL_OPPONENTS_DOMINANCE_WITHIN_POSITION",
+            "HISTORICAL_CANDIDATE_ADMISSION_REQUIRES_AT_LEAST_ONE_BF615_SUPPORTED_SAME_POSITION_DROP",
             "LATEST_2025_COMMON_SOURCE_SUPPORTED_SUBTOTAL_PER_GAME_SCHEMA_EQUALITY",
-            "BF624_COMPLETE_TRANSACTION_DELTA_STRICT_ALL_COMPATIBLE_COMMON_SOURCE_DOMINANCE",
+            "BF903_ALL_HISTORICAL_CANDIDATE_X_LIVE_BENCH_RESERVE_TRANSACTION_DELTA_STRICT_DOMINANCE",
             "NEWCOMERS_NONNUMERIC_NOT_ELIGIBLE_FOR_FINAL_WINNER",
-            "DROP_ONLY_FROM_SELECTED_ADD_BF615_CANDIDATE_SUPPORTED_BENCH_RESERVE_COMPARATORS",
+            "DROP_FROM_ANY_EXACT_LIVE_BENCH_RESERVE_PLAYER_WITH_COMPATIBLE_COMMON_SOURCE_PRODUCTION",
             "PROTECTED_MISSING_PRODUCTION_TARGET_NEVER_DROPPABLE",
             MethodologyState.FINAL_SELECTION_METHOD_FROZEN);
     }
 
-    private SelectionReport select(SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle) throws SQLException {
+    private SelectionReport select(
+        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness) throws SQLException {
         List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> historical = historicalFinalists(bundle);
         if (historical.isEmpty()) {
             return selection(bundle, SelectionState.NO_HISTORICAL_FINALIST, null, null, List.of(), List.of());
         }
-        Set<String> positions = new TreeSet<>();
-        historical.forEach(value -> positions.add(requireText(value.candidate().position(), "historical finalist position").toUpperCase()));
-        if (positions.size() != 1) {
-            var crossPosition = new SleeperLiveWaiverCrossPositionTransactionSelector(productionSource)
-                .select(bundle, historical);
-            return selection(
-                bundle, crossPosition.state(), crossPosition.selectedAdd(), crossPosition.selectedDrop(),
-                finalistIds(historical), crossPosition.directComparisons());
-        }
 
-        List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> addWinners = new ArrayList<>();
-        List<DirectComparison> addComparisons = new ArrayList<>();
-        for (var left : historical) {
-            boolean dominatesAll = true;
-            for (var right : historical) {
-                if (left == right) continue;
-                DirectComparison comparison = comparePlayers(
-                    left.candidate().butlerPlayerId(), left.candidate().sleeperPlayerId(),
-                    right.candidate().butlerPlayerId(), right.candidate().sleeperPlayerId(),
-                    bundle.methodology().exactLeagueScoringSettings());
-                addComparisons.add(comparison);
-                if (comparison.direction() != DirectDirection.LEFT_DIRECTIONALLY_SUPPORTED) {
-                    dominatesAll = false;
-                }
-            }
-            if (dominatesAll) addWinners.add(left);
-        }
-        if (addWinners.size() != 1) {
-            return selection(bundle, SelectionState.NO_UNIQUE_HISTORICAL_ADD,
-                null, null, finalistIds(historical), List.copyOf(addComparisons));
-        }
-
-        var addEntry = addWinners.get(0);
-        var add = candidate(addEntry.candidate());
-        SleeperLiveWaiverComparisonExecutionBundle.CandidateComparison candidateExecution =
-            bundle.comparisons().candidates().stream()
-                .filter(value -> value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("BF-619 BLOCKED: selected add is absent from BF-615 candidate execution"));
-
-        List<SleeperLiveWaiverComparisonExecutionBundle.RosterEntry> supportedDrops = candidateExecution.pairs().stream()
-            .filter(value -> value.state() == SleeperLiveWaiverComparisonExecutionBundle.PairState.CANDIDATE_DIRECTIONALLY_SUPPORTED)
-            .map(SleeperLiveWaiverComparisonExecutionBundle.PairComparison::roster)
-            .filter(value -> SleeperLiveWaiverCandidateRosterComparisonMethodology.eligibleReplacementSlot(value.rosterSlot()))
-            .filter(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::priorProductionPresent)
-            .distinct()
-            .sorted(Comparator.comparing(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::sleeperPlayerId))
-            .toList();
-        if (supportedDrops.isEmpty()) {
-            return selection(bundle, SelectionState.NO_GOVERNED_DROP_FOR_SELECTED_ADD,
-                add, null, finalistIds(historical), List.copyOf(addComparisons));
-        }
-
-        List<SleeperLiveWaiverComparisonExecutionBundle.RosterEntry> dropWinners = new ArrayList<>();
-        List<DirectComparison> dropComparisons = new ArrayList<>();
-        if (supportedDrops.size() == 1) {
-            dropWinners.add(supportedDrops.get(0));
-        } else {
-            for (var left : supportedDrops) {
-                boolean weakerThanAll = true;
-                for (var right : supportedDrops) {
-                    if (left == right) continue;
-                    DirectComparison comparison = comparePlayers(
-                        left.butlerPlayerId(), left.sleeperPlayerId(),
-                        right.butlerPlayerId(), right.sleeperPlayerId(),
-                        bundle.methodology().exactLeagueScoringSettings());
-                    dropComparisons.add(comparison);
-                    if (comparison.direction() != DirectDirection.RIGHT_DIRECTIONALLY_SUPPORTED) {
-                        weakerThanAll = false;
-                    }
-                }
-                if (weakerThanAll) dropWinners.add(left);
-            }
-        }
-        if (dropWinners.size() != 1) {
-            List<DirectComparison> all = new ArrayList<>(addComparisons);
-            all.addAll(dropComparisons);
-            return selection(bundle, SelectionState.NO_UNIQUE_GOVERNED_DROP,
-                add, null, supportedDrops.stream().map(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::sleeperPlayerId).toList(),
-                List.copyOf(all));
-        }
-
-        var drop = roster(dropWinners.get(0));
-        List<DirectComparison> all = new ArrayList<>(addComparisons);
-        all.addAll(dropComparisons);
-        return selection(bundle, SelectionState.UNIQUE_ADD_DROP_SELECTED,
-            add, drop, supportedDrops.stream().map(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::sleeperPlayerId).toList(),
-            List.copyOf(all));
-    }
-
-    private DirectComparison comparePlayers(
-        String leftButlerId, String leftSleeperId,
-        String rightButlerId, String rightSleeperId,
-        Map<String, Double> scoring) throws SQLException {
-        Map<String, PlayerSeasonProduction> leftRows = latest2025BySource(productionSource.load(leftButlerId));
-        Map<String, PlayerSeasonProduction> rightRows = latest2025BySource(productionSource.load(rightButlerId));
-        Set<String> common = new TreeSet<>(leftRows.keySet());
-        common.retainAll(rightRows.keySet());
-        if (common.isEmpty()) {
-            return new DirectComparison(leftSleeperId, rightSleeperId, List.of(),
-                List.of(), DirectDirection.NO_COMMON_SOURCE);
-        }
-
-        Map<String, Double> leftPerGame = new LinkedHashMap<>();
-        Map<String, Double> rightPerGame = new LinkedHashMap<>();
-        List<DirectSourceComparison> details = new ArrayList<>();
-        boolean unresolved = false;
-        for (String source : common) {
-            PlayerSeasonProduction leftRow = leftRows.get(source);
-            PlayerSeasonProduction rightRow = rightRows.get(source);
-            var leftSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology.supportedSubtotal(leftRow, scoring);
-            var rightSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology.supportedSubtotal(rightRow, scoring);
-            String state;
-            if (leftSubtotal.supportedSubtotalPerGame() == null || rightSubtotal.supportedSubtotalPerGame() == null) {
-                unresolved = true;
-                state = "NONCOMPARABLE_GAMES_PLAYED";
-            } else if (!leftSubtotal.includedScoringKeys().equals(rightSubtotal.includedScoringKeys())) {
-                unresolved = true;
-                state = "SCHEMA_SUPPORT_MISMATCH";
-            } else {
-                state = "COMPARABLE_COMMON_SOURCE";
-                leftPerGame.put(source, leftSubtotal.supportedSubtotalPerGame());
-                rightPerGame.put(source, rightSubtotal.supportedSubtotalPerGame());
-            }
-            details.add(new DirectSourceComparison(
-                source, leftRow.asOfDate(), rightRow.asOfDate(),
-                leftSubtotal.supportedSubtotalPerGame(), rightSubtotal.supportedSubtotalPerGame(),
-                leftSubtotal.includedScoringKeys(), rightSubtotal.includedScoringKeys(), state));
-        }
-        DirectDirection direction;
-        if (unresolved) {
-            direction = DirectDirection.SOURCE_DIRECTION_UNRESOLVED;
-        } else {
-            direction = switch (SleeperLiveWaiverCandidateRosterComparisonMethodology
-                .directionAcrossCommonSources(leftPerGame, rightPerGame)) {
-                case CANDIDATE_DIRECTIONALLY_SUPPORTED -> DirectDirection.LEFT_DIRECTIONALLY_SUPPORTED;
-                case ROSTER_DIRECTIONALLY_SUPPORTED -> DirectDirection.RIGHT_DIRECTIONALLY_SUPPORTED;
-                case TIED_ALL_COMMON_SOURCES -> DirectDirection.TIED_ALL_COMMON_SOURCES;
-                case SOURCE_DIRECTION_UNRESOLVED -> DirectDirection.SOURCE_DIRECTION_UNRESOLVED;
-                case NO_COMMON_SOURCE -> DirectDirection.NO_COMMON_SOURCE;
-            };
-        }
-        return new DirectComparison(leftSleeperId, rightSleeperId, List.copyOf(common), List.copyOf(details), direction);
+        var transactions = new SleeperLiveWaiverCrossPositionTransactionSelector(productionSource)
+            .select(bundle, historical, freshness);
+        return selection(
+            bundle,
+            transactions.state(),
+            transactions.selectedAdd(),
+            transactions.selectedDrop(),
+            finalistIds(historical),
+            transactions.directComparisons());
     }
 
     private void validateSelectedPairAgainstLiveAndSnapshot(
@@ -310,13 +179,59 @@ public final class SleeperLiveWaiverFinalRecommendationBundle {
         if (!historicalShortlist) {
             throw new IllegalStateException("BF-620 BLOCKED: selected add is absent from exact BF-616 historical shortlist");
         }
-        boolean backedPair = bundle.comparisons().pairs().stream().anyMatch(value ->
-            value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId())
-                && value.roster().sleeperPlayerId().equals(drop.sleeperPlayerId())
-                && value.state() == SleeperLiveWaiverComparisonExecutionBundle.PairState.CANDIDATE_DIRECTIONALLY_SUPPORTED);
-        if (!backedPair) {
-            throw new IllegalStateException("BF-620 BLOCKED: selected add/drop lacks exact BF-615 candidate-supported pair evidence");
+        var addEntry = bundle.shortlist().shortlist().stream()
+            .filter(value -> value.lane()
+                == SleeperLiveWaiverComparisonExecutionBundle.ShortlistLane.HISTORICAL_DIRECTIONAL)
+            .filter(value -> value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId()))
+            .map(SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry::candidate)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "BF-620 BLOCKED: selected add is absent from exact BF-616 historical shortlist"));
+
+        var dropTarget = freshness.targetPlayers().stream()
+            .filter(value -> value.sleeperPlayerId().equals(drop.sleeperPlayerId()))
+            .filter(value -> SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .eligibleReplacementSlot(value.rosterSlot()))
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException(
+                "BF-620 BLOCKED: selected drop is absent from exact live BENCH/RESERVE roster"));
+
+        if (dropTarget.butlerPlayerId() == null || dropTarget.butlerPlayerId().isBlank()
+            || !positiveTransactionEvidence(
+                addEntry.butlerPlayerId(),
+                dropTarget.butlerPlayerId(),
+                bundle.methodology().exactLeagueScoringSettings())) {
+            throw new IllegalStateException(
+                "BF-620 BLOCKED: selected add/drop lacks positive compatible complete-transaction evidence");
         }
+    }
+
+    private boolean positiveTransactionEvidence(
+        String addButlerPlayerId,
+        String dropButlerPlayerId,
+        Map<String, Double> scoring) throws SQLException {
+        Map<String, PlayerSeasonProduction> addRows =
+            latest2025BySource(productionSource.load(addButlerPlayerId));
+        Map<String, PlayerSeasonProduction> dropRows =
+            latest2025BySource(productionSource.load(dropButlerPlayerId));
+
+        Set<String> common = new TreeSet<>(addRows.keySet());
+        common.retainAll(dropRows.keySet());
+        if (common.isEmpty()) return false;
+
+        for (String source : common) {
+            var addSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .supportedSubtotal(addRows.get(source), scoring);
+            var dropSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .supportedSubtotal(dropRows.get(source), scoring);
+            if (addSubtotal.supportedSubtotalPerGame() == null
+                || dropSubtotal.supportedSubtotalPerGame() == null
+                || !addSubtotal.includedScoringKeys().equals(dropSubtotal.includedScoringKeys())
+                || !(addSubtotal.supportedSubtotalPerGame() > dropSubtotal.supportedSubtotalPerGame())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void validateBundle(

@@ -73,7 +73,19 @@ $dashboard = Add-CssOverride -Text $dashboard -StartMarker 'function Get-SharedC
 
 $staleOld = '        "REFRESH AUTOFILL" = @("Your lineup recommendation is out of date", "Your roster or projection data changed since the last lineup review.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
 $staleNew = '        "REFRESH AUTOFILL" = @("Lineup needs a fresh review", "Your roster or weekly projection frame changed since the saved lineup review. Refresh it before relying on the recommendation.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
-$dashboard = Replace-ExactlyOnce -Text $dashboard -Old $staleOld -New $staleNew -Contract 'stale lineup manager copy'
+$staleOldCount = [regex]::Matches($dashboard, [regex]::Escape($staleOld)).Count
+$staleNewCount = [regex]::Matches($dashboard, [regex]::Escape($staleNew)).Count
+if (($staleOldCount + $staleNewCount) -gt 1) {
+    throw "BF-898 BLOCKED: stale lineup manager state is ambiguous."
+}
+$staleCopyExpected = $false
+if ($staleOldCount -eq 1) {
+    $dashboard = $dashboard.Replace($staleOld, $staleNew)
+    $staleCopyExpected = $true
+}
+elseif ($staleNewCount -eq 1) {
+    $staleCopyExpected = $true
+}
 
 [System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
 
@@ -102,13 +114,16 @@ foreach ($path in @($DashboardPath, $CorePath)) {
 }
 
 $installedDashboard = [System.IO.File]::ReadAllText($DashboardPath)
-foreach ($required in @(
+$requiredMarkers = @(
     'BF-898 mobile manager polish',
     'scrollbar-width:none',
-    'min-height:44px',
-    'Lineup needs a fresh review',
-    'Refresh it before relying on the recommendation.'
-)) {
+    'min-height:44px'
+)
+if ($staleCopyExpected) {
+    $requiredMarkers += 'Lineup needs a fresh review'
+    $requiredMarkers += 'Refresh it before relying on the recommendation.'
+}
+foreach ($required in $requiredMarkers) {
     if ($installedDashboard.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-898 BLOCKED: required mobile manager marker is missing: $required"
     }

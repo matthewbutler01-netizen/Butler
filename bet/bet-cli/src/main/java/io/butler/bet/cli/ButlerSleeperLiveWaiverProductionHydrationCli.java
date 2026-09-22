@@ -21,11 +21,23 @@ public final class ButlerSleeperLiveWaiverProductionHydrationCli {
             System.err.println("Error: " + e.getMessage());
             System.err.println("Rollback restored: " + e.restored());
             System.err.println("Backup: " + e.backupPath());
+            System.err.println("Cause: " + rootCauseMessage(e));
             System.exit(2);
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             System.exit(2);
         }
+    }
+
+    static String rootCauseMessage(Throwable error) {
+        Throwable current = error;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank()
+            ? current.getClass().getSimpleName()
+            : message;
     }
 
     static String parse(String[] args) {

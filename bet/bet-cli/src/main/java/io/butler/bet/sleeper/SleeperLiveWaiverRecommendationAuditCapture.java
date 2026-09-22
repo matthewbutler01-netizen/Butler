@@ -61,11 +61,14 @@ public final class SleeperLiveWaiverRecommendationAuditCapture {
             SleeperLiveWaiverCrossPositionTransactionEvidence.EvidenceReport evidence = null;
             if (recommendation.state()
                     == SleeperLiveWaiverFinalRecommendationBundle.RecommendationState.RECOMMEND_ADD_DROP
-                && recommendation.methodology().historicalFinalistPositions().size() > 1) {
+                && recommendation.methodology().historicalFinalists() > 0) {
                 PlayerSeasonProductionRepository productionRepository =
                     new PlayerSeasonProductionRepository(database);
                 evidence = new SleeperLiveWaiverCrossPositionTransactionEvidence(
                     (ignoredLeague, ignoredOwner) -> execution.bundle(),
+                    (requestedLeague, requestedOwner) ->
+                        new SleeperLiveWaiverTargetRosterContextAudit(database)
+                            .audit(requestedLeague, requestedOwner),
                     productionRepository::findByPlayerId)
                     .explain(recommendation);
             }

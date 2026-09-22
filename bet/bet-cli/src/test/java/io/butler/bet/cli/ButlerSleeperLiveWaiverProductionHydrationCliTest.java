@@ -62,6 +62,19 @@ class ButlerSleeperLiveWaiverProductionHydrationCliTest {
     }
 
     @Test
+    void rendersDeepestRollbackCauseMessage() {
+        var failure = new IllegalStateException(
+            "outer",
+            new RuntimeException(
+                "middle",
+                new IllegalArgumentException("ambiguous GSIS-to-Sleeper mapping")));
+
+        assertEquals(
+            "ambiguous GSIS-to-Sleeper mapping",
+            ButlerSleeperLiveWaiverProductionHydrationCli.rootCauseMessage(failure));
+    }
+
+    @Test
     void requiresExactlyOneLeagueId() {
         assertEquals("league-1", ButlerSleeperLiveWaiverProductionHydrationCli.parse(new String[]{" league-1 "}));
         assertThrows(IllegalArgumentException.class,

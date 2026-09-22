@@ -11,10 +11,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 
-/** BF-624 governed cross-position selection over complete add/drop transaction improvement. */
+/**
+ * BF-624/BF-903 governed selection over complete add/drop transaction improvement.
+ *
+ * <p>BF-903 keeps BF-616's exact-position evidence lane as the admission gate for historical
+ * waiver candidates, then evaluates every admitted historical candidate against every exact live
+ * BENCH/RESERVE roster player with compatible persisted production evidence. This makes the final
+ * decision transaction-first: the drop does not need to share the add's position.</p>
+ */
 final class SleeperLiveWaiverCrossPositionTransactionSelector {
     private static final int PRODUCTION_SEASON = 2025;
 
@@ -27,38 +33,68 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
 
     Result select(
         SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
-        List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> historical) throws SQLException {
+        List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> historical,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness) throws SQLException {
         Objects.requireNonNull(bundle, "bundle must not be null");
         Objects.requireNonNull(historical, "historical finalists must not be null");
+        Objects.requireNonNull(freshness, "live target roster must not be null");
+        validateFreshnessLineage(bundle, freshness);
 
-        Map<String, List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry>> byPosition = new TreeMap<>();
-        for (var entry : historical) {
-            String position = requireText(entry.candidate().position(), "historical finalist position").toUpperCase();
-            byPosition.computeIfAbsent(position, ignored -> new ArrayList<>()).add(entry);
+        List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> drops = freshness.targetPlayers().stream()
+            .filter(value -> SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .eligibleReplacementSlot(value.rosterSlot()))
+            .filter(value -> value.butlerPlayerId() != null && !value.butlerPlayerId().isBlank())
+            .filter(value -> value.mappingState() != null
+                && value.mappingState().trim().equalsIgnoreCase("EXACT_CANONICAL"))
+            .sorted(Comparator.comparing(SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer::sleeperPlayerId))
+            .toList();
+
+        if (historical.isEmpty() || drops.isEmpty()) {
+            return new Result(
+                SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_NO_ACTIONABLE_TRANSACTION,
+                null, null, List.of(), List.of());
         }
-        if (byPosition.size() < 2) {
-            throw new IllegalArgumentException("BF-624 requires historical finalists from at least two positions");
+
+        Map<String, Map<String, PlayerSeasonProduction>> production = new LinkedHashMap<>();
+        for (var add : historical) {
+            String butlerId = add.candidate().butlerPlayerId();
+            if (!production.containsKey(butlerId)) {
+                production.put(butlerId, latest2025BySource(productionSource.load(butlerId)));
+            }
+        }
+        for (var drop : drops) {
+            String butlerId = drop.butlerPlayerId();
+            if (!production.containsKey(butlerId)) {
+                production.put(butlerId, latest2025BySource(productionSource.load(butlerId)));
+            }
         }
 
         List<TransactionOption> options = new ArrayList<>();
-        List<SleeperLiveWaiverFinalRecommendationBundle.DirectComparison> directComparisons = new ArrayList<>();
-        for (var group : byPosition.entrySet()) {
-            PositionResult position = selectPosition(bundle, group.getKey(), List.copyOf(group.getValue()));
-            directComparisons.addAll(position.directComparisons());
-            if (position.option() != null) options.add(position.option());
+        List<SleeperLiveWaiverFinalRecommendationBundle.DirectComparison> comparisons = new ArrayList<>();
+
+        for (var addEntry : historical) {
+            var add = addEntry.candidate();
+            Map<String, PlayerSeasonProduction> addRows =
+                production.getOrDefault(add.butlerPlayerId(), Map.of());
+
+            for (var drop : drops) {
+                Map<String, PlayerSeasonProduction> dropRows =
+                    production.getOrDefault(drop.butlerPlayerId(), Map.of());
+                PairEvaluation evaluation = evaluate(
+                    add, drop, addRows, dropRows, bundle.methodology().exactLeagueScoringSettings());
+                comparisons.add(evaluation.comparison());
+                if (evaluation.option() != null) options.add(evaluation.option());
+            }
         }
 
-        options.sort(Comparator.comparing(value -> value.add().sleeperPlayerId()));
+        options.sort(Comparator
+            .comparing((TransactionOption value) -> value.add().sleeperPlayerId())
+            .thenComparing(value -> value.drop().sleeperPlayerId()));
+
         if (options.isEmpty()) {
             return new Result(
                 SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_NO_ACTIONABLE_TRANSACTION,
-                null, null, List.of(), List.copyOf(directComparisons));
-        }
-        if (options.size() == 1) {
-            TransactionOption only = options.get(0);
-            return new Result(
-                SleeperLiveWaiverFinalRecommendationBundle.SelectionState.UNIQUE_ADD_DROP_SELECTED,
-                only.add(), only.drop(), List.copyOf(options), List.copyOf(directComparisons));
+                null, null, List.of(), List.copyOf(comparisons));
         }
 
         for (int left = 0; left < options.size(); left++) {
@@ -66,7 +102,7 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
                 if (!compatible(options.get(left), options.get(right))) {
                     return new Result(
                         SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_TRANSACTION_EVIDENCE_INCOMPATIBLE,
-                        null, null, List.copyOf(options), List.copyOf(directComparisons));
+                        null, null, List.copyOf(options), List.copyOf(comparisons));
                 }
             }
         }
@@ -87,160 +123,73 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
         if (winners.size() != 1) {
             return new Result(
                 SleeperLiveWaiverFinalRecommendationBundle.SelectionState.CROSS_POSITION_TRANSACTION_IMPROVEMENT_UNRESOLVED,
-                null, null, List.copyOf(options), List.copyOf(directComparisons));
+                null, null, List.copyOf(options), List.copyOf(comparisons));
         }
 
         TransactionOption winner = winners.get(0);
         return new Result(
             SleeperLiveWaiverFinalRecommendationBundle.SelectionState.UNIQUE_ADD_DROP_SELECTED,
-            winner.add(), winner.drop(), List.copyOf(options), List.copyOf(directComparisons));
+            winner.add(), winner.drop(), List.copyOf(options), List.copyOf(comparisons));
     }
 
-    private PositionResult selectPosition(
-        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
-        String position,
-        List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> finalists) throws SQLException {
-        List<SleeperLiveWaiverComparisonExecutionBundle.ShortlistEntry> addWinners = new ArrayList<>();
-        List<SleeperLiveWaiverFinalRecommendationBundle.DirectComparison> comparisons = new ArrayList<>();
-        for (var left : finalists) {
-            boolean dominatesAll = true;
-            for (var right : finalists) {
-                if (left == right) continue;
-                var comparison = comparePlayers(
-                    left.candidate().butlerPlayerId(), left.candidate().sleeperPlayerId(),
-                    right.candidate().butlerPlayerId(), right.candidate().sleeperPlayerId(),
-                    bundle.methodology().exactLeagueScoringSettings());
-                comparisons.add(comparison);
-                if (comparison.direction()
-                    != SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.LEFT_DIRECTIONALLY_SUPPORTED) {
-                    dominatesAll = false;
-                }
-            }
-            if (dominatesAll) addWinners.add(left);
-        }
-        if (addWinners.size() != 1) return new PositionResult(position, null, List.copyOf(comparisons));
-
-        var addEntry = addWinners.get(0);
-        var add = candidate(addEntry.candidate());
-        var candidateExecution = bundle.comparisons().candidates().stream()
-            .filter(value -> value.candidate().sleeperPlayerId().equals(add.sleeperPlayerId()))
-            .findFirst()
-            .orElseThrow(() -> new IllegalStateException(
-                "BF-624 BLOCKED: position-selected add is absent from BF-615 candidate execution"));
-
-        List<SleeperLiveWaiverComparisonExecutionBundle.RosterEntry> supportedDrops = candidateExecution.pairs().stream()
-            .filter(value -> value.state()
-                == SleeperLiveWaiverComparisonExecutionBundle.PairState.CANDIDATE_DIRECTIONALLY_SUPPORTED)
-            .map(SleeperLiveWaiverComparisonExecutionBundle.PairComparison::roster)
-            .filter(value -> SleeperLiveWaiverCandidateRosterComparisonMethodology.eligibleReplacementSlot(value.rosterSlot()))
-            .filter(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::priorProductionPresent)
-            .distinct()
-            .sorted(Comparator.comparing(SleeperLiveWaiverComparisonExecutionBundle.RosterEntry::sleeperPlayerId))
-            .toList();
-        if (supportedDrops.isEmpty()) return new PositionResult(position, null, List.copyOf(comparisons));
-
-        List<SleeperLiveWaiverComparisonExecutionBundle.RosterEntry> dropWinners = new ArrayList<>();
-        if (supportedDrops.size() == 1) {
-            dropWinners.add(supportedDrops.get(0));
-        } else {
-            for (var left : supportedDrops) {
-                boolean weakerThanAll = true;
-                for (var right : supportedDrops) {
-                    if (left == right) continue;
-                    var comparison = comparePlayers(
-                        left.butlerPlayerId(), left.sleeperPlayerId(),
-                        right.butlerPlayerId(), right.sleeperPlayerId(),
-                        bundle.methodology().exactLeagueScoringSettings());
-                    comparisons.add(comparison);
-                    if (comparison.direction()
-                        != SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.RIGHT_DIRECTIONALLY_SUPPORTED) {
-                        weakerThanAll = false;
-                    }
-                }
-                if (weakerThanAll) dropWinners.add(left);
-            }
-        }
-        if (dropWinners.size() != 1) return new PositionResult(position, null, List.copyOf(comparisons));
-
-        TransactionOption option = transactionOption(
-            addEntry.candidate(), dropWinners.get(0), bundle.methodology().exactLeagueScoringSettings());
-        if (option == null) return new PositionResult(position, null, List.copyOf(comparisons));
-        return new PositionResult(position, option, List.copyOf(comparisons));
-    }
-
-    private TransactionOption transactionOption(
+    private PairEvaluation evaluate(
         SleeperLiveWaiverComparisonExecutionBundle.CandidateEntry add,
-        SleeperLiveWaiverComparisonExecutionBundle.RosterEntry drop,
-        Map<String, Double> scoring) throws SQLException {
-        Map<String, PlayerSeasonProduction> addRows = latest2025BySource(productionSource.load(add.butlerPlayerId()));
-        Map<String, PlayerSeasonProduction> dropRows = latest2025BySource(productionSource.load(drop.butlerPlayerId()));
+        SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer drop,
+        Map<String, PlayerSeasonProduction> addRows,
+        Map<String, PlayerSeasonProduction> dropRows,
+        Map<String, Double> scoring) {
         Set<String> common = new TreeSet<>(addRows.keySet());
         common.retainAll(dropRows.keySet());
-        if (common.isEmpty()) return null;
+        if (common.isEmpty()) {
+            return new PairEvaluation(
+                new SleeperLiveWaiverFinalRecommendationBundle.DirectComparison(
+                    add.sleeperPlayerId(), drop.sleeperPlayerId(), List.of(), List.of(),
+                    SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.NO_COMMON_SOURCE),
+                null);
+        }
 
+        Map<String, Double> addPerGame = new LinkedHashMap<>();
+        Map<String, Double> dropPerGame = new LinkedHashMap<>();
         Map<String, Double> improvementBySource = new LinkedHashMap<>();
         Map<String, List<String>> scoringKeysBySource = new LinkedHashMap<>();
-        for (String source : common) {
-            var addSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
-                .supportedSubtotal(addRows.get(source), scoring);
-            var dropSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
-                .supportedSubtotal(dropRows.get(source), scoring);
-            Double addPerGame = addSubtotal.supportedSubtotalPerGame();
-            Double dropPerGame = dropSubtotal.supportedSubtotalPerGame();
-            if (addPerGame == null || dropPerGame == null) return null;
-            if (!addSubtotal.includedScoringKeys().equals(dropSubtotal.includedScoringKeys())) return null;
-            double improvement = addPerGame - dropPerGame;
-            if (!(improvement > 0.0d)) return null;
-            improvementBySource.put(source, improvement);
-            scoringKeysBySource.put(source, List.copyOf(addSubtotal.includedScoringKeys()));
-        }
-        return new TransactionOption(
-            candidate(add), roster(drop),
-            Collections.unmodifiableMap(new LinkedHashMap<>(improvementBySource)),
-            immutableKeyMap(scoringKeysBySource));
-    }
-
-    private SleeperLiveWaiverFinalRecommendationBundle.DirectComparison comparePlayers(
-        String leftButlerId,
-        String leftSleeperId,
-        String rightButlerId,
-        String rightSleeperId,
-        Map<String, Double> scoring) throws SQLException {
-        Map<String, PlayerSeasonProduction> leftRows = latest2025BySource(productionSource.load(leftButlerId));
-        Map<String, PlayerSeasonProduction> rightRows = latest2025BySource(productionSource.load(rightButlerId));
-        Set<String> common = new TreeSet<>(leftRows.keySet());
-        common.retainAll(rightRows.keySet());
-        if (common.isEmpty()) {
-            return new SleeperLiveWaiverFinalRecommendationBundle.DirectComparison(
-                leftSleeperId, rightSleeperId, List.of(), List.of(),
-                SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.NO_COMMON_SOURCE);
-        }
-
-        Map<String, Double> leftPerGame = new LinkedHashMap<>();
-        Map<String, Double> rightPerGame = new LinkedHashMap<>();
         List<SleeperLiveWaiverFinalRecommendationBundle.DirectSourceComparison> details = new ArrayList<>();
         boolean unresolved = false;
+
         for (String source : common) {
-            PlayerSeasonProduction leftRow = leftRows.get(source);
-            PlayerSeasonProduction rightRow = rightRows.get(source);
-            var leftSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology.supportedSubtotal(leftRow, scoring);
-            var rightSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology.supportedSubtotal(rightRow, scoring);
+            PlayerSeasonProduction addRow = addRows.get(source);
+            PlayerSeasonProduction dropRow = dropRows.get(source);
+            var addSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .supportedSubtotal(addRow, scoring);
+            var dropSubtotal = SleeperLiveWaiverCandidateRosterComparisonMethodology
+                .supportedSubtotal(dropRow, scoring);
+
             String state;
-            if (leftSubtotal.supportedSubtotalPerGame() == null || rightSubtotal.supportedSubtotalPerGame() == null) {
+            if (addSubtotal.supportedSubtotalPerGame() == null
+                || dropSubtotal.supportedSubtotalPerGame() == null) {
                 unresolved = true;
                 state = "NONCOMPARABLE_GAMES_PLAYED";
-            } else if (!leftSubtotal.includedScoringKeys().equals(rightSubtotal.includedScoringKeys())) {
+            } else if (!addSubtotal.includedScoringKeys().equals(dropSubtotal.includedScoringKeys())) {
                 unresolved = true;
                 state = "SCHEMA_SUPPORT_MISMATCH";
             } else {
                 state = "COMPARABLE_COMMON_SOURCE";
-                leftPerGame.put(source, leftSubtotal.supportedSubtotalPerGame());
-                rightPerGame.put(source, rightSubtotal.supportedSubtotalPerGame());
+                double addValue = addSubtotal.supportedSubtotalPerGame();
+                double dropValue = dropSubtotal.supportedSubtotalPerGame();
+                addPerGame.put(source, addValue);
+                dropPerGame.put(source, dropValue);
+                improvementBySource.put(source, addValue - dropValue);
+                scoringKeysBySource.put(source, List.copyOf(addSubtotal.includedScoringKeys()));
             }
+
             details.add(new SleeperLiveWaiverFinalRecommendationBundle.DirectSourceComparison(
-                source, leftRow.asOfDate(), rightRow.asOfDate(),
-                leftSubtotal.supportedSubtotalPerGame(), rightSubtotal.supportedSubtotalPerGame(),
-                leftSubtotal.includedScoringKeys(), rightSubtotal.includedScoringKeys(), state));
+                source,
+                addRow.asOfDate(),
+                dropRow.asOfDate(),
+                addSubtotal.supportedSubtotalPerGame(),
+                dropSubtotal.supportedSubtotalPerGame(),
+                addSubtotal.includedScoringKeys(),
+                dropSubtotal.includedScoringKeys(),
+                state));
         }
 
         SleeperLiveWaiverFinalRecommendationBundle.DirectDirection direction;
@@ -248,7 +197,7 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
             direction = SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.SOURCE_DIRECTION_UNRESOLVED;
         } else {
             direction = switch (SleeperLiveWaiverCandidateRosterComparisonMethodology
-                .directionAcrossCommonSources(leftPerGame, rightPerGame)) {
+                .directionAcrossCommonSources(addPerGame, dropPerGame)) {
                 case CANDIDATE_DIRECTIONALLY_SUPPORTED ->
                     SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.LEFT_DIRECTIONALLY_SUPPORTED;
                 case ROSTER_DIRECTIONALLY_SUPPORTED ->
@@ -261,8 +210,45 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
                     SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.NO_COMMON_SOURCE;
             };
         }
-        return new SleeperLiveWaiverFinalRecommendationBundle.DirectComparison(
-            leftSleeperId, rightSleeperId, List.copyOf(common), List.copyOf(details), direction);
+
+        var comparison = new SleeperLiveWaiverFinalRecommendationBundle.DirectComparison(
+            add.sleeperPlayerId(),
+            drop.sleeperPlayerId(),
+            List.copyOf(common),
+            List.copyOf(details),
+            direction);
+
+        if (direction != SleeperLiveWaiverFinalRecommendationBundle.DirectDirection.LEFT_DIRECTIONALLY_SUPPORTED) {
+            return new PairEvaluation(comparison, null);
+        }
+
+        for (double improvement : improvementBySource.values()) {
+            if (!(improvement > 0.0d)) {
+                return new PairEvaluation(comparison, null);
+            }
+        }
+
+        return new PairEvaluation(
+            comparison,
+            new TransactionOption(
+                candidate(add),
+                roster(drop),
+                Collections.unmodifiableMap(new LinkedHashMap<>(improvementBySource)),
+                immutableKeyMap(scoringKeysBySource)));
+    }
+
+    private static void validateFreshnessLineage(
+        SleeperLiveWaiverComparisonExecutionBundle.BundleReport bundle,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport freshness) {
+        if (!bundle.comparisons().leagueId().equals(freshness.leagueId())
+            || !bundle.comparisons().sleeperOwnerId().equals(freshness.sleeperOwnerId())
+            || !bundle.comparisons().marketSnapshotId().equals(freshness.marketSnapshotId())
+            || !bundle.comparisons().waiverSnapshotId().equals(freshness.waiverSnapshotId())
+            || !bundle.comparisons().sleeperLeagueId().equals(freshness.sleeperLeagueId())
+            || bundle.comparisons().rosterId() != freshness.rosterId()) {
+            throw new IllegalStateException(
+                "BF-903 BLOCKED: transaction-first live-roster lineage differs from BF-615/BF-616");
+        }
     }
 
     private static boolean compatible(TransactionOption left, TransactionOption right) {
@@ -300,7 +286,8 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
             }
         }
         Map<String, PlayerSeasonProduction> sorted = new LinkedHashMap<>();
-        latest.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> sorted.put(entry.getKey(), entry.getValue()));
+        latest.entrySet().stream().sorted(Map.Entry.comparingByKey())
+            .forEach(entry -> sorted.put(entry.getKey(), entry.getValue()));
         return Collections.unmodifiableMap(sorted);
     }
 
@@ -313,25 +300,15 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
     }
 
     private static SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer roster(
-        SleeperLiveWaiverComparisonExecutionBundle.RosterEntry value) {
+        SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer value) {
         return new SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer(
             value.sleeperPlayerId(), value.displayName(), value.position(), value.rosterSlot(),
             null, null, null, null, null);
     }
 
-    private static String requireText(String value, String field) {
-        if (value == null || value.isBlank()) throw new IllegalArgumentException(field + " must not be blank");
-        return value.trim();
-    }
-
-    record PositionResult(
-        String position,
-        TransactionOption option,
-        List<SleeperLiveWaiverFinalRecommendationBundle.DirectComparison> directComparisons) {
-        PositionResult {
-            directComparisons = List.copyOf(directComparisons);
-        }
-    }
+    private record PairEvaluation(
+        SleeperLiveWaiverFinalRecommendationBundle.DirectComparison comparison,
+        TransactionOption option) {}
 
     record TransactionOption(
         SleeperLiveWaiverFinalRecommendationBundle.SelectedPlayer add,
@@ -358,4 +335,6 @@ final class SleeperLiveWaiverCrossPositionTransactionSelector {
             directComparisons = List.copyOf(directComparisons);
         }
     }
+
+
 }

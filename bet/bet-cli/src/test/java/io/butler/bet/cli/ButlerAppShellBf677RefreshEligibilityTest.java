@@ -34,14 +34,33 @@ class ButlerAppShellBf677RefreshEligibilityTest {
     }
 
     @Test
-    void exactNoTransactionStateExposesRefreshControl() throws Exception {
+    void noTransactionStateExposesRefreshControlForVerifiedOrSupersededLineage() throws Exception {
         String eligibility = eligibilitySection(script("scripts/butler-decision-refresh.ps1"));
 
         assertTrue(eligibility.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(eligibility.contains("$bf629State -ceq 'NO_TRANSACTION_TO_REVALIDATE'"));
-        assertTrue(eligibility.contains("$bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(eligibility.contains("Test-DecisionRefreshNoTransactionLineage -LineageState $bf631State"));
+        assertTrue(eligibility.contains("'LATEST_EVIDENCE_LINEAGE_VERIFIED'"));
+        assertTrue(eligibility.contains("'MARKET_LINEAGE_SUPERSEDED'"));
+        assertTrue(eligibility.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(eligibility.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
+        assertFalse(eligibility.contains("'NO_AUDITED_DECISION'"));
         assertTrue(eligibility.contains("$eligible = $true"));
         assertTrue(eligibility.contains("href=\"/refresh\">Refresh Butler data"));
+    }
+
+    @Test
+    void managerDashboardPreservesHiddenRefreshEligibilityContract() throws Exception {
+        String managerTransform = script("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
+
+        assertTrue(managerTransform.contains("class=\"butler-refresh-contract\" hidden"));
+        assertTrue(managerTransform.contains("Decision state: $(ConvertTo-HtmlText $state)"));
+        assertTrue(managerTransform.contains("BF-629: $(ConvertTo-HtmlText $bf629)"));
+        assertTrue(managerTransform.contains("BF-631: $(ConvertTo-HtmlText $bf631)"));
+        assertTrue(managerTransform.contains("BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)"));
+        assertTrue(managerTransform.contains("BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)"));
+        assertTrue(managerTransform.contains("Governed step count: $($refreshPlan.Steps.Count)"));
+        assertTrue(managerTransform.contains("($managerPrelude + $newReturn) -match 'Invoke-RestMethod|Invoke-ButlerReadOnly|Method = \"POST\"|AutoFillLineupOptimizer|BUTLER_FANTASYPROS_API_KEY'"));
     }
 
     @Test

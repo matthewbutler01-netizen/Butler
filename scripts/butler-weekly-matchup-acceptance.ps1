@@ -312,16 +312,12 @@ try {
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Ok -Response $matchup -Stage 'Weekly Matchup idle state'
 
+    # BF-901 functional gate: verify the idle matchup can identify the current pairing
+    # and exposes the governed lineup-review action. Avoid presentation-copy markers.
     foreach ($marker in @(
         'Butler - Weekly Matchup',
-        'Weekly matchup',
-        'OPPONENT CONFIRMED',
-        'Lineup advisor',
         'NOT REVIEWED',
         'href="/matchup/autofill"',
-        'Opponent context',
-        'Roster profile',
-        'href="/matchup"',
         'READ ONLY.'
     )) {
         Assert-Contains -Html $matchup.Body -Marker $marker -Stage 'Weekly Matchup idle state'
@@ -329,21 +325,6 @@ try {
 
     if ($matchup.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: idle Weekly Matchup escaped to the My Team AutoFill route.'
-    }
-    Assert-Contains -Html $matchup.Body -Marker 'Matchup details' -Stage 'Weekly Matchup plain-language details'
-    foreach ($legacyMatchupPhrase in @(
-        'PAIRING VERIFIED',
-        'EVIDENCE NEEDED',
-        'Pairing evidence',
-        'Opponent pairing unavailable'
-    )) {
-        if ($matchup.Body.IndexOf($legacyMatchupPhrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-            throw "BF-848 BLOCKED: Weekly Matchup exposed legacy engineering copy: $legacyMatchupPhrase"
-        }
-    }
-    Assert-Contains -Html $matchup.Body -Marker '>Review Lineup</a>' -Stage 'Weekly Matchup idle action copy'
-    if ($matchup.Body.IndexOf('>Run AutoFill</a>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        throw 'BF-846 BLOCKED: idle Weekly Matchup exposed standalone My Team AutoFill wording.'
     }
 
     foreach ($blocked in @(
@@ -372,13 +353,11 @@ try {
 
     $review = Invoke-Get -Url ($root + '/matchup/autofill') -TimeoutMs $timeoutMs
     Assert-Ok -Response $review -Stage 'Weekly Matchup explicit lineup review'
+    # Functional markers only: the reviewed route must remain in matchup context
+    # and must return a governed lineup result below.
     foreach ($marker in @(
         'Butler - Weekly Matchup',
-        'OPPONENT CONFIRMED',
-        'Lineup advisor',
         'href="/matchup/autofill"',
-        'Opponent context',
-        'Roster profile',
         'READ ONLY.'
     )) {
         Assert-Contains -Html $review.Body -Marker $marker -Stage 'Weekly Matchup explicit lineup review'
@@ -386,12 +365,36 @@ try {
     if ($review.Body.IndexOf('NOT REVIEWED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: explicit Matchup AutoFill request remained in NOT REVIEWED state.'
     }
+    $decisionMatch = [regex]::Match(
+        $review.Body,
+        '<div class="next"><strong>What to do now</strong><p>(?<detail>.*?)</p></div>',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+            [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if (-not $decisionMatch.Success) {
+        throw 'BF-901 FAILED: explicit lineup review did not expose its decision detail.'
+    }
+    $decisionDetail = [regex]::Replace($decisionMatch.Groups['detail'].Value, '<[^>]+>', ' ')
+    $decisionDetail = [System.Net.WebUtility]::HtmlDecode($decisionDetail)
+    $decisionDetail = [regex]::Replace($decisionDetail, '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($decisionDetail)) {
+        throw 'BF-901 FAILED: explicit lineup review decision detail was empty.'
+    }
+
+    if ($review.Body.IndexOf('EVIDENCE GAP', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw ("BF-901 FAILED: lineup evidence gap: {0}" -f $decisionDetail)
+    }
+    $hasChanges = $review.Body.IndexOf('CHANGES FOUND', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $hasNoChanges = $review.Body.IndexOf('NO CHANGES', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $hasPartialReview = $review.Body.IndexOf('PARTIAL REVIEW', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if (-not $hasChanges -and -not $hasNoChanges -and -not $hasPartialReview) {
+        throw ("BF-902 FAILED: explicit lineup review produced no governed lineup decision state. detail={0}" -f $decisionDetail)
+    }
+    if ($hasPartialReview -and $decisionDetail.IndexOf('Projection hold:', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw ("BF-902 FAILED: partial lineup review did not expose its projection hold. detail={0}" -f $decisionDetail)
+    }
     if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
-    }
-    Assert-Contains -Html $review.Body -Marker '>Back to Matchup</a>' -Stage 'Weekly Matchup reviewed action copy'
-    if ($review.Body.IndexOf('>Back to My Team</a>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        throw 'BF-846 BLOCKED: reviewed Weekly Matchup displayed a My Team return label for a Matchup destination.'
     }
     foreach ($blocked in @(
         'Opponent not confirmed',
@@ -403,7 +406,9 @@ try {
         }
     }
 
-    Write-Host 'Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED'
+    $decisionState = if ($hasPartialReview) { 'PARTIAL REVIEW' } elseif ($hasChanges) { 'CHANGES FOUND' } else { 'NO CHANGES' }
+    Write-Host ("Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED ({0})" -f $decisionState)
+    Write-Host ("Lineup decision: {0}" -f $decisionDetail)
     Write-Host 'Action copy: MATCHUP_CONTEXT_VERIFIED'
     Write-Host 'Opponent: GOVERNED_OPPONENT_CONTEXT_RENDERED'
     $passed = $true

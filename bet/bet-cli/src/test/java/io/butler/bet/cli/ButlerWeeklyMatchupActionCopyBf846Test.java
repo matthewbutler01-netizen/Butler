@@ -42,10 +42,11 @@ class ButlerWeeklyMatchupActionCopyBf846Test {
     void liveAcceptanceProvesContextCorrectLabels() throws Exception {
         String acceptance = source("scripts/butler-weekly-matchup-acceptance.ps1");
 
-        assertTrue(acceptance.contains("Review Lineup"));
-        assertTrue(acceptance.contains("Back to Matchup"));
-        assertTrue(acceptance.contains("Run AutoFill"));
-        assertTrue(acceptance.contains("Back to My Team"));
+        assertTrue(acceptance.contains("Lineup idle: OPT_IN_REVIEW_VERIFIED"));
+        assertTrue(acceptance.contains("Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED"));
+        assertTrue(acceptance.contains("Action copy: MATCHUP_CONTEXT_VERIFIED"));
+        assertFalse(acceptance.contains("Run AutoFill"));
+        assertFalse(acceptance.contains("Back to My Team"));
     }
 
     @Test

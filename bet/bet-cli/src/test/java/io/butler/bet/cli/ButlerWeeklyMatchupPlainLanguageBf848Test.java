@@ -47,11 +47,11 @@ class ButlerWeeklyMatchupPlainLanguageBf848Test {
         String acceptance = source("scripts/butler-weekly-matchup-acceptance.ps1");
 
         assertTrue(acceptance.contains("Matchup copy: PLAIN_LANGUAGE_VERIFIED"));
-        assertTrue(acceptance.contains("Matchup details"));
-        assertTrue(acceptance.contains("PAIRING VERIFIED"));
-        assertTrue(acceptance.contains("EVIDENCE NEEDED"));
-        assertTrue(acceptance.contains("Pairing evidence"));
-        assertTrue(acceptance.contains("Opponent pairing unavailable"));
+        assertTrue(acceptance.contains("Opponent not confirmed"));
+        assertFalse(acceptance.contains("PAIRING VERIFIED"));
+        assertFalse(acceptance.contains("EVIDENCE NEEDED"));
+        assertFalse(acceptance.contains("Pairing evidence"));
+        assertFalse(acceptance.contains("Opponent pairing unavailable"));
     }
 
     @Test

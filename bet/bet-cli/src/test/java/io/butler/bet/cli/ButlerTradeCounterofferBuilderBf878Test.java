@@ -45,7 +45,7 @@ class ButlerTradeCounterofferBuilderBf878Test {
         assertTrue(actionMatch > counterPerspective);
         assertTrue(trade.contains("counter proposal requires the exact evaluated trade coordinates"));
         assertTrue(trade.contains("counter proposal perspective does not match the exact bound user team"));
-        assertTrue(trade.contains("counter proposal v5 action does not match the rendered recommendation"));
+        assertTrue(trade.contains("legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation"));
     }
 
     @Test

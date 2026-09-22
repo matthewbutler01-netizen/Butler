@@ -25,6 +25,7 @@ public final class ButlerAutoFillLineupRecommendationCli {
         System.out.println("Projection source: " + report.sourceName());
         System.out.println("Projection source surface: " + report.sourceSurface());
         System.out.println("Projection provenance: " + report.projectionProvenance());
+        System.out.println("Projection coverage: " + (report.projectionHolds().isEmpty() ? "FULL" : "PARTIAL"));
         System.out.println("Mapped active roster players: " + report.mappedActivePlayers());
         System.out.println("Current projected starter total: " + points(report.currentProjectedTotal()));
         System.out.println("Recommended projected starter total: " + points(recommendation.projectedTotal()));
@@ -64,7 +65,20 @@ public final class ButlerAutoFillLineupRecommendationCli {
                     + " | reason=" + exclusion.reason());
             }
         }
-        System.out.println("Boundary: AutoFill is preview-only. No Butler or Sleeper lineup write was executed.");
+        System.out.println("Projection holds:");
+        if (report.projectionHolds().isEmpty()) {
+            System.out.println("  none");
+        } else {
+            for (var hold : report.projectionHolds()) {
+                System.out.println("  " + hold.displayName() + " [" + hold.sleeperPlayerId() + "]"
+                    + " | roster_slot=" + hold.rosterSlot()
+                    + " | lineup_slot=" + value(hold.lineupSlot())
+                    + " | status=" + value(hold.status())
+                    + " | injury_status=" + value(hold.injuryStatus())
+                    + " | reason=" + hold.reason());
+            }
+        }
+        System.out.println("Boundary: AutoFill is preview-only. Projection holds preserve current lineup state and are not assigned synthetic points. No Butler or Sleeper lineup write was executed.");
     }
 
     private static String points(BigDecimal value) {

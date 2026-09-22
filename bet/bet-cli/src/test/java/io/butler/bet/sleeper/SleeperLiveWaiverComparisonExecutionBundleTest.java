@@ -67,6 +67,40 @@ class SleeperLiveWaiverComparisonExecutionBundleTest {
     }
 
     @Test
+    void transactionFirstShortlistKeepsCandidateThatBeatsOneLegitimateDrop() throws Exception {
+        var candidates = new SleeperLiveWaiverComparisonExecutionBundle.CandidateFrame(
+            "L", "M", 1, 1, List.of(candidate("c", "bc", "RB", true)));
+        var roster = new SleeperLiveWaiverComparisonExecutionBundle.RosterFrame(
+            "L", "M", "W", "S", "owner", 1, 2, 0, 2, 0, 0, List.of(
+                roster("weak", "bweak", "RB", "BENCH", true),
+                roster("strong", "bstrong", "RB", "BENCH", true)));
+
+        Map<String, List<PlayerSeasonProduction>> production = new LinkedHashMap<>();
+        production.put("bc", List.of(v1("c", "bc", "nflverse", LocalDate.of(2026, 9, 1), 100, 0, 0)));
+        production.put("bweak", List.of(v1("weak", "bweak", "nflverse", LocalDate.of(2026, 9, 1), 50, 0, 0)));
+        production.put("bstrong", List.of(v1("strong", "bstrong", "nflverse", LocalDate.of(2026, 9, 1), 150, 0, 0)));
+
+        var bundle = new SleeperLiveWaiverComparisonExecutionBundle(
+            (league, owner) -> methodology(1, 1, 1, 0, 2, 0, 2, 0, 0, 2, 0),
+            ignored -> candidates,
+            (league, owner) -> roster,
+            playerId -> production.getOrDefault(playerId, List.of()));
+
+        var report = bundle.run("L", "owner");
+        var decision = decision(report, "c");
+
+        assertEquals(1, decision.pairCounts().candidateDirectionallySupported());
+        assertEquals(1, decision.pairCounts().rosterDirectionallySupported());
+        assertEquals(List.of("weak"), decision.candidateSupportedComparatorSleeperIds());
+        assertEquals(
+            SleeperLiveWaiverComparisonExecutionBundle.CandidateShortlistState.HISTORICAL_DIRECTIONAL_SHORTLIST,
+            decision.state());
+        assertEquals(1, report.shortlist().historicalShortlistCount());
+        assertEquals(List.of("c"), report.shortlist().shortlist().stream()
+            .map(value -> value.candidate().sleeperPlayerId()).toList());
+    }
+
+    @Test
     void latest2025ObservationPerSourceControlsDirectionInsteadOfOlderRow() throws Exception {
         var report = standardBundle().run("L", "owner");
         var pair = report.comparisons().pairs().stream()
