@@ -40,42 +40,13 @@ if ($core.IndexOf('function ConvertTo-MyTeamPlayerNameHtml {', [System.StringCom
     throw 'BF-908 BLOCKED: Player Detail roster-link helper must be installed before Roster Hub.'
 }
 
-$actionHelper = @'
-function ConvertTo-Bf908PlayerActionsHtml {
-    param([Parameter(Mandatory = $true)]$Player)
 
-    $mapped = [string]$Player.Mapping -ceq 'EXACT_CANONICAL'
-    $playerId = [string]$Player.ButlerPlayerId
-    if ($mapped -and -not [string]::IsNullOrWhiteSpace($playerId) -and
-        $playerId -cne '-' -and $playerId -cne 'none') {
-        $hrefId = [System.Uri]::EscapeDataString($playerId)
-        return '<div class="player-tools"><a href="/player?id=' + $hrefId + '">Detail</a><a href="/compare?left=' + $hrefId + '">Compare</a></div>'
-    }
-
-    return '<div class="player-tools unavailable">Player tools unavailable</div>'
-}
-
-'@
-
-$core = $core.Insert($teamStart, $actionHelper)
 $teamStart = $core.IndexOf('function ConvertTo-TeamHtml {', [System.StringComparison]::Ordinal)
 $teamEnd = $core.IndexOf('function Add-LeagueNavigation {', $teamStart, [System.StringComparison]::Ordinal)
 $teamBlock = $core.Substring($teamStart, $teamEnd - $teamStart)
 
-$starterOld = '<span class=`"state-chip state-start`">START</span></div>"'
-$starterNew = '<div class=`"player-row-tail`"><span class=`"state-chip state-start`">START</span>$(ConvertTo-Bf908PlayerActionsHtml -Player $player)</div></div>"'
-$teamBlock = Replace-ExactlyOnce -Text $teamBlock -Old $starterOld -New $starterNew -Contract 'starter player actions'
-
-$benchOld = '<span class=`"state-chip state-bench`">BENCH</span></div>"'
-$benchNew = '<div class=`"player-row-tail`"><span class=`"state-chip state-bench`">BENCH</span>$(ConvertTo-Bf908PlayerActionsHtml -Player $player)</div></div>"'
-$teamBlock = Replace-ExactlyOnce -Text $teamBlock -Old $benchOld -New $benchNew -Contract 'bench player actions'
-
-$reserveOld = '<span class=`"state-chip state-reserve`">$(ConvertTo-HtmlText $state)</span></div>"'
-$reserveNew = '<div class=`"player-row-tail`"><span class=`"state-chip state-reserve`">$(ConvertTo-HtmlText $state)</span>$(ConvertTo-Bf908PlayerActionsHtml -Player $player)</div></div>"'
-$teamBlock = Replace-ExactlyOnce -Text $teamBlock -Old $reserveOld -New $reserveNew -Contract 'reserve player actions'
-
 $rosterHeadingOld = '<div class="section-head"><div><div class="eyebrow">Roster</div><h2>Players by lineup state</h2><p class="lede">Starters first, then bench and reserve. No player IDs or operator-only details are shown in the manager view.</p></div></div>'
-$rosterHeadingNew = '<div class="section-head"><div><div class="eyebrow">Roster hub</div><h2>Lineup and depth at a glance</h2><p class="lede">Starters first, then bench and reserve. Current roster assignment is context only; Butler is not ranking players here.</p></div><div class="button-row"><a class="btn btn-secondary" href="/players">Player Search</a></div></div>'
+$rosterHeadingNew = '<div class="section-head"><div><div class="eyebrow">Roster hub</div><h2>Lineup and depth at a glance</h2><p class="lede">Starters first, then bench and reserve. Current roster assignment is context only; Butler is not ranking players here. Click a mapped player name for Player Detail.</p></div><div class="button-row"><a class="btn btn-secondary" href="/players">Player Search</a><a class="btn btn-secondary" href="/compare">Player Compare</a></div></div>'
 $teamBlock = Replace-ExactlyOnce -Text $teamBlock -Old $rosterHeadingOld -New $rosterHeadingNew -Contract 'Roster Hub heading'
 
 $positionMarker = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Roster construction</div>'
@@ -114,7 +85,7 @@ if ($cssTerminator -lt 0) {
 
 $bf908Css = @'
 /* BF-908 My Team Roster Hub. */
-.player-row{grid-template-columns:minmax(0,1fr) auto}.player-row-tail{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}.player-tools{display:flex;gap:6px;align-items:center}.player-tools a{display:inline-flex;align-items:center;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--turf-deep);text-decoration:none;font-size:10px;font-weight:800}.player-tools a:hover{border-color:var(--turf)}.player-tools.unavailable{color:var(--muted);font-size:10px}.roster-board{margin-top:14px}@media(max-width:760px){.player-row{grid-template-columns:1fr}.player-row-tail{justify-content:flex-start}.player-tools{width:100%}.player-tools a{flex:1;justify-content:center}}
+.roster-board{margin-top:14px}.roster-group-head{padding-top:12px;padding-bottom:12px}.player-row{transition:background .12s ease}.player-primary strong a{color:var(--ink);text-decoration:none}.player-primary strong a:hover{color:var(--turf-deep);text-decoration:underline}@media(max-width:760px){.section-head .button-row{width:100%}.section-head .button-row .btn{flex:1}}
 '@
 
 $cssBlock = $cssBlock.Substring(0, $cssTerminator) + "`n" + $bf908Css.TrimEnd() + $cssBlock.Substring($cssTerminator)
@@ -122,14 +93,12 @@ $core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
 
 foreach ($required in @(
     'BF-908 My Team Roster Hub',
-    'function ConvertTo-Bf908PlayerActionsHtml',
     'Roster hub',
     'Lineup and depth at a glance',
     'ConvertTo-MyTeamPlayerNameHtml -Player $player',
-    'ConvertTo-Bf908PlayerActionsHtml -Player $player',
-    'href="/player?id=',
-    'href="/compare?left=',
+    'ConvertTo-MyTeamPlayerNameHtml -Player $player',
     'href="/players">Player Search</a>',
+    'href="/compare">Player Compare</a>',
     'Starting lineup',
     'Bench',
     'Reserve &amp; taxi',
