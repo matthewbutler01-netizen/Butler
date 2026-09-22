@@ -84,7 +84,8 @@ class ButlerLeaguePlayerCompareCliTest {
         assertTrue(summary.contains("new LeagueAssetInventoryAnalyzer(database).analyze(options.leagueId())"));
         assertTrue(summary.contains("new PlayerProfileSnapshotRepository(database)"));
         assertTrue(summary.contains("findLatestByPlayerIdsAndSeasonAndSource("));
-        assertTrue(summary.contains("Supporting evidence: DEFERRED"));
+        assertTrue(summary.contains("printSummary(new PlayerSummaryCompareReport("));
+        assertTrue(source.contains("Supporting evidence: DEFERRED"));
         assertFalse(summary.contains("LeaguePlayerEvidenceProfileAnalyzer"));
         assertFalse(summary.contains("LeagueAgeProductionContextAnalyzer"));
         assertFalse(summary.contains("LeagueAgeOutlookSupportingEvidenceAnalyzer"));
