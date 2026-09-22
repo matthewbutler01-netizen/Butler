@@ -37,13 +37,23 @@ public final class LeagueAnalyzer {
         Map<String, Integer> leaguePositions = new HashMap<>();
         int totalPlayers = 0;
 
-        for (Team team : teams.findByLeagueId(leagueId)) {
+        List<Team> leagueTeams = teams.findByLeagueId(leagueId);
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        for (Roster membership : rosters.findByLeagueId(leagueId)) {
+            rostersByTeam.computeIfAbsent(membership.getTeamId(), ignored -> new ArrayList<>()).add(membership);
+        }
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(leagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        for (Team team : leagueTeams) {
             Map<String, Integer> positions = new HashMap<>();
             Map<String, Integer> slots = new HashMap<>();
-            List<Roster> memberships = rosters.findByTeamId(team.getId());
+            List<Roster> memberships = rostersByTeam.getOrDefault(team.getId(), List.of());
 
             for (Roster membership : memberships) {
-                Player player = players.findById(membership.getPlayerId()).orElse(null);
+                Player player = playersById.get(membership.getPlayerId());
                 if (player == null) continue;
                 positions.merge(player.getPosition(), 1, Integer::sum);
                 leaguePositions.merge(player.getPosition(), 1, Integer::sum);
