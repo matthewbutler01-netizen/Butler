@@ -25,6 +25,13 @@ public final class ButlerLeaguePlayerDetailCli {
     private ButlerLeaguePlayerDetailCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         try {
             Options options = parse(args);
             Database database = initializedDatabase();
@@ -36,12 +43,13 @@ public final class ButlerLeaguePlayerDetailCli {
                 : profiles.analyze(options.leagueId(), options.season(), ageAsOf, null);
             var ageReport = ageProduction.analyze(profileReport);
             print(select(options.playerId(), ageReport, profileReport));
+            return 0;
         } catch (SQLException e) {
             System.err.println("Database error while building player detail evidence: " + e.getMessage());
-            System.exit(1);
+            return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
