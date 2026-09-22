@@ -50,6 +50,10 @@ class ButlerTradeQualityDiagnosticBf904Test {
         assertTrue(script.contains("/refresh excluded"));
         assertTrue(script.contains("taskkill /PID $Process.Id /T /F"));
         assertTrue(script.contains("git status --porcelain=v1 --untracked-files=all"));
+        assertTrue(script.contains("$start.RedirectStandardOutput = $true"));
+        assertTrue(script.contains("$start.RedirectStandardError = $true"));
+        assertTrue(script.contains("Get-OwnedButlerExitDiagnostic"));
+        assertTrue(script.contains("Butler exited during startup with code"));
         assertTrue(wrapper.contains("-ExecutionPolicy Bypass"));
         assertTrue(wrapper.contains("butler-trade-quality-diagnostic.ps1"));
 
