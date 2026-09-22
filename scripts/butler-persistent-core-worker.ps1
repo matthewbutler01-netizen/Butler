@@ -135,14 +135,17 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE', 'PLAYER_COMPARE_SUMMARY')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$BoundaryName,
 
-        [string]$AuditId
+        [string]$AuditId,
+        [string]$PlayerId,
+        [string]$RightPlayerId,
+        [string]$Query
     )
 
     if (-not $script:Bf740PersistentCoreWorkerCanary) {
@@ -160,14 +163,52 @@ function Invoke-Bf740PersistentCoreWorker {
         if ([string]::IsNullOrWhiteSpace($AuditId) -or $AuditId -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
             throw "$BoundaryName BLOCKED: BF-742 explanation lookup audit id is missing or malformed."
         }
+        if (-not [string]::IsNullOrWhiteSpace($PlayerId) -or -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player arguments are not authorized for EXPLANATION_LOOKUP."
+        }
     }
-    elseif (-not [string]::IsNullOrWhiteSpace($AuditId)) {
-        throw "$BoundaryName BLOCKED: BF-742 audit id is authorized only for EXPLANATION_LOOKUP."
+    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+        if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
+            throw "$BoundaryName BLOCKED: BF-906 player detail id is missing or malformed."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player detail received an unauthorized extra argument."
+        }
+    }
+    elseif ($Operation -ceq 'PLAYER_SEARCH') {
+        if ([string]::IsNullOrWhiteSpace($Query) -or $Query -notmatch "^[A-Za-z0-9 ._'-]{1,80}$") {
+            throw "$BoundaryName BLOCKED: BF-906 player search query is missing or malformed."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or -not [string]::IsNullOrWhiteSpace($PlayerId) -or -not [string]::IsNullOrWhiteSpace($RightPlayerId)) {
+            throw "$BoundaryName BLOCKED: BF-906 player search received an unauthorized extra argument."
+        }
+    }
+    elseif ($Operation -ceq 'PLAYER_COMPARE' -or $Operation -ceq 'PLAYER_COMPARE_SUMMARY') {
+        if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$' -or
+            [string]::IsNullOrWhiteSpace($RightPlayerId) -or $RightPlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$' -or
+            $PlayerId -ceq $RightPlayerId) {
+            throw "$BoundaryName BLOCKED: BF-906 player compare requires two different exact player ids."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player compare received an unauthorized extra argument."
+        }
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($AuditId) -or -not [string]::IsNullOrWhiteSpace($PlayerId) -or -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or -not [string]::IsNullOrWhiteSpace($Query)) {
+        throw "$BoundaryName BLOCKED: worker arguments were supplied for an operation that accepts none."
     }
 
     $requestId = [Guid]::NewGuid().ToString('N')
     if ($Operation -ceq 'EXPLANATION_LOOKUP') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$AuditId")
+    }
+    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId")
+    }
+    elseif ($Operation -ceq 'PLAYER_SEARCH') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$Query")
+    }
+    elseif ($Operation -ceq 'PLAYER_COMPARE' -or $Operation -ceq 'PLAYER_COMPARE_SUMMARY') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId`t$RightPlayerId")
     }
     else {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId")

@@ -32,7 +32,10 @@ class ButlerPlayerDetailProfileReuseBf886Test {
         assertTrue(analyzer.contains(
             "return build(Objects.requireNonNull(profile, \"profile must not be null\"));"));
         assertTrue(analyzer.contains(
-            "production.findLatest(age.playerId(), profile.season(), profile.productionSource())"));
+            "production.findLatestByPlayerIdsAndSeasonAndSource("));
+        assertFalse(analyzer.contains(
+            "production.findLatest(age.playerId(), profile.season(), profile.productionSource())"),
+            "BF-906 must keep BF-886 profile reuse without restoring per-player production reads");
     }
 
     @Test

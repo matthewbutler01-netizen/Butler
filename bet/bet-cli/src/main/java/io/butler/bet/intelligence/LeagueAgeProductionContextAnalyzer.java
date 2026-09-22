@@ -8,7 +8,9 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -51,12 +53,24 @@ public final class LeagueAgeProductionContextAnalyzer {
 
     private AgeProductionReport build(LeaguePlayerEvidenceProfileAnalyzer.PlayerEvidenceProfileReport profile)
         throws SQLException {
+        List<String> playerIds = new ArrayList<>();
+        for (var team : profile.teams()) {
+            for (var age : team.age().players()) {
+                playerIds.add(age.playerId());
+            }
+        }
+
+        Map<String, PlayerSeasonProduction> productionByPlayer = new HashMap<>();
+        for (PlayerSeasonProduction value : production.findLatestByPlayerIdsAndSeasonAndSource(
+            playerIds, profile.season(), profile.productionSource())) {
+            productionByPlayer.put(value.playerId(), value);
+        }
+
         List<TeamAgeProductionContext> teams = new ArrayList<>();
         for (var team : profile.teams()) {
             List<PlayerAgeProductionContext> players = new ArrayList<>();
             for (var age : team.age().players()) {
-                var snapshot = production.findLatest(age.playerId(), profile.season(), profile.productionSource());
-                players.add(toPlayer(age, snapshot.orElse(null)));
+                players.add(toPlayer(age, productionByPlayer.get(age.playerId())));
             }
             players.sort(Comparator.comparing(PlayerAgeProductionContext::position)
                 .thenComparing(PlayerAgeProductionContext::playerName, String.CASE_INSENSITIVE_ORDER)

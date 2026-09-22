@@ -19,7 +19,11 @@ public final class AgingModelTransitionStabilityAnalyzer {
     }
 
     public StabilityReport analyze() throws SQLException {
-        var audit = sampleAudit.analyze();
+        return evaluate(sampleAudit.analyze());
+    }
+
+    static StabilityReport evaluate(AgingModelSampleAuditAnalyzer.SampleAuditReport audit) {
+        Objects.requireNonNull(audit, "audit must not be null");
         List<CellStability> cells = new ArrayList<>();
         List<LeaveOutDiagnostic> leaveOuts = new ArrayList<>();
 

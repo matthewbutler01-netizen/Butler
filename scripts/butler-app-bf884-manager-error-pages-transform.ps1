@@ -97,6 +97,11 @@ $replacements = @(
         New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail $_.Exception.Message -Active "league"'
     },
     [pscustomobject]@{
+        Contract = 'Player Compare blocked page'
+        Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Player Compare blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p><p><a href=`"/players`">Back to Player Search</a></p></body></html>"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "league"'
+    },
+    [pscustomobject]@{
         Contract = 'Weekly Matchup blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Weekly Matchup view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
         New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Weekly Matchup unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify the matchup view safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "matchup"'

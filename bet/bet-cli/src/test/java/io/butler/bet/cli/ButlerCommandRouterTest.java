@@ -33,6 +33,8 @@ class ButlerCommandRouterTest {
             ButlerCommandRouter.route(new String[]{"league", "player-evidence-profile", "l1"}));
         assertEquals(ButlerCommandRouter.Route.LEAGUE_PLAYER_DETAIL,
             ButlerCommandRouter.route(new String[]{"league", "player-detail", "l1", "p1"}));
+        assertEquals(ButlerCommandRouter.Route.LEAGUE_PLAYER_COMPARE,
+            ButlerCommandRouter.route(new String[]{"league", "player-compare", "l1", "p1", "p2"}));
         assertEquals(ButlerCommandRouter.Route.LEAGUE_PLAYER_SEARCH,
             ButlerCommandRouter.route(new String[]{"league", "player-search", "l1", "Amon-Ra", "St.", "Brown"}));
         assertEquals(ButlerCommandRouter.Route.LEAGUE_FRANCHISE_DETAIL,

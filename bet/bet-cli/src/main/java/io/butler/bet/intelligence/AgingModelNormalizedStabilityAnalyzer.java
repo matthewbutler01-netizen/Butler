@@ -22,8 +22,14 @@ public final class AgingModelNormalizedStabilityAnalyzer {
     }
 
     public NormalizedStabilityReport analyze() throws SQLException {
-        var stabilityReport = stability.analyze();
-        var holdoutReport = holdout.analyze();
+        return normalize(stability.analyze(), holdout.analyze());
+    }
+
+    static NormalizedStabilityReport normalize(
+        AgingModelTransitionStabilityAnalyzer.StabilityReport stabilityReport,
+        AgingModelTemporalHoldoutAnalyzer.TemporalHoldoutReport holdoutReport) {
+        Objects.requireNonNull(stabilityReport, "stabilityReport must not be null");
+        Objects.requireNonNull(holdoutReport, "holdoutReport must not be null");
 
         Map<DimensionKey, AgingModelTemporalHoldoutAnalyzer.DimensionDiagnostic> holdoutByDimension = new HashMap<>();
         for (var diagnostic : holdoutReport.dimensions()) {

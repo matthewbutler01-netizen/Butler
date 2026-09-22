@@ -1,0 +1,203 @@
+package io.butler.bet.cli;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ButlerPlayerCompareBf906Test {
+
+    @Test
+    void playerCompareUsesExactTwoStepRosteredPlayerFlow() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+
+        assertTrue(transform.contains("function Get-PlayerCompareRequest"));
+        assertTrue(transform.contains("Player Compare requires exact Butler player IDs"));
+        assertTrue(transform.contains("Player Compare requires two different exact players"));
+        assertTrue(transform.contains("/__butler/internal/player-search?q="));
+        assertFalse(transform.contains("/__butler/internal/player-detail?player="));
+        assertTrue(transform.contains("/__butler/internal/player-compare"));
+        assertTrue(transform.contains("/__butler/internal/player-compare-summary"));
+        assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead"));
+        assertTrue(transform.contains("response does not match the exact requested players"));
+        assertTrue(transform.contains("selected Player Compare player must resolve exactly once in league inventory"));
+        assertTrue(transform.contains("PlayerName = [string]$leftMatch.Name"));
+        assertTrue(transform.contains("TeamName = [string]$leftMatch.OwnerTeamName"));
+        assertTrue(transform.contains("RosterSlot = [string]$leftMatch.Slot"));
+        assertFalse(transform.contains("PlayerName = [string]$leftMatch.PlayerName"));
+        assertFalse(transform.contains("TeamName = [string]$leftMatch.TeamName"));
+        assertFalse(transform.contains("RosterSlot = [string]$leftMatch.RosterSlot"));
+    }
+
+    @Test
+    void playerSearchAndDetailExposeSecondaryCompareActionsWithoutPrimaryNavChange() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+
+        assertTrue(transform.contains("/compare?left=$hrefId"));
+        assertTrue(transform.contains("Compare this player"));
+        assertTrue(transform.contains("/compare?left=$leftHref&right=$rightHref"));
+        assertFalse(transform.contains("function Get-AppNav {"));
+        assertFalse(transform.contains("Get-AppNav -Active 'compare'"));
+        assertFalse(transform.contains("Player Compare</a></nav>"));
+    }
+
+    @Test
+    void comparisonIsEvidenceOnlyAndProgressivelyDisclosesSupportingDetail() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+
+        assertTrue(transform.contains("NOT A RANKING"));
+        assertTrue(transform.contains("Butler does not choose a winner"));
+        assertTrue(transform.contains("Per-game production"));
+        assertTrue(transform.contains("<details><summary>Supporting evidence</summary>"));
+        assertTrue(transform.contains("Load supporting evidence"));
+        assertTrue(transform.contains("&support=1#supporting-evidence"));
+        assertTrue(transform.contains("SupportingEvidenceState"));
+        assertTrue(transform.contains("Market value"));
+        assertTrue(transform.contains("Age"));
+        assertTrue(transform.contains("Games"));
+        assertTrue(transform.contains("does not select a better player"));
+        assertTrue(transform.contains("does not create a winner, score, grade, buy/sell label, or recommendation"));
+    }
+
+    @Test
+    void compareRouteIsGetOnlyAndIntroducesNoProviderRefreshOrWritePath() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+        String workerTransform = source("scripts/butler-core-bf742-transform.ps1");
+
+        int guard = transform.indexOf("$installedStart");
+        assertTrue(guard > 0, "BF-906 safety-scan boundary must remain present");
+        String operational = transform.substring(0, guard);
+
+        assertTrue(operational.contains("if ($path -eq \"/compare\")"));
+        assertTrue(operational.contains("Invoke-Bf742DashboardWorkerRead"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'"));
+        assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"));
+        assertTrue(workerTransform.contains("PLAYER_COMPARE_SUMMARY"));
+        assertFalse(operational.contains("Invoke-ButlerReadOnly -Arguments \"league player-compare"));
+        assertFalse(operational.contains("Invoke-RestMethod"));
+        assertFalse(operational.contains("Invoke-WebRequest"));
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("https://api.sleeper.app"));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
+    }
+
+    @Test
+    void defaultCompareUsesFastSummaryAndLoadsFullSupportingEvidenceOnlyOnDemand() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+        String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
+        String compare = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLeaguePlayerCompareCli.java");
+
+        assertTrue(transform.contains("$compareBase = if ($compareRequest.LoadSupportingEvidence)"));
+        assertTrue(transform.contains("\"/__butler/internal/player-compare-summary\""));
+        assertTrue(transform.contains("\"/__butler/internal/player-compare\""));
+        assertTrue(transform.contains("$expectedSupportingState = if ($compareRequest.LoadSupportingEvidence) { 'READY' } else { 'DEFERRED' }"));
+        assertTrue(transform.contains("support may only be requested as support=1"));
+        assertTrue(transform.contains("supporting evidence requires two exact players"));
+
+        assertTrue(worker.contains("case PLAYER_COMPARE_SUMMARY -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerCompareCli.runEmbeddedSummary("));
+        assertTrue(compare.contains("Supporting evidence: DEFERRED"));
+        assertTrue(compare.contains("Supporting evidence: READY"));
+    }
+
+    @Test
+    void playerCompareStagesAfterContextNavigationAndBeforeRecoveryPolish() throws Exception {
+        String staging = source("scripts/butler-dashboard-bf715-transform.ps1");
+
+        int bf883 = staging.indexOf("& $bf883CoreTransform -CorePath $stagedCore");
+        int bf906 = staging.indexOf("& $bf906CoreTransform -CorePath $stagedCore");
+        int bf884 = staging.indexOf("& $bf884CoreTransform -CorePath $stagedCore");
+
+        assertTrue(bf883 >= 0);
+        assertTrue(bf906 > bf883);
+        assertTrue(bf884 > bf906);
+        assertTrue(staging.contains("butler-app-bf906-player-compare-transform.ps1"));
+        assertTrue(staging.contains("& $bf906CoreTransform -CorePath $stagedCore"));
+    }
+
+    @Test
+    void playerCompareFailuresUseExistingManagerRecoveryPattern() throws Exception {
+        String recovery = source("scripts/butler-app-bf884-manager-error-pages-transform.ps1");
+
+        assertTrue(recovery.contains("Contract = 'Player Compare blocked page'"));
+        assertTrue(recovery.contains("Player Compare unavailable"));
+        assertTrue(recovery.contains("could not verify that player comparison safely"));
+        assertTrue(recovery.contains("-Active \"league\""));
+    }
+
+    @Test
+    void sharedCompareEvidenceUsesBatchReadsInsteadOfPerPlayerDatabaseLoops() throws Exception {
+        String league = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAnalyzer.java");
+        String profiles = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeaguePlayerProfileCoverageAnalyzer.java");
+        String production = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueProductionContextAnalyzer.java");
+        String ageProduction = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAgeProductionContextAnalyzer.java");
+
+        assertTrue(league.contains("rosters.findByLeagueId(leagueId)"));
+        assertTrue(league.contains("players.findByLeagueId(leagueId)"));
+        assertFalse(league.contains("rosters.findByTeamId(team.getId())"));
+        assertFalse(league.contains("players.findById(membership.getPlayerId())"));
+
+        assertTrue(profiles.contains("findLatestByPlayerIdsAndSource"));
+        assertFalse(profiles.contains("snapshots.findLatest(player.getId()"));
+        assertFalse(profiles.contains("profiles.findByPlayerId(player.getId()"));
+
+        assertTrue(production.contains("findLatestByPlayerIdsAndSeasonAndSource"));
+        assertFalse(production.contains("production.findLatest(player.getId()"));
+
+        assertTrue(ageProduction.contains("findLatestByPlayerIdsAndSeasonAndSource"));
+        assertFalse(ageProduction.contains("production.findLatest(age.playerId()"));
+    }
+
+    @Test
+    void supportingEvidenceReusesOneHistoricalAuditPerOutlookRequest() throws Exception {
+        String outlook = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAgeOutlookEvidenceAnalyzer.java");
+        String validation = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelPublicationValidationAnalyzer.java");
+        String smoother = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelLocalSmootherAnalyzer.java");
+        String holdout = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelTemporalHoldoutAnalyzer.java");
+        String stability = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/AgingModelTransitionStabilityAnalyzer.java");
+
+        assertTrue(outlook.contains("var auditReport = sampleAudit.analyze();"));
+        assertTrue(outlook.contains("var smootherReport = AgingModelLocalSmootherAnalyzer.smooth(auditReport);"));
+        assertTrue(outlook.contains("validation.analyze(auditReport, smootherReport)"));
+        assertTrue(outlook.contains("leagueEvidence.analyze(leagueId, season, smootherReport, validationReport)"));
+        assertTrue(outlook.contains("AgingModelAgeOutlookAnalyzer.apply(validationReport)"));
+        assertFalse(outlook.contains("outlook.analyze()"));
+
+        assertTrue(validation.contains("AgingModelTemporalHoldoutAnalyzer.evaluate(auditReport)"));
+        assertTrue(validation.contains("AgingModelTransitionStabilityAnalyzer.evaluate(auditReport)"));
+        assertTrue(validation.contains("AgingModelNormalizedStabilityAnalyzer.normalize(transitionStability, holdoutReport)"));
+        assertFalse(validation.contains("published.analyze()"));
+        assertFalse(validation.contains("holdout.analyze()"));
+        assertFalse(validation.contains("stability.analyze()"));
+
+        assertTrue(smoother.contains("return smooth(sampleAudit.analyze());"));
+        assertTrue(holdout.contains("return evaluate(sampleAudit.analyze());"));
+        assertTrue(stability.contains("return evaluate(sampleAudit.analyze());"));
+    }
+
+    @Test
+    void transformSourceIsAsciiOnlyAndWindowsLineEndingAgnostic() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+        assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
+    }
+
+    private static String source(String relativePath) throws IOException {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (int depth = 0; depth < 7 && current != null; depth++) {
+            Path candidate = current.resolve(relativePath);
+            if (Files.isRegularFile(candidate)) {
+                return Files.readString(candidate, StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n");
+            }
+            current = current.getParent();
+        }
+        throw new IOException("BF-906 test could not locate " + relativePath);
+    }
+}

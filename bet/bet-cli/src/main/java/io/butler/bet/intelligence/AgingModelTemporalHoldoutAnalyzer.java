@@ -21,7 +21,11 @@ public final class AgingModelTemporalHoldoutAnalyzer {
     }
 
     public TemporalHoldoutReport analyze() throws SQLException {
-        var audit = sampleAudit.analyze();
+        return evaluate(sampleAudit.analyze());
+    }
+
+    static TemporalHoldoutReport evaluate(AgingModelSampleAuditAnalyzer.SampleAuditReport audit) {
+        Objects.requireNonNull(audit, "audit must not be null");
         List<HoldoutObservation> evaluated = new ArrayList<>();
         int withoutPriorTraining = 0;
 
