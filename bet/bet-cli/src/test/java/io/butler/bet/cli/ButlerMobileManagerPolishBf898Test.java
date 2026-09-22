@@ -34,12 +34,13 @@ class ButlerMobileManagerPolishBf898Test {
         assertTrue(transform.contains("Your roster or weekly projection frame changed since the saved lineup review."));
         assertTrue(transform.contains("Refresh it before relying on the recommendation."));
         assertTrue(transform.contains("\"Refresh Lineup\""));
-        assertTrue(transform.contains("$stalePattern = '(?m)^[ \\t]*\"REFRESH AUTOFILL\""));
-        assertTrue(transform.contains("if ($staleMatches.Count -gt 1)"));
-        assertTrue(transform.contains("if ($staleMatches.Count -eq 1)"));
-        assertTrue(transform.contains("$staleCopyApplied = $true"));
-        assertTrue(transform.contains("if ($staleCopyApplied)"));
-        assertFalse(transform.contains("Your lineup recommendation is out of date"));
+        assertTrue(transform.contains("$staleOldCount = [regex]::Matches"));
+        assertTrue(transform.contains("$staleNewCount = [regex]::Matches"));
+        assertTrue(transform.contains("if (($staleOldCount + $staleNewCount) -gt 1)"));
+        assertTrue(transform.contains("if ($staleOldCount -eq 1)"));
+        assertTrue(transform.contains("elseif ($staleNewCount -eq 1)"));
+        assertTrue(transform.contains("$staleCopyExpected = $true"));
+        assertTrue(transform.contains("if ($staleCopyExpected)"));
     }
 
     @Test
