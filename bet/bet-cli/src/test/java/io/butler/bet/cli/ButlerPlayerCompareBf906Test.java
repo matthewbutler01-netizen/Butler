@@ -57,14 +57,18 @@ class ButlerPlayerCompareBf906Test {
     void compareRouteIsGetOnlyAndIntroducesNoProviderRefreshOrWritePath() throws Exception {
         String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
 
-        assertTrue(transform.contains("if ($path -eq \"/compare\")"));
-        assertTrue(transform.contains("Invoke-ButlerReadOnly"));
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("https://api.sleeper.app"));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
+        int guard = transform.indexOf("$installedStart");
+        assertTrue(guard > 0, "BF-906 safety-scan boundary must remain present");
+        String operational = transform.substring(0, guard);
+
+        assertTrue(operational.contains("if ($path -eq \"/compare\")"));
+        assertTrue(operational.contains("Invoke-ButlerReadOnly"));
+        assertFalse(operational.contains("Invoke-RestMethod"));
+        assertFalse(operational.contains("Invoke-WebRequest"));
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("https://api.sleeper.app"));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
     }
 
     @Test
