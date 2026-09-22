@@ -93,7 +93,7 @@ class ButlerTradeCounterofferBuilderBf878Test {
                 "Their revised package",
                 "Message you can send manually",
                 "It has not been sent and the trade has not been submitted.",
-                "No governed counteroffer",
+                "No counteroffer",
                 "Counteroffer unavailable",
                 "Counteroffer details"
         }) {
