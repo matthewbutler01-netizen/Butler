@@ -36,6 +36,17 @@ public final class LeagueValidatedAgingModelEvidenceAnalyzer {
             Objects.requireNonNull(validationReport, "validationReport must not be null"));
     }
 
+    ValidatedLeagueReport analyze(
+        String leagueId,
+        int season,
+        AgingModelLocalSmootherAnalyzer.LocalSmootherReport smootherReport,
+        AgingModelPublicationValidationAnalyzer.ValidationReport validationReport) throws SQLException {
+        return compose(
+            leagueEvidence.analyze(leagueId, season,
+                Objects.requireNonNull(smootherReport, "smootherReport must not be null")),
+            Objects.requireNonNull(validationReport, "validationReport must not be null"));
+    }
+
     static ValidatedLeagueReport compose(LeagueAgingModelEvidenceAnalyzer.LeagueAgingModelEvidenceReport league,
                                          AgingModelPublicationValidationAnalyzer.ValidationReport validation) {
         Objects.requireNonNull(league, "league must not be null");
