@@ -21,7 +21,8 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(transform.contains("Player Compare requires two different exact players"));
         assertTrue(transform.contains("/__butler/internal/player-search?q="));
         assertFalse(transform.contains("/__butler/internal/player-detail?player="));
-        assertTrue(transform.contains("/__butler/internal/player-compare?left="));
+        assertTrue(transform.contains("/__butler/internal/player-compare"));
+        assertTrue(transform.contains("/__butler/internal/player-compare-summary"));
         assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead"));
         assertTrue(transform.contains("response does not match the exact requested players"));
         assertTrue(transform.contains("selected Player Compare player must resolve exactly once in league inventory"));
@@ -53,6 +54,9 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(transform.contains("Butler does not choose a winner"));
         assertTrue(transform.contains("Per-game production"));
         assertTrue(transform.contains("<details><summary>Supporting evidence</summary>"));
+        assertTrue(transform.contains("Load supporting evidence"));
+        assertTrue(transform.contains("&support=1#supporting-evidence"));
+        assertTrue(transform.contains("SupportingEvidenceState"));
         assertTrue(transform.contains("Market value"));
         assertTrue(transform.contains("Age"));
         assertTrue(transform.contains("Games"));
@@ -74,6 +78,7 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
         assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'"));
         assertTrue(workerTransform.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"));
+        assertTrue(workerTransform.contains("PLAYER_COMPARE_SUMMARY"));
         assertFalse(operational.contains("Invoke-ButlerReadOnly -Arguments \"league player-compare"));
         assertFalse(operational.contains("Invoke-RestMethod"));
         assertFalse(operational.contains("Invoke-WebRequest"));
@@ -81,6 +86,25 @@ class ButlerPlayerCompareBf906Test {
         assertFalse(operational.contains("https://api.sleeper.app"));
         assertFalse(operational.contains("submitTransaction"));
         assertFalse(operational.contains("setFaab"));
+    }
+
+    @Test
+    void defaultCompareUsesFastSummaryAndLoadsFullSupportingEvidenceOnlyOnDemand() throws Exception {
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
+        String worker = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerReadOnlyJvmWorker.java");
+        String compare = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLeaguePlayerCompareCli.java");
+
+        assertTrue(transform.contains("$compareBase = if ($compareRequest.LoadSupportingEvidence)"));
+        assertTrue(transform.contains("\"/__butler/internal/player-compare-summary\""));
+        assertTrue(transform.contains("\"/__butler/internal/player-compare\""));
+        assertTrue(transform.contains("$expectedSupportingState = if ($compareRequest.LoadSupportingEvidence) { 'READY' } else { 'DEFERRED' }"));
+        assertTrue(transform.contains("support may only be requested as support=1"));
+        assertTrue(transform.contains("supporting evidence requires two exact players"));
+
+        assertTrue(worker.contains("case PLAYER_COMPARE_SUMMARY -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerCompareCli.runEmbeddedSummary("));
+        assertTrue(compare.contains("Supporting evidence: DEFERRED"));
+        assertTrue(compare.contains("Supporting evidence: READY"));
     }
 
     @Test
