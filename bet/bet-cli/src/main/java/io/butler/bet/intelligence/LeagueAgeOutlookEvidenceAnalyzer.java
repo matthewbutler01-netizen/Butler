@@ -15,19 +15,23 @@ import java.util.Objects;
  * No cross-metric aggregation, player grade, dynasty adjustment, or recommendation is produced.
  */
 public final class LeagueAgeOutlookEvidenceAnalyzer {
+    private final AgingModelSampleAuditAnalyzer sampleAudit;
     private final LeagueValidatedAgingModelEvidenceAnalyzer leagueEvidence;
     private final AgingModelPublicationValidationAnalyzer validation;
 
     public LeagueAgeOutlookEvidenceAnalyzer(Database database) {
         Objects.requireNonNull(database, "database must not be null");
+        this.sampleAudit = new AgingModelSampleAuditAnalyzer(database);
         this.leagueEvidence = new LeagueValidatedAgingModelEvidenceAnalyzer(database);
         this.validation = new AgingModelPublicationValidationAnalyzer(database);
     }
 
     public LeagueAgeOutlookReport analyze(String leagueId, int season) throws SQLException {
-        var validationReport = validation.analyze();
+        var auditReport = sampleAudit.analyze();
+        var smootherReport = AgingModelLocalSmootherAnalyzer.smooth(auditReport);
+        var validationReport = validation.analyze(auditReport, smootherReport);
         return compose(
-            leagueEvidence.analyze(leagueId, season, validationReport),
+            leagueEvidence.analyze(leagueId, season, smootherReport, validationReport),
             AgingModelAgeOutlookAnalyzer.apply(validationReport));
     }
 
