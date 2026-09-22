@@ -22,10 +22,9 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
                 ":bet:bet-cli:sleeperCurrentWeekMatchupSync",
                 "BF840_CURRENT_WEEK_EVIDENCE_VERIFIED",
                 "/matchup",
-                "PAIRING VERIFIED",
-                "Lineup advisor",
-                "Opponent context",
-                "Roster profile",
+                "Matchup bundle: SINGLE_JVM_COMPOSITION_VERIFIED",
+                "Lineup idle: OPT_IN_REVIEW_VERIFIED",
+                "Action copy: MATCHUP_CONTEXT_VERIFIED",
                 "EXACT_PAIRING_RENDERED",
                 "GOVERNED_LINEUP_ADVISOR_RENDERED",
                 "GOVERNED_OPPONENT_CONTEXT_RENDERED",
@@ -70,7 +69,7 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
     void acceptanceFailsClosedOnUnavailablePairingBlockedSurfaceOrGamblingCopy() throws Exception {
         String script = source("scripts/butler-weekly-matchup-acceptance.ps1");
 
-        assertTrue(script.contains("Opponent pairing unavailable"));
+        assertTrue(script.contains("Opponent not confirmed"));
         assertTrue(script.contains("Butler Weekly Matchup view blocked"));
         assertTrue(script.contains("exact user-versus-opponent matchup headline was not rendered"));
         assertTrue(script.contains("repository must be clean before acceptance"));
