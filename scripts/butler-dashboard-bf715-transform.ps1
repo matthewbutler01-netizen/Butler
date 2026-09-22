@@ -368,6 +368,17 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & $bf899Transform -DashboardPath $DashboardPath
 }
 
+# BF-907: final Dashboard Decision Center presentation runs after BF-899 has
+# unified the visual language. Reuse only the already-derived manager signals so
+# the week-at-a-glance summary adds no passive read, provider call, or write path.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf907Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf907-decision-center-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf907Transform -PathType Leaf)) {
+        throw "BF-907 BLOCKED: Dashboard Decision Center transform not found at $bf907Transform"
+    }
+    & $bf907Transform -DashboardPath $DashboardPath
+}
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
