@@ -1,17 +1,29 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.data.LeagueRepository;
+import io.butler.bet.data.PlayerProfileRepository;
+import io.butler.bet.data.PlayerProfileSnapshotRepository;
+import io.butler.bet.data.PlayerSeasonProductionRepository;
+import io.butler.bet.domain.PlayerProfile;
+import io.butler.bet.domain.PlayerProfileSnapshot;
+import io.butler.bet.domain.PlayerSeasonProduction;
 import io.butler.bet.intelligence.DecisionSupportingEvidenceFlag;
 import io.butler.bet.intelligence.LeagueAgeProductionContextAnalyzer;
 import io.butler.bet.intelligence.LeagueAssetInventoryAnalyzer;
 import io.butler.bet.intelligence.LeaguePlayerEvidenceProfileAnalyzer;
+import io.butler.bet.intelligence.LeaguePlayerProfileCoverageAnalyzer;
+import io.butler.bet.intelligence.LeagueProductionContextAnalyzer;
 
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.Period;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -60,6 +72,55 @@ public final class ButlerLeaguePlayerCompareCli {
             return 0;
         } catch (SQLException e) {
             System.err.println("Database error while building player comparison: " + e.getMessage());
+            return 1;
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            System.err.println("Error: " + e.getMessage());
+            return 2;
+        }
+    }
+
+    static int runEmbeddedSummary(String[] args) {
+        try {
+            Options options = parse(args);
+            Database database = initializedDatabase();
+            LocalDate ageAsOf = LocalDate.now(ZoneOffset.UTC);
+
+            var inventory = new LeagueAssetInventoryAnalyzer(database).analyze(options.leagueId());
+            int season = resolveSeason(database, options);
+            List<String> playerIds = List.of(options.leftPlayerId(), options.rightPlayerId());
+
+            Map<String, PlayerProfile> profiles = new HashMap<>();
+            var profileRepository = new PlayerProfileRepository(database);
+            for (String playerId : playerIds) {
+                profileRepository.findByPlayerId(playerId).ifPresent(value -> profiles.put(playerId, value));
+            }
+
+            Map<String, PlayerProfileSnapshot> snapshots = new HashMap<>();
+            for (var snapshot : new PlayerProfileSnapshotRepository(database)
+                .findLatestByPlayerIdsAndSource(
+                    playerIds, LeaguePlayerProfileCoverageAnalyzer.DEFAULT_PROVIDER_SOURCE)) {
+                snapshots.put(snapshot.playerId(), snapshot);
+            }
+
+            Map<String, PlayerSeasonProduction> production = new HashMap<>();
+            for (var value : new PlayerSeasonProductionRepository(database)
+                .findLatestByPlayerIdsAndSeasonAndSource(
+                    playerIds, season, LeagueProductionContextAnalyzer.DEFAULT_SOURCE)) {
+                production.put(value.playerId(), value);
+            }
+
+            var left = summaryPlayer(
+                options.leftPlayerId(), inventory, profiles.get(options.leftPlayerId()),
+                snapshots.get(options.leftPlayerId()), production.get(options.leftPlayerId()), ageAsOf);
+            var right = summaryPlayer(
+                options.rightPlayerId(), inventory, profiles.get(options.rightPlayerId()),
+                snapshots.get(options.rightPlayerId()), production.get(options.rightPlayerId()), ageAsOf);
+
+            printSummary(new PlayerSummaryCompareReport(
+                options.leagueId(), season, ageAsOf, inventory.source(), left, right));
+            return 0;
+        } catch (SQLException e) {
+            System.err.println("Database error while building player comparison summary: " + e.getMessage());
             return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
@@ -136,6 +197,7 @@ public final class ButlerLeaguePlayerCompareCli {
         System.out.println("Season: " + report.season());
         System.out.println("Age as-of: " + report.ageAsOf());
         System.out.println("Value source: " + report.valueSource());
+        System.out.println("Supporting evidence: READY");
         printPlayer("LEFT", report.left());
         printPlayer("RIGHT", report.right());
         System.out.println(
@@ -181,6 +243,130 @@ public final class ButlerLeaguePlayerCompareCli {
         System.out.println("===BUTLER_PLAYER_COMPARE:" + side + ":END===");
     }
 
+    private static int resolveSeason(Database database, Options options) throws SQLException {
+        if (options.season() != null) return options.season();
+        var league = new LeagueRepository(database).findById(options.leagueId())
+            .orElseThrow(() -> new IllegalArgumentException("league not found: " + options.leagueId()));
+        if (league.getSeason() == null) {
+            throw new IllegalStateException("league season is unavailable; supply an explicit season");
+        }
+        return league.getSeason();
+    }
+
+    private static SummaryPlayer summaryPlayer(
+        String playerId,
+        LeagueAssetInventoryAnalyzer.InventoryReport inventory,
+        PlayerProfile profile,
+        PlayerProfileSnapshot snapshot,
+        PlayerSeasonProduction production,
+        LocalDate ageAsOf) {
+        List<SelectedAsset> matches = new ArrayList<>();
+        for (var team : inventory.teams()) {
+            for (var asset : team.players()) {
+                if (asset.playerId().equals(playerId)) {
+                    matches.add(new SelectedAsset(team.teamId(), team.teamName(), asset));
+                }
+            }
+        }
+        if (matches.size() != 1) {
+            throw new IllegalArgumentException(
+                "player must resolve exactly once in current league inventory: " + playerId
+                    + " (matches=" + matches.size() + ")");
+        }
+
+        Integer age = null;
+        String ageProvenance = "UNAVAILABLE";
+        if (profile != null && profile.birthDate() != null) {
+            if (ageAsOf.isBefore(profile.birthDate())) {
+                throw new IllegalArgumentException("age analysis date predates birth date for player: " + playerId);
+            }
+            age = Period.between(profile.birthDate(), ageAsOf).getYears();
+            ageProvenance = "EXACT_BIRTH_DATE";
+        } else if (snapshot != null && snapshot.reportedAge() != null) {
+            age = snapshot.reportedAge();
+            ageProvenance = "PROVIDER_REPORTED";
+        }
+
+        SelectedAsset selected = matches.getFirst();
+        return new SummaryPlayer(selected.teamId(), selected.teamName(), selected.asset(),
+            age, ageProvenance, production);
+    }
+
+    private static void printSummary(PlayerSummaryCompareReport report) {
+        System.out.println("League player compare evidence");
+        System.out.println("League ID: " + report.leagueId());
+        System.out.println("Season: " + report.season());
+        System.out.println("Age as-of: " + report.ageAsOf());
+        System.out.println("Value source: " + report.valueSource());
+        System.out.println("Supporting evidence: DEFERRED");
+        printSummaryPlayer("LEFT", report.left());
+        printSummaryPlayer("RIGHT", report.right());
+        System.out.println(
+            "Side-by-side neutral evidence only; this comparison does not select a winner or produce a score, "
+                + "rank, grade, buy/sell label, dynasty adjustment, start/sit, trade, or waiver recommendation.");
+    }
+
+    private static void printSummaryPlayer(String side, SummaryPlayer summary) {
+        var asset = summary.asset();
+        var production = summary.production();
+
+        System.out.println("===BUTLER_PLAYER_COMPARE:" + side + ":BEGIN===");
+        System.out.println("Player ID: " + asset.playerId());
+        System.out.println("Player name: " + asset.playerName());
+        System.out.println("Position: " + asset.position());
+        System.out.println("NFL team: " + value(asset.nflTeam()));
+        System.out.println("Butler team ID: " + summary.teamId());
+        System.out.println("Butler team name: " + summary.teamName());
+        System.out.println("Roster slot: " + value(asset.slot()));
+        System.out.println("Value: " + (asset.valued()
+            ? String.format(Locale.ROOT, "%.2f", asset.value())
+            : "UNAVAILABLE"));
+        System.out.println("Value as-of: " + (asset.asOfDate() == null ? "UNAVAILABLE" : asset.asOfDate()));
+        System.out.println("Age: " + value(summary.age()));
+        System.out.println("Age provenance: " + summary.ageProvenance());
+        System.out.println("Production snapshot: " + (production == null ? "MISSING" : "AVAILABLE"));
+        System.out.println("Games played: " + (production == null ? "UNAVAILABLE" : production.gamesPlayed()));
+        System.out.println("Passing yards/game: " + productionRate(production, ProductionMetric.PASSING_YARDS));
+        System.out.println("Passing TD/game: " + productionRate(production, ProductionMetric.PASSING_TOUCHDOWNS));
+        System.out.println("Interceptions/game: " + productionRate(production, ProductionMetric.INTERCEPTIONS));
+        System.out.println("Rushing yards/game: " + productionRate(production, ProductionMetric.RUSHING_YARDS));
+        System.out.println("Rushing TD/game: " + productionRate(production, ProductionMetric.RUSHING_TOUCHDOWNS));
+        System.out.println("Receptions/game: " + productionRate(production, ProductionMetric.RECEPTIONS));
+        System.out.println("Receiving yards/game: " + productionRate(production, ProductionMetric.RECEIVING_YARDS));
+        System.out.println("Receiving TD/game: " + productionRate(production, ProductionMetric.RECEIVING_TOUCHDOWNS));
+        System.out.println("Fumbles lost/game: " + productionRate(production, ProductionMetric.FUMBLES_LOST));
+        System.out.println("Supporting flags: 0");
+        System.out.println("===BUTLER_PLAYER_COMPARE:" + side + ":END===");
+    }
+
+    private static String productionRate(PlayerSeasonProduction production, ProductionMetric metric) {
+        if (production == null || production.gamesPlayed() <= 0) return "UNAVAILABLE";
+        double numerator = switch (metric) {
+            case PASSING_YARDS -> production.passingYards();
+            case PASSING_TOUCHDOWNS -> production.passingTouchdowns();
+            case INTERCEPTIONS -> production.interceptions();
+            case RUSHING_YARDS -> production.rushingYards();
+            case RUSHING_TOUCHDOWNS -> production.rushingTouchdowns();
+            case RECEPTIONS -> production.receptions();
+            case RECEIVING_YARDS -> production.receivingYards();
+            case RECEIVING_TOUCHDOWNS -> production.receivingTouchdowns();
+            case FUMBLES_LOST -> production.fumblesLost();
+        };
+        return String.format(Locale.ROOT, "%.3f", numerator / production.gamesPlayed());
+    }
+
+    private enum ProductionMetric {
+        PASSING_YARDS,
+        PASSING_TOUCHDOWNS,
+        INTERCEPTIONS,
+        RUSHING_YARDS,
+        RUSHING_TOUCHDOWNS,
+        RECEPTIONS,
+        RECEIVING_YARDS,
+        RECEIVING_TOUCHDOWNS,
+        FUMBLES_LOST
+    }
+
     private static String value(Object value) {
         if (value == null) return "UNAVAILABLE";
         String text = value.toString();
@@ -224,6 +410,40 @@ public final class ButlerLeaguePlayerCompareCli {
     record ComparablePlayer(
         ButlerLeaguePlayerDetailCli.PlayerDetailReport detail,
         LeagueAssetInventoryAnalyzer.PlayerAsset asset) {}
+
+    record SummaryPlayer(
+        String teamId,
+        String teamName,
+        LeagueAssetInventoryAnalyzer.PlayerAsset asset,
+        Integer age,
+        String ageProvenance,
+        PlayerSeasonProduction production) {
+        SummaryPlayer {
+            teamId = requireText(teamId, "teamId");
+            teamName = requireText(teamName, "teamName");
+            Objects.requireNonNull(asset, "asset must not be null");
+            ageProvenance = requireText(ageProvenance, "ageProvenance");
+        }
+    }
+
+    record PlayerSummaryCompareReport(
+        String leagueId,
+        int season,
+        LocalDate ageAsOf,
+        String valueSource,
+        SummaryPlayer left,
+        SummaryPlayer right) {
+        PlayerSummaryCompareReport {
+            leagueId = requireText(leagueId, "leagueId");
+            valueSource = requireText(valueSource, "valueSource");
+            Objects.requireNonNull(ageAsOf, "ageAsOf must not be null");
+            Objects.requireNonNull(left, "left must not be null");
+            Objects.requireNonNull(right, "right must not be null");
+            if (left.asset().playerId().equals(right.asset().playerId())) {
+                throw new IllegalArgumentException("player comparison requires two different players");
+            }
+        }
+    }
 
     record PlayerCompareReport(
         String leagueId,
