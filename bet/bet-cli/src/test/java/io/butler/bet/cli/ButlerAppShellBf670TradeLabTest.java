@@ -78,7 +78,7 @@ class ButlerAppShellBf670TradeLabTest {
     }
 
     @Test
-    void tradeModuleUsesExactPersistedOwnershipAndCurrentGovernedV5Route() throws Exception {
+    void tradeModuleUsesExactPersistedOwnershipAndCurrentGovernedRecommendationRoute() throws Exception {
         String trade = script("scripts/butler-trade-lab.ps1");
 
         assertTrue(trade.contains("league assets $LeagueId"));
@@ -92,6 +92,21 @@ class ButlerAppShellBf670TradeLabTest {
         assertTrue(trade.contains("name=\"opponent\""));
         assertTrue(trade.contains("method=\"get\" action=\"/trade\""));
         assertTrue(trade.contains("ConvertTo-HtmlText $Evaluation.Raw"));
+    }
+
+    @Test
+    void tradeLabAcceptsV6AdvisoryPostureWithoutDroppingLegacyV5Parsing() throws Exception {
+        String trade = script("scripts/butler-trade-lab.ps1");
+
+        assertTrue(trade.contains("$gatesV6 = [regex]::Match"));
+        assertTrue(trade.contains("advisory-posture=(?<posture>true|false)"));
+        assertTrue(trade.contains("$gatesV5 = [regex]::Match"));
+        assertTrue(trade.contains("posture=(?<posture>true|false)"));
+        assertTrue(trade.contains("$postureAdvisory = $gatesV6.Success"));
+        assertTrue(trade.contains("PostureAdvisory = $postureAdvisory"));
+        assertTrue(trade.contains("Posture (advisory)"));
+        assertTrue(trade.contains("if ($Evaluation.PostureGate) { 'AVAILABLE' } else { 'UNAVAILABLE' }"));
+        assertFalse(trade.contains("governed v5 trade recommendation is missing required app fields"));
     }
 
     @Test
