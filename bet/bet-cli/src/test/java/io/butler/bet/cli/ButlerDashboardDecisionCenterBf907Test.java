@@ -34,6 +34,10 @@ class ButlerDashboardDecisionCenterBf907Test {
         assertTrue(transform.contains("href=\"/players\">Player Search</a>"));
         assertTrue(transform.contains("href=\"/compare\">Player Compare</a>"));
         assertTrue(transform.contains("href=\"/league\">League</a>"));
+        assertTrue(transform.contains("Refresh Butler data"));
+        assertTrue(transform.contains("href=\"/matchup\">Matchup</a>"));
+        assertTrue(transform.contains("$header = $bf907RefreshNav.Replace($header, '', 1)"));
+        assertTrue(transform.contains("$header = $bf907TeamNav.Replace($header"));
         assertFalse(transform.contains("Get-AppNav -Active 'compare'"));
         assertFalse(transform.contains("Player Compare</a></nav>"));
     }
@@ -87,7 +91,11 @@ class ButlerDashboardDecisionCenterBf907Test {
         String transform = source("scripts/butler-dashboard-bf907-decision-center-transform.ps1");
 
         assertTrue(transform.contains("<section class=\"panel manager-queue\">"));
-        assertTrue(transform.contains("Full decision queue"));
+        assertTrue(transform.contains("After Priority 01"));
+        assertTrue(transform.contains("Other priorities"));
+        assertTrue(transform.contains("$bf907OtherQueueHtml"));
+        assertTrue(transform.contains("View full decision queue"));
+        assertTrue(transform.contains("$managerQueueHtml"));
         assertFalse(transform.contains("details id=\"decision-details\" class=\"proof-mode\"></details>"));
     }
 
