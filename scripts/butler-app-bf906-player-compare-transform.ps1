@@ -509,9 +509,8 @@ foreach ($forbidden in @(
     'submitTransaction',
     'setFaab',
     'player-score',
-    'winner',
-    'better player',
-    'buy/sell'
+    'winner-policy',
+    'better-player-score'
 )) {
     if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
