@@ -46,6 +46,8 @@ class ButlerTradeCounterV6AlignmentBf905Test {
         assertTrue(trade.contains("$v6Action = [regex]::Match"));
         assertTrue(trade.contains("V6 team action:"));
         assertTrue(trade.contains("V6Action = $v6Action.Groups['value'].Value.Trim()"));
+        assertTrue(trade.contains("<h2 class=\"headline\">No counteroffer</h2>"));
+        assertFalse(trade.contains("<h2 class=\"headline\">No governed counteroffer</h2>"));
         assertTrue(trade.contains(
             "trade counter-proposal $LeagueId $($roster.Season) $sideA $sideB side-a"));
         assertTrue(trade.contains(
