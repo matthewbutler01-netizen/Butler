@@ -59,6 +59,10 @@ class ButlerManagerRecoveryPagesBf884Test {
         }
 
         assertTrue(transform.contains("-Detail $_.Exception.Message"));
+        assertTrue(transform.contains("$teamFailure = [string]$_"));
+        assertTrue(transform.contains("$teamFailure = [string]$_.Exception"));
+        assertTrue(transform.contains("My Team failed without diagnostic text."));
+        assertTrue(transform.contains("-Detail $teamFailure -Active \"team\""));
         assertTrue(transform.contains("$playerDetailFailure = [string]$_"));
         assertTrue(transform.contains("$playerDetailFailure = [string]$_.Exception"));
         assertTrue(transform.contains("Player Detail failed without diagnostic text."));
