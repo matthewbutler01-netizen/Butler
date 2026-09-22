@@ -543,8 +543,8 @@ function Invoke-TradeLabHtml {
             if ($counterProposal.PerspectiveTeamId -cne $userTeam.TeamId) {
                 throw 'BF-878 BLOCKED: governed counter proposal perspective does not match the exact bound user team.'
             }
-            if ($counterProposal.V5Action -cne $evaluation.Action) {
-                throw 'BF-878 BLOCKED: governed counter proposal v5 action does not match the rendered recommendation.'
+            if ($counterProposal.V5Action -cne $evaluation.Action -and $counterProposal.Action -ceq 'COUNTER') {
+                throw 'BF-878 BLOCKED: legacy v5 counter engine attempted a COUNTER that does not match the rendered recommendation.'
             }
         }
     }
