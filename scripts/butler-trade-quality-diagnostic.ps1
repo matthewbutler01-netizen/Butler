@@ -195,13 +195,16 @@ function Get-ValuedAssets {
 function Select-SampleAssets {
     param([object[]]$Assets)
     $ordered = @($Assets | Sort-Object Value, Label)
-    if ($ordered.Count -le 3) { return $ordered }
+    $count = [int]$ordered.Length
+    if ($count -le 3) { return $ordered }
 
-    $indices = @(0, [int][Math]::Floor(($ordered.Count - 1) / 2.0), $ordered.Count - 1)
+    $middleIndex = [int][Math]::Floor(($count - 1) / 2.0)
+    $lastIndex = $count - 1
+    $indices = @(0, $middleIndex, $lastIndex)
     $selected = @()
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($index in $indices) {
-        $asset = $ordered[$index]
+        $asset = $ordered[[int]$index]
         if ($seen.Add([string]$asset.Token)) { $selected += $asset }
     }
     return @($selected)
