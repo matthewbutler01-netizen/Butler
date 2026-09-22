@@ -32,7 +32,7 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(transform.contains("Stop-Bf740PersistentCoreWorker"));
         assertTrue(transform.contains("staged core still owns a JVM worker"));
 
-        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE')"));
+        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE', 'PLAYER_COMPARE_SUMMARY')"));
         assertTrue(helper.contains("player detail id is missing or malformed"));
         assertTrue(helper.contains("player search query is missing or malformed"));
         assertTrue(helper.contains("player compare requires two different exact player ids"));
@@ -148,6 +148,8 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(worker.contains("ButlerLeaguePlayerSearchCli.runEmbedded("));
         assertTrue(worker.contains("case PLAYER_COMPARE -> executeCapturedWithExitCode"));
         assertTrue(worker.contains("ButlerLeaguePlayerCompareCli.runEmbedded("));
+        assertTrue(worker.contains("case PLAYER_COMPARE_SUMMARY -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerCompareCli.runEmbeddedSummary("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
