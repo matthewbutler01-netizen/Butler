@@ -350,13 +350,15 @@ else {
     & $bf898Transform -DashboardPath $DashboardPath
 }
 
-# BF-899: final Dashboard visual unification runs after BF-898 so mobile behavior stays intact
-# while legacy blue manager chrome is normalized into the accepted turf/neutral language.
-$bf899Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf899-visual-unification-transform.ps1'
-if (-not (Test-Path -LiteralPath $bf899Transform -PathType Leaf)) {
-    throw "BF-899 BLOCKED: dashboard visual unification transform not found at $bf899Transform"
+# BF-899: final Dashboard visual unification targets the BF-819 full-app manager queue.
+# Standalone BF-715 waiver staging has no BF-819 manager CSS and remains valid without this pass.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf899Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf899-visual-unification-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf899Transform -PathType Leaf)) {
+        throw "BF-899 BLOCKED: dashboard visual unification transform not found at $bf899Transform"
+    }
+    & $bf899Transform -DashboardPath $DashboardPath
 }
-& $bf899Transform -DashboardPath $DashboardPath
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
