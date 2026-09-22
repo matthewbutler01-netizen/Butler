@@ -27,22 +27,22 @@ class ButlerMyTeamRosterHubBf908Test {
     }
 
     @Test
-    void mappedPlayersReuseExistingDetailAndCompareContracts() throws Exception {
+    void rosterHubReusesExistingPlayerDetailLinksAndKeepsCompareAsAHubTool() throws Exception {
         String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
 
-        assertTrue(transform.contains("function ConvertTo-Bf908PlayerActionsHtml"));
-        assertTrue(transform.contains("[string]$Player.Mapping -ceq 'EXACT_CANONICAL'"));
-        assertTrue(transform.contains("href=\"/player?id="));
-        assertTrue(transform.contains("href=\"/compare?left="));
-        assertTrue(transform.contains("Player tools unavailable"));
         assertTrue(transform.contains("ConvertTo-MyTeamPlayerNameHtml -Player $player"));
-        assertTrue(transform.contains("ConvertTo-Bf908PlayerActionsHtml -Player $player"));
+        assertTrue(transform.contains("Click a mapped player name for Player Detail."));
+        assertTrue(transform.contains("href=\"/players\">Player Search</a>"));
+        assertTrue(transform.contains("href=\"/compare\">Player Compare</a>"));
+        assertTrue(transform.contains("href=\"/compare\">Player Compare</a>"));
+        assertFalse(transform.contains("function ConvertTo-Bf908PlayerActionsHtml"));
+        assertFalse(transform.contains("ConvertTo-Bf908PlayerActionsHtml -Player $player"));
         assertFalse(transform.contains("better player"));
         assertFalse(transform.contains("player grade"));
     }
 
     @Test
-    void teamHubKeepsExistingManagerActionsAndAddsPlayerSearch() throws Exception {
+    void teamHubKeepsExistingManagerActionsAndAddsPlayerTools() throws Exception {
         String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
         String prior = source("scripts/butler-app-bf872-my-team-at-a-glance-transform.ps1");
 
