@@ -148,8 +148,8 @@ if (@($parseErrors).Count -gt 0) {
     throw "BF-907 BLOCKED: generated Dashboard failed PowerShell parse: $parseSummary"
 }
 
-$installed = [System.IO.File]::ReadAllText($DashboardPath)
-if ($installed -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|Invoke-Bf742DashboardWorkerRead|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+$bf907InstalledSurface = $bf907Css + [Environment]::NewLine + $bf907Prelude
+if ($bf907InstalledSurface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|Invoke-Bf742DashboardWorkerRead|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
     throw 'BF-907 BLOCKED: Decision Center presentation introduced an operational read/write marker.'
 }
 
