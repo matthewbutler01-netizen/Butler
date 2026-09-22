@@ -294,6 +294,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf883CoreTransform -CorePath $stagedCore
 
+    # BF-906: add secondary Player Compare after contextual Player Search/Detail navigation
+    # is finalized. The compare surface stays outside primary navigation and remains GET-only.
+    $bf906CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf906-player-compare-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf906CoreTransform -PathType Leaf)) {
+        throw "BF-906 BLOCKED: Player Compare transform not found at $bf906CoreTransform"
+    }
+    & $bf906CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
