@@ -8,6 +8,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -50,6 +52,42 @@ public final class PlayerProfileSnapshotRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         }
+    }
+
+    public List<PlayerProfileSnapshot> findLatestByPlayerIdsAndSource(
+        Collection<String> playerIds, String source) throws SQLException {
+        Objects.requireNonNull(playerIds, "playerIds must not be null");
+        String normalizedSource = requireText(source, "source");
+
+        LinkedHashSet<String> normalizedIds = new LinkedHashSet<>();
+        for (String playerId : playerIds) {
+            requireText(playerId, "playerId");
+            normalizedIds.add(playerId.trim());
+        }
+        if (normalizedIds.isEmpty()) return List.of();
+
+        String placeholders = String.join(",", java.util.Collections.nCopies(normalizedIds.size(), "?"));
+        String sql = "SELECT * FROM player_profile_snapshots "
+            + "WHERE source=? AND player_id IN (" + placeholders + ") "
+            + "ORDER BY player_id ASC, as_of_date DESC, id DESC";
+        List<PlayerProfileSnapshot> result = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            int index = 1;
+            statement.setString(index++, normalizedSource);
+            for (String playerId : normalizedIds) statement.setString(index++, playerId);
+            try (ResultSet rs = statement.executeQuery()) {
+                String previousPlayerId = null;
+                while (rs.next()) {
+                    PlayerProfileSnapshot snapshot = map(rs);
+                    if (!snapshot.playerId().equals(previousPlayerId)) {
+                        result.add(snapshot);
+                        previousPlayerId = snapshot.playerId();
+                    }
+                }
+            }
+        }
+        return List.copyOf(result);
     }
 
     public List<PlayerProfileSnapshot> findByPlayerId(String playerId) throws SQLException {
