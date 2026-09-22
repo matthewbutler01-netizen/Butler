@@ -135,14 +135,17 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [string]$BoundaryName,
 
-        [string]$AuditId
+        [string]$AuditId,
+        [string]$PlayerId,
+        [string]$RightPlayerId,
+        [string]$Query
     )
 
     if (-not $script:Bf740PersistentCoreWorkerCanary) {
@@ -157,17 +160,340 @@ function Invoke-Bf740PersistentCoreWorker {
     }
 
     if ($Operation -ceq 'EXPLANATION_LOOKUP') {
-        if ([string]::IsNullOrWhiteSpace($AuditId) -or $AuditId -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
-            throw "$BoundaryName BLOCKED: BF-742 explanation lookup audit id is missing or malformed."
+        if ([string]::IsNullOrWhiteSpace($AuditId) -or $AuditId -notmatch '^[A-Za-z0-9._:-]{1,128}
+    $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
+    $fields = @($line -split "`t", 5)
+
+    if ($fields.Count -eq 2 -and $fields[0] -ceq 'REJECT') {
+        try {
+            $detail = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[1]))
+        }
+        catch {
+            $detail = 'invalid rejection payload'
+        }
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
+    }
+    if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
+    }
+
+    try {
+        $stdout = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[3]))
+        $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
+    }
+    catch {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
+    }
+
+    if ($fields[2] -cne '0') {
+        throw "$BoundaryName BLOCKED: governed read-only worker command failed with exit code $($fields[2]).`n$stdout`n$stderr"
+    }
+    return $stdout
+}
+
+function Stop-Bf740PersistentCoreWorker {
+    $worker = $script:Bf740PersistentCoreWorkerProcess
+    $script:Bf740PersistentCoreWorkerProcess = $null
+    if ($null -eq $worker) { return }
+
+    try {
+        if (-not $worker.HasExited) {
+            $worker.StandardInput.WriteLine('QUIT')
+            $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
+            if ($bye -cne "BYE`tBF739") {
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
+            }
+            if (-not $worker.WaitForExit(3000)) {
+                $worker.Kill()
+                [void]$worker.WaitForExit(3000)
+            }
         }
     }
-    elseif (-not [string]::IsNullOrWhiteSpace($AuditId)) {
-        throw "$BoundaryName BLOCKED: BF-742 audit id is authorized only for EXPLANATION_LOOKUP."
+    finally {
+        try { if (-not $worker.HasExited) { $worker.Kill() } } catch {}
+        try { $worker.Dispose() } catch {}
+        $script:Bf740PersistentCoreWorkerStderrTask = $null
+    }
+}
+) {
+            throw "$BoundaryName BLOCKED: BF-742 explanation lookup audit id is missing or malformed."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($PlayerId) -or
+            -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or
+            -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player arguments are not authorized for EXPLANATION_LOOKUP."
+        }
+    }
+    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+        if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}
+    $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
+    $fields = @($line -split "`t", 5)
+
+    if ($fields.Count -eq 2 -and $fields[0] -ceq 'REJECT') {
+        try {
+            $detail = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[1]))
+        }
+        catch {
+            $detail = 'invalid rejection payload'
+        }
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
+    }
+    if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
+    }
+
+    try {
+        $stdout = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[3]))
+        $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
+    }
+    catch {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
+    }
+
+    if ($fields[2] -cne '0') {
+        throw "$BoundaryName BLOCKED: governed read-only worker command failed with exit code $($fields[2]).`n$stdout`n$stderr"
+    }
+    return $stdout
+}
+
+function Stop-Bf740PersistentCoreWorker {
+    $worker = $script:Bf740PersistentCoreWorkerProcess
+    $script:Bf740PersistentCoreWorkerProcess = $null
+    if ($null -eq $worker) { return }
+
+    try {
+        if (-not $worker.HasExited) {
+            $worker.StandardInput.WriteLine('QUIT')
+            $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
+            if ($bye -cne "BYE`tBF739") {
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
+            }
+            if (-not $worker.WaitForExit(3000)) {
+                $worker.Kill()
+                [void]$worker.WaitForExit(3000)
+            }
+        }
+    }
+    finally {
+        try { if (-not $worker.HasExited) { $worker.Kill() } } catch {}
+        try { $worker.Dispose() } catch {}
+        $script:Bf740PersistentCoreWorkerStderrTask = $null
+    }
+}
+) {
+            throw "$BoundaryName BLOCKED: BF-906 player detail id is missing or malformed."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or
+            -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or
+            -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player detail received an unauthorized extra argument."
+        }
+    }
+    elseif ($Operation -ceq 'PLAYER_SEARCH') {
+        if ([string]::IsNullOrWhiteSpace($Query) -or $Query -notmatch '^[A-Za-z0-9 ._''-]{1,80}
+    $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
+    $fields = @($line -split "`t", 5)
+
+    if ($fields.Count -eq 2 -and $fields[0] -ceq 'REJECT') {
+        try {
+            $detail = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[1]))
+        }
+        catch {
+            $detail = 'invalid rejection payload'
+        }
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
+    }
+    if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
+    }
+
+    try {
+        $stdout = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[3]))
+        $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
+    }
+    catch {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
+    }
+
+    if ($fields[2] -cne '0') {
+        throw "$BoundaryName BLOCKED: governed read-only worker command failed with exit code $($fields[2]).`n$stdout`n$stderr"
+    }
+    return $stdout
+}
+
+function Stop-Bf740PersistentCoreWorker {
+    $worker = $script:Bf740PersistentCoreWorkerProcess
+    $script:Bf740PersistentCoreWorkerProcess = $null
+    if ($null -eq $worker) { return }
+
+    try {
+        if (-not $worker.HasExited) {
+            $worker.StandardInput.WriteLine('QUIT')
+            $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
+            if ($bye -cne "BYE`tBF739") {
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
+            }
+            if (-not $worker.WaitForExit(3000)) {
+                $worker.Kill()
+                [void]$worker.WaitForExit(3000)
+            }
+        }
+    }
+    finally {
+        try { if (-not $worker.HasExited) { $worker.Kill() } } catch {}
+        try { $worker.Dispose() } catch {}
+        $script:Bf740PersistentCoreWorkerStderrTask = $null
+    }
+}
+) {
+            throw "$BoundaryName BLOCKED: BF-906 player search query is missing or malformed."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or
+            -not [string]::IsNullOrWhiteSpace($PlayerId) -or
+            -not [string]::IsNullOrWhiteSpace($RightPlayerId)) {
+            throw "$BoundaryName BLOCKED: BF-906 player search received an unauthorized extra argument."
+        }
+    }
+    elseif ($Operation -ceq 'PLAYER_COMPARE') {
+        if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}
+    $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
+    $fields = @($line -split "`t", 5)
+
+    if ($fields.Count -eq 2 -and $fields[0] -ceq 'REJECT') {
+        try {
+            $detail = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[1]))
+        }
+        catch {
+            $detail = 'invalid rejection payload'
+        }
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
+    }
+    if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
+    }
+
+    try {
+        $stdout = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[3]))
+        $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
+    }
+    catch {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
+    }
+
+    if ($fields[2] -cne '0') {
+        throw "$BoundaryName BLOCKED: governed read-only worker command failed with exit code $($fields[2]).`n$stdout`n$stderr"
+    }
+    return $stdout
+}
+
+function Stop-Bf740PersistentCoreWorker {
+    $worker = $script:Bf740PersistentCoreWorkerProcess
+    $script:Bf740PersistentCoreWorkerProcess = $null
+    if ($null -eq $worker) { return }
+
+    try {
+        if (-not $worker.HasExited) {
+            $worker.StandardInput.WriteLine('QUIT')
+            $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
+            if ($bye -cne "BYE`tBF739") {
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
+            }
+            if (-not $worker.WaitForExit(3000)) {
+                $worker.Kill()
+                [void]$worker.WaitForExit(3000)
+            }
+        }
+    }
+    finally {
+        try { if (-not $worker.HasExited) { $worker.Kill() } } catch {}
+        try { $worker.Dispose() } catch {}
+        $script:Bf740PersistentCoreWorkerStderrTask = $null
+    }
+}
+ -or
+            [string]::IsNullOrWhiteSpace($RightPlayerId) -or $RightPlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}
+    $line = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 180000 -Context ("$Operation request $requestId")
+    $fields = @($line -split "`t", 5)
+
+    if ($fields.Count -eq 2 -and $fields[0] -ceq 'REJECT') {
+        try {
+            $detail = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[1]))
+        }
+        catch {
+            $detail = 'invalid rejection payload'
+        }
+        throw "$BoundaryName BLOCKED: BF-742 worker rejected the authorized request: $detail"
+    }
+    if ($fields.Count -ne 5 -or $fields[0] -cne 'RESULT' -or $fields[1] -cne $requestId) {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid result frame."
+    }
+
+    try {
+        $stdout = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[3]))
+        $stderr = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($fields[4]))
+    }
+    catch {
+        throw "$BoundaryName BLOCKED: BF-742 worker returned an invalid Base64 result payload."
+    }
+
+    if ($fields[2] -cne '0') {
+        throw "$BoundaryName BLOCKED: governed read-only worker command failed with exit code $($fields[2]).`n$stdout`n$stderr"
+    }
+    return $stdout
+}
+
+function Stop-Bf740PersistentCoreWorker {
+    $worker = $script:Bf740PersistentCoreWorkerProcess
+    $script:Bf740PersistentCoreWorkerProcess = $null
+    if ($null -eq $worker) { return }
+
+    try {
+        if (-not $worker.HasExited) {
+            $worker.StandardInput.WriteLine('QUIT')
+            $bye = Read-Bf740WorkerLine -Worker $worker -TimeoutMs 3000 -Context 'clean shutdown'
+            if ($bye -cne "BYE`tBF739") {
+                throw "BF-740 BLOCKED: persistent read worker shutdown frame was invalid: $bye"
+            }
+            if (-not $worker.WaitForExit(3000)) {
+                $worker.Kill()
+                [void]$worker.WaitForExit(3000)
+            }
+        }
+    }
+    finally {
+        try { if (-not $worker.HasExited) { $worker.Kill() } } catch {}
+        try { $worker.Dispose() } catch {}
+        $script:Bf740PersistentCoreWorkerStderrTask = $null
+    }
+}
+ -or
+            $PlayerId -ceq $RightPlayerId) {
+            throw "$BoundaryName BLOCKED: BF-906 player compare requires two different exact player ids."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($AuditId) -or
+            -not [string]::IsNullOrWhiteSpace($Query)) {
+            throw "$BoundaryName BLOCKED: BF-906 player compare received an unauthorized extra argument."
+        }
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($AuditId) -or
+        -not [string]::IsNullOrWhiteSpace($PlayerId) -or
+        -not [string]::IsNullOrWhiteSpace($RightPlayerId) -or
+        -not [string]::IsNullOrWhiteSpace($Query)) {
+        throw "$BoundaryName BLOCKED: worker arguments were supplied for an operation that accepts none."
     }
 
     $requestId = [Guid]::NewGuid().ToString('N')
     if ($Operation -ceq 'EXPLANATION_LOOKUP') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$AuditId")
+    }
+    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId")
+    }
+    elseif ($Operation -ceq 'PLAYER_SEARCH') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$Query")
+    }
+    elseif ($Operation -ceq 'PLAYER_COMPARE') {
+        $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId`t$RightPlayerId")
     }
     else {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId")
