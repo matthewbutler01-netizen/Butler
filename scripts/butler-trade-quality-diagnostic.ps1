@@ -272,7 +272,11 @@ function Parse-Counter {
     if ($plain.IndexOf('Counteroffer unavailable', [System.StringComparison]::Ordinal) -ge 0) {
         return [pscustomobject]@{ State = 'INCONCLUSIVE'; Summary = 'Counteroffer unavailable' }
     }
-    throw 'BF-904 BLOCKED: counter page did not expose a governed counter state.'
+    $snapshot = $plain.Trim()
+    if ($snapshot.Length -gt 1200) {
+        $snapshot = $snapshot.Substring([Math]::Max(0, $snapshot.Length - 1200))
+    }
+    throw ("BF-904 BLOCKED: counter page did not expose a governed counter state. page=" + $snapshot)
 }
 
 $before = Get-WorkingTreeState
