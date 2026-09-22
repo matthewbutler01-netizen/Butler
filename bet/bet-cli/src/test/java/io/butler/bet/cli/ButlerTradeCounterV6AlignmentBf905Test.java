@@ -23,7 +23,7 @@ class ButlerTradeCounterV6AlignmentBf905Test {
         assertTrue(counter.contains("v6.packageRecommendation()"));
         assertTrue(counter.contains("v6.action()"));
         assertTrue(counter.contains("v6.evidenceStatus().complete()"));
-        assertTrue(counter.contains("V6 team action: " + "\" + " + v6.action()"));
+        assertTrue(counter.contains("System.out.println(\"V6 team action: \" + v6.action());"));
         assertTrue(counter.contains("complete v6 REJECT"));
 
         assertFalse(counter.contains("ButlerTradeRecommendationV5Cli.recommend("));
