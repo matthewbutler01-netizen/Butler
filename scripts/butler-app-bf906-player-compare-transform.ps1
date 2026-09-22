@@ -200,10 +200,10 @@ function ConvertTo-PlayerCompareView {
 
     $leftMatch = [regex]::Match(
         $Text,
-        '(?ms)^===BUTLER_PLAYER_COMPARE:LEFT:BEGIN===\r?\n(?<body>.*?)^===BUTLER_PLAYER_COMPARE:LEFT:END===\s*$')
+        '(?ms)^===BUTLER_PLAYER_COMPARE:LEFT:BEGIN===\r?\n(?<body>.*?)^===BUTLER_PLAYER_COMPARE:LEFT:END===')
     $rightMatch = [regex]::Match(
         $Text,
-        '(?ms)^===BUTLER_PLAYER_COMPARE:RIGHT:BEGIN===\r?\n(?<body>.*?)^===BUTLER_PLAYER_COMPARE:RIGHT:END===\s*$')
+        '(?ms)^===BUTLER_PLAYER_COMPARE:RIGHT:BEGIN===\r?\n(?<body>.*?)^===BUTLER_PLAYER_COMPARE:RIGHT:END===')
     if (-not $leftMatch.Success -or -not $rightMatch.Success) {
         throw 'BF-906 BLOCKED: Player Compare output is missing an exact player evidence block.'
     }
