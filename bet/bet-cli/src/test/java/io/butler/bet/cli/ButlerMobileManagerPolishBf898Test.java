@@ -34,6 +34,9 @@ class ButlerMobileManagerPolishBf898Test {
         assertTrue(transform.contains("Your roster or weekly projection frame changed since the saved lineup review."));
         assertTrue(transform.contains("Refresh it before relying on the recommendation."));
         assertTrue(transform.contains("\"Refresh Lineup\""));
+        assertTrue(transform.contains("$stalePattern = '(?m)^[ \\t]*\"REFRESH AUTOFILL\""));
+        assertTrue(transform.contains("stale lineup manager state expected one REFRESH AUTOFILL entry"));
+        assertFalse(transform.contains("Your lineup recommendation is out of date"));
     }
 
     @Test
