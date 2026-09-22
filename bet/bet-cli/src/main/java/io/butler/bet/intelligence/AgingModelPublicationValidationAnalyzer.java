@@ -30,7 +30,14 @@ public final class AgingModelPublicationValidationAnalyzer {
 
     public ValidationReport analyze() throws SQLException {
         var auditReport = audit.analyze();
-        var smootherReport = AgingModelLocalSmootherAnalyzer.smooth(auditReport);
+        return analyze(auditReport, AgingModelLocalSmootherAnalyzer.smooth(auditReport));
+    }
+
+    ValidationReport analyze(
+        AgingModelSampleAuditAnalyzer.SampleAuditReport auditReport,
+        AgingModelLocalSmootherAnalyzer.LocalSmootherReport smootherReport) {
+        Objects.requireNonNull(auditReport, "auditReport must not be null");
+        Objects.requireNonNull(smootherReport, "smootherReport must not be null");
         var publishedReport = AgingModelPublishedSmootherAnalyzer.applyPolicy(smootherReport);
         var holdoutReport = AgingModelTemporalHoldoutAnalyzer.evaluate(auditReport);
         var transitionStability = AgingModelTransitionStabilityAnalyzer.evaluate(auditReport);
