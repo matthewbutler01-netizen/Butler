@@ -266,8 +266,9 @@ function Parse-Counter {
             Summary = if ($instruction.Success) { $instruction.Groups['value'].Value.Trim() } else { 'Counter available' }
         }
     }
-    if ($plain.IndexOf('No governed counteroffer', [System.StringComparison]::Ordinal) -ge 0) {
-        return [pscustomobject]@{ State = 'NO_ACTION'; Summary = 'No governed counteroffer' }
+    if ($plain.IndexOf('No counteroffer', [System.StringComparison]::Ordinal) -ge 0 -or
+        $plain.IndexOf('No governed counteroffer', [System.StringComparison]::Ordinal) -ge 0) {
+        return [pscustomobject]@{ State = 'NO_ACTION'; Summary = 'No counteroffer' }
     }
     if ($plain.IndexOf('Counteroffer unavailable', [System.StringComparison]::Ordinal) -ge 0) {
         return [pscustomobject]@{ State = 'INCONCLUSIVE'; Summary = 'Counteroffer unavailable' }
