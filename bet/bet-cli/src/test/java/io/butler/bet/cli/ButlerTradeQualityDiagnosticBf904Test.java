@@ -34,6 +34,10 @@ class ButlerTradeQualityDiagnosticBf904Test {
         assertTrue(script.contains("&evaluate=1&give="));
         assertTrue(script.contains("&receive="));
         assertTrue(script.contains("&counter=1"));
+        assertTrue(script.contains("$count = [int]$ordered.Length"));
+        assertTrue(script.contains("$middleIndex = [int][Math]::Floor(($count - 1) / 2.0)"));
+        assertTrue(script.contains("$lastIndex = $count - 1"));
+        assertFalse(script.contains("$ordered.Count - 1"));
     }
 
     @Test
