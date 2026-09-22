@@ -358,6 +358,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-899 BLOCKED: dashboard visual unification transform not found at $bf899Transform"
     }
     & $bf899Transform -DashboardPath $DashboardPath
+
+    # BF-900: priority 01 already owns the decision hero. Remove its duplicate queue card
+    # only on the full-app manager Dashboard; standalone BF-715 waiver staging has no BF-819 queue.
+    $bf900Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf900-priority-dedup-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf900Transform -PathType Leaf)) {
+        throw "BF-900 BLOCKED: Dashboard priority de-duplication transform not found at $bf900Transform"
+    }
+    & $bf900Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
