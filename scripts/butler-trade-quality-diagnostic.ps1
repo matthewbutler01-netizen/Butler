@@ -55,11 +55,34 @@ function Start-OwnedButler {
     $start.Arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "{0}" -Port {1} -NoBrowser' -f $appLauncher, $Port
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
     $process = [System.Diagnostics.Process]::Start($start)
     if ($null -eq $process) {
         throw 'BF-904 BLOCKED: unable to launch owned Butler process.'
     }
+    $process | Add-Member -NotePropertyName Bf904StdoutTask -NotePropertyValue ($process.StandardOutput.ReadToEndAsync())
+    $process | Add-Member -NotePropertyName Bf904StderrTask -NotePropertyValue ($process.StandardError.ReadToEndAsync())
     return $process
+}
+
+function Get-OwnedButlerExitDiagnostic {
+    param([Parameter(Mandatory = $true)]$Process)
+
+    try { $Process.WaitForExit() } catch {}
+    $stdout = ''
+    $stderr = ''
+    try { $stdout = [string]$Process.Bf904StdoutTask.Result } catch {}
+    try { $stderr = [string]$Process.Bf904StderrTask.Result } catch {}
+    $parts = @($stdout.Trim(), $stderr.Trim()) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $combined = $parts -join [Environment]::NewLine
+    if ([string]::IsNullOrWhiteSpace($combined)) {
+        return 'no child-process output was captured'
+    }
+    if ($combined.Length -gt 12000) {
+        return '[tail of child-process output]' + [Environment]::NewLine + $combined.Substring($combined.Length - 12000)
+    }
+    return $combined
 }
 
 function Stop-OwnedButler {
@@ -273,7 +296,8 @@ try {
     $healthy = $false
     while ([DateTime]::UtcNow -lt $deadline) {
         if ($process.HasExited) {
-            throw "BF-904 FAILED: Butler exited during startup with code $($process.ExitCode)."
+            $startupDiagnostic = Get-OwnedButlerExitDiagnostic -Process $process
+            throw ("BF-904 FAILED: Butler exited during startup with code {0}.{1}{2}" -f $process.ExitCode, [Environment]::NewLine, $startupDiagnostic)
         }
         try {
             $health = Invoke-Get -Url ($root + '/health') -TimeoutMs 1000
