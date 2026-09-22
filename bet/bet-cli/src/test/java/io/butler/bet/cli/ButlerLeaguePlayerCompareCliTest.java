@@ -51,9 +51,12 @@ class ButlerLeaguePlayerCompareCliTest {
         String source = source(
             "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLeaguePlayerCompareCli.java");
 
-        assertEquals(1, count(source, "profiles.analyze("));
-        assertEquals(1, count(source, "ageProduction.analyze("));
-        assertEquals(1, count(source, "inventoryAnalyzer.analyze("));
+        assertEquals(1, count(source, "new LeaguePlayerEvidenceProfileAnalyzer("));
+        assertEquals(1, count(source, "new LeagueAgeProductionContextAnalyzer("));
+        assertEquals(1, count(source, "new LeagueAssetInventoryAnalyzer("));
+        assertEquals(1, count(source, "var profileReport ="));
+        assertEquals(1, count(source, "var ageReport = ageProduction.analyze(profileReport);"));
+        assertEquals(1, count(source, "var inventory = inventoryAnalyzer.analyze(options.leagueId());"));
         assertEquals(2, count(source, "player(options."));
         assertTrue(source.contains("ButlerLeaguePlayerDetailCli.select("));
 
