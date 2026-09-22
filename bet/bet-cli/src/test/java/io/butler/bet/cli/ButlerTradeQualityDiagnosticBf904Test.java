@@ -58,6 +58,8 @@ class ButlerTradeQualityDiagnosticBf904Test {
         assertFalse(script.contains("/refresh?"));
         assertFalse(script.matches("(?s).*\\R\\s+-(?:and|or)\\b.*"),
             "Windows PowerShell 5.1 diagnostic must not start continuation lines with boolean operators");
+        assertFalse(script.matches("(?s).*\\R\\s*\\+\\s+.*"),
+            "Windows PowerShell 5.1 diagnostic must not start continuation lines with plus");
     }
 
     private static String source(String relativePath) throws IOException {
