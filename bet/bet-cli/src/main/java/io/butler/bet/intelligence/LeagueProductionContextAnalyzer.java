@@ -6,12 +6,15 @@ import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.PlayerSeasonProductionRepository;
 import io.butler.bet.data.RosterRepository;
 import io.butler.bet.data.TeamRepository;
+import io.butler.bet.domain.Player;
 import io.butler.bet.domain.PlayerSeasonProduction;
+import io.butler.bet.domain.Roster;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,7 +58,28 @@ public final class LeagueProductionContextAnalyzer {
         if (leagues.findById(leagueId).isEmpty()) throw new IllegalArgumentException("league not found: " + leagueId);
 
         List<TeamProductionContext> result = new ArrayList<>();
-        for (var team : teams.findByLeagueId(leagueId)) {
+
+        var leagueTeams = teams.findByLeagueId(leagueId);
+        List<Roster> leagueRosters = rosters.findByLeagueId(leagueId);
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        List<String> rosterPlayerIds = new ArrayList<>();
+        for (Roster roster : leagueRosters) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+            rosterPlayerIds.add(roster.getPlayerId());
+        }
+
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(leagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        Map<String, PlayerSeasonProduction> productionByPlayer = new HashMap<>();
+        for (PlayerSeasonProduction value : production.findLatestByPlayerIdsAndSeasonAndSource(
+            rosterPlayerIds, season, source)) {
+            productionByPlayer.put(value.playerId(), value);
+        }
+
+        for (var team : leagueTeams) {
             Map<String, MutablePosition> byPosition = new LinkedHashMap<>();
             List<MissingProduction> missing = new ArrayList<>();
             int totalPlayers = 0;
@@ -63,21 +87,21 @@ public final class LeagueProductionContextAnalyzer {
             LocalDate earliestAsOf = null;
             LocalDate latestAsOf = null;
 
-            for (var roster : rosters.findByTeamId(team.getId())) {
-                var player = players.findById(roster.getPlayerId())
-                    .orElseThrow(() -> new IllegalStateException("roster references missing player: " + roster.getPlayerId()));
+            for (var roster : rostersByTeam.getOrDefault(team.getId(), List.of())) {
+                var player = playersById.get(roster.getPlayerId());
+                if (player == null) {
+                    throw new IllegalStateException("roster references missing player: " + roster.getPlayerId());
+                }
                 totalPlayers++;
                 String position = normalizePosition(player.getPosition());
                 MutablePosition aggregate = byPosition.computeIfAbsent(position, MutablePosition::new);
                 aggregate.totalPlayers++;
 
-                var snapshot = production.findLatest(player.getId(), season, source);
-                if (snapshot.isEmpty()) {
+                PlayerSeasonProduction value = productionByPlayer.get(player.getId());
+                if (value == null) {
                     missing.add(new MissingProduction(player.getId(), player.getDisplayName(), position));
                     continue;
                 }
-
-                PlayerSeasonProduction value = snapshot.get();
                 coveredPlayers++;
                 aggregate.add(value);
                 if (earliestAsOf == null || value.asOfDate().isBefore(earliestAsOf)) earliestAsOf = value.asOfDate();
