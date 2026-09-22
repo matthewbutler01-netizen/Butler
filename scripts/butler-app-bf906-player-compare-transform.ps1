@@ -1,7 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$CorePath
+    [string]$CorePath,
+
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$DashboardPath
 )
 
 Set-StrictMode -Version Latest
@@ -9,6 +13,9 @@ $ErrorActionPreference = 'Stop'
 
 if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
     throw "BF-906 BLOCKED: staged Butler core not found at $CorePath"
+}
+if (-not (Test-Path -LiteralPath $DashboardPath -PathType Leaf)) {
+    throw "BF-906 BLOCKED: staged Butler dashboard not found at $DashboardPath"
 }
 
 function Replace-ExactlyOnce {
@@ -27,6 +34,23 @@ function Replace-ExactlyOnce {
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
+$dashboard = [System.IO.File]::ReadAllText($DashboardPath)
+
+$workerPathGuardOld = @'
+    if ($Path -cne "/__butler/internal/team-bundle" -and $Path -cne "/__butler/internal/league-overview") {
+        throw "$BoundaryName BLOCKED: BF-742 internal dashboard path is not authorized."
+    }
+'@
+$workerPathGuardNew = @'
+    if ($Path -cne "/__butler/internal/team-bundle" -and
+        $Path -cne "/__butler/internal/league-overview" -and
+        -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal)) {
+        throw "$BoundaryName BLOCKED: BF-742 internal dashboard path is not authorized."
+    }
+'@
+$core = Replace-ExactlyOnce -Text $core -Old $workerPathGuardOld.TrimEnd() -New $workerPathGuardNew.TrimEnd() -Contract 'authenticated BF-906 worker path authorization'
 
 $compareFunctions = @'
 function Get-PlayerCompareRequest {
@@ -436,7 +460,8 @@ $compareRoute = @'
 
                     if (-not [string]::IsNullOrWhiteSpace($compareRequest.LeftPlayerId) -and
                         -not [string]::IsNullOrWhiteSpace($compareRequest.RightPlayerId)) {
-                        $rawCompare = Invoke-ButlerReadOnly -Arguments "league player-compare $LeagueId $($compareRequest.LeftPlayerId) $($compareRequest.RightPlayerId)" -BoundaryName "BF-906"
+                        $comparePath = "/__butler/internal/player-compare?left=" + [System.Uri]::EscapeDataString($compareRequest.LeftPlayerId) + "&right=" + [System.Uri]::EscapeDataString($compareRequest.RightPlayerId)
+                        $rawCompare = Invoke-Bf742DashboardWorkerRead -Path $comparePath -BoundaryName "BF-906"
                         $compareView = ConvertTo-PlayerCompareView -Text $rawCompare
                         if ($compareView.LeagueId -cne $LeagueId) {
                             throw 'BF-906 BLOCKED: Player Compare response does not match the exact current league.'
@@ -447,7 +472,8 @@ $compareRoute = @'
                         }
                     }
                     elseif (-not [string]::IsNullOrWhiteSpace($compareRequest.LeftPlayerId)) {
-                        $rawLeft = Invoke-ButlerReadOnly -Arguments "league player-detail $LeagueId $($compareRequest.LeftPlayerId)" -BoundaryName "BF-906"
+                        $detailPath = "/__butler/internal/player-detail?player=" + [System.Uri]::EscapeDataString($compareRequest.LeftPlayerId)
+                        $rawLeft = Invoke-Bf742DashboardWorkerRead -Path $detailPath -BoundaryName "BF-906"
                         $selectedLeft = ConvertTo-PlayerDetailView -Text $rawLeft
                         if ($selectedLeft.LeagueId -cne $LeagueId -or
                             $selectedLeft.PlayerId -cne $compareRequest.LeftPlayerId) {
@@ -455,7 +481,8 @@ $compareRoute = @'
                         }
 
                         if (-not [string]::IsNullOrWhiteSpace($compareRequest.Query)) {
-                            $rawSearch = Invoke-ButlerReadOnly -Arguments "league player-search $LeagueId $($compareRequest.Query)" -BoundaryName "BF-906"
+                            $searchPath = "/__butler/internal/player-search?q=" + [System.Uri]::EscapeDataString($compareRequest.Query)
+                            $rawSearch = Invoke-Bf742DashboardWorkerRead -Path $searchPath -BoundaryName "BF-906"
                             $searchView = ConvertTo-PlayerSearchView -Text $rawSearch
                             if ($searchView.LeagueId -cne $LeagueId -or
                                 $searchView.Query -cne $compareRequest.Query) {
@@ -476,6 +503,454 @@ $compareRoute = @'
 
 '@
 $core = $core.Insert($routeIndex, $compareRoute)
+
+$dashboardRouteMarker = '            $candidateMatch = [regex]::Match($path, ''^/waivers/candidate/(?<id>[0-9]+)
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
+
+foreach ($parsePath in @($CorePath, $DashboardPath)) {
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($parsePath, [ref]$tokens, [ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) {
+        $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+        throw "BF-906 BLOCKED: generated staged runtime failed PowerShell parse for ${parsePath}: $parseSummary"
+    }
+}
+')'
+$dashboardRouteIndex = $dashboard.IndexOf($dashboardRouteMarker, [System.StringComparison]::Ordinal)
+if ($dashboardRouteIndex -lt 0) {
+    throw 'BF-906 BLOCKED: private player-worker dashboard insertion marker is missing.'
+}
+
+$dashboardPlayerRoutes = @'
+            $bf906DetailMatch = [regex]::Match($parts[1], '^/__butler/internal/player-detail\?player=(?<player>[^&]+)
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+            $bf906SearchMatch = [regex]::Match($parts[1], '^/__butler/internal/player-search\?q=(?<query>[^&]+)
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+            $bf906CompareMatch = [regex]::Match($parts[1], '^/__butler/internal/player-compare\?left=(?<left>[^&]+)&right=(?<right>[^&]+)
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+            if ($bf906DetailMatch.Success -or $bf906SearchMatch.Success -or $bf906CompareMatch.Success) {
+                if ([string]::IsNullOrWhiteSpace($bf742InternalTokenHeader) -or $bf742InternalTokenHeader -cne $script:Bf742DashboardToken) {
+                    Send-HttpResponse -Stream $stream -StatusCode 403 -StatusText "Forbidden" -ContentType "text/plain; charset=utf-8" -Body "Forbidden"
+                    continue
+                }
+
+                try {
+                    if ($bf906DetailMatch.Success) {
+                        $playerId = [System.Uri]::UnescapeDataString($bf906DetailMatch.Groups['player'].Value)
+                        if ($playerId -notmatch '^[A-Za-z0-9._:-]{1,128}
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+) {
+                            throw 'BF-906 BLOCKED: private player-detail id is malformed.'
+                        }
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL' -BoundaryName 'BF-906' -PlayerId $playerId
+                    }
+                    elseif ($bf906SearchMatch.Success) {
+                        $query = [System.Uri]::UnescapeDataString($bf906SearchMatch.Groups['query'].Value)
+                        if ($query -notmatch '^[A-Za-z0-9 ._''-]{1,80}
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+) {
+                            throw 'BF-906 BLOCKED: private player-search query is malformed.'
+                        }
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH' -BoundaryName 'BF-906' -Query $query
+                    }
+                    else {
+                        $left = [System.Uri]::UnescapeDataString($bf906CompareMatch.Groups['left'].Value)
+                        $right = [System.Uri]::UnescapeDataString($bf906CompareMatch.Groups['right'].Value)
+                        if ($left -notmatch '^[A-Za-z0-9._:-]{1,128}
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+ -or
+                            $right -notmatch '^[A-Za-z0-9._:-]{1,128}
+    'function Get-PlayerCompareRequest',
+    'function ConvertTo-PlayerCompareView',
+    'function ConvertTo-PlayerCompareHtml',
+    'function Add-PlayerCompareDetailAction',
+    'league player-compare $LeagueId',
+    'Compare this player',
+    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$leftHref&right=$rightHref`"',
+    'NOT A RANKING',
+    'Butler does not choose a winner',
+    'Player Compare shows existing Butler evidence only'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-906 BLOCKED: required Player Compare marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function Get-PlayerCompareRequest', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function Get-PlayerSearchRequestQuery', $installedStart, [System.StringComparison]::Ordinal)
+if ($installedStart -lt 0 -or $installedEnd -le $installedStart) {
+    throw 'BF-906 BLOCKED: Player Compare installed function boundary is missing.'
+}
+$installed = $core.Substring($installedStart, $installedEnd - $installedStart)
+foreach ($forbidden in @(
+    'Invoke-RestMethod',
+    'Invoke-WebRequest',
+    'Method = "POST"',
+    'https://api.sleeper.app',
+    'submitTransaction',
+    'setFaab',
+    'player-score',
+    'winner-policy',
+    'better-player-score'
+)) {
+    if ($installed.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-906 BLOCKED: Player Compare introduced forbidden provider, write, score, or winner behavior: $forbidden"
+    }
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-906 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+ -or
+                            $left -ceq $right) {
+                            throw 'BF-906 BLOCKED: private player-compare ids are malformed or identical.'
+                        }
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE' -BoundaryName 'BF-906' -PlayerId $left -RightPlayerId $right
+                    }
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/plain; charset=utf-8" -Body $internalBody
+                }
+                catch {
+                    Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/plain; charset=utf-8" -Body ("BF-906 BLOCKED: " + $_.Exception.Message)
+                }
+                continue
+            }
+
+'@
+$dashboard = $dashboard.Insert($dashboardRouteIndex, $dashboardPlayerRoutes)
+
 
 foreach ($required in @(
     'function Get-PlayerCompareRequest',
