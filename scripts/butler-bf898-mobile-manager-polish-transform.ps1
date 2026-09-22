@@ -71,9 +71,14 @@ $mobileCss = @'
 $dashboard = [System.IO.File]::ReadAllText($DashboardPath)
 $dashboard = Add-CssOverride -Text $dashboard -StartMarker 'function Get-SharedCss {' -NextMarker 'function Get-HeaderHtml {' -Marker 'BF-898 mobile manager polish' -Css $mobileCss -Contract 'dashboard'
 
-$staleOld = '        "REFRESH AUTOFILL" = @("Your lineup recommendation is out of date", "Your roster or projection data changed since the last lineup review.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
+$stalePattern = '(?m)^[ \t]*"REFRESH AUTOFILL"\s*=\s*@\([^\r\n]*\)\s*$'
+$staleMatches = [regex]::Matches($dashboard, $stalePattern)
+if ($staleMatches.Count -ne 1) {
+    throw "BF-898 BLOCKED: stale lineup manager state expected one REFRESH AUTOFILL entry, found $($staleMatches.Count)."
+}
 $staleNew = '        "REFRESH AUTOFILL" = @("Lineup needs a fresh review", "Your roster or weekly projection frame changed since the saved lineup review. Refresh it before relying on the recommendation.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
-$dashboard = Replace-ExactlyOnce -Text $dashboard -Old $staleOld -New $staleNew -Contract 'stale lineup manager copy'
+$staleMatch = $staleMatches[0]
+$dashboard = $dashboard.Substring(0, $staleMatch.Index) + $staleNew + $dashboard.Substring($staleMatch.Index + $staleMatch.Length)
 
 [System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
 
