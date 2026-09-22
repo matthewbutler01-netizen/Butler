@@ -32,7 +32,10 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(transform.contains("Stop-Bf740PersistentCoreWorker"));
         assertTrue(transform.contains("staged core still owns a JVM worker"));
 
-        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP')"));
+        assertTrue(helper.contains("ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE')"));
+        assertTrue(helper.contains("player detail id is missing or malformed"));
+        assertTrue(helper.contains("player search query is missing or malformed"));
+        assertTrue(helper.contains("player compare requires two different exact player ids"));
         assertTrue(helper.contains("TimeoutMs 180000"));
         assertTrue(helper.contains("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"));
         assertTrue(helper.contains("^[A-Za-z0-9._:-]{1,128}$"));
@@ -139,6 +142,12 @@ class ButlerPersistentCoreWorkerCanaryBf740Test {
         assertTrue(worker.contains("case EXPLANATION_LOOKUP -> executeCapturedWithExitCode"));
         assertTrue(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.runEmbedded("));
         assertTrue(worker.contains("new String[] {request.leagueId(), request.argument()}"));
+        assertTrue(worker.contains("case PLAYER_DETAIL -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerDetailCli.runEmbedded("));
+        assertTrue(worker.contains("case PLAYER_SEARCH -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerSearchCli.runEmbedded("));
+        assertTrue(worker.contains("case PLAYER_COMPARE -> executeCapturedWithExitCode"));
+        assertTrue(worker.contains("ButlerLeaguePlayerCompareCli.runEmbedded("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli.main("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverTargetRosterContextAuditCli.main("));
         assertFalse(worker.contains("ButlerSleeperLiveWaiverGovernedExplanationLookupCli.main("));
