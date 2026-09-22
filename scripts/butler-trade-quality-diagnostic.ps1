@@ -279,8 +279,7 @@ try {
             $health = Invoke-Get -Url ($root + '/health') -TimeoutMs 1000
             if ($health.StatusCode -eq 200) {
                 $identity = $health.Body | ConvertFrom-Json
-                if ($null -ne $identity -and [string]$identity.service -ceq 'butler-app-shell'
-                    -and [string]$identity.status -ceq 'ok') {
+                if ($null -ne $identity -and ([string]$identity.service) -ceq 'butler-app-shell' -and ([string]$identity.status) -ceq 'ok') {
                     $healthy = $true
                     break
                 }
@@ -347,9 +346,7 @@ try {
                 Write-Host ("  reason={0}" -f $decision.Reason)
             }
 
-            if ($null -eq $firstCompleteRejectUrl
-                -and $decision.EvidenceComplete
-                -and $decision.Action -ceq 'REJECT') {
+            if ($null -eq $firstCompleteRejectUrl -and $decision.EvidenceComplete -and $decision.Action -ceq 'REJECT') {
                 $firstCompleteRejectUrl = $url
             }
         }
