@@ -22,7 +22,11 @@ public final class AgingModelLocalSmootherAnalyzer {
     }
 
     public LocalSmootherReport analyze() throws SQLException {
-        var audit = sampleAudit.analyze();
+        return smooth(sampleAudit.analyze());
+    }
+
+    static LocalSmootherReport smooth(AgingModelSampleAuditAnalyzer.SampleAuditReport audit) {
+        Objects.requireNonNull(audit, "audit must not be null");
         List<SmoothedCell> cells = new ArrayList<>();
         for (var target : audit.cells()) {
             List<AgingModelSampleAuditAnalyzer.AgingObservation> pooled = audit.observations().stream()
