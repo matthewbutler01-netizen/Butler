@@ -5,11 +5,16 @@ import io.butler.bet.data.PlayerProfileRepository;
 import io.butler.bet.data.PlayerProfileSnapshotRepository;
 import io.butler.bet.data.PlayerRepository;
 import io.butler.bet.data.RosterRepository;
+import io.butler.bet.domain.Player;
+import io.butler.bet.domain.PlayerProfile;
+import io.butler.bet.domain.PlayerProfileSnapshot;
+import io.butler.bet.domain.Roster;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -50,21 +55,46 @@ public final class LeaguePlayerProfileCoverageAnalyzer {
         var league = leagues.analyze(normalizedLeagueId);
         List<TeamCoverage> teams = new ArrayList<>();
 
+        List<Roster> leagueRosters = rosters.findByLeagueId(normalizedLeagueId);
+        Map<String, List<Roster>> rostersByTeam = new HashMap<>();
+        List<String> rosterPlayerIds = new ArrayList<>();
+        for (Roster roster : leagueRosters) {
+            rostersByTeam.computeIfAbsent(roster.getTeamId(), ignored -> new ArrayList<>()).add(roster);
+            rosterPlayerIds.add(roster.getPlayerId());
+        }
+
+        Map<String, Player> playersById = new HashMap<>();
+        for (Player player : players.findByLeagueId(normalizedLeagueId)) {
+            playersById.put(player.getId(), player);
+        }
+
+        Map<String, PlayerProfile> profilesById = new HashMap<>();
+        for (PlayerProfile profile : profiles.findAll()) {
+            profilesById.put(profile.playerId(), profile);
+        }
+
+        Map<String, PlayerProfileSnapshot> snapshotsById = new HashMap<>();
+        for (PlayerProfileSnapshot snapshot : snapshots.findLatestByPlayerIdsAndSource(rosterPlayerIds, normalizedSource)) {
+            snapshotsById.put(snapshot.playerId(), snapshot);
+        }
+
         for (var team : league.teams()) {
             MutableCounts teamCounts = new MutableCounts();
             Map<String, MutableCounts> positions = new TreeMap<>();
             List<PlayerEvidence> playerEvidence = new ArrayList<>();
 
-            for (var roster : rosters.findByTeamId(team.teamId())) {
-                var player = players.findById(roster.getPlayerId())
-                    .orElseThrow(() -> new IllegalArgumentException("player not found: " + roster.getPlayerId()));
+            for (var roster : rostersByTeam.getOrDefault(team.teamId(), List.of())) {
+                var player = playersById.get(roster.getPlayerId());
+                if (player == null) {
+                    throw new IllegalArgumentException("player not found: " + roster.getPlayerId());
+                }
                 String position = normalizePosition(player.getPosition());
                 MutableCounts positionCounts = positions.computeIfAbsent(position, ignored -> new MutableCounts());
                 teamCounts.totalPlayers++;
                 positionCounts.totalPlayers++;
 
-                var canonical = profiles.findByPlayerId(player.getId()).orElse(null);
-                var provider = snapshots.findLatest(player.getId(), normalizedSource).orElse(null);
+                var canonical = profilesById.get(player.getId());
+                var provider = snapshotsById.get(player.getId());
                 boolean providerFresh = provider != null
                     && (minimumSnapshotAsOf == null || !provider.asOfDate().isBefore(minimumSnapshotAsOf));
                 boolean exactBirthDate = canonical != null && canonical.birthDate() != null;
