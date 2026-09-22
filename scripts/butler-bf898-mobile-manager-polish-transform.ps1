@@ -71,14 +71,66 @@ $mobileCss = @'
 $dashboard = [System.IO.File]::ReadAllText($DashboardPath)
 $dashboard = Add-CssOverride -Text $dashboard -StartMarker 'function Get-SharedCss {' -NextMarker 'function Get-HeaderHtml {' -Marker 'BF-898 mobile manager polish' -Css $mobileCss -Contract 'dashboard'
 
-$stalePattern = '(?m)^[ \t]*"REFRESH AUTOFILL"\s*=\s*@\([^\r\n]*\)\s*$'
-$staleMatches = [regex]::Matches($dashboard, $stalePattern)
-if ($staleMatches.Count -ne 1) {
-    throw "BF-898 BLOCKED: stale lineup manager state expected one REFRESH AUTOFILL entry, found $($staleMatches.Count)."
+$stalePattern = '(?m)^[ \t]*"REFRESH AUTOFILL"\s*=\s*@\([^\r\n]*\)\s*
+[System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
+
+if (-not [string]::IsNullOrWhiteSpace($CorePath)) {
+    if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
+        throw "BF-898 BLOCKED: staged Butler core not found at $CorePath"
+    }
+
+    $core = [System.IO.File]::ReadAllText($CorePath)
+    $core = Add-CssOverride -Text $core -StartMarker 'function Get-AppCss {' -NextMarker 'function Get-AppNav {' -Marker 'BF-898 mobile manager polish' -Css $mobileCss -Contract 'core'
+    [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 }
-$staleNew = '        "REFRESH AUTOFILL" = @("Lineup needs a fresh review", "Your roster or weekly projection frame changed since the saved lineup review. Refresh it before relying on the recommendation.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
-$staleMatch = $staleMatches[0]
-$dashboard = $dashboard.Substring(0, $staleMatch.Index) + $staleNew + $dashboard.Substring($staleMatch.Index + $staleMatch.Length)
+
+foreach ($path in @($DashboardPath, $CorePath)) {
+    if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        continue
+    }
+
+    $tokens = $null
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$parseErrors)
+    if (@($parseErrors).Count -gt 0) {
+        $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+        throw "BF-898 BLOCKED: generated manager surface failed PowerShell parse: $parseSummary"
+    }
+}
+
+$installedDashboard = [System.IO.File]::ReadAllText($DashboardPath)
+$requiredMarkers = @(
+    'BF-898 mobile manager polish',
+    'scrollbar-width:none',
+    'min-height:44px'
+)
+if ($staleCopyApplied) {
+    $requiredMarkers += 'Lineup needs a fresh review'
+    $requiredMarkers += 'Refresh it before relying on the recommendation.'
+}
+foreach ($required in $requiredMarkers) {
+    if ($installedDashboard.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-898 BLOCKED: required mobile manager marker is missing: $required"
+    }
+}
+
+if ($installedDashboard -match 'Method = "POST"|submitTransaction|setFaab') {
+    throw 'BF-898 BLOCKED: mobile manager polish introduced a write-path marker.'
+}
+
+Write-Host 'BF-898 mobile manager polish applied.'
+
+$staleMatches = [regex]::Matches($dashboard, $stalePattern)
+if ($staleMatches.Count -gt 1) {
+    throw "BF-898 BLOCKED: stale lineup manager state is ambiguous; found $($staleMatches.Count) REFRESH AUTOFILL entries."
+}
+$staleCopyApplied = $false
+if ($staleMatches.Count -eq 1) {
+    $staleNew = '        "REFRESH AUTOFILL" = @("Lineup needs a fresh review", "Your roster or weekly projection frame changed since the saved lineup review. Refresh it before relying on the recommendation.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
+    $staleMatch = $staleMatches[0]
+    $dashboard = $dashboard.Substring(0, $staleMatch.Index) + $staleNew + $dashboard.Substring($staleMatch.Index + $staleMatch.Length)
+    $staleCopyApplied = $true
+}
 
 [System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
 
