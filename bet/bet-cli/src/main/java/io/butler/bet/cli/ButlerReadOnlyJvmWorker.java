@@ -28,6 +28,8 @@ public final class ButlerReadOnlyJvmWorker {
     private static final Pattern LEAGUE_ID = Pattern.compile(
         "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private static final Pattern AUDIT_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
+    private static final Pattern PLAYER_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
+    private static final Pattern PLAYER_SEARCH_QUERY = Pattern.compile("[A-Za-z0-9 ._'-]{1,80}");
 
     private ButlerReadOnlyJvmWorker() {}
 
@@ -68,8 +70,9 @@ public final class ButlerReadOnlyJvmWorker {
                 reject(protocol,
                     "BF-742 BLOCKED: worker accepts only HELP<TAB><request-id>, "
                         + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, LATEST_SUMMARY_DIAGNOSTIC, LATEST_SUMMARY_REUSE_DIAGNOSTIC, TARGET_VERIFY_DIAGNOSTIC, TARGET_VERIFY_PARALLEL_DIAGNOSTIC, WAIVER_DASHBOARD_BUNDLE, or MATCHUP_BUNDLE "
-                        + "with <request-id><TAB><league-id>, EXPLANATION_LOOKUP with "
-                        + "<request-id><TAB><league-id><TAB><audit-id>, or QUIT.");
+                        + "with <request-id><TAB><league-id>; PLAYER_DETAIL, PLAYER_SEARCH, or EXPLANATION_LOOKUP with "
+                        + "<request-id><TAB><league-id><TAB><validated-argument>; PLAYER_COMPARE with "
+                        + "<request-id><TAB><league-id><TAB><left-player-id><TAB><right-player-id>; or QUIT.");
                 continue;
             }
 
@@ -131,11 +134,29 @@ public final class ButlerReadOnlyJvmWorker {
             };
         }
         if (fields.length == 4
-            && fields[0].equals("EXPLANATION_LOOKUP")
+            && REQUEST_ID.matcher(fields[1]).matches()
+            && LEAGUE_ID.matcher(fields[2]).matches()) {
+            return switch (fields[0]) {
+                case "EXPLANATION_LOOKUP" -> AUDIT_ID.matcher(fields[3]).matches()
+                    ? new CommandRequest(Operation.EXPLANATION_LOOKUP, fields[1], fields[2], fields[3])
+                    : null;
+                case "PLAYER_DETAIL" -> PLAYER_ID.matcher(fields[3]).matches()
+                    ? new CommandRequest(Operation.PLAYER_DETAIL, fields[1], fields[2], fields[3])
+                    : null;
+                case "PLAYER_SEARCH" -> PLAYER_SEARCH_QUERY.matcher(fields[3]).matches()
+                    ? new CommandRequest(Operation.PLAYER_SEARCH, fields[1], fields[2], fields[3])
+                    : null;
+                default -> null;
+            };
+        }
+        if (fields.length == 5
+            && fields[0].equals("PLAYER_COMPARE")
             && REQUEST_ID.matcher(fields[1]).matches()
             && LEAGUE_ID.matcher(fields[2]).matches()
-            && AUDIT_ID.matcher(fields[3]).matches()) {
-            return new CommandRequest(Operation.EXPLANATION_LOOKUP, fields[1], fields[2], fields[3]);
+            && PLAYER_ID.matcher(fields[3]).matches()
+            && PLAYER_ID.matcher(fields[4]).matches()
+            && !fields[3].equals(fields[4])) {
+            return new CommandRequest(Operation.PLAYER_COMPARE, fields[1], fields[2], fields[3] + "|" + fields[4]);
         }
         return null;
     }
@@ -171,6 +192,17 @@ public final class ButlerReadOnlyJvmWorker {
             case EXPLANATION_LOOKUP -> executeCapturedWithExitCode(() ->
                 ButlerSleeperLiveWaiverGovernedExplanationLookupCli.runEmbedded(
                     new String[] {request.leagueId(), request.argument()}));
+            case PLAYER_DETAIL -> executeCapturedWithExitCode(() ->
+                ButlerLeaguePlayerDetailCli.runEmbedded(
+                    new String[] {"league", "player-detail", request.leagueId(), request.argument()}));
+            case PLAYER_SEARCH -> executeCapturedWithExitCode(() ->
+                ButlerLeaguePlayerSearchCli.runEmbedded(
+                    new String[] {"league", "player-search", request.leagueId(), request.argument()}));
+            case PLAYER_COMPARE -> executeCapturedWithExitCode(() -> {
+                String[] playerIds = request.argument().split("\\|", -1);
+                return ButlerLeaguePlayerCompareCli.runEmbedded(
+                    new String[] {"league", "player-compare", request.leagueId(), playerIds[0], playerIds[1]});
+            });
         };
     }
 
@@ -244,7 +276,10 @@ public final class ButlerReadOnlyJvmWorker {
         TARGET_VERIFY_PARALLEL_DIAGNOSTIC,
         WAIVER_DASHBOARD_BUNDLE,
         MATCHUP_BUNDLE,
-        EXPLANATION_LOOKUP
+        EXPLANATION_LOOKUP,
+        PLAYER_DETAIL,
+        PLAYER_SEARCH,
+        PLAYER_COMPARE
     }
 
     record CommandRequest(Operation operation, String requestId, String leagueId, String argument) {}
