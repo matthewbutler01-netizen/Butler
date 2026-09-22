@@ -123,9 +123,12 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
             (season, week, scoring) -> snapshot)
             .recommend(rosterReport(leagueId));
 
-        assertFalse(report.ready());
-        assertTrue(report.reason().contains("no exact Sleeper player-id row"));
-        assertTrue(report.reason().contains("will not guess"));
+        assertTrue(report.ready());
+        assertEquals(BigDecimal.ZERO, report.projectedGain());
+        assertEquals(1, report.projectionHolds().size());
+        assertEquals("s-wr-b", report.projectionHolds().getFirst().sleeperPlayerId());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("no exact Sleeper player-id row"));
+        assertTrue(report.projectionHolds().getFirst().reason().contains("preserved the player's current lineup state"));
     }
 
     private Database initializedDatabase() throws Exception {
