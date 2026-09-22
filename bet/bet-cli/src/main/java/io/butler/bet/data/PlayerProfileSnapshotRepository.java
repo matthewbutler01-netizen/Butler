@@ -57,7 +57,8 @@ public final class PlayerProfileSnapshotRepository {
     public List<PlayerProfileSnapshot> findLatestByPlayerIdsAndSource(
         Collection<String> playerIds, String source) throws SQLException {
         Objects.requireNonNull(playerIds, "playerIds must not be null");
-        String normalizedSource = requireText(source, "source");
+        requireText(source, "source");
+        String normalizedSource = source.trim();
 
         LinkedHashSet<String> normalizedIds = new LinkedHashSet<>();
         for (String playerId : playerIds) {
