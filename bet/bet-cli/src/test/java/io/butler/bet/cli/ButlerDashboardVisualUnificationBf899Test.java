@@ -47,6 +47,9 @@ class ButlerDashboardVisualUnificationBf899Test {
         assertTrue(bf898 >= 0, "BF-898 staging marker missing");
         assertTrue(bf899 > bf898, "BF-899 must run after BF-898 mobile polish");
         assertTrue(bf857 > bf899, "BF-857 diagnostics must remain after BF-899 final visual pass");
+        int bf899Gate = staging.lastIndexOf("if (Test-Path -LiteralPath $stagedCore -PathType Leaf)", bf899);
+        assertTrue(bf899Gate >= 0 && bf899Gate < bf899,
+            "BF-899 must remain gated to the full-app staged-core manager path");
     }
 
     @Test
