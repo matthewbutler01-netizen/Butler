@@ -29,10 +29,12 @@ public final class AgingModelPublicationValidationAnalyzer {
     }
 
     public ValidationReport analyze() throws SQLException {
-        var publishedReport = published.analyze();
         var auditReport = audit.analyze();
-        var holdoutReport = holdout.analyze();
-        var stabilityReport = stability.analyze();
+        var smootherReport = AgingModelLocalSmootherAnalyzer.smooth(auditReport);
+        var publishedReport = AgingModelPublishedSmootherAnalyzer.applyPolicy(smootherReport);
+        var holdoutReport = AgingModelTemporalHoldoutAnalyzer.evaluate(auditReport);
+        var transitionStability = AgingModelTransitionStabilityAnalyzer.evaluate(auditReport);
+        var stabilityReport = AgingModelNormalizedStabilityAnalyzer.normalize(transitionStability, holdoutReport);
         return enrich(publishedReport, auditReport.observations(), holdoutReport.dimensions(), stabilityReport.cells());
     }
 
