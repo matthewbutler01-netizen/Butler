@@ -13,41 +13,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerMyTeamRosterHubBf908Test {
 
     @Test
-    void rosterHubPresentsCurrentAssignmentBeforeSupportingTeamContext() throws Exception {
+    void rosterHubEnhancesExistingStarterBenchReserveBoard() throws Exception {
         String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
 
         assertTrue(transform.contains("Roster hub"));
         assertTrue(transform.contains("Lineup and depth at a glance"));
-        assertTrue(transform.contains("$bf908Starters"));
-        assertTrue(transform.contains("$bf908Bench"));
-        assertTrue(transform.contains("$bf908Reserve"));
-        assertTrue(transform.contains("<h3>Starters</h3>"));
-        assertTrue(transform.contains("<h3>Bench</h3>"));
-        assertTrue(transform.contains("<h3>Reserve</h3>"));
-        assertTrue(transform.contains("$teamBlock.Insert($positionIndex, '$bf908RosterHubHtml'"));
-        assertTrue(transform.contains("Lineup-aware pressure"));
+        assertTrue(transform.contains("Starting lineup"));
+        assertTrue(transform.contains("Bench"));
+        assertTrue(transform.contains("Reserve &amp; taxi"));
+        assertTrue(transform.contains("Roster construction"));
         assertTrue(transform.contains("Future flexibility"));
+        assertTrue(transform.contains("$teamBlock.Substring(0, $positionStart) + $rosterBlock + $positionBlock"));
     }
 
     @Test
     void mappedPlayersReuseExistingDetailAndCompareContracts() throws Exception {
         String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
 
-        assertTrue(transform.contains("ConvertTo-MyTeamPlayerNameHtml -Player $player"));
-        assertTrue(transform.contains("[string]$player.Mapping -ceq \"EXACT_CANONICAL\""));
+        assertTrue(transform.contains("function ConvertTo-Bf908PlayerActionsHtml"));
+        assertTrue(transform.contains("[string]$Player.Mapping -ceq 'EXACT_CANONICAL'"));
         assertTrue(transform.contains("href=\"/player?id="));
         assertTrue(transform.contains("href=\"/compare?left="));
         assertTrue(transform.contains("Player tools unavailable"));
+        assertTrue(transform.contains("ConvertTo-MyTeamPlayerNameHtml -Player $player"));
+        assertTrue(transform.contains("ConvertTo-Bf908PlayerActionsHtml -Player $player"));
         assertFalse(transform.contains("better player"));
         assertFalse(transform.contains("player grade"));
     }
 
     @Test
-    void teamHubKeepsExistingManagerActions() throws Exception {
+    void teamHubKeepsExistingManagerActionsAndAddsPlayerSearch() throws Exception {
         String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
+        String prior = source("scripts/butler-app-bf872-my-team-at-a-glance-transform.ps1");
 
-        assertTrue(transform.contains("href=\"/matchup\">Review Matchup</a>"));
-        assertTrue(transform.contains("href=\"/matchup/autofill\">Review Lineup</a>"));
+        assertTrue(prior.contains("href=\"/matchup\">Review Matchup</a>"));
+        assertTrue(prior.contains("href=\"/matchup/autofill\">Review Lineup</a>"));
         assertTrue(transform.contains("href=\"/players\">Player Search</a>"));
     }
 
