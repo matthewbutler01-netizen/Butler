@@ -26,6 +26,13 @@ public final class ButlerLeaguePlayerCompareCli {
     private ButlerLeaguePlayerCompareCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         try {
             Options options = parse(args);
             Database database = initializedDatabase();
@@ -50,12 +57,13 @@ public final class ButlerLeaguePlayerCompareCli {
                 inventory.source(),
                 left,
                 right));
+            return 0;
         } catch (SQLException e) {
             System.err.println("Database error while building player comparison: " + e.getMessage());
-            System.exit(1);
+            return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
