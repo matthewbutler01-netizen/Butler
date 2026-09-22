@@ -109,6 +109,29 @@ class ButlerPlayerCompareBf906Test {
     }
 
     @Test
+    void sharedCompareEvidenceUsesBatchReadsInsteadOfPerPlayerDatabaseLoops() throws Exception {
+        String league = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAnalyzer.java");
+        String profiles = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeaguePlayerProfileCoverageAnalyzer.java");
+        String production = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueProductionContextAnalyzer.java");
+        String ageProduction = source("bet/bet-cli/src/main/java/io/butler/bet/intelligence/LeagueAgeProductionContextAnalyzer.java");
+
+        assertTrue(league.contains("rosters.findByLeagueId(leagueId)"));
+        assertTrue(league.contains("players.findByLeagueId(leagueId)"));
+        assertFalse(league.contains("rosters.findByTeamId(team.getId())"));
+        assertFalse(league.contains("players.findById(membership.getPlayerId())"));
+
+        assertTrue(profiles.contains("findLatestByPlayerIdsAndSource"));
+        assertFalse(profiles.contains("snapshots.findLatest(player.getId()"));
+        assertFalse(profiles.contains("profiles.findByPlayerId(player.getId()"));
+
+        assertTrue(production.contains("findLatestByPlayerIdsAndSeasonAndSource"));
+        assertFalse(production.contains("production.findLatest(player.getId()"));
+
+        assertTrue(ageProduction.contains("findLatestByPlayerIdsAndSeasonAndSource"));
+        assertFalse(ageProduction.contains("production.findLatest(age.playerId()"));
+    }
+
+    @Test
     void transformSourceIsAsciiOnlyAndWindowsLineEndingAgnostic() throws Exception {
         String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
