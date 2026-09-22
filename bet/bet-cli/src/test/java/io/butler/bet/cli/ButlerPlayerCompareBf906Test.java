@@ -19,10 +19,10 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(transform.contains("function Get-PlayerCompareRequest"));
         assertTrue(transform.contains("Player Compare requires exact Butler player IDs"));
         assertTrue(transform.contains("Player Compare requires two different exact players"));
-        assertTrue(transform.contains("league player-detail $LeagueId $($compareRequest.LeftPlayerId)"));
-        assertTrue(transform.contains("league player-search $LeagueId $($compareRequest.Query)"));
-        assertTrue(transform.contains(
-            "league player-compare $LeagueId $($compareRequest.LeftPlayerId) $($compareRequest.RightPlayerId)"));
+        assertTrue(transform.contains("/__butler/internal/player-detail?player="));
+        assertTrue(transform.contains("/__butler/internal/player-search?q="));
+        assertTrue(transform.contains("/__butler/internal/player-compare?left="));
+        assertTrue(transform.contains("Invoke-Bf742DashboardWorkerRead"));
         assertTrue(transform.contains("response does not match the exact requested players"));
     }
 
@@ -62,7 +62,11 @@ class ButlerPlayerCompareBf906Test {
         String operational = transform.substring(0, guard);
 
         assertTrue(operational.contains("if ($path -eq \"/compare\")"));
-        assertTrue(operational.contains("Invoke-ButlerReadOnly"));
+        assertTrue(operational.contains("Invoke-Bf742DashboardWorkerRead"));
+        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
+        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'"));
+        assertTrue(operational.contains("Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"));
+        assertFalse(operational.contains("Invoke-ButlerReadOnly -Arguments \"league player-compare"));
         assertFalse(operational.contains("Invoke-RestMethod"));
         assertFalse(operational.contains("Invoke-WebRequest"));
         assertFalse(operational.contains("Method = \"POST\""));
@@ -83,6 +87,7 @@ class ButlerPlayerCompareBf906Test {
         assertTrue(bf906 > bf883);
         assertTrue(bf884 > bf906);
         assertTrue(staging.contains("butler-app-bf906-player-compare-transform.ps1"));
+        assertTrue(staging.contains("-CorePath $stagedCore -DashboardPath $DashboardPath"));
     }
 
     @Test
