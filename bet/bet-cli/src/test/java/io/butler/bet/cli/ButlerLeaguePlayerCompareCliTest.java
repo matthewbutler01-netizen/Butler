@@ -53,7 +53,7 @@ class ButlerLeaguePlayerCompareCliTest {
 
         assertEquals(1, count(source, "new LeaguePlayerEvidenceProfileAnalyzer("));
         assertEquals(1, count(source, "new LeagueAgeProductionContextAnalyzer("));
-        assertEquals(1, count(source, "new LeagueAssetInventoryAnalyzer("));
+        assertEquals(2, count(source, "new LeagueAssetInventoryAnalyzer("));
         assertEquals(1, count(source, "var profileReport ="));
         assertEquals(1, count(source, "var ageReport = ageProduction.analyze(profileReport);"));
         assertEquals(1, count(source, "var inventory = inventoryAnalyzer.analyze(options.leagueId());"));
@@ -68,6 +68,27 @@ class ButlerLeaguePlayerCompareCliTest {
         }
         assertTrue(source.contains("does not select a winner"));
         assertTrue(source.contains("Side-by-side neutral evidence only"));
+    }
+
+    @Test
+    void summaryPathUsesTargetedCurrentEvidenceAndDefersHistoricalSupportingModel() throws Exception {
+        String source = source(
+            "bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLeaguePlayerCompareCli.java");
+
+        int summaryStart = source.indexOf("static int runEmbeddedSummary(String[] args)");
+        int parseStart = source.indexOf("static Options parse(String[] args)");
+        assertTrue(summaryStart >= 0);
+        assertTrue(parseStart > summaryStart);
+        String summary = source.substring(summaryStart, parseStart);
+
+        assertTrue(summary.contains("new LeagueAssetInventoryAnalyzer(database).analyze(options.leagueId())"));
+        assertTrue(summary.contains("new PlayerProfileSnapshotRepository(database)"));
+        assertTrue(summary.contains("findLatestByPlayerIdsAndSeasonAndSource("));
+        assertTrue(summary.contains("Supporting evidence: DEFERRED"));
+        assertFalse(summary.contains("LeaguePlayerEvidenceProfileAnalyzer"));
+        assertFalse(summary.contains("LeagueAgeProductionContextAnalyzer"));
+        assertFalse(summary.contains("LeagueAgeOutlookSupportingEvidenceAnalyzer"));
+        assertFalse(summary.contains("supportingEvidence.analyze"));
     }
 
     private static int count(String text, String needle) {
