@@ -71,19 +71,7 @@ $mobileCss = @'
 $dashboard = [System.IO.File]::ReadAllText($DashboardPath)
 $dashboard = Add-CssOverride -Text $dashboard -StartMarker 'function Get-SharedCss {' -NextMarker 'function Get-HeaderHtml {' -Marker 'BF-898 mobile manager polish' -Css $mobileCss -Contract 'dashboard'
 
-$stalePattern = '(?m)^[ \t]*"REFRESH AUTOFILL"\s*=\s*@\([^\r\n]*\)\s*$'
-$staleMatches = [regex]::Matches($dashboard, $stalePattern)
-if ($staleMatches.Count -gt 1) {
-    throw "BF-898 BLOCKED: stale lineup manager state is ambiguous; found $($staleMatches.Count) REFRESH AUTOFILL entries."
-}
-$staleCopyApplied = $false
-if ($staleMatches.Count -eq 1) {
-    $staleNew = '        "REFRESH AUTOFILL" = @("Lineup needs a fresh review", "Your roster or weekly projection frame changed since the saved lineup review. Refresh it before relying on the recommendation.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")'
-    $staleMatch = $staleMatches[0]
-    $dashboard = $dashboard.Substring(0, $staleMatch.Index) + $staleNew + $dashboard.Substring($staleMatch.Index + $staleMatch.Length)
-    $staleCopyApplied = $true
-}
-
+$stalePattern = '(?m)^[ \t]*"REFRESH AUTOFILL"\s*=\s*@\([^\r\n]*\)\s*
 [System.IO.File]::WriteAllText($DashboardPath, $dashboard, [System.Text.UTF8Encoding]::new($false))
 
 if (-not [string]::IsNullOrWhiteSpace($CorePath)) {
