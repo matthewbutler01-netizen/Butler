@@ -105,6 +105,37 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         assertTrue(requests.isEmpty());
     }
 
+    @Test
+    void playerReadOperationsAcceptOnlyExactValidatedArguments() throws Exception {
+        List<ButlerReadOnlyJvmWorker.CommandRequest> requests = new ArrayList<>();
+        ButlerReadOnlyJvmWorker.CommandExecutor executor = request -> {
+            requests.add(request);
+            return new ButlerReadOnlyJvmWorker.Execution(0, request.operation() + ":" + request.argument(), "");
+        };
+
+        StringWriter output = new StringWriter();
+        try (BufferedReader input = new BufferedReader(new StringReader(
+                "PLAYER_DETAIL\tplayer-detail-1\t" + LEAGUE_ID + "\tp123\n"
+                    + "PLAYER_SEARCH\tplayer-search-1\t" + LEAGUE_ID + "\tJoe Burrow\n"
+                    + "PLAYER_COMPARE\tplayer-compare-1\t" + LEAGUE_ID + "\tp123\tp456\n"
+                    + "PLAYER_COMPARE\tbad-same\t" + LEAGUE_ID + "\tp123\tp123\n"
+                    + "QUIT\n"));
+             PrintWriter protocol = new PrintWriter(output, true)) {
+            ButlerReadOnlyJvmWorker.serve(input, protocol, executor);
+        }
+
+        List<String> lines = output.toString().lines().toList();
+        assertEquals(6, lines.size());
+        assertResult(lines.get(1), "player-detail-1", "PLAYER_DETAIL:p123");
+        assertResult(lines.get(2), "player-search-1", "PLAYER_SEARCH:Joe Burrow");
+        assertResult(lines.get(3), "player-compare-1", "PLAYER_COMPARE:p123|p456");
+        assertReject(lines.get(4));
+        assertEquals(3, requests.size());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_DETAIL, requests.get(0).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_SEARCH, requests.get(1).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_COMPARE, requests.get(2).operation());
+    }
+
     private static void assertResult(String line, String requestId, String expectedOutput) {
         String[] fields = line.split("\\t", -1);
         assertEquals(5, fields.length);
