@@ -118,6 +118,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
                 "PLAYER_DETAIL\tplayer-detail-1\t" + LEAGUE_ID + "\tp123\n"
                     + "PLAYER_SEARCH\tplayer-search-1\t" + LEAGUE_ID + "\tJoe Burrow\n"
                     + "PLAYER_COMPARE\tplayer-compare-1\t" + LEAGUE_ID + "\tp123\tp456\n"
+                    + "PLAYER_COMPARE_SUMMARY\tplayer-compare-summary-1\t" + LEAGUE_ID + "\tp123\tp456\n"
                     + "PLAYER_COMPARE\tbad-same\t" + LEAGUE_ID + "\tp123\tp123\n"
                     + "QUIT\n"));
              PrintWriter protocol = new PrintWriter(output, true)) {
