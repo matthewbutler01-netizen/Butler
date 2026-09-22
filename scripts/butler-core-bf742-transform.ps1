@@ -84,7 +84,11 @@ function Invoke-Bf742DashboardWorkerRead {
     if ([string]::IsNullOrWhiteSpace([string]$script:Bf742DashboardToken)) {
         throw "$BoundaryName BLOCKED: BF-742 internal dashboard token is unavailable."
     }
-    if ($Path -cne "/__butler/internal/team-bundle" -and $Path -cne "/__butler/internal/league-overview") {
+    if ($Path -cne "/__butler/internal/team-bundle" -and
+        $Path -cne "/__butler/internal/league-overview" -and
+        -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal)) {
         throw "$BoundaryName BLOCKED: BF-742 internal dashboard path is not authorized."
     }
 
@@ -297,13 +301,286 @@ $dashboardInternalReplacement = @'
                 $bf742InternalOperation = 'LEAGUE_OVERVIEW'
                 $bf742InternalBoundary = 'BF-667'
             }
+            elseif ($path -ceq "/__butler/internal/player-detail") {
+                $bf742InternalOperation = 'PLAYER_DETAIL'
+                $bf742InternalBoundary = 'BF-906'
+            }
+            elseif ($path -ceq "/__butler/internal/player-search") {
+                $bf742InternalOperation = 'PLAYER_SEARCH'
+                $bf742InternalBoundary = 'BF-906'
+            }
+            elseif ($path -ceq "/__butler/internal/player-compare") {
+                $bf742InternalOperation = 'PLAYER_COMPARE'
+                $bf742InternalBoundary = 'BF-906'
+            }
             if ($null -ne $bf742InternalOperation) {
                 if ([string]::IsNullOrWhiteSpace($bf742InternalTokenHeader) -or $bf742InternalTokenHeader -cne $script:Bf742DashboardToken) {
                     Send-HttpResponse -Stream $stream -StatusCode 403 -StatusText "Forbidden" -ContentType "text/plain; charset=utf-8" -Body "Forbidden"
                     continue
                 }
                 try {
-                    $internalBody = Invoke-Bf740PersistentCoreWorker -Operation $bf742InternalOperation -BoundaryName $bf742InternalBoundary
+                    if ($bf742InternalOperation -ceq 'PLAYER_DETAIL') {
+                        $match = [regex]::Match($parts[1], '^/__butler/internal/player-detail\?player=(?<player>[^&]+)
+
+$dashboardStartupOriginal = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    $listener.Start()
+'@
+$dashboardStartupReplacement = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    [void](Start-Bf740PersistentCoreWorker)
+    $listener.Start()
+'@
+
+$dashboardShutdownOriginal = @'
+finally {
+    $listener.Stop()
+    Pop-Location
+}
+'@
+$dashboardShutdownReplacement = @'
+finally {
+    try { $listener.Stop() } catch {}
+    try { Stop-Bf740PersistentCoreWorker } catch {}
+    Pop-Location
+}
+'@
+
+$dashboardText = [System.IO.File]::ReadAllText($DashboardPath)
+$dashboardContracts = @(
+    [pscustomobject]@{ Name = 'dashboard worker bootstrap'; Original = $dashboardBootstrapOriginal; Replacement = $dashboardBootstrapReplacement },
+    [pscustomobject]@{ Name = 'home summary worker read'; Original = $dashboardSummaryOriginal; Replacement = $dashboardSummaryReplacement },
+    [pscustomobject]@{ Name = 'explanation worker read'; Original = $dashboardExplanationOriginal; Replacement = $dashboardExplanationReplacement },
+    [pscustomobject]@{ Name = 'waiver bundle worker read'; Original = $dashboardWaiverOriginal; Replacement = $dashboardWaiverReplacement },
+    [pscustomobject]@{ Name = 'internal token header'; Original = $dashboardHeaderOriginal; Replacement = $dashboardHeaderReplacement },
+    [pscustomobject]@{ Name = 'private worker endpoints'; Original = $dashboardInternalOriginal; Replacement = $dashboardInternalReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker startup'; Original = $dashboardStartupOriginal; Replacement = $dashboardStartupReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker shutdown'; Original = $dashboardShutdownOriginal; Replacement = $dashboardShutdownReplacement }
+)
+foreach ($contract in $dashboardContracts) {
+    $matches = [regex]::Matches($dashboardText, [regex]::Escape([string]$contract.Original)).Count
+    if ($matches -ne 1) {
+        throw "BF-742 BLOCKED: expected exactly one $($contract.Name) staging contract, found $matches."
+    }
+    $dashboardText = $dashboardText.Replace([string]$contract.Original, [string]$contract.Replacement)
+}
+
+if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
+    -not $coreText.Contains('/__butler/internal/league-overview') -or
+    -not $coreText.Contains('/__butler/internal/player-detail?') -or
+    -not $coreText.Contains('/__butler/internal/player-search?') -or
+    -not $coreText.Contains('/__butler/internal/player-compare?') -or
+    -not $coreText.Contains('X-Butler-Internal-Token')) {
+    throw 'BF-742 BLOCKED: staged core is missing authenticated inner-dashboard routing.'
+}
+if ($coreText.Contains('Start-Bf740PersistentCoreWorker')) {
+    throw 'BF-742 BLOCKED: staged core still owns a JVM worker; BF-742 requires dashboard ownership only.'
+}
+foreach ($required in @(
+    "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
+    "Start-Bf740PersistentCoreWorker",
+    'X-Butler-Internal-Token',
+    '/__butler/internal/team-bundle',
+    '/__butler/internal/league-overview',
+    '/__butler/internal/player-detail',
+    '/__butler/internal/player-search',
+    '/__butler/internal/player-compare',
+    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'"
+)) {
+    if (-not $dashboardText.Contains($required)) {
+        throw "BF-742 BLOCKED: staged dashboard is missing required shared-worker contract: $required"
+    }
+}
+if ($dashboardText.Contains('/refresh')) {
+    throw 'BF-742 BLOCKED: staged dashboard shared-worker transform introduced /refresh unexpectedly.'
+}
+
+Copy-Item -LiteralPath $helperSource -Destination $helperDestination -Force
+[System.IO.File]::WriteAllText($CorePath, $coreText, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($DashboardPath, $dashboardText, [System.Text.UTF8Encoding]::new($false))
+)
+                        if (-not $match.Success) { throw 'BF-906 BLOCKED: malformed private player-detail request.' }
+                        $playerId = [System.Uri]::UnescapeDataString($match.Groups['player'].Value)
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL' -BoundaryName 'BF-906' -PlayerId $playerId
+                    }
+                    elseif ($bf742InternalOperation -ceq 'PLAYER_SEARCH') {
+                        $match = [regex]::Match($parts[1], '^/__butler/internal/player-search\?q=(?<query>[^&]+)
+
+$dashboardStartupOriginal = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    $listener.Start()
+'@
+$dashboardStartupReplacement = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    [void](Start-Bf740PersistentCoreWorker)
+    $listener.Start()
+'@
+
+$dashboardShutdownOriginal = @'
+finally {
+    $listener.Stop()
+    Pop-Location
+}
+'@
+$dashboardShutdownReplacement = @'
+finally {
+    try { $listener.Stop() } catch {}
+    try { Stop-Bf740PersistentCoreWorker } catch {}
+    Pop-Location
+}
+'@
+
+$dashboardText = [System.IO.File]::ReadAllText($DashboardPath)
+$dashboardContracts = @(
+    [pscustomobject]@{ Name = 'dashboard worker bootstrap'; Original = $dashboardBootstrapOriginal; Replacement = $dashboardBootstrapReplacement },
+    [pscustomobject]@{ Name = 'home summary worker read'; Original = $dashboardSummaryOriginal; Replacement = $dashboardSummaryReplacement },
+    [pscustomobject]@{ Name = 'explanation worker read'; Original = $dashboardExplanationOriginal; Replacement = $dashboardExplanationReplacement },
+    [pscustomobject]@{ Name = 'waiver bundle worker read'; Original = $dashboardWaiverOriginal; Replacement = $dashboardWaiverReplacement },
+    [pscustomobject]@{ Name = 'internal token header'; Original = $dashboardHeaderOriginal; Replacement = $dashboardHeaderReplacement },
+    [pscustomobject]@{ Name = 'private worker endpoints'; Original = $dashboardInternalOriginal; Replacement = $dashboardInternalReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker startup'; Original = $dashboardStartupOriginal; Replacement = $dashboardStartupReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker shutdown'; Original = $dashboardShutdownOriginal; Replacement = $dashboardShutdownReplacement }
+)
+foreach ($contract in $dashboardContracts) {
+    $matches = [regex]::Matches($dashboardText, [regex]::Escape([string]$contract.Original)).Count
+    if ($matches -ne 1) {
+        throw "BF-742 BLOCKED: expected exactly one $($contract.Name) staging contract, found $matches."
+    }
+    $dashboardText = $dashboardText.Replace([string]$contract.Original, [string]$contract.Replacement)
+}
+
+if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
+    -not $coreText.Contains('/__butler/internal/league-overview') -or
+    -not $coreText.Contains('X-Butler-Internal-Token')) {
+    throw 'BF-742 BLOCKED: staged core is missing authenticated inner-dashboard routing.'
+}
+if ($coreText.Contains('Start-Bf740PersistentCoreWorker')) {
+    throw 'BF-742 BLOCKED: staged core still owns a JVM worker; BF-742 requires dashboard ownership only.'
+}
+foreach ($required in @(
+    "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
+    "Start-Bf740PersistentCoreWorker",
+    'X-Butler-Internal-Token',
+    '/__butler/internal/team-bundle',
+    '/__butler/internal/league-overview'
+)) {
+    if (-not $dashboardText.Contains($required)) {
+        throw "BF-742 BLOCKED: staged dashboard is missing required shared-worker contract: $required"
+    }
+}
+if ($dashboardText.Contains('/refresh')) {
+    throw 'BF-742 BLOCKED: staged dashboard shared-worker transform introduced /refresh unexpectedly.'
+}
+
+Copy-Item -LiteralPath $helperSource -Destination $helperDestination -Force
+[System.IO.File]::WriteAllText($CorePath, $coreText, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($DashboardPath, $dashboardText, [System.Text.UTF8Encoding]::new($false))
+)
+                        if (-not $match.Success) { throw 'BF-906 BLOCKED: malformed private player-search request.' }
+                        $query = [System.Uri]::UnescapeDataString($match.Groups['query'].Value)
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH' -BoundaryName 'BF-906' -Query $query
+                    }
+                    elseif ($bf742InternalOperation -ceq 'PLAYER_COMPARE') {
+                        $match = [regex]::Match($parts[1], '^/__butler/internal/player-compare\?left=(?<left>[^&]+)&right=(?<right>[^&]+)
+
+$dashboardStartupOriginal = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    $listener.Start()
+'@
+$dashboardStartupReplacement = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    [void](Start-Bf740PersistentCoreWorker)
+    $listener.Start()
+'@
+
+$dashboardShutdownOriginal = @'
+finally {
+    $listener.Stop()
+    Pop-Location
+}
+'@
+$dashboardShutdownReplacement = @'
+finally {
+    try { $listener.Stop() } catch {}
+    try { Stop-Bf740PersistentCoreWorker } catch {}
+    Pop-Location
+}
+'@
+
+$dashboardText = [System.IO.File]::ReadAllText($DashboardPath)
+$dashboardContracts = @(
+    [pscustomobject]@{ Name = 'dashboard worker bootstrap'; Original = $dashboardBootstrapOriginal; Replacement = $dashboardBootstrapReplacement },
+    [pscustomobject]@{ Name = 'home summary worker read'; Original = $dashboardSummaryOriginal; Replacement = $dashboardSummaryReplacement },
+    [pscustomobject]@{ Name = 'explanation worker read'; Original = $dashboardExplanationOriginal; Replacement = $dashboardExplanationReplacement },
+    [pscustomobject]@{ Name = 'waiver bundle worker read'; Original = $dashboardWaiverOriginal; Replacement = $dashboardWaiverReplacement },
+    [pscustomobject]@{ Name = 'internal token header'; Original = $dashboardHeaderOriginal; Replacement = $dashboardHeaderReplacement },
+    [pscustomobject]@{ Name = 'private worker endpoints'; Original = $dashboardInternalOriginal; Replacement = $dashboardInternalReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker startup'; Original = $dashboardStartupOriginal; Replacement = $dashboardStartupReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker shutdown'; Original = $dashboardShutdownOriginal; Replacement = $dashboardShutdownReplacement }
+)
+foreach ($contract in $dashboardContracts) {
+    $matches = [regex]::Matches($dashboardText, [regex]::Escape([string]$contract.Original)).Count
+    if ($matches -ne 1) {
+        throw "BF-742 BLOCKED: expected exactly one $($contract.Name) staging contract, found $matches."
+    }
+    $dashboardText = $dashboardText.Replace([string]$contract.Original, [string]$contract.Replacement)
+}
+
+if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
+    -not $coreText.Contains('/__butler/internal/league-overview') -or
+    -not $coreText.Contains('X-Butler-Internal-Token')) {
+    throw 'BF-742 BLOCKED: staged core is missing authenticated inner-dashboard routing.'
+}
+if ($coreText.Contains('Start-Bf740PersistentCoreWorker')) {
+    throw 'BF-742 BLOCKED: staged core still owns a JVM worker; BF-742 requires dashboard ownership only.'
+}
+foreach ($required in @(
+    "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
+    "Start-Bf740PersistentCoreWorker",
+    'X-Butler-Internal-Token',
+    '/__butler/internal/team-bundle',
+    '/__butler/internal/league-overview'
+)) {
+    if (-not $dashboardText.Contains($required)) {
+        throw "BF-742 BLOCKED: staged dashboard is missing required shared-worker contract: $required"
+    }
+}
+if ($dashboardText.Contains('/refresh')) {
+    throw 'BF-742 BLOCKED: staged dashboard shared-worker transform introduced /refresh unexpectedly.'
+}
+
+Copy-Item -LiteralPath $helperSource -Destination $helperDestination -Force
+[System.IO.File]::WriteAllText($CorePath, $coreText, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($DashboardPath, $dashboardText, [System.Text.UTF8Encoding]::new($false))
+)
+                        if (-not $match.Success) { throw 'BF-906 BLOCKED: malformed private player-compare request.' }
+                        $left = [System.Uri]::UnescapeDataString($match.Groups['left'].Value)
+                        $right = [System.Uri]::UnescapeDataString($match.Groups['right'].Value)
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE' -BoundaryName 'BF-906' -PlayerId $left -RightPlayerId $right
+                    }
+                    else {
+                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation $bf742InternalOperation -BoundaryName $bf742InternalBoundary
+                    }
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/plain; charset=utf-8" -Body $internalBody
                 }
                 catch {
@@ -312,7 +589,84 @@ $dashboardInternalReplacement = @'
                 continue
             }
 
-            $candidateMatch = [regex]::Match($path, '^/waivers/candidate/(?<id>[0-9]+)$')
+            $candidateMatch = [regex]::Match($path, '^/waivers/candidate/(?<id>[0-9]+)
+
+$dashboardStartupOriginal = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    $listener.Start()
+'@
+$dashboardStartupReplacement = @'
+$listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
+Push-Location $repoRoot
+try {
+    [void](Start-Bf740PersistentCoreWorker)
+    $listener.Start()
+'@
+
+$dashboardShutdownOriginal = @'
+finally {
+    $listener.Stop()
+    Pop-Location
+}
+'@
+$dashboardShutdownReplacement = @'
+finally {
+    try { $listener.Stop() } catch {}
+    try { Stop-Bf740PersistentCoreWorker } catch {}
+    Pop-Location
+}
+'@
+
+$dashboardText = [System.IO.File]::ReadAllText($DashboardPath)
+$dashboardContracts = @(
+    [pscustomobject]@{ Name = 'dashboard worker bootstrap'; Original = $dashboardBootstrapOriginal; Replacement = $dashboardBootstrapReplacement },
+    [pscustomobject]@{ Name = 'home summary worker read'; Original = $dashboardSummaryOriginal; Replacement = $dashboardSummaryReplacement },
+    [pscustomobject]@{ Name = 'explanation worker read'; Original = $dashboardExplanationOriginal; Replacement = $dashboardExplanationReplacement },
+    [pscustomobject]@{ Name = 'waiver bundle worker read'; Original = $dashboardWaiverOriginal; Replacement = $dashboardWaiverReplacement },
+    [pscustomobject]@{ Name = 'internal token header'; Original = $dashboardHeaderOriginal; Replacement = $dashboardHeaderReplacement },
+    [pscustomobject]@{ Name = 'private worker endpoints'; Original = $dashboardInternalOriginal; Replacement = $dashboardInternalReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker startup'; Original = $dashboardStartupOriginal; Replacement = $dashboardStartupReplacement },
+    [pscustomobject]@{ Name = 'dashboard worker shutdown'; Original = $dashboardShutdownOriginal; Replacement = $dashboardShutdownReplacement }
+)
+foreach ($contract in $dashboardContracts) {
+    $matches = [regex]::Matches($dashboardText, [regex]::Escape([string]$contract.Original)).Count
+    if ($matches -ne 1) {
+        throw "BF-742 BLOCKED: expected exactly one $($contract.Name) staging contract, found $matches."
+    }
+    $dashboardText = $dashboardText.Replace([string]$contract.Original, [string]$contract.Replacement)
+}
+
+if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
+    -not $coreText.Contains('/__butler/internal/league-overview') -or
+    -not $coreText.Contains('X-Butler-Internal-Token')) {
+    throw 'BF-742 BLOCKED: staged core is missing authenticated inner-dashboard routing.'
+}
+if ($coreText.Contains('Start-Bf740PersistentCoreWorker')) {
+    throw 'BF-742 BLOCKED: staged core still owns a JVM worker; BF-742 requires dashboard ownership only.'
+}
+foreach ($required in @(
+    "Invoke-Bf740PersistentCoreWorker -Operation 'LATEST_SUMMARY'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'WAIVER_DASHBOARD_BUNDLE'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'EXPLANATION_LOOKUP'",
+    "Start-Bf740PersistentCoreWorker",
+    'X-Butler-Internal-Token',
+    '/__butler/internal/team-bundle',
+    '/__butler/internal/league-overview'
+)) {
+    if (-not $dashboardText.Contains($required)) {
+        throw "BF-742 BLOCKED: staged dashboard is missing required shared-worker contract: $required"
+    }
+}
+if ($dashboardText.Contains('/refresh')) {
+    throw 'BF-742 BLOCKED: staged dashboard shared-worker transform introduced /refresh unexpectedly.'
+}
+
+Copy-Item -LiteralPath $helperSource -Destination $helperDestination -Force
+[System.IO.File]::WriteAllText($CorePath, $coreText, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($DashboardPath, $dashboardText, [System.Text.UTF8Encoding]::new($false))
+)
 '@
 
 $dashboardStartupOriginal = @'
