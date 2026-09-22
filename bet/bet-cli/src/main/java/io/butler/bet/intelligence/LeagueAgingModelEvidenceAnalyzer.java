@@ -29,10 +29,18 @@ public final class LeagueAgingModelEvidenceAnalyzer {
     }
 
     public LeagueAgingModelEvidenceReport analyze(String leagueId, int season) throws SQLException {
+        return analyze(leagueId, season, smoother.analyze());
+    }
+
+    LeagueAgingModelEvidenceReport analyze(
+        String leagueId,
+        int season,
+        AgingModelLocalSmootherAnalyzer.LocalSmootherReport smootherReport) throws SQLException {
         if (season < 1999 || season > 2100) {
             throw new IllegalArgumentException("season must be between 1999 and 2100");
         }
-        return compose(profiles.analyze(leagueId), smoother.analyze(), season);
+        return compose(profiles.analyze(leagueId),
+            Objects.requireNonNull(smootherReport, "smootherReport must not be null"), season);
     }
 
     static LeagueAgingModelEvidenceReport compose(
