@@ -18,17 +18,25 @@ public final class ButlerLeaguePlayerSearchCli {
     private ButlerLeaguePlayerSearchCli() {}
 
     public static void main(String[] args) {
+        int exitCode = runEmbedded(args);
+        if (exitCode != 0) {
+            System.exit(exitCode);
+        }
+    }
+
+    static int runEmbedded(String[] args) {
         try {
             Options options = parse(args);
             var report = new LeagueAssetSearchAnalyzer(initializedDatabase())
                 .search(options.leagueId(), options.query());
             print(report);
+            return 0;
         } catch (SQLException e) {
             System.err.println("Database error while searching league players: " + e.getMessage());
-            System.exit(1);
+            return 1;
         } catch (IllegalArgumentException | IllegalStateException e) {
             System.err.println("Error: " + e.getMessage());
-            System.exit(2);
+            return 2;
         }
     }
 
