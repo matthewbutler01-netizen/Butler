@@ -59,9 +59,13 @@ class ButlerManagerRecoveryPagesBf884Test {
         }
 
         assertTrue(transform.contains("-Detail $_.Exception.Message"));
-        assertTrue(transform.contains("$teamFailure = [string]$_"));
-        assertTrue(transform.contains("$teamFailure = [string]$_.Exception"));
-        assertTrue(transform.contains("My Team failed without diagnostic text."));
+        assertTrue(transform.contains("$teamFailureParts = New-Object System.Collections.Generic.List[string]"));
+        assertTrue(transform.contains("ExceptionType={0}"));
+        assertTrue(transform.contains("ExceptionMessage={0}"));
+        assertTrue(transform.contains("ErrorId={0}"));
+        assertTrue(transform.contains("Stack={0}"));
+        assertTrue(transform.contains("BF-908 diagnostic marker: My Team failed without an exposed PowerShell error record."));
+        assertTrue(transform.contains("BF-908 My Team runtime failure: {0}"));
         assertTrue(transform.contains("-Detail $teamFailure -Active \"team\""));
         assertTrue(transform.contains("$playerDetailFailure = [string]$_"));
         assertTrue(transform.contains("$playerDetailFailure = [string]$_.Exception"));
