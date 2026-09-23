@@ -31,9 +31,9 @@ class ButlerLeagueHubBf909Test {
 
         assertTrue(transform.contains("ConvertTo-FranchiseLeaderNameHtml -Leader $leader"));
         assertTrue(transform.contains("Open the franchise name for neutral team detail."));
-        assertFalse(transform.contains("trade target"));
-        assertFalse(transform.contains("contender score"));
-        assertFalse(transform.contains("manager grade"));
+        assertTrue(transform.contains("descriptive context, not a manager grade or trade-target list"));
+        assertTrue(transform.contains("does not rerank franchises"));
+        assertTrue(transform.contains("create grades or contender/rebuilder labels"));
     }
 
     @Test
