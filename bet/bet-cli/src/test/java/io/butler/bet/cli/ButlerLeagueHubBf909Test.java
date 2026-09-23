@@ -18,7 +18,9 @@ class ButlerLeagueHubBf909Test {
 
         assertTrue(transform.contains("League hub"));
         assertTrue(transform.contains("Franchise board"));
-        assertTrue(transform.contains("League landscape"));
+        assertTrue(transform.contains("Top franchise snapshot"));
+        assertTrue(transform.contains("top three governed franchises"));
+        assertTrue(transform.contains("Top franchises shown"));
         assertTrue(transform.contains("Total value"));
         assertTrue(transform.contains("Player value"));
         assertTrue(transform.contains("Pick value"));
@@ -56,6 +58,9 @@ class ButlerLeagueHubBf909Test {
         assertTrue(transform.contains("Comparable movement"));
         assertTrue(transform.contains("Movement boundary"));
         assertTrue(transform.contains("Butler does not manufacture a trend."));
+        assertTrue(transform.contains("fantasy-team=(?<team>.*?)"));
+        assertTrue(transform.contains("$cleanMover = [regex]::Replace"));
+        assertTrue(transform.contains("league-mover-context"));
         assertTrue(transform.contains("View governed league actions"));
         assertTrue(transform.contains("manual and read only"));
         assertTrue(transform.contains("never executes the displayed commands"));
