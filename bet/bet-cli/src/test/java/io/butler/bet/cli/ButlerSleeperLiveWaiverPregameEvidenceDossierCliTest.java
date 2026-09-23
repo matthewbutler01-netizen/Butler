@@ -38,7 +38,7 @@ class ButlerSleeperLiveWaiverPregameEvidenceDossierCliTest {
             SleeperLiveWaiverPregameEvidenceDossier.POLICY_ID,
             "L", "M", "2026-09-08T01:00:00Z", "A", Instant.parse("2026-09-08T02:00:00Z"),
             "C", Instant.parse("2026-09-08T03:00:00Z"), "CURRENT_WEEK_FINALITY_UNPROVEN",
-            2026, 1, "regular", 1, 1, 1, 1, 1, 1, 0, List.of(candidate));
+            2, 2026, 3, "regular", 1, 1, 1, 1, 1, 1, 0, List.of(candidate));
 
         PrintStream original = System.out;
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -50,6 +50,9 @@ class ButlerSleeperLiveWaiverPregameEvidenceDossierCliTest {
         }
 
         String output = bytes.toString();
+        assertTrue(output.contains("BF-607 evidence week: 2"));
+        assertTrue(output.contains("NFL state season/week/type: 2026/3/regular"));
+        assertTrue(output.contains("Week 2 observed: UNOBSERVED"));
         assertTrue(output.contains("Pregame dossier state: READY_EVIDENCE_ONLY"));
         assertTrue(output.contains("CURRENT_WEEK_UNOBSERVED"));
         assertTrue(output.contains("UNOBSERVED (no zero/DNP/finality inference)"));
