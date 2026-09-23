@@ -82,7 +82,7 @@ class ButlerManagerJourneyAcceptanceBf885Test {
 
         assertTrue(script.contains("function Get-ManagerRecoveryTechnicalDetail"));
         assertTrue(script.contains("(?is)<details\\b[^>]*>\\s*<summary\\b[^>]*>\\s*Technical details"));
-        assertTrue(script.contains("class=\\\"[^\\\"]*\\btechnical\\b[^\\\"]*\\\""));
+        assertTrue(script.contains("class=\"[^\"]*\\btechnical\\b[^\"]*\""));
         assertTrue(script.contains("technical=$detail"));
         assertTrue(script.contains("if ($detail.Length -gt 1600)"));
         assertTrue(script.contains("Last-resort manager-recovery fallback"));
