@@ -172,19 +172,38 @@ function Invoke-Get {
 function Get-ManagerRecoveryTechnicalDetail {
     param([Parameter(Mandatory = $true)][string]$Html)
 
+    # BF-912: later visual/mobile transforms are allowed to add attributes or
+    # whitespace around native disclosure markup. Match the semantic recovery
+    # structure rather than one byte-for-byte HTML shape.
     $match = [regex]::Match(
         $Html,
-        '<details><summary>Technical details</summary><div class="technical">(?<detail>.*?)</div></details>',
-        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
-            [System.Text.RegularExpressions.RegexOptions]::Singleline
+        '(?is)<details\b[^>]*>\s*<summary\b[^>]*>\s*Technical details\s*</summary>\s*<div\b[^>]*class="[^"]*\btechnical\b[^"]*"[^>]*>(?<detail>.*?)</div>\s*</details>'
     )
-    if (-not $match.Success) { return $null }
+    if (-not $match.Success) {
+        # Last-resort manager-recovery fallback: if the technical label is
+        # present but markup has changed again, return a bounded plain-text tail
+        # beginning at that label so live failures cannot lose their cause.
+        $plainHtml = [regex]::Replace(
+            $Html,
+            '(?is)<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>',
+            ' '
+        )
+        $plain = [regex]::Replace($plainHtml, '<[^>]+>', ' ')
+        $plain = [System.Net.WebUtility]::HtmlDecode($plain)
+        $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        $marker = $plain.IndexOf('Technical details', [System.StringComparison]::OrdinalIgnoreCase)
+        if ($marker -lt 0) { return $null }
+        $detail = $plain.Substring($marker + 'Technical details'.Length).Trim()
+        if ([string]::IsNullOrWhiteSpace($detail)) { return $null }
+        if ($detail.Length -gt 1600) { $detail = $detail.Substring(0, 1600) + '...' }
+        return $detail
+    }
 
     $detail = [regex]::Replace($match.Groups['detail'].Value, '<[^>]+>', ' ')
     $detail = [System.Net.WebUtility]::HtmlDecode($detail)
     $detail = [regex]::Replace($detail, '\s+', ' ').Trim()
     if ([string]::IsNullOrWhiteSpace($detail)) { return $null }
-    if ($detail.Length -gt 1200) { $detail = $detail.Substring(0, 1200) + '...' }
+    if ($detail.Length -gt 1600) { $detail = $detail.Substring(0, 1600) + '...' }
     return $detail
 }
 
