@@ -347,6 +347,31 @@ function ConvertTo-TradePackageDisplay {
     return ($labels -join ', ')
 }
 
+function ConvertTo-TradeSelectionDisplay {
+    param(
+        [Parameter(Mandatory = $true)]$Inventory,
+        [object[]]$Tokens = @()
+    )
+
+    $labels = @()
+    foreach ($raw in @($Tokens)) {
+        $token = ([string]$raw).Trim()
+        if ([string]::IsNullOrWhiteSpace($token)) { continue }
+        $matches = @(
+            $Inventory.Teams |
+                ForEach-Object { $_.Assets } |
+                Where-Object { [string]$_.Token -ceq $token }
+        )
+        if ($matches.Count -ne 1) {
+            throw "BF-910 BLOCKED: evaluated trade asset $token did not resolve exactly once in current league inventory."
+        }
+        $labels += [string]$matches[0].Label
+    }
+
+    if ($labels.Count -eq 0) { return 'No assets selected' }
+    return ($labels -join ', ')
+}
+
 function ConvertTo-TradeHiddenInputs {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
