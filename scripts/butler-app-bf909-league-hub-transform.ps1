@@ -16,9 +16,14 @@ $leagueStart = $core.IndexOf('function ConvertTo-LeagueHtml {', [System.StringCo
 if ($leagueStart -lt 0) {
     throw 'BF-909 BLOCKED: League renderer start is missing.'
 }
-$leagueEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $leagueStart, [System.StringComparison]::Ordinal)
+# BF-913: BF-800/BF-825/BF-902 install the AutoFill/Lineup Advisor helpers
+# immediately after ConvertTo-LeagueHtml and before ConvertTo-TeamHtml. The League
+# Hub may replace only the League renderer; using ConvertTo-TeamHtml as the end
+# marker deletes those shared helpers and breaks both /team and /matchup.
+$leagueEndMarker = 'function New-AutoFillIdleView {'
+$leagueEnd = $core.IndexOf($leagueEndMarker, $leagueStart, [System.StringComparison]::Ordinal)
 if ($leagueEnd -le $leagueStart) {
-    throw 'BF-909 BLOCKED: League renderer end is missing.'
+    throw 'BF-913 BLOCKED: League renderer end must stop before the AutoFill helper region.'
 }
 if ($core.IndexOf('function ConvertTo-FranchiseLeaderNameHtml {', [System.StringComparison]::Ordinal) -lt 0) {
     throw 'BF-909 BLOCKED: Franchise Detail leader-link helper must be installed before League Hub.'
@@ -190,10 +195,20 @@ foreach ($required in @(
     }
 }
 
+foreach ($preservedHelper in @(
+    'function New-AutoFillIdleView {',
+    'function ConvertTo-AutoFillView {',
+    'function ConvertTo-AutoFillHtml {'
+)) {
+    if ($core.IndexOf($preservedHelper, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-913 BLOCKED: League Hub staging removed required shared helper: $preservedHelper"
+    }
+}
+
 $installedStart = $core.IndexOf('function ConvertTo-LeagueHtml {', [System.StringComparison]::Ordinal)
-$installedEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $installedStart, [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf($leagueEndMarker, $installedStart, [System.StringComparison]::Ordinal)
 if ($installedEnd -le $installedStart) {
-    throw 'BF-909 BLOCKED: installed League renderer boundary is missing.'
+    throw 'BF-913 BLOCKED: installed League renderer boundary is missing before AutoFill helpers.'
 }
 $installedLeague = $core.Substring($installedStart, $installedEnd - $installedStart)
 
