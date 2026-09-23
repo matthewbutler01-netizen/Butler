@@ -44,8 +44,9 @@ class ButlerLeagueHubBf909Test {
         assertTrue(transform.contains("href=\"/players\">Player Search</a>"));
         assertTrue(transform.contains("href=\"/compare\">Player Compare</a>"));
         assertTrue(transform.contains("href=\"/trade\">Trade Analyzer</a>"));
-        assertFalse(transform.contains("function Get-AppNav"));
+        assertTrue(transform.contains("$nav = Get-AppNav -Active \"league\""));
         assertFalse(transform.contains("Player Compare</a></nav>"));
+        assertFalse(transform.contains("Trade Analyzer</a></nav>"));
     }
 
     @Test
