@@ -23,7 +23,18 @@ class ButlerMyTeamRosterHubBf908Test {
         assertTrue(transform.contains("Reserve &amp; taxi"));
         assertTrue(transform.contains("Roster construction"));
         assertTrue(transform.contains("Future flexibility"));
-        assertTrue(transform.contains("$teamBlock.Substring(0, $positionStart) + $rosterBlock + $positionBlock"));
+        assertTrue(transform.contains("$teamBlock.LastIndexOf('$autoFillHtml', $positionStart"));
+        assertTrue(transform.contains("$autoFillStart -lt $positionStart -and $positionStart -lt $rosterStart"));
+        assertTrue(transform.contains("$teamBlock.Substring(0, $autoFillStart) + $rosterBlock + $autoFillBlock + $positionBlock"));
+    }
+
+    @Test
+    void rosterHubPrecedesLineupAdvisorAndPositionOutlook() throws Exception {
+        String transform = source("scripts/butler-app-bf908-my-team-roster-hub-transform.ps1");
+
+        assertTrue(transform.contains("final My Team section order is not the expected lineup-advisor -> position -> roster -> future sequence"));
+        assertTrue(transform.contains("$autoFillBlock = $teamBlock.Substring($autoFillStart, $positionStart - $autoFillStart)"));
+        assertTrue(transform.contains("$rosterBlock + $autoFillBlock + $positionBlock"));
     }
 
     @Test
