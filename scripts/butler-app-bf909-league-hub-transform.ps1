@@ -76,7 +76,9 @@ function ConvertTo-LeagueHtml {
         }
         else {
             foreach ($mover in $View.Movers) {
-                $movementHtml += "<div class=""league-mover-row"">$(ConvertTo-HtmlText $mover)</div>"
+                $movementHtml += @"
+<div class="league-mover-row">$(ConvertTo-HtmlText $mover)</div>
+"@
             }
         }
     }
@@ -94,7 +96,9 @@ function ConvertTo-LeagueHtml {
             $commandHtml = if ([string]::IsNullOrWhiteSpace($action.Command)) {
                 ""
             } else {
-                "<input class=""command"" readonly value=""$(ConvertTo-HtmlText $action.Command)"">"
+                @"
+<input class="command" readonly value="$(ConvertTo-HtmlText $action.Command)">
+"@
             }
             $actionsHtml += @"
 <article class="action">
