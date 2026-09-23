@@ -78,6 +78,17 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void recoveryTechnicalDetailExtractionSurvivesDecoratedDisclosureMarkup() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("function Get-ManagerRecoveryTechnicalDetail"));
+        assertTrue(script.contains("(?is)<details\\b[^>]*>\\s*<summary\\b[^>]*>\\s*Technical details"));
+        assertTrue(script.contains("class=\"[^\"]*\\btechnical\\b[^\"]*\""));
+        assertTrue(script.contains("$plain.IndexOf('Technical details'"));
+        assertTrue(script.contains("Last-resort manager-recovery fallback"));
+    }
+
+    @Test
     void liveMyTeamFailureRunsExactReadOnlyEvidenceBundleDiagnostic() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
