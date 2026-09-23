@@ -33,7 +33,7 @@ class ButlerSleeperLiveWaiverPregameEvidenceReadinessAuditCliTest {
             SleeperLiveWaiverPregameEvidenceDossier.POLICY_ID,
             "L", "M", "2026-09-08T01:00:00Z", "A", Instant.parse("2026-09-08T02:00:00Z"),
             "C", Instant.parse("2026-09-08T03:00:00Z"), "CURRENT_WEEK_FINALITY_UNPROVEN",
-            2026, 1, "regular", 1, 1, 1, 0, 1, 0, 0, List.of(candidate));
+            1, 2026, 1, "regular", 1, 1, 1, 0, 1, 0, 0, List.of(candidate));
         var report = SleeperLiveWaiverPregameEvidenceReadinessAudit.classify(dossier);
 
         PrintStream original = System.out;
