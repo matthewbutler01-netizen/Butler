@@ -316,6 +316,59 @@ function Get-FirstSafeHref {
     return $href
 }
 
+function Invoke-MyTeamDirectDiagnostic {
+    $localAppData = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+        $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    }
+    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+        return 'direct-team-bundle=BLOCKED LocalApplicationData unavailable'
+    }
+
+    $configDir = Join-Path $localAppData 'Butler'
+    $leaguePath = Join-Path $configDir 'app-league.txt'
+    if (-not (Test-Path -LiteralPath $leaguePath -PathType Leaf)) {
+        return 'direct-team-bundle=BLOCKED configured league id unavailable'
+    }
+    $leagueId = [IO.File]::ReadAllText($leaguePath, [Text.Encoding]::ASCII).Trim()
+    if ([string]::IsNullOrWhiteSpace($leagueId)) {
+        return 'direct-team-bundle=BLOCKED configured league id empty'
+    }
+
+    $dataDir = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($dataDir)) { $dataDir = Join-Path $configDir 'data' }
+    $runtimeLib = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+    if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
+        return 'direct-team-bundle=BLOCKED governed runtime data directory unavailable'
+    }
+    if (-not (Test-Path -LiteralPath $runtimeLib -PathType Container)) {
+        return 'direct-team-bundle=BLOCKED prepared Butler Java runtime unavailable'
+    }
+
+    try { $java = (Get-Command java.exe -ErrorAction Stop).Source }
+    catch { return 'direct-team-bundle=BLOCKED java.exe unavailable' }
+
+    $classPath = Join-Path $runtimeLib '*'
+    $previousPreference = $ErrorActionPreference
+    $lines = $null
+    $exitCode = $null
+    Push-Location $dataDir
+    try {
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath 'io.butler.bet.cli.ButlerMyTeamEvidenceBundleCli' $leagueId 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $previousPreference }
+    }
+    finally { Pop-Location }
+
+    $text = (($lines | ForEach-Object { "$_" }) -join ' | ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ($text.Length -gt 3200) { $text = '...' + $text.Substring($text.Length - 3200) }
+    return ("direct-team-bundle exit={0}; output={1}" -f $exitCode, $text)
+}
+
 function Invoke-PlayerDetailDirectDiagnostic {
     param([Parameter(Mandatory = $true)][string]$PlayerHref)
 
@@ -436,7 +489,17 @@ try {
     Write-Pass -Label 'Dashboard'
 
     $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
-    Assert-Status -Response $team -Expected 200 -Stage 'My Team'
+    if ($team.StatusCode -ne 200) {
+        $teamTechnical = Get-ManagerRecoveryTechnicalDetail -Html ([string]$team.Body)
+        $teamDirect = Invoke-MyTeamDirectDiagnostic
+        $teamTechnicalText = if ([string]::IsNullOrWhiteSpace([string]$teamTechnical)) {
+            'recovery-technical=unavailable'
+        }
+        else {
+            'recovery-technical=' + $teamTechnical
+        }
+        throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect"
+    }
     Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','Future flexibility')
     Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
     Assert-NoRawDeveloperFailure -Html $team.Body -Stage 'My Team'
