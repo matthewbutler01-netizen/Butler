@@ -242,6 +242,40 @@ function Assert-AbsentMarkers {
     }
 }
 
+function Get-ManagerFirstScanHtml {
+    param([Parameter(Mandatory = $true)][string]$Html)
+
+    # BF-912: native details/disclosure may retain exact audit and technical proof.
+    # The first-scan contract intentionally evaluates only content visible before
+    # the manager opens those disclosures.
+    return [regex]::Replace(
+        $Html,
+        '(?is)<details\b[^>]*>.*?</details>',
+        ' '
+    )
+}
+
+function Assert-PrimaryNavigation {
+    param(
+        [Parameter(Mandatory = $true)][string]$Html,
+        [Parameter(Mandatory = $true)][string]$Stage
+    )
+
+    foreach ($marker in @(
+        'href="/">Dashboard</a>',
+        'href="/team">My Team</a>',
+        'href="/matchup">Matchup</a>',
+        'href="/waivers">Waiver Board</a>',
+        'href="/league">League</a>',
+        'href="/trade">Trade Analyzer</a>',
+        'href="/history">History</a>'
+    )) {
+        if ($Html.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw "BF-912 FAILED: $Stage is missing primary navigation marker: $marker"
+        }
+    }
+}
+
 function Assert-NoRawDeveloperFailure {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -355,6 +389,7 @@ $failure = $null
 $passed = $false
 
 Write-Host 'Butler end-to-end manager journey acceptance (BF-885)'
+Write-Host 'BF-912 contract: current all-seven-page manager-first stabilization'
 Write-Host "Target: $root"
 Write-Host 'Boundary: GET-only local Butler journey; no /refresh, no POST, no lineup/waiver/trade execution, no Sleeper write.'
 
@@ -395,19 +430,22 @@ try {
 
     $dashboard = Invoke-Get -Url ($root + '/') -TimeoutMs $timeoutMs
     Assert-Status -Response $dashboard -Expected 200 -Stage 'Dashboard'
-    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Your decision queue')
+    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities')
+    Assert-PrimaryNavigation -Html $dashboard.Body -Stage 'Dashboard'
     Assert-NoRawDeveloperFailure -Html $dashboard.Body -Stage 'Dashboard'
     Write-Pass -Label 'Dashboard'
 
     $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
     Assert-Status -Response $team -Expected 200 -Stage 'My Team'
-    Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('How Butler reads this roster','Review Matchup','Find a player')
+    Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','Future flexibility')
+    Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
     Assert-NoRawDeveloperFailure -Html $team.Body -Stage 'My Team'
     Write-Pass -Label 'My Team'
 
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Status -Response $matchup -Expected 200 -Stage 'Matchup'
-    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','Lineup advisor','READ ONLY')
+    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','What to do now','READ ONLY')
+    Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
     Write-Pass -Label 'Matchup'
 
@@ -434,7 +472,9 @@ try {
 
     $league = Invoke-Get -Url ($root + '/league') -TimeoutMs $timeoutMs
     Assert-Status -Response $league -Expected 200 -Stage 'League'
-    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League status','What deserves attention','Find a player')
+    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League hub','Top franchise snapshot','Comparable movement','READ ONLY')
+    Assert-AbsentMarkers -Html $league.Body -Stage 'League' -Markers @('fantasy-team=')
+    Assert-PrimaryNavigation -Html $league.Body -Stage 'League'
     Assert-NoRawDeveloperFailure -Html $league.Body -Stage 'League'
     Write-Pass -Label 'League'
 
@@ -452,20 +492,26 @@ try {
 
     $waivers = Invoke-Get -Url ($root + '/waivers') -TimeoutMs $timeoutMs
     Assert-Status -Response $waivers -Expected 200 -Stage 'Waiver Board'
-    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','READ ONLY')
-    Assert-AbsentMarkers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Decision details','Advanced technical record','Current audit ID:','Sleeper ID:')
+    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')
+    $waiverFirstScan = Get-ManagerFirstScanHtml -Html $waivers.Body
+    Assert-AbsentMarkers -Html $waiverFirstScan -Stage 'Waiver Board first scan' -Markers @('Current audit ID:','Sleeper ID:','Pair ADD Sleeper ID:','Pair DROP Sleeper ID:')
+    Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
     Write-Pass -Label 'Waiver Board'
 
     $trade = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $trade -Expected 200 -Stage 'Trade Analyzer'
-    Assert-Markers -Html $trade.Body -Stage 'Trade Analyzer' -Markers @('Analyze a trade','Choose a league opponent','READ ONLY')
+    Assert-Markers -Html $trade.Body -Stage 'Trade Analyzer' -Markers @('Analyze a trade','Trade partner','No new trade score is created here.','READ ONLY')
+    Assert-PrimaryNavigation -Html $trade.Body -Stage 'Trade Analyzer'
     Assert-NoRawDeveloperFailure -Html $trade.Body -Stage 'Trade Analyzer'
     Write-Pass -Label 'Trade Analyzer'
 
     $history = Invoke-Get -Url ($root + '/history?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $history -Expected 200 -Stage 'Decision History'
-    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')
+    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')
+    $historyFirstScan = Get-ManagerFirstScanHtml -Html $history.Body
+    Assert-AbsentMarkers -Html $historyFirstScan -Stage 'Decision History first scan' -Markers @('Provider frame','Recommendation state','Audit:','BF-603 market:','BF-602 waiver:','ADD / DROP Sleeper ids:')
+    Assert-PrimaryNavigation -Html $history.Body -Stage 'Decision History'
     Assert-NoRawDeveloperFailure -Html $history.Body -Stage 'Decision History'
     Write-Pass -Label 'Decision History'
 
@@ -505,6 +551,7 @@ if ($null -eq $failure -and -not [string]::IsNullOrWhiteSpace($after)) {
 
 if ($null -ne $failure) {
     Write-Host 'BF-885 RESULT: FAIL'
+    Write-Host 'BF-912 RESULT: FAIL'
     throw $failure
 }
 if (-not $passed) {
@@ -513,3 +560,4 @@ if (-not $passed) {
 
 Write-Host 'Working tree: CLEAN'
 Write-Host 'BF-885 RESULT: COMPLETE'
+Write-Host 'BF-912 RESULT: COMPLETE'
