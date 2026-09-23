@@ -174,9 +174,9 @@ $installedStart = $core.IndexOf('function ConvertTo-LeagueHtml {', [System.Strin
 $installedEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $installedStart, [System.StringComparison]::Ordinal)
 $installedLeague = $core.Substring($installedStart, $installedEnd - $installedStart)
 
-$boardIndex = $installedLeague.IndexOf('Franchise board', [System.StringComparison]::Ordinal)
-$movementIndex = $installedLeague.IndexOf('Comparable movement', [System.StringComparison]::Ordinal)
-$governanceIndex = $installedLeague.IndexOf('View governed league actions', [System.StringComparison]::Ordinal)
+$boardIndex = $installedLeague.IndexOf('<div class="eyebrow">Franchise board</div>', [System.StringComparison]::Ordinal)
+$movementIndex = $installedLeague.IndexOf('<div class="eyebrow">Comparable movement</div>', [System.StringComparison]::Ordinal)
+$governanceIndex = $installedLeague.IndexOf('<summary>View governed league actions</summary>', [System.StringComparison]::Ordinal)
 if (-not ($boardIndex -ge 0 -and $movementIndex -gt $boardIndex -and $governanceIndex -gt $movementIndex)) {
     throw 'BF-909 BLOCKED: League Hub section order must remain franchise board -> movement -> governed actions.'
 }
