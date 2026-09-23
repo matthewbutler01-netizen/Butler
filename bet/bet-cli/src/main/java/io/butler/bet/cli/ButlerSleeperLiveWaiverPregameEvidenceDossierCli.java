@@ -34,6 +34,7 @@ public final class ButlerSleeperLiveWaiverPregameEvidenceDossierCli {
         System.out.println("BF-607 current-week snapshot: " + report.currentWeekSnapshotId());
         System.out.println("BF-607 observed at UTC: " + report.currentWeekObservedAtUtc());
         System.out.println("BF-607 observation state: " + report.currentWeekObservationState());
+        System.out.println("BF-607 evidence week: " + evidenceWeek(report));
         System.out.println("NFL state season/week/type: " + report.stateSeason() + "/"
             + report.stateWeek() + "/" + report.stateSeasonType());
         System.out.println("Market-active candidates: " + report.candidateCount());
@@ -78,12 +79,12 @@ public final class ButlerSleeperLiveWaiverPregameEvidenceDossierCli {
                 }
             }
             if ("SOURCE_PRESENT".equals(week.sourceState())) {
-                System.out.println("      Week " + report.stateWeek() + " observed: pass_att=" + value(week.passAtt())
+                System.out.println("      Week " + evidenceWeek(report) + " observed: pass_att=" + value(week.passAtt())
                     + " rush_att=" + value(week.rushAtt()) + " targets=" + value(week.recTgt())
                     + " rec=" + value(week.receptions()) + " pass_yd=" + value(week.passYd())
                     + " rush_yd=" + value(week.rushYd()) + " rec_yd=" + value(week.recYd()));
             } else {
-                System.out.println("      Week " + report.stateWeek()
+                System.out.println("      Week " + evidenceWeek(report)
                     + " observed: UNOBSERVED (no zero/DNP/finality inference)");
             }
         }
@@ -91,6 +92,10 @@ public final class ButlerSleeperLiveWaiverPregameEvidenceDossierCli {
         System.out.println("Pregame dossier state: READY_EVIDENCE_ONLY");
         System.out.println();
         System.out.println("Boundary: BF-608 composes existing governed evidence only. Market attention, prior-season production, current team/status/injury/depth metadata, and current-week source presence are not converted into a player score or value claim. Missing injury/practice/depth/current-week evidence remains unknown or unobserved. No waiver ranking, FAAB guidance, add/drop recommendation, winner selection, manager evaluation, start/sit grade, confidence, or probability is emitted.");
+    }
+
+    private static int evidenceWeek(SleeperLiveWaiverPregameEvidenceDossier.DossierReport report) {
+        return report.providerLeg() == null ? report.stateWeek() : report.providerLeg();
     }
 
     private static String value(Object value) {

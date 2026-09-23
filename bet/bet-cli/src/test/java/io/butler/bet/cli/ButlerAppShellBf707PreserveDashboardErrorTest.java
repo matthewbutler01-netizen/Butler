@@ -29,6 +29,23 @@ class ButlerAppShellBf707PreserveDashboardErrorTest {
     }
 
     @Test
+    void outerRequestWorkerAlsoPreservesNonSuccessHtmlBodies() throws Exception {
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        assertTrue(worker.contains(
+            "if ([int]$proxied.StatusCode -ge 200 -and [int]$proxied.StatusCode -lt 300 -and"));
+        assertTrue(worker.contains("$proxied.ContentType -match '^text/html'"));
+        assertTrue(worker.contains("$body = Add-AppNavigation -Html $body"));
+        assertTrue(worker.contains("$body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget"));
+
+        int guard = worker.indexOf("if ([int]$proxied.StatusCode -ge 200 -and [int]$proxied.StatusCode -lt 300 -and");
+        int navigation = worker.indexOf("$body = Add-AppNavigation -Html $body", guard);
+        assertTrue(guard >= 0);
+        assertTrue(navigation > guard,
+            "outer navigation rewriting must remain inside the successful-response guard");
+    }
+
+    @Test
     void bf707StagingRemainsAsciiOnly() throws Exception {
         String core = source("scripts/butler-app-shell-core.ps1");
         byte[] encoded = core.getBytes(StandardCharsets.US_ASCII);

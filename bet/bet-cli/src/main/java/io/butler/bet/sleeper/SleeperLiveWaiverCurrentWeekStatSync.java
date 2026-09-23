@@ -93,10 +93,7 @@ public final class SleeperLiveWaiverCurrentWeekStatSync {
         if (nflState.week() <= 0 || nflState.week() > 25) {
             throw new IllegalStateException("BF-607 BLOCKED: Sleeper NFL state week is invalid: " + nflState.week());
         }
-        if (providerLeague.leg() != null && providerLeague.leg() != nflState.week()) {
-            throw new IllegalStateException("BF-607 BLOCKED: provider league leg " + providerLeague.leg()
-                + " differs from Sleeper NFL state week " + nflState.week());
-        }
+        int evidenceWeek = resolveEvidenceWeek(providerLeague.leg(), nflState.week());
 
         List<LiveWaiverAvailabilityRepository.Entry> availabilityEntries =
             availabilityRepository.entries(availability.id());
@@ -120,8 +117,8 @@ public final class SleeperLiveWaiverCurrentWeekStatSync {
                 + nowRosteredTargets + "; refresh BF-602/BF-603 first");
         }
 
-        String sourceLabel = "stats/nfl/regular/" + TARGET_SEASON + "/" + nflState.week();
-        Map<String, StatRow> statRows = parseStatRows(source.weeklyStats(TARGET_SEASON, nflState.week()));
+        String sourceLabel = "stats/nfl/regular/" + TARGET_SEASON + "/" + evidenceWeek;
+        Map<String, StatRow> statRows = parseStatRows(source.weeklyStats(TARGET_SEASON, evidenceWeek));
 
         List<LiveWaiverCurrentWeekStatRepository.Entry> entries = new ArrayList<>();
         int present = 0;
@@ -189,6 +186,27 @@ public final class SleeperLiveWaiverCurrentWeekStatSync {
             value(numeric, "rush_yd"), value(numeric, "rush_td"), value(numeric, "rec_tgt"),
             value(numeric, "rec"), value(numeric, "rec_yd"), value(numeric, "rec_td"),
             value(numeric, "fum_lost"));
+    }
+
+    static int resolveEvidenceWeek(Integer providerLeg, int nflStateWeek) {
+        if (nflStateWeek <= 0 || nflStateWeek > 25) {
+            throw new IllegalStateException("BF-607 BLOCKED: Sleeper NFL state week is invalid: " + nflStateWeek);
+        }
+        if (providerLeg == null) {
+            return nflStateWeek;
+        }
+        if (providerLeg <= 0 || providerLeg > 25) {
+            throw new IllegalStateException("BF-607 BLOCKED: provider league leg is invalid: " + providerLeg);
+        }
+        if (providerLeg == nflStateWeek) {
+            return providerLeg;
+        }
+        if (providerLeg + 1 == nflStateWeek) {
+            return providerLeg;
+        }
+        throw new IllegalStateException("BF-607 BLOCKED: provider league leg " + providerLeg
+            + " differs from Sleeper NFL state week " + nflStateWeek
+            + " beyond the bounded one-week rollover allowance");
     }
 
     private Map<String, StatRow> parseStatRows(String json) throws IOException {

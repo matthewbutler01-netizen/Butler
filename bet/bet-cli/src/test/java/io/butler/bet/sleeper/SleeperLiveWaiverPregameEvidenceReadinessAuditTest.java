@@ -100,7 +100,7 @@ class SleeperLiveWaiverPregameEvidenceReadinessAuditTest {
             "L", "M", "2026-09-08T01:00:00Z",
             "A", Instant.parse("2026-09-08T02:00:00Z"),
             "C", Instant.parse("2026-09-08T03:00:00Z"),
-            "CURRENT_WEEK_FINALITY_UNPROVEN", 2026, 1, "regular",
+            "CURRENT_WEEK_FINALITY_UNPROVEN", 1, 2026, 1, "regular",
             candidates.size(), 0, 0, 0, 0, 0, 0, candidates);
     }
 

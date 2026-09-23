@@ -593,7 +593,9 @@ try {
         } else {
             [long]0
         }
-        if ($proxied.ContentType -match '^text/html' -and $body -match '<nav class="nav" aria-label="Butler sections">') {
+        if ([int]$proxied.StatusCode -ge 200 -and [int]$proxied.StatusCode -lt 300 -and
+            $proxied.ContentType -match '^text/html' -and
+            $body -match '<nav class="nav" aria-label="Butler sections">') {
             $body = Add-AppNavigation -Html $body
             $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
         }

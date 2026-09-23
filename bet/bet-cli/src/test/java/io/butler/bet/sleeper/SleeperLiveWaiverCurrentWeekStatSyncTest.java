@@ -78,6 +78,21 @@ class SleeperLiveWaiverCurrentWeekStatSyncTest {
     }
 
     @Test
+    void boundedOneWeekNflRolloverUsesLeagueLegAsEvidenceWeek() {
+        assertEquals(2, SleeperLiveWaiverCurrentWeekStatSync.resolveEvidenceWeek(2, 3));
+        assertEquals(3, SleeperLiveWaiverCurrentWeekStatSync.resolveEvidenceWeek(3, 3));
+        assertEquals(3, SleeperLiveWaiverCurrentWeekStatSync.resolveEvidenceWeek(null, 3));
+
+        IllegalStateException aheadTooFar = assertThrows(IllegalStateException.class,
+            () -> SleeperLiveWaiverCurrentWeekStatSync.resolveEvidenceWeek(2, 4));
+        assertTrue(aheadTooFar.getMessage().contains("beyond the bounded one-week rollover allowance"));
+
+        IllegalStateException providerAhead = assertThrows(IllegalStateException.class,
+            () -> SleeperLiveWaiverCurrentWeekStatSync.resolveEvidenceWeek(3, 2));
+        assertTrue(providerAhead.getMessage().contains("beyond the bounded one-week rollover allowance"));
+    }
+
+    @Test
     void newlyRosteredTargetBlocksBeforeWeeklyStatsFetch() throws Exception {
         Database database = seededDatabase();
         FixtureSource source = new FixtureSource(true, false, false);

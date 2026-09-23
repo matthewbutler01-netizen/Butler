@@ -302,6 +302,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf906CoreTransform -CorePath $stagedCore
 
+    # BF-908: reshape My Team into a roster-first Team Hub only after Player Detail
+    # and Player Compare are installed so mapped roster players can reuse those exact read-only routes.
+    $bf908CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf908-my-team-roster-hub-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf908CoreTransform -PathType Leaf)) {
+        throw "BF-908 BLOCKED: My Team Roster Hub transform not found at $bf908CoreTransform"
+    }
+    & $bf908CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
