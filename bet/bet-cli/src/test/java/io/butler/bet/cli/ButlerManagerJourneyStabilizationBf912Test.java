@@ -87,6 +87,9 @@ class ButlerManagerJourneyStabilizationBf912Test {
         assertTrue(script.contains("if ($team.StatusCode -ne 200)"));
         assertTrue(script.contains("$teamTechnical = Get-ManagerRecoveryTechnicalDetail"));
         assertTrue(script.contains("$teamDirect = Invoke-MyTeamDirectDiagnostic"));
+        assertTrue(script.contains("Stop-OwnedButler -Process $process -Port $port"));
+        assertTrue(script.contains("$teamProcessOutput = Get-BoundedStartupOutput -Process $process"));
+        assertTrue(script.contains("process-output="));
         assertTrue(script.contains("BF-912 FAILED: My Team returned HTTP"));
     }
 
