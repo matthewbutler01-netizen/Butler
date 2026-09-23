@@ -78,6 +78,19 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void liveMyTeamFailureRunsExactReadOnlyEvidenceBundleDiagnostic() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(script.contains("function Invoke-MyTeamDirectDiagnostic"));
+        assertTrue(script.contains("io.butler.bet.cli.ButlerMyTeamEvidenceBundleCli"));
+        assertTrue(script.contains("direct-team-bundle exit="));
+        assertTrue(script.contains("if ($team.StatusCode -ne 200)"));
+        assertTrue(script.contains("$teamTechnical = Get-ManagerRecoveryTechnicalDetail"));
+        assertTrue(script.contains("$teamDirect = Invoke-MyTeamDirectDiagnostic"));
+        assertTrue(script.contains("BF-912 FAILED: My Team returned HTTP"));
+    }
+
+    @Test
     void leagueJourneyRejectsRawMovementSyntax() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
