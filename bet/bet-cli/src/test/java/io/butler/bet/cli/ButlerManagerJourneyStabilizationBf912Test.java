@@ -78,6 +78,35 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void exactStagedTeamRenderDiagnosticUsesLiveReadOnlyBundleAndFinalTransforms() throws Exception {
+        String script = source("scripts/butler-bf912-team-render-diagnostic.ps1");
+
+        assertTrue(script.contains("butler-dashboard-bf715-transform.ps1"));
+        assertTrue(script.contains("ButlerMyTeamEvidenceBundleCli"));
+        assertTrue(script.contains("BF-912 STAGING: PASS"));
+        assertTrue(script.contains("BF-912 DIRECT TEAM BUNDLE: PASS"));
+        assertTrue(script.contains("ROSTER_CONTEXT parser"));
+        assertTrue(script.contains("TEAM_CONTEXT parser"));
+        assertTrue(script.contains("ROSTER_STRENGTH parser"));
+        assertTrue(script.contains("POSITIONAL_PRESSURE parser"));
+        assertTrue(script.contains("TEAM_POSTURE parser"));
+        assertTrue(script.contains("FUTURE_CAPITAL parser"));
+        assertTrue(script.contains("FINAL ConvertTo-TeamHtml"));
+        assertTrue(script.contains("BF-912 TEAM RENDER RESULT: COMPLETE"));
+
+        for (String forbidden : new String[]{
+                "Invoke-RestMethod",
+                "Invoke-WebRequest",
+                "Method = 'POST'",
+                "https://api.sleeper.app",
+                "submitTransaction",
+                "setFaab"
+        }) {
+            assertFalse(script.contains(forbidden), "BF-912 staged-render diagnostic introduced forbidden action " + forbidden);
+        }
+    }
+
+    @Test
     void recoveryTechnicalDetailExtractionSurvivesDecoratedDisclosureMarkup() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
