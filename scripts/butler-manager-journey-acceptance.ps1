@@ -172,19 +172,38 @@ function Invoke-Get {
 function Get-ManagerRecoveryTechnicalDetail {
     param([Parameter(Mandatory = $true)][string]$Html)
 
+    # BF-912: later visual/mobile transforms are allowed to add attributes or
+    # whitespace around native disclosure markup. Match the semantic recovery
+    # structure rather than one byte-for-byte HTML shape.
     $match = [regex]::Match(
         $Html,
-        '<details><summary>Technical details</summary><div class="technical">(?<detail>.*?)</div></details>',
-        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
-            [System.Text.RegularExpressions.RegexOptions]::Singleline
+        '(?is)<details\b[^>]*>\s*<summary\b[^>]*>\s*Technical details\s*</summary>\s*<div\b[^>]*class="[^"]*\btechnical\b[^"]*"[^>]*>(?<detail>.*?)</div>\s*</details>'
     )
-    if (-not $match.Success) { return $null }
+    if (-not $match.Success) {
+        # Last-resort manager-recovery fallback: if the technical label is
+        # present but markup has changed again, return a bounded plain-text tail
+        # beginning at that label so live failures cannot lose their cause.
+        $plainHtml = [regex]::Replace(
+            $Html,
+            '(?is)<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>',
+            ' '
+        )
+        $plain = [regex]::Replace($plainHtml, '<[^>]+>', ' ')
+        $plain = [System.Net.WebUtility]::HtmlDecode($plain)
+        $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        $marker = $plain.IndexOf('Technical details', [System.StringComparison]::OrdinalIgnoreCase)
+        if ($marker -lt 0) { return $null }
+        $detail = $plain.Substring($marker + 'Technical details'.Length).Trim()
+        if ([string]::IsNullOrWhiteSpace($detail)) { return $null }
+        if ($detail.Length -gt 1600) { $detail = $detail.Substring(0, 1600) + '...' }
+        return $detail
+    }
 
     $detail = [regex]::Replace($match.Groups['detail'].Value, '<[^>]+>', ' ')
     $detail = [System.Net.WebUtility]::HtmlDecode($detail)
     $detail = [regex]::Replace($detail, '\s+', ' ').Trim()
     if ([string]::IsNullOrWhiteSpace($detail)) { return $null }
-    if ($detail.Length -gt 1200) { $detail = $detail.Substring(0, 1200) + '...' }
+    if ($detail.Length -gt 1600) { $detail = $detail.Substring(0, 1600) + '...' }
     return $detail
 }
 
@@ -242,6 +261,40 @@ function Assert-AbsentMarkers {
     }
 }
 
+function Get-ManagerFirstScanHtml {
+    param([Parameter(Mandatory = $true)][string]$Html)
+
+    # BF-912: native details/disclosure may retain exact audit and technical proof.
+    # The first-scan contract intentionally evaluates only content visible before
+    # the manager opens those disclosures.
+    return [regex]::Replace(
+        $Html,
+        '(?is)<details\b[^>]*>.*?</details>',
+        ' '
+    )
+}
+
+function Assert-PrimaryNavigation {
+    param(
+        [Parameter(Mandatory = $true)][string]$Html,
+        [Parameter(Mandatory = $true)][string]$Stage
+    )
+
+    foreach ($marker in @(
+        'href="/">Dashboard</a>',
+        'href="/team">My Team</a>',
+        'href="/matchup">Matchup</a>',
+        'href="/waivers">Waiver Board</a>',
+        'href="/league">League</a>',
+        'href="/trade">Trade Analyzer</a>',
+        'href="/history">History</a>'
+    )) {
+        if ($Html.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw "BF-912 FAILED: $Stage is missing primary navigation marker: $marker"
+        }
+    }
+}
+
 function Assert-NoRawDeveloperFailure {
     param(
         [Parameter(Mandatory = $true)][string]$Html,
@@ -280,6 +333,59 @@ function Get-FirstSafeHref {
         throw 'BF-885 BLOCKED: discovered detail link escaped the Butler origin.'
     }
     return $href
+}
+
+function Invoke-MyTeamDirectDiagnostic {
+    $localAppData = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+        $localAppData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    }
+    if ([string]::IsNullOrWhiteSpace($localAppData)) {
+        return 'direct-team-bundle=BLOCKED LocalApplicationData unavailable'
+    }
+
+    $configDir = Join-Path $localAppData 'Butler'
+    $leaguePath = Join-Path $configDir 'app-league.txt'
+    if (-not (Test-Path -LiteralPath $leaguePath -PathType Leaf)) {
+        return 'direct-team-bundle=BLOCKED configured league id unavailable'
+    }
+    $leagueId = [IO.File]::ReadAllText($leaguePath, [Text.Encoding]::ASCII).Trim()
+    if ([string]::IsNullOrWhiteSpace($leagueId)) {
+        return 'direct-team-bundle=BLOCKED configured league id empty'
+    }
+
+    $dataDir = [string]$env:BUTLER_APP_DATA_DIR
+    if ([string]::IsNullOrWhiteSpace($dataDir)) { $dataDir = Join-Path $configDir 'data' }
+    $runtimeLib = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+    if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
+        return 'direct-team-bundle=BLOCKED governed runtime data directory unavailable'
+    }
+    if (-not (Test-Path -LiteralPath $runtimeLib -PathType Container)) {
+        return 'direct-team-bundle=BLOCKED prepared Butler Java runtime unavailable'
+    }
+
+    try { $java = (Get-Command java.exe -ErrorAction Stop).Source }
+    catch { return 'direct-team-bundle=BLOCKED java.exe unavailable' }
+
+    $classPath = Join-Path $runtimeLib '*'
+    $previousPreference = $ErrorActionPreference
+    $lines = $null
+    $exitCode = $null
+    Push-Location $dataDir
+    try {
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = & $java '--enable-native-access=ALL-UNNAMED' '-cp' $classPath 'io.butler.bet.cli.ButlerMyTeamEvidenceBundleCli' $leagueId 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $previousPreference }
+    }
+    finally { Pop-Location }
+
+    $text = (($lines | ForEach-Object { "$_" }) -join ' | ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ($text.Length -gt 3200) { $text = '...' + $text.Substring($text.Length - 3200) }
+    return ("direct-team-bundle exit={0}; output={1}" -f $exitCode, $text)
 }
 
 function Invoke-PlayerDetailDirectDiagnostic {
@@ -355,6 +461,7 @@ $failure = $null
 $passed = $false
 
 Write-Host 'Butler end-to-end manager journey acceptance (BF-885)'
+Write-Host 'BF-912 contract: current all-seven-page manager-first stabilization'
 Write-Host "Target: $root"
 Write-Host 'Boundary: GET-only local Butler journey; no /refresh, no POST, no lineup/waiver/trade execution, no Sleeper write.'
 
@@ -395,19 +502,61 @@ try {
 
     $dashboard = Invoke-Get -Url ($root + '/') -TimeoutMs $timeoutMs
     Assert-Status -Response $dashboard -Expected 200 -Stage 'Dashboard'
-    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Your decision queue')
+    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities')
+    Assert-PrimaryNavigation -Html $dashboard.Body -Stage 'Dashboard'
     Assert-NoRawDeveloperFailure -Html $dashboard.Body -Stage 'Dashboard'
     Write-Pass -Label 'Dashboard'
 
     $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
-    Assert-Status -Response $team -Expected 200 -Stage 'My Team'
-    Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('How Butler reads this roster','Review Matchup','Find a player')
+    if ($team.StatusCode -ne 200) {
+        $teamTechnical = Get-ManagerRecoveryTechnicalDetail -Html ([string]$team.Body)
+        $teamDirect = Invoke-MyTeamDirectDiagnostic
+        $teamTechnicalText = if ([string]::IsNullOrWhiteSpace([string]$teamTechnical)) {
+            $teamPlainHtml = [regex]::Replace(
+                [string]$team.Body,
+                '(?is)<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>',
+                ' '
+            )
+            $teamPlain = [regex]::Replace($teamPlainHtml, '<[^>]+>', ' ')
+            $teamPlain = [System.Net.WebUtility]::HtmlDecode($teamPlain)
+            $teamPlain = [regex]::Replace($teamPlain, '\s+', ' ').Trim()
+            if ($teamPlain.Length -gt 2400) {
+                $teamPlain = $teamPlain.Substring(0, 2400) + '...'
+            }
+            if ([string]::IsNullOrWhiteSpace($teamPlain)) {
+                'recovery-technical=unavailable; recovery-body=unavailable'
+            }
+            else {
+                'recovery-technical=unavailable; recovery-body=' + $teamPlain
+            }
+        }
+        else {
+            'recovery-technical=' + $teamTechnical
+        }
+
+        # BF-912 live-data failures can happen inside the preserved staged core.
+        # Stop only the acceptance-owned Butler tree so redirected stdout/stderr
+        # complete, then include the exact BF-884/BF-908 warning in the failure.
+        try { Stop-OwnedButler -Process $process -Port $port } catch {}
+        $teamProcessOutput = Get-BoundedStartupOutput -Process $process
+        if ([string]::IsNullOrWhiteSpace([string]$teamProcessOutput)) {
+            $teamProcessOutput = 'process-output=unavailable'
+        }
+        else {
+            $teamProcessOutput = 'process-output=' + $teamProcessOutput
+        }
+
+        throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect; $teamProcessOutput"
+    }
+    Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','Future flexibility')
+    Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
     Assert-NoRawDeveloperFailure -Html $team.Body -Stage 'My Team'
     Write-Pass -Label 'My Team'
 
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Status -Response $matchup -Expected 200 -Stage 'Matchup'
-    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','Lineup advisor','READ ONLY')
+    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','What to do now','READ ONLY')
+    Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
     Write-Pass -Label 'Matchup'
 
@@ -434,7 +583,9 @@ try {
 
     $league = Invoke-Get -Url ($root + '/league') -TimeoutMs $timeoutMs
     Assert-Status -Response $league -Expected 200 -Stage 'League'
-    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League status','What deserves attention','Find a player')
+    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League hub','Top franchise snapshot','Comparable movement','READ ONLY')
+    Assert-AbsentMarkers -Html $league.Body -Stage 'League' -Markers @('fantasy-team=')
+    Assert-PrimaryNavigation -Html $league.Body -Stage 'League'
     Assert-NoRawDeveloperFailure -Html $league.Body -Stage 'League'
     Write-Pass -Label 'League'
 
@@ -452,20 +603,26 @@ try {
 
     $waivers = Invoke-Get -Url ($root + '/waivers') -TimeoutMs $timeoutMs
     Assert-Status -Response $waivers -Expected 200 -Stage 'Waiver Board'
-    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','READ ONLY')
-    Assert-AbsentMarkers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Decision details','Advanced technical record','Current audit ID:','Sleeper ID:')
+    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')
+    $waiverFirstScan = Get-ManagerFirstScanHtml -Html $waivers.Body
+    Assert-AbsentMarkers -Html $waiverFirstScan -Stage 'Waiver Board first scan' -Markers @('Current audit ID:','Sleeper ID:','Pair ADD Sleeper ID:','Pair DROP Sleeper ID:')
+    Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
     Write-Pass -Label 'Waiver Board'
 
     $trade = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $trade -Expected 200 -Stage 'Trade Analyzer'
-    Assert-Markers -Html $trade.Body -Stage 'Trade Analyzer' -Markers @('Analyze a trade','Choose a league opponent','READ ONLY')
+    Assert-Markers -Html $trade.Body -Stage 'Trade Analyzer' -Markers @('Analyze a trade','Trade partner','No new trade score is created here.','READ ONLY')
+    Assert-PrimaryNavigation -Html $trade.Body -Stage 'Trade Analyzer'
     Assert-NoRawDeveloperFailure -Html $trade.Body -Stage 'Trade Analyzer'
     Write-Pass -Label 'Trade Analyzer'
 
     $history = Invoke-Get -Url ($root + '/history?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $history -Expected 200 -Stage 'Decision History'
-    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')
+    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')
+    $historyFirstScan = Get-ManagerFirstScanHtml -Html $history.Body
+    Assert-AbsentMarkers -Html $historyFirstScan -Stage 'Decision History first scan' -Markers @('Provider frame','Recommendation state','Audit:','BF-603 market:','BF-602 waiver:','ADD / DROP Sleeper ids:')
+    Assert-PrimaryNavigation -Html $history.Body -Stage 'Decision History'
     Assert-NoRawDeveloperFailure -Html $history.Body -Stage 'Decision History'
     Write-Pass -Label 'Decision History'
 
@@ -505,6 +662,7 @@ if ($null -eq $failure -and -not [string]::IsNullOrWhiteSpace($after)) {
 
 if ($null -ne $failure) {
     Write-Host 'BF-885 RESULT: FAIL'
+    Write-Host 'BF-912 RESULT: FAIL'
     throw $failure
 }
 if (-not $passed) {
@@ -513,3 +671,4 @@ if (-not $passed) {
 
 Write-Host 'Working tree: CLEAN'
 Write-Host 'BF-885 RESULT: COMPLETE'
+Write-Host 'BF-912 RESULT: COMPLETE'

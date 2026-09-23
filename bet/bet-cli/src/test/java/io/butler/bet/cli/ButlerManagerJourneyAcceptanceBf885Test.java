@@ -32,7 +32,9 @@ class ButlerManagerJourneyAcceptanceBf885Test {
                 "Health before journey",
                 "Health after journey",
                 "Working tree: CLEAN",
-                "BF-885 RESULT: COMPLETE"
+                "BF-885 RESULT: COMPLETE",
+                "BF-912 contract: current all-seven-page manager-first stabilization",
+                "BF-912 RESULT: COMPLETE"
         }) {
             assertTrue(script.contains(marker), "BF-885 journey missing " + marker);
         }
@@ -79,9 +81,11 @@ class ButlerManagerJourneyAcceptanceBf885Test {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(script.contains("function Get-ManagerRecoveryTechnicalDetail"));
-        assertTrue(script.contains("<summary>Technical details</summary><div class=\"technical\">"));
+        assertTrue(script.contains("(?is)<details\\b[^>]*>\\s*<summary\\b[^>]*>\\s*Technical details"));
+        assertTrue(script.contains("class=\"[^\"]*\\btechnical\\b[^\"]*\""));
         assertTrue(script.contains("technical=$detail"));
-        assertTrue(script.contains("if ($detail.Length -gt 1200)"));
+        assertTrue(script.contains("if ($detail.Length -gt 1600)"));
+        assertTrue(script.contains("Last-resort manager-recovery fallback"));
     }
 
     @Test
@@ -112,18 +116,22 @@ class ButlerManagerJourneyAcceptanceBf885Test {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(script.contains("function Assert-AbsentMarkers"));
-        assertTrue(script.contains("Markers @('Butler waiver decision','Next step','READ ONLY')"));
-        assertTrue(script.contains("Markers @('Decision details','Advanced technical record','Current audit ID:','Sleeper ID:')"));
+        assertTrue(script.contains("function Get-ManagerFirstScanHtml"));
+        assertTrue(script.contains("Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')"));
+        assertTrue(script.contains("$waiverFirstScan = Get-ManagerFirstScanHtml -Html $waivers.Body"));
+        assertTrue(script.contains("Markers @('Current audit ID:','Sleeper ID:','Pair ADD Sleeper ID:','Pair DROP Sleeper ID:')"));
         assertTrue(script.contains("exposed hidden technical marker"));
-        assertFalse(script.contains("Markers @('Butler waiver decision','Next step','Decision details','READ ONLY')"));
+        assertFalse(script.contains("Assert-AbsentMarkers -Html $waivers.Body -Stage 'Waiver Board'"));
     }
 
     @Test
     void decisionHistoryJourneyUsesPublicReadOnlyPromise() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
-        assertTrue(script.contains("Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')"));
-        assertFalse(script.contains("Markers @('Recorded waiver decisions','Decision History reads recorded governed waiver history only')"));
+        assertTrue(script.contains("Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')"));
+        assertTrue(script.contains("$historyFirstScan = Get-ManagerFirstScanHtml -Html $history.Body"));
+        assertTrue(script.contains("Markers @('Provider frame','Recommendation state','Audit:','BF-603 market:','BF-602 waiver:','ADD / DROP Sleeper ids:')"));
+        assertFalse(script.contains("Markers @('Recorded waiver decisions','Butler will never make roster changes or submit a Sleeper transaction from this screen.')"));
     }
 
     @Test
