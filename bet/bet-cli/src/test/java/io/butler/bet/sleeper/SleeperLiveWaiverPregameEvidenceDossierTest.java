@@ -35,6 +35,7 @@ class SleeperLiveWaiverPregameEvidenceDossierTest {
         assertEquals("M", report.marketSnapshotId());
         assertEquals("A", report.availabilitySnapshotId());
         assertEquals("C", report.currentWeekSnapshotId());
+        assertEquals(1, report.providerLeg());
         assertEquals(3, report.candidateCount());
         assertEquals(2, report.teamKnownCount());
         assertEquals(3, report.providerStatusKnownCount());
