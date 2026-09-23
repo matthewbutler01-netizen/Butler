@@ -310,6 +310,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf908CoreTransform -CorePath $stagedCore
 
+    # BF-909: reshape League into a manager-first League Hub after My Team's
+    # final roster composition. Reuse only the governed League overview already
+    # loaded by the passive League route; no new provider/read/write behavior.
+    $bf909CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf909-league-hub-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf909CoreTransform -PathType Leaf)) {
+        throw "BF-909 BLOCKED: League Hub transform not found at $bf909CoreTransform"
+    }
+    & $bf909CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
