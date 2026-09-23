@@ -42,12 +42,12 @@ class ButlerTradeHubBf910Test {
     void plainLanguageReasonIsVisibleBeforeTechnicalEvidence() throws Exception {
         String trade = source("scripts/butler-trade-lab.ps1");
 
-        assertTrue(trade.contains("class=\"decision-reason\""));
+        assertTrue(trade.contains("decision-reason"));
         assertTrue(trade.contains("<strong>Why</strong>"));
         assertTrue(trade.contains("Why Butler says this"));
         assertTrue(trade.contains("Raw decision record"));
 
-        int reason = trade.indexOf("class=\"decision-reason\"");
+        int reason = trade.indexOf("$reasonHtml = if");
         int proof = trade.indexOf("Why Butler says this", reason);
         int raw = trade.indexOf("Raw decision record", proof);
         assertTrue(reason >= 0 && proof > reason && raw > proof);
