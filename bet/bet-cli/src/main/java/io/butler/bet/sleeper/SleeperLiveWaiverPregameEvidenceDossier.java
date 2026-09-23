@@ -129,6 +129,7 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
             weekHeader.id(),
             weekHeader.observedAtUtc(),
             weekHeader.observationState(),
+            weekHeader.providerLeg(),
             weekHeader.stateSeason(),
             weekHeader.stateWeek(),
             weekHeader.stateSeasonType(),
@@ -147,7 +148,7 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
             requireTable(connection, "live_waiver_current_week_stat_snapshots");
             try (var statement = connection.prepareStatement("""
                 SELECT id, league_id, market_snapshot_id, availability_snapshot_id, sleeper_league_id,
-                       state_season, state_week, state_season_type, observation_state,
+                       provider_leg, state_season, state_week, state_season_type, observation_state,
                        observed_at_utc, candidate_count
                 FROM live_waiver_current_week_stat_snapshots
                 WHERE league_id = ? AND market_snapshot_id = ?
@@ -164,6 +165,7 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
                     return new CurrentWeekHeader(
                         rs.getString("id"), rs.getString("league_id"), rs.getString("market_snapshot_id"),
                         rs.getString("availability_snapshot_id"), rs.getString("sleeper_league_id"),
+                        nullableInteger(rs, "provider_leg"),
                         rs.getInt("state_season"), rs.getInt("state_week"), rs.getString("state_season_type"),
                         rs.getString("observation_state"), Instant.parse(rs.getString("observed_at_utc")),
                         rs.getInt("candidate_count"));
@@ -233,6 +235,11 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
         }
     }
 
+    private static Integer nullableInteger(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : value;
+    }
+
     private static boolean usable(String value) {
         return value != null && !value.isBlank();
     }
@@ -274,6 +281,7 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
         String currentWeekSnapshotId,
         Instant currentWeekObservedAtUtc,
         String currentWeekObservationState,
+        Integer providerLeg,
         int stateSeason,
         int stateWeek,
         String stateSeasonType,
@@ -294,6 +302,6 @@ public final class SleeperLiveWaiverPregameEvidenceDossier {
 
     private record CurrentWeekHeader(
         String id, String leagueId, String marketSnapshotId, String availabilitySnapshotId,
-        String sleeperLeagueId, int stateSeason, int stateWeek, String stateSeasonType,
+        String sleeperLeagueId, Integer providerLeg, int stateSeason, int stateWeek, String stateSeasonType,
         String observationState, Instant observedAtUtc, int candidateCount) {}
 }
