@@ -81,9 +81,11 @@ class ButlerManagerJourneyAcceptanceBf885Test {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(script.contains("function Get-ManagerRecoveryTechnicalDetail"));
-        assertTrue(script.contains("<summary>Technical details</summary><div class=\"technical\">"));
+        assertTrue(script.contains("(?is)<details\\b[^>]*>\\s*<summary\\b[^>]*>\\s*Technical details"));
+        assertTrue(script.contains("class=\\\"[^\\\"]*\\btechnical\\b[^\\\"]*\\\""));
         assertTrue(script.contains("technical=$detail"));
-        assertTrue(script.contains("if ($detail.Length -gt 1200)"));
+        assertTrue(script.contains("if ($detail.Length -gt 1600)"));
+        assertTrue(script.contains("Last-resort manager-recovery fallback"));
     }
 
     @Test
