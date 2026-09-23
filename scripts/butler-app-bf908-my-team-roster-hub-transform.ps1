@@ -56,16 +56,21 @@ $futureMarker = '<section class="panel"><div class="eyebrow">Future flexibility<
 $positionStart = $teamBlock.IndexOf($positionMarker, [System.StringComparison]::Ordinal)
 $rosterStart = $teamBlock.IndexOf($rosterMarker, [System.StringComparison]::Ordinal)
 $futureStart = $teamBlock.IndexOf($futureMarker, [System.StringComparison]::Ordinal)
-if ($positionStart -lt 0 -or $rosterStart -lt 0 -or $futureStart -lt 0) {
+$autoFillStart = if ($positionStart -gt 0) {
+    $teamBlock.LastIndexOf('$autoFillHtml', $positionStart, [System.StringComparison]::Ordinal)
+} else { -1 }
+
+if ($autoFillStart -lt 0 -or $positionStart -lt 0 -or $rosterStart -lt 0 -or $futureStart -lt 0) {
     throw 'BF-908 BLOCKED: final My Team section markers are incomplete.'
 }
-if (-not ($positionStart -lt $rosterStart -and $rosterStart -lt $futureStart)) {
-    throw 'BF-908 BLOCKED: final My Team section order is not the expected position -> roster -> future sequence.'
+if (-not ($autoFillStart -lt $positionStart -and $positionStart -lt $rosterStart -and $rosterStart -lt $futureStart)) {
+    throw 'BF-908 BLOCKED: final My Team section order is not the expected lineup-advisor -> position -> roster -> future sequence.'
 }
 
+$autoFillBlock = $teamBlock.Substring($autoFillStart, $positionStart - $autoFillStart)
 $positionBlock = $teamBlock.Substring($positionStart, $rosterStart - $positionStart)
 $rosterBlock = $teamBlock.Substring($rosterStart, $futureStart - $rosterStart)
-$teamBlock = $teamBlock.Substring(0, $positionStart) + $rosterBlock + $positionBlock + $teamBlock.Substring($futureStart)
+$teamBlock = $teamBlock.Substring(0, $autoFillStart) + $rosterBlock + $autoFillBlock + $positionBlock + $teamBlock.Substring($futureStart)
 
 $core = $core.Substring(0, $teamStart) + $teamBlock + $core.Substring($teamEnd)
 
