@@ -512,7 +512,23 @@ try {
         $teamTechnical = Get-ManagerRecoveryTechnicalDetail -Html ([string]$team.Body)
         $teamDirect = Invoke-MyTeamDirectDiagnostic
         $teamTechnicalText = if ([string]::IsNullOrWhiteSpace([string]$teamTechnical)) {
-            'recovery-technical=unavailable'
+            $teamPlainHtml = [regex]::Replace(
+                [string]$team.Body,
+                '(?is)<style\b[^>]*>.*?</style>|<script\b[^>]*>.*?</script>',
+                ' '
+            )
+            $teamPlain = [regex]::Replace($teamPlainHtml, '<[^>]+>', ' ')
+            $teamPlain = [System.Net.WebUtility]::HtmlDecode($teamPlain)
+            $teamPlain = [regex]::Replace($teamPlain, '\s+', ' ').Trim()
+            if ($teamPlain.Length -gt 2400) {
+                $teamPlain = $teamPlain.Substring(0, 2400) + '...'
+            }
+            if ([string]::IsNullOrWhiteSpace($teamPlain)) {
+                'recovery-technical=unavailable; recovery-body=unavailable'
+            }
+            else {
+                'recovery-technical=unavailable; recovery-body=' + $teamPlain
+            }
         }
         else {
             'recovery-technical=' + $teamTechnical
