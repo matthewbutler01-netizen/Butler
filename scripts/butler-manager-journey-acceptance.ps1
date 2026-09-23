@@ -498,7 +498,20 @@ try {
         else {
             'recovery-technical=' + $teamTechnical
         }
-        throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect"
+
+        # BF-912 live-data failures can happen inside the preserved staged core.
+        # Stop only the acceptance-owned Butler tree so redirected stdout/stderr
+        # complete, then include the exact BF-884/BF-908 warning in the failure.
+        try { Stop-OwnedButler -Process $process -Port $port } catch {}
+        $teamProcessOutput = Get-BoundedStartupOutput -Process $process
+        if ([string]::IsNullOrWhiteSpace([string]$teamProcessOutput)) {
+            $teamProcessOutput = 'process-output=unavailable'
+        }
+        else {
+            $teamProcessOutput = 'process-output=' + $teamProcessOutput
+        }
+
+        throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect; $teamProcessOutput"
     }
     Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','Future flexibility')
     Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
