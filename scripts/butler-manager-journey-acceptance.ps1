@@ -577,6 +577,10 @@ try {
             throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
         }
         Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        $playerCompareCount = [regex]::Matches($player.Body, '>Compare this player</a>').Count
+        if ($playerCompareCount -ne 1) {
+            throw "BF-917 FAILED: Player Detail expected exactly one Compare this player action, found $playerCompareCount."
+        }
         Assert-NoRawDeveloperFailure -Html $player.Body -Stage 'Player Detail'
         Write-Pass -Label 'Player Detail'
     }
