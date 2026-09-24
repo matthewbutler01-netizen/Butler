@@ -634,7 +634,8 @@ try {
 
     $league = Invoke-Get -Url ($root + '/league') -TimeoutMs $timeoutMs
     Assert-Status -Response $league -Expected 200 -Stage 'League'
-    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League hub','Top franchise snapshot','Comparable movement','Scout franchise','Open Trade Analyzer','READ ONLY')
+    Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League hub','Top franchise snapshot','Comparable movement','READ ONLY')
+    Assert-Markers -Html $league.Body -Stage 'League franchise actions' -Markers @('Scout franchise','Open Trade Analyzer')
     Assert-AbsentMarkers -Html $league.Body -Stage 'League' -Markers @('fantasy-team=')
     Assert-PrimaryNavigation -Html $league.Body -Stage 'League'
     Assert-NoRawDeveloperFailure -Html $league.Body -Stage 'League'
