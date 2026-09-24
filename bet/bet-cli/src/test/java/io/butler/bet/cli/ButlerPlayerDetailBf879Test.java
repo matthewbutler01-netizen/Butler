@@ -31,7 +31,9 @@ class ButlerPlayerDetailBf879Test {
         assertTrue(route.contains("if ($path -eq \"/player\")"));
         assertTrue(route.contains("Get-PlayerDetailRequestId -RequestTarget $parts[1]"));
         assertTrue(transform.contains("^[A-Za-z0-9._:-]+$"));
-        assertTrue(route.contains("/__butler/internal/player-detail?player="));
+        assertTrue(route.contains("/__butler/internal/player-detail-summary"));
+        assertTrue(route.contains("/__butler/internal/player-detail"));
+        assertTrue(route.contains("support=1"));
         assertTrue(route.contains("Invoke-Bf742DashboardWorkerRead -Path $playerDetailPath -BoundaryName \"BF-916\""));
         assertFalse(route.contains("Invoke-ButlerReadOnly -Arguments \"league player-detail"));
         assertTrue(route.contains("$playerDetail.PlayerId -cne $playerId"));
