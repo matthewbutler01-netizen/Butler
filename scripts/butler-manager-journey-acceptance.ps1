@@ -646,8 +646,13 @@ try {
     }
     $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
     Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League direct Trade Analyzer'
-    Assert-Markers -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer' -Markers @('Analyze a trade','Trade partner','READ ONLY')
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer' -Markers @('Opening Trade Analyzer...','content="1;url=/trade?load=1"','READ ONLY')
     Assert-NoRawDeveloperFailure -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer'
+
+    $leagueTradeWorkspace = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
+    Assert-Status -Response $leagueTradeWorkspace -Expected 200 -Stage 'League direct Trade Analyzer workspace'
+    Assert-Markers -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace' -Markers @('Analyze a trade','Trade partner','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace'
     Write-Pass -Label 'League direct Trade Analyzer'
 
     $franchiseHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout franchise</a>'
