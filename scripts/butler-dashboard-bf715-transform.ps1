@@ -361,6 +361,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf924CoreTransform -CorePath $stagedCore
 
+    # BF-926: connect confirmed Matchup opponent context to existing franchise
+    # and Trade Analyzer workflows before final recovery-page styling.
+    $bf926CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf926-matchup-opponent-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf926CoreTransform -PathType Leaf)) {
+        throw "BF-926 BLOCKED: Matchup opponent action transform not found at $bf926CoreTransform"
+    }
+    & $bf926CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
