@@ -116,6 +116,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         StringWriter output = new StringWriter();
         try (BufferedReader input = new BufferedReader(new StringReader(
                 "PLAYER_DETAIL\tplayer-detail-1\t" + LEAGUE_ID + "\tp123\n"
+                    + "PLAYER_DETAIL_SUMMARY\tplayer-detail-summary-1\t" + LEAGUE_ID + "\tp123\n"
                     + "PLAYER_SEARCH\tplayer-search-1\t" + LEAGUE_ID + "\tJoe Burrow\n"
                     + "PLAYER_COMPARE\tplayer-compare-1\t" + LEAGUE_ID + "\tp123\tp456\n"
                     + "PLAYER_COMPARE_SUMMARY\tplayer-compare-summary-1\t" + LEAGUE_ID + "\tp123\tp456\n"
@@ -126,17 +127,19 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         }
 
         List<String> lines = output.toString().lines().toList();
-        assertEquals(7, lines.size());
+        assertEquals(8, lines.size());
         assertResult(lines.get(1), "player-detail-1", "PLAYER_DETAIL:p123");
-        assertResult(lines.get(2), "player-search-1", "PLAYER_SEARCH:Joe Burrow");
-        assertResult(lines.get(3), "player-compare-1", "PLAYER_COMPARE:p123|p456");
-        assertResult(lines.get(4), "player-compare-summary-1", "PLAYER_COMPARE_SUMMARY:p123|p456");
-        assertReject(lines.get(5));
-        assertEquals(4, requests.size());
+        assertResult(lines.get(2), "player-detail-summary-1", "PLAYER_DETAIL_SUMMARY:p123");
+        assertResult(lines.get(3), "player-search-1", "PLAYER_SEARCH:Joe Burrow");
+        assertResult(lines.get(4), "player-compare-1", "PLAYER_COMPARE:p123|p456");
+        assertResult(lines.get(5), "player-compare-summary-1", "PLAYER_COMPARE_SUMMARY:p123|p456");
+        assertReject(lines.get(6));
+        assertEquals(5, requests.size());
         assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_DETAIL, requests.get(0).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_SEARCH, requests.get(1).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_COMPARE, requests.get(2).operation());
-        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_COMPARE_SUMMARY, requests.get(3).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_DETAIL_SUMMARY, requests.get(1).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_SEARCH, requests.get(2).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_COMPARE, requests.get(3).operation());
+        assertEquals(ButlerReadOnlyJvmWorker.Operation.PLAYER_COMPARE_SUMMARY, requests.get(4).operation());
     }
 
     private static void assertResult(String line, String requestId, String expectedOutput) {
@@ -162,6 +165,7 @@ class ButlerReadOnlyJvmWorkerBf740Test {
         assertTrue(message.contains("WAIVER_DASHBOARD_BUNDLE"));
         assertTrue(message.contains("MATCHUP_BUNDLE"));
         assertTrue(message.contains("EXPLANATION_LOOKUP"));
+        assertTrue(message.contains("PLAYER_DETAIL_SUMMARY"));
         assertTrue(message.contains("PLAYER_COMPARE_SUMMARY"));
     }
 
