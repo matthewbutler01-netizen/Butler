@@ -44,6 +44,9 @@ class ButlerLeagueFranchiseActionsBf924Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains("League direct Trade Analyzer"));
+        assertTrue(journey.contains("League direct Trade Analyzer workspace"));
+        assertTrue(journey.contains("Opening Trade Analyzer..."));
+        assertTrue(journey.contains("content=\"1;url=/trade?load=1\""));
         assertTrue(journey.contains("League direct Franchise Scout"));
         assertTrue(journey.contains(
                 "href=\"(?<href>/franchise\\?id=[^\"]+)\">Scout franchise</a>"));
