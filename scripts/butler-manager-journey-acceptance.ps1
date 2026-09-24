@@ -635,12 +635,27 @@ try {
     $league = Invoke-Get -Url ($root + '/league') -TimeoutMs $timeoutMs
     Assert-Status -Response $league -Expected 200 -Stage 'League'
     Assert-Markers -Html $league.Body -Stage 'League' -Markers @('League hub','Top franchise snapshot','Comparable movement','READ ONLY')
+    Assert-Markers -Html $league.Body -Stage 'League franchise actions' -Markers @('Scout franchise','Open Trade Analyzer')
     Assert-AbsentMarkers -Html $league.Body -Stage 'League' -Markers @('fantasy-team=')
     Assert-PrimaryNavigation -Html $league.Body -Stage 'League'
     Assert-NoRawDeveloperFailure -Html $league.Body -Stage 'League'
-    Write-Pass -Label 'League'
 
-    $franchiseHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
+    $leagueTradeHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/trade)">Open Trade Analyzer</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$leagueTradeHref)) {
+        throw 'BF-924 FAILED: League Hub franchise card did not expose the safe Trade Analyzer entry.'
+    }
+    $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League direct Trade Analyzer'
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer' -Markers @('Opening Trade Analyzer...','content="1;url=/trade?load=1"','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer'
+
+    $leagueTradeWorkspace = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
+    Assert-Status -Response $leagueTradeWorkspace -Expected 200 -Stage 'League direct Trade Analyzer workspace'
+    Assert-Markers -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace' -Markers @('Analyze a trade','Trade partner','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace'
+    Write-Pass -Label 'League direct Trade Analyzer'
+
+    $franchiseHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout franchise</a>'
     if ([string]::IsNullOrWhiteSpace([string]$franchiseHref)) {
         Write-Skip -Label 'Franchise Detail' -Reason 'no exact Franchise Detail link rendered in current League evidence'
     }
@@ -648,6 +663,7 @@ try {
         $franchise = Invoke-Get -Url ($root + $franchiseHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $franchise -Expected 200 -Stage 'Franchise Detail'
         Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','Back to League','READ ONLY')
+        Write-Pass -Label 'League direct Franchise Scout'
         $scoutTradeHref = Get-FirstSafeHref -Html $franchise.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)"'
         if ([string]::IsNullOrWhiteSpace([string]$scoutTradeHref)) {
             throw 'BF-920 FAILED: Franchise Scout did not render an exact Trade Analyzer opponent link.'

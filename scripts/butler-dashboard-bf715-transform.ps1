@@ -353,6 +353,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf923CoreTransform -CorePath $stagedCore
 
+    # BF-924: add direct League Hub franchise actions after Player Compare
+    # loop polish and before final recovery-page styling.
+    $bf924CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf924-league-franchise-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf924CoreTransform -PathType Leaf)) {
+        throw "BF-924 BLOCKED: League Hub franchise action transform not found at $bf924CoreTransform"
+    }
+    & $bf924CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
