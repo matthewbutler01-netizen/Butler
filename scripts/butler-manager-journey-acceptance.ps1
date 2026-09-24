@@ -601,6 +601,13 @@ try {
         $franchise = Invoke-Get -Url ($root + $franchiseHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $franchise -Expected 200 -Stage 'Franchise Detail'
         Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','Back to League','READ ONLY')
+        $scoutTradeHref = Get-FirstSafeHref -Html $franchise.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)"'
+        if ([string]::IsNullOrWhiteSpace([string]$scoutTradeHref)) {
+            throw 'BF-920 FAILED: Franchise Scout did not render an exact Trade Analyzer opponent link.'
+        }
+        $scoutTrade = Invoke-Get -Url ($root + $scoutTradeHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $scoutTrade -Expected 200 -Stage 'Franchise Scout Trade Analyzer'
+        Assert-Markers -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $franchise.Body -Stage 'Franchise Detail'
         Write-Pass -Label 'Franchise Detail'
     }

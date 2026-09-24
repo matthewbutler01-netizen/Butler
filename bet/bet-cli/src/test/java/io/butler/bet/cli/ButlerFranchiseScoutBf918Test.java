@@ -26,10 +26,20 @@ class ButlerFranchiseScoutBf918Test {
     void franchiseScoutRoutesIntoExistingButlerWorkflows() throws Exception {
         String transform = source("scripts/butler-app-bf918-franchise-scout-transform.ps1");
 
-        assertTrue(transform.contains("href=\"/trade\">Open Trade Analyzer</a>"));
+        assertTrue(transform.contains("$teamHrefId = [System.Uri]::EscapeDataString([string]$View.TeamId)"));
+        assertTrue(transform.contains("href=\"/trade?opponent=$teamHrefId\">Open Trade Analyzer</a>"));
         assertTrue(transform.contains("href=\"/players\">Find a player</a>"));
         assertTrue(transform.contains("href=\"/compare\">Compare players</a>"));
         assertTrue(transform.contains("href=\"/league\">Back to League</a>"));
+    }
+
+    @Test
+    void managerJourneyFollowsExactFranchiseIntoTradeAnalyzer() throws Exception {
+        String journey = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(journey.contains("href=\"(?<href>/trade\\?opponent=[^\"]+)\""));
+        assertTrue(journey.contains("Franchise Scout Trade Analyzer"));
+        assertTrue(journey.contains("Build the deal"));
     }
 
     @Test

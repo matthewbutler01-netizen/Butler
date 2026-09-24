@@ -43,8 +43,10 @@ function Add-FranchiseScoutPresentation {
     }
     $Html = $Html.Replace($snapshotOld, $snapshotNew)
 
+    $teamHrefId = [System.Uri]::EscapeDataString([string]$View.TeamId)
+
     $scout = @"
-<section class="panel"><div class="section-head"><div><div class="eyebrow">Manager actions</div><h2>Scout this franchise</h2><p class="lede">Use this snapshot to decide where to go next. Butler keeps the franchise evidence neutral and leaves the actual decision to the dedicated workflow.</p></div></div><div class="button-row"><a class="btn btn-primary" href="/trade">Open Trade Analyzer</a><a class="btn btn-secondary" href="/players">Find a player</a><a class="btn btn-secondary" href="/compare">Compare players</a><a class="btn btn-secondary" href="/league">Back to League</a></div></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">Manager actions</div><h2>Scout this franchise</h2><p class="lede">Use this snapshot to decide where to go next. Butler keeps the franchise evidence neutral and leaves the actual decision to the dedicated workflow.</p></div></div><div class="button-row"><a class="btn btn-primary" href="/trade?opponent=$teamHrefId">Open Trade Analyzer</a><a class="btn btn-secondary" href="/players">Find a player</a><a class="btn btn-secondary" href="/compare">Compare players</a><a class="btn btn-secondary" href="/league">Back to League</a></div></section>
 "@
 
     $anchor = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Evidence quality</div>'
@@ -76,7 +78,8 @@ foreach ($required in @(
     'Franchise snapshot',
     'What this team owns',
     'Scout this franchise',
-    'href="/trade">Open Trade Analyzer</a>',
+    '$teamHrefId = [System.Uri]::EscapeDataString([string]$View.TeamId)',
+    'href="/trade?opponent=$teamHrefId">Open Trade Analyzer</a>',
     'href="/players">Find a player</a>',
     'href="/compare">Compare players</a>',
     'href="/league">Back to League</a>',
