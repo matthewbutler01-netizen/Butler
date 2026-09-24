@@ -302,6 +302,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf906CoreTransform -CorePath $stagedCore
 
+    # BF-915: make Player Detail manager-first only after Player Compare has installed
+    # its contextual action. This pass reuses the existing Player Detail view and adds
+    # presentation/navigation only; no provider read, recommendation semantics, or write.
+    $bf915CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf915-player-hub-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf915CoreTransform -PathType Leaf)) {
+        throw "BF-915 BLOCKED: Player Hub transform not found at $bf915CoreTransform"
+    }
+    & $bf915CoreTransform -CorePath $stagedCore
+
     # BF-908: reshape My Team into a roster-first Team Hub only after Player Detail
     # and Player Compare are installed so mapped roster players can reuse those exact read-only routes.
     $bf908CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf908-my-team-roster-hub-transform.ps1'
