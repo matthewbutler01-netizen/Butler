@@ -560,7 +560,8 @@ try {
     Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
 
-    if ($matchup.Body.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::Ordinal) -ge 0) {
+    $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
+    if (-not $matchupOpponentUnavailable) {
         Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')
 
         $matchupScoutHref = Get-FirstSafeHref -Html $matchup.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout opponent</a>'
