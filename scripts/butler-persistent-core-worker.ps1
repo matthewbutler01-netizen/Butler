@@ -135,7 +135,7 @@ function Start-Bf740PersistentCoreWorker {
 function Invoke-Bf740PersistentCoreWorker {
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_SEARCH', 'PLAYER_COMPARE', 'PLAYER_COMPARE_SUMMARY')]
+        [ValidateSet('LEAGUE_OVERVIEW', 'TEAM_BUNDLE', 'LATEST_SUMMARY', 'LATEST_SUMMARY_DIAGNOSTIC', 'TARGET_VERIFY_DIAGNOSTIC', 'WAIVER_DASHBOARD_BUNDLE', 'MATCHUP_BUNDLE', 'EXPLANATION_LOOKUP', 'PLAYER_DETAIL', 'PLAYER_DETAIL_SUMMARY', 'PLAYER_SEARCH', 'PLAYER_COMPARE', 'PLAYER_COMPARE_SUMMARY')]
         [string]$Operation,
 
         [Parameter(Mandatory = $true)]
@@ -167,7 +167,7 @@ function Invoke-Bf740PersistentCoreWorker {
             throw "$BoundaryName BLOCKED: BF-906 player arguments are not authorized for EXPLANATION_LOOKUP."
         }
     }
-    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+    elseif ($Operation -ceq 'PLAYER_DETAIL' -or $Operation -ceq 'PLAYER_DETAIL_SUMMARY') {
         if ([string]::IsNullOrWhiteSpace($PlayerId) -or $PlayerId -notmatch '^[A-Za-z0-9._:-]{1,128}$') {
             throw "$BoundaryName BLOCKED: BF-906 player detail id is missing or malformed."
         }
@@ -201,7 +201,7 @@ function Invoke-Bf740PersistentCoreWorker {
     if ($Operation -ceq 'EXPLANATION_LOOKUP') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$AuditId")
     }
-    elseif ($Operation -ceq 'PLAYER_DETAIL') {
+    elseif ($Operation -ceq 'PLAYER_DETAIL' -or $Operation -ceq 'PLAYER_DETAIL_SUMMARY') {
         $worker.StandardInput.WriteLine("$Operation`t$requestId`t$LeagueId`t$PlayerId")
     }
     elseif ($Operation -ceq 'PLAYER_SEARCH') {

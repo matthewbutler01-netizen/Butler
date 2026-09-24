@@ -87,6 +87,7 @@ function Invoke-Bf742DashboardWorkerRead {
     if ($Path -cne "/__butler/internal/team-bundle" -and
         $Path -cne "/__butler/internal/league-overview" -and
         -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-detail-summary?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare-summary?", [System.StringComparison]::Ordinal)) {
@@ -306,6 +307,10 @@ $dashboardInternalReplacement = @'
                 $bf742InternalOperation = 'PLAYER_DETAIL'
                 $bf742InternalBoundary = 'BF-906'
             }
+            elseif ($path -ceq "/__butler/internal/player-detail-summary") {
+                $bf742InternalOperation = 'PLAYER_DETAIL_SUMMARY'
+                $bf742InternalBoundary = 'BF-916'
+            }
             elseif ($path -ceq "/__butler/internal/player-search") {
                 $bf742InternalOperation = 'PLAYER_SEARCH'
                 $bf742InternalBoundary = 'BF-906'
@@ -324,11 +329,20 @@ $dashboardInternalReplacement = @'
                     continue
                 }
                 try {
-                    if ($bf742InternalOperation -ceq 'PLAYER_DETAIL') {
-                        $match = [regex]::Match($parts[1], '^/__butler/internal/player-detail\?player=(?<player>[^&]+)$')
-                        if (-not $match.Success) { throw 'BF-906 BLOCKED: malformed private player-detail request.' }
+                    if ($bf742InternalOperation -ceq 'PLAYER_DETAIL' -or $bf742InternalOperation -ceq 'PLAYER_DETAIL_SUMMARY') {
+                        $pattern = if ($bf742InternalOperation -ceq 'PLAYER_DETAIL_SUMMARY') {
+                            '^/__butler/internal/player-detail-summary\?player=(?<player>[^&]+)$'
+                        } else {
+                            '^/__butler/internal/player-detail\?player=(?<player>[^&]+)$'
+                        }
+                        $match = [regex]::Match($parts[1], $pattern)
+                        if (-not $match.Success) { throw 'BF-916 BLOCKED: malformed private player-detail request.' }
                         $playerId = [System.Uri]::UnescapeDataString($match.Groups['player'].Value)
-                        $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL' -BoundaryName 'BF-906' -PlayerId $playerId
+                        if ($bf742InternalOperation -ceq 'PLAYER_DETAIL_SUMMARY') {
+                            $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL_SUMMARY' -BoundaryName 'BF-916' -PlayerId $playerId
+                        } else {
+                            $internalBody = Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL' -BoundaryName 'BF-906' -PlayerId $playerId
+                        }
                     }
                     elseif ($bf742InternalOperation -ceq 'PLAYER_SEARCH') {
                         $match = [regex]::Match($parts[1], '^/__butler/internal/player-search\?q=(?<query>[^&]+)$')
@@ -416,6 +430,7 @@ foreach ($contract in $dashboardContracts) {
 if (-not $coreText.Contains('/__butler/internal/team-bundle') -or
     -not $coreText.Contains('/__butler/internal/league-overview') -or
     -not $coreText.Contains('/__butler/internal/player-detail?') -or
+    -not $coreText.Contains('/__butler/internal/player-detail-summary?') -or
     -not $coreText.Contains('/__butler/internal/player-search?') -or
     -not $coreText.Contains('/__butler/internal/player-compare?') -or
     -not $coreText.Contains('/__butler/internal/player-compare-summary?') -or
@@ -434,10 +449,12 @@ foreach ($required in @(
     '/__butler/internal/team-bundle',
     '/__butler/internal/league-overview',
     '/__butler/internal/player-detail',
+    '/__butler/internal/player-detail-summary',
     '/__butler/internal/player-search',
     '/__butler/internal/player-compare',
     '/__butler/internal/player-compare-summary',
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'",
+    "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL_SUMMARY'",
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_SEARCH'",
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE'",
     "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_COMPARE_SUMMARY'"

@@ -70,7 +70,7 @@ public final class ButlerReadOnlyJvmWorker {
                 reject(protocol,
                     "BF-742 BLOCKED: worker accepts only HELP<TAB><request-id>, "
                         + "LEAGUE_OVERVIEW, TEAM_BUNDLE, LATEST_SUMMARY, LATEST_SUMMARY_DIAGNOSTIC, LATEST_SUMMARY_REUSE_DIAGNOSTIC, TARGET_VERIFY_DIAGNOSTIC, TARGET_VERIFY_PARALLEL_DIAGNOSTIC, WAIVER_DASHBOARD_BUNDLE, or MATCHUP_BUNDLE "
-                        + "with <request-id><TAB><league-id>; PLAYER_DETAIL, PLAYER_SEARCH, or EXPLANATION_LOOKUP with "
+                        + "with <request-id><TAB><league-id>; PLAYER_DETAIL, PLAYER_DETAIL_SUMMARY, PLAYER_SEARCH, or EXPLANATION_LOOKUP with "
                         + "<request-id><TAB><league-id><TAB><validated-argument>; PLAYER_COMPARE or PLAYER_COMPARE_SUMMARY with "
                         + "<request-id><TAB><league-id><TAB><left-player-id><TAB><right-player-id>; or QUIT.");
                 continue;
@@ -143,6 +143,9 @@ public final class ButlerReadOnlyJvmWorker {
                 case "PLAYER_DETAIL" -> PLAYER_ID.matcher(fields[3]).matches()
                     ? new CommandRequest(Operation.PLAYER_DETAIL, fields[1], fields[2], fields[3])
                     : null;
+                case "PLAYER_DETAIL_SUMMARY" -> PLAYER_ID.matcher(fields[3]).matches()
+                    ? new CommandRequest(Operation.PLAYER_DETAIL_SUMMARY, fields[1], fields[2], fields[3])
+                    : null;
                 case "PLAYER_SEARCH" -> PLAYER_SEARCH_QUERY.matcher(fields[3]).matches()
                     ? new CommandRequest(Operation.PLAYER_SEARCH, fields[1], fields[2], fields[3])
                     : null;
@@ -197,6 +200,9 @@ public final class ButlerReadOnlyJvmWorker {
                     new String[] {request.leagueId(), request.argument()}));
             case PLAYER_DETAIL -> executeCapturedWithExitCode(() ->
                 ButlerLeaguePlayerDetailCli.runEmbedded(
+                    new String[] {"league", "player-detail", request.leagueId(), request.argument()}));
+            case PLAYER_DETAIL_SUMMARY -> executeCapturedWithExitCode(() ->
+                ButlerLeaguePlayerDetailCli.runEmbeddedSummary(
                     new String[] {"league", "player-detail", request.leagueId(), request.argument()}));
             case PLAYER_SEARCH -> executeCapturedWithExitCode(() ->
                 ButlerLeaguePlayerSearchCli.runEmbedded(
@@ -286,6 +292,7 @@ public final class ButlerReadOnlyJvmWorker {
         MATCHUP_BUNDLE,
         EXPLANATION_LOOKUP,
         PLAYER_DETAIL,
+        PLAYER_DETAIL_SUMMARY,
         PLAYER_SEARCH,
         PLAYER_COMPARE,
         PLAYER_COMPARE_SUMMARY
