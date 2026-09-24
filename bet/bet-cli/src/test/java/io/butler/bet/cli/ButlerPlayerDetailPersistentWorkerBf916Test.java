@@ -17,17 +17,38 @@ class ButlerPlayerDetailPersistentWorkerBf916Test {
         String detail = source("scripts/butler-app-bf879-player-detail-transform.ps1");
         String sharedWorker = source("scripts/butler-core-bf742-transform.ps1");
 
+        assertTrue(detail.contains("$playerDetailBase = if ($loadSupportingEvidence)"));
+        assertTrue(detail.contains("\"/__butler/internal/player-detail-summary\""));
+        assertTrue(detail.contains("\"/__butler/internal/player-detail\""));
         assertTrue(detail.contains(
-                "$playerDetailPath = \"/__butler/internal/player-detail?player=\" + [System.Uri]::EscapeDataString($playerId)"));
+                "$playerDetailPath = $playerDetailBase + \"?player=\" + [System.Uri]::EscapeDataString($playerId)"));
         assertTrue(detail.contains(
                 "Invoke-Bf742DashboardWorkerRead -Path $playerDetailPath -BoundaryName \"BF-916\""));
         assertFalse(detail.contains(
                 "Invoke-ButlerReadOnly -Arguments \"league player-detail $LeagueId $playerId\""));
 
         assertTrue(sharedWorker.contains(
-                "-not $Path.StartsWith(\"/__butler/internal/player-detail?\", [System.StringComparison]::Ordinal)"));
+                "-not $Path.StartsWith(\"/__butler/internal/player-detail-summary?\", [System.StringComparison]::Ordinal)"));
+        assertTrue(sharedWorker.contains(
+                "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL_SUMMARY'"));
         assertTrue(sharedWorker.contains(
                 "Invoke-Bf740PersistentCoreWorker -Operation 'PLAYER_DETAIL'"));
+    }
+
+    @Test
+    void playerDetailDefersHeavySupportingEvidenceUntilRequested() throws Exception {
+        String detail = source("scripts/butler-app-bf879-player-detail-transform.ps1");
+        String cli = source("bet/bet-cli/src/main/java/io/butler/bet/cli/ButlerLeaguePlayerDetailCli.java");
+
+        assertTrue(detail.contains("support=1"));
+        assertTrue(detail.contains("Load supporting evidence"));
+        assertTrue(detail.contains("Supporting evidence is deferred so Player Hub can open quickly."));
+        assertTrue(cli.contains("static int runEmbeddedSummary(String[] args)"));
+        assertTrue(cli.contains("Supporting evidence: DEFERRED"));
+        assertTrue(cli.contains("new PlayerProfileRepository(database).findByPlayerId"));
+        assertTrue(cli.contains("new PlayerSeasonProductionRepository(database)"));
+        assertFalse(cli.substring(cli.indexOf("static int runEmbeddedSummary"), cli.indexOf("static Options parse"))
+                .contains("profiles.analyze("));
     }
 
     @Test
