@@ -404,6 +404,14 @@ if (-not (Test-Path -LiteralPath $bf873DashboardTransform -PathType Leaf)) {
 }
 & $bf873DashboardTransform -DashboardPath $DashboardPath
 
+# BF-925: close the current-waiver/history loop after BF-873 has finalized
+# the decision-first Waiver Board presentation.
+$bf925DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf925-waiver-history-loop-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf925DashboardTransform -PathType Leaf)) {
+    throw "BF-925 BLOCKED: Waiver Board history loop transform not found at $bf925DashboardTransform"
+}
+& $bf925DashboardTransform -DashboardPath $DashboardPath
+
 # BF-898: final mobile-manager polish runs after all manager presentation and route
 # transforms so the swipe navigation and stale-lineup copy are the last UI authority.
 $bf898Transform = Join-Path $PSScriptRoot 'butler-bf898-mobile-manager-polish-transform.ps1'
