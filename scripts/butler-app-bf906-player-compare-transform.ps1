@@ -295,6 +295,7 @@ function ConvertTo-PlayerCompareCardHtml {
     $valueAsOf = if ($Player.ValueAsOf -ceq 'UNAVAILABLE') { 'as-of unavailable' } else { "as-of $($Player.ValueAsOf)" }
     $productionHtml = ConvertTo-PlayerCompareProductionHtml -Player $Player
     $hrefId = [System.Uri]::EscapeDataString([string]$Player.PlayerId)
+    $teamHrefId = [System.Uri]::EscapeDataString([string]$Player.TeamId)
     $supportingHtml = if ($SupportingEvidenceState -ceq 'READY') {
         ConvertTo-PlayerCompareFlagsHtml -Player $Player
     } else {
@@ -313,7 +314,7 @@ function ConvertTo-PlayerCompareCardHtml {
 </div>
 <h3>Per-game production</h3>
 $productionHtml
-<div class="button-row"><a class="btn btn-secondary" href="/player?id=$hrefId">View Player Detail</a></div>
+<div class="button-row"><a class="btn btn-secondary" href="/player?id=$hrefId">View Player Detail</a><a class="btn btn-secondary" href="/franchise?id=$teamHrefId">Scout franchise</a></div>
 <details><summary>Supporting evidence</summary><div class="compare-flags">$supportingHtml</div></details>
 </article>
 "@
@@ -432,7 +433,7 @@ if ($insertIndex -lt 0) {
 $core = $core.Insert($insertIndex, $compareFunctions.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine)
 
 $searchActionOld = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a></div></article>'
-$searchActionNew = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a><a class=`"btn btn-secondary`" href=`"/compare?left=$hrefId`">Compare</a></div></article>'
+$searchActionNew = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a><a class=`"btn btn-secondary`" href=`"/compare?left=$hrefId`">Compare</a><a class=`"btn btn-secondary`" href=`"/franchise?id=$([System.Uri]::EscapeDataString([string]$player.OwnerTeamId))`">Scout franchise</a></div></article>'
 $core = Replace-ExactlyOnce -Text $core -Old $searchActionOld -New $searchActionNew -Contract 'Player Search Compare action'
 
 $detailRouteOld = @'
@@ -541,6 +542,8 @@ foreach ($required in @(
     '/__butler/internal/player-search?q=',
     'Load supporting evidence',
     'Compare this player',
+    'href="/franchise?id=$teamHrefId">Scout franchise</a>',
+    'OwnerTeamId',
     'href=`"/compare?left=$hrefId`">Compare</a>',
     'href=`"/compare?left=$leftHref&right=$rightHref`"',
     'NOT A RANKING',

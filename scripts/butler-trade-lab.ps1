@@ -434,8 +434,11 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
         $opponentOptions += "<option value=`"$(ConvertTo-HtmlText $team.TeamId)`"$selected>$(ConvertTo-HtmlText $team.Name)</option>"
     }
 
+    $opponentScoutAction = ''
     $builder = ''
     if ($null -ne $Opponent) {
+        $opponentTeamHrefId = [System.Uri]::EscapeDataString([string]$Opponent.TeamId)
+        $opponentScoutAction = "<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/franchise?id=$opponentTeamHrefId`">Scout franchise</a></div>"
         $giveHtml = ConvertTo-TradeAssetCheckboxes -Team $UserTeam -Name 'give' -Selected @($Give)
         $receiveHtml = ConvertTo-TradeAssetCheckboxes -Team $Opponent -Name 'receive' -Selected @($Receive)
         $builder = @"
@@ -516,7 +519,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Trade Analyzer</title><style>$css$tradeCss</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $Roster.LeagueName) &middot; $(ConvertTo-HtmlText $UserTeam.Name) &middot; $(ConvertTo-HtmlText $Roster.Season)</div></header>
 $nav
-<section class="panel"><div class="eyebrow">Trade Analyzer</div><div class="statusrow"><div><h1 class="headline">Analyze a trade</h1><p class="lede">Build an exact deal and review Butler's governed recommendation. No new trade score is created here.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Your side</strong><span>$(ConvertTo-HtmlText $UserTeam.Name)</span></div><div class="stat"><strong>Season</strong><span>$(ConvertTo-HtmlText $Roster.Season)</span></div><div class="stat"><strong>Asset coverage</strong><span>$(ConvertTo-HtmlText $Inventory.Coverage)%</span></div></div><form method="get" action="/trade"><div class="trade-setup"><div class="field"><label for="opponent">Trade partner</label><select id="opponent" name="opponent">$opponentOptions</select></div><button class="trade-button" type="submit">Load opponent</button></div></form></section>
+<section class="panel"><div class="eyebrow">Trade Analyzer</div><div class="statusrow"><div><h1 class="headline">Analyze a trade</h1><p class="lede">Build an exact deal and review Butler's governed recommendation. No new trade score is created here.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Your side</strong><span>$(ConvertTo-HtmlText $UserTeam.Name)</span></div><div class="stat"><strong>Season</strong><span>$(ConvertTo-HtmlText $Roster.Season)</span></div><div class="stat"><strong>Asset coverage</strong><span>$(ConvertTo-HtmlText $Inventory.Coverage)%</span></div></div><form method="get" action="/trade"><div class="trade-setup"><div class="field"><label for="opponent">Trade partner</label><select id="opponent" name="opponent">$opponentOptions</select></div><button class="trade-button" type="submit">Load opponent</button></div></form>$opponentScoutAction</section>
 $dealSnapshotHtml
 $resultHtml
 $counterHtml
