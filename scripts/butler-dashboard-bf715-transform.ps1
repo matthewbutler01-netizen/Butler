@@ -337,6 +337,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf918CoreTransform -CorePath $stagedCore
 
+    # BF-922: add player-discovery shortcuts after Player Hub, Player Compare,
+    # and Franchise Scout have finalized their presentation contracts.
+    $bf922CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf922-player-discovery-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf922CoreTransform -PathType Leaf)) {
+        throw "BF-922 BLOCKED: player discovery transform not found at $bf922CoreTransform"
+    }
+    & $bf922CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
