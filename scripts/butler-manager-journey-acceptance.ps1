@@ -590,6 +590,44 @@ try {
         if ($playerCompareCount -ne 1) {
             throw "BF-917 FAILED: Player Detail expected exactly one Compare this player action, found $playerCompareCount."
         }
+
+        $compareHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/compare\?left=[^"]+)">Compare this player</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$compareHref)) {
+            throw 'BF-923 FAILED: Player Detail did not expose the exact Player Compare entry path.'
+        }
+        $compareStart = Invoke-Get -Url ($root + $compareHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $compareStart -Expected 200 -Stage 'Player Compare start'
+        Assert-Markers -Html $compareStart.Body -Stage 'Player Compare start' -Markers @('First player selected','Find same-position players','Choose a different first player','NOT A RANKING')
+        Assert-NoRawDeveloperFailure -Html $compareStart.Body -Stage 'Player Compare start'
+
+        $samePositionCompareHref = Get-FirstSafeHref -Html $compareStart.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&q=[^"]+)">Find same-position players</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$samePositionCompareHref)) {
+            throw 'BF-923 FAILED: Player Compare did not expose the same-position second-player search.'
+        }
+        $compareChoices = Invoke-Get -Url ($root + $samePositionCompareHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $compareChoices -Expected 200 -Stage 'Player Compare choices'
+        Assert-Markers -Html $compareChoices.Body -Stage 'Player Compare choices' -Markers @('First player selected','Choose a player to compare','Compare with this player','NOT A RANKING')
+        Assert-NoRawDeveloperFailure -Html $compareChoices.Body -Stage 'Player Compare choices'
+
+        $compareResultHref = Get-FirstSafeHref -Html $compareChoices.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&right=[^"]+)">Compare with this player</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$compareResultHref)) {
+            throw 'BF-923 FAILED: same-position Player Compare search did not expose an exact second-player result.'
+        }
+        $compareResult = Invoke-Get -Url ($root + $compareResultHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $compareResult -Expected 200 -Stage 'Player Compare result'
+        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','Comparison evidence','READ ONLY')
+        Assert-NoRawDeveloperFailure -Html $compareResult.Body -Stage 'Player Compare result'
+
+        $swapHref = Get-FirstSafeHref -Html $compareResult.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&right=[^"]+)">Swap sides</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$swapHref)) {
+            throw 'BF-923 FAILED: Player Compare result did not expose an exact swap path.'
+        }
+        $swappedCompare = Invoke-Get -Url ($root + $swapHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $swappedCompare -Expected 200 -Stage 'Player Compare swapped'
+        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','Comparison evidence','READ ONLY')
+        Assert-NoRawDeveloperFailure -Html $swappedCompare.Body -Stage 'Player Compare swapped'
+        Write-Pass -Label 'Player Compare workflow'
+
         Assert-NoRawDeveloperFailure -Html $player.Body -Stage 'Player Detail'
         Write-Pass -Label 'Player Detail'
     }
