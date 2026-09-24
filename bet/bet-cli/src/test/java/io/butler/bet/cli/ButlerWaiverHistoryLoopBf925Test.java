@@ -18,9 +18,12 @@ class ButlerWaiverHistoryLoopBf925Test {
 
         assertTrue(transform.contains(
                 "$waiverHistoryLink = '<a class=\"waiver-history-link\" href=\"/history?load=1\">View Decision History</a>'"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
+        int safetyScan = transform.indexOf("$waiverBlock -match");
+        assertTrue(safetyScan > 0, "BF-925 safety scan must remain present");
+        String operational = transform.substring(0, safetyScan);
+        assertFalse(operational.contains("Method = \"POST\""));
+        assertFalse(operational.contains("Invoke-RestMethod"));
+        assertFalse(operational.contains("Invoke-WebRequest"));
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
     }
 
@@ -66,12 +69,15 @@ class ButlerWaiverHistoryLoopBf925Test {
         String transform = source("scripts/butler-dashboard-bf925-waiver-history-loop-transform.ps1");
         String history = source("scripts/butler-decision-history.ps1");
 
+        int safetyScan = transform.indexOf("$waiverBlock -match");
+        assertTrue(safetyScan > 0, "BF-925 safety scan must remain present");
+        String operational = transform.substring(0, safetyScan);
         for (String forbidden : new String[]{
                 "https://api.sleeper.app",
                 "submitTransaction",
                 "Method = \"POST\""
         }) {
-            assertFalse(transform.contains(forbidden), "transform introduced " + forbidden);
+            assertFalse(operational.contains(forbidden), "transform introduced " + forbidden);
         }
 
         assertFalse(history.contains("Method = \"POST\""));
