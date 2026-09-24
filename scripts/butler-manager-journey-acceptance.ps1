@@ -693,6 +693,16 @@ try {
     Assert-AbsentMarkers -Html $waiverFirstScan -Stage 'Waiver Board first scan' -Markers @('Current audit ID:','Sleeper ID:','Pair ADD Sleeper ID:','Pair DROP Sleeper ID:')
     Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
+
+    $waiverHistoryHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/history\?load=1)">View Decision History</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$waiverHistoryHref)) {
+        throw 'BF-925 FAILED: Waiver Board did not expose the direct Decision History action.'
+    }
+    $waiverHistory = Invoke-Get -Url ($root + $waiverHistoryHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $waiverHistory -Expected 200 -Stage 'Waiver Board direct Decision History'
+    Assert-Markers -Html $waiverHistory.Body -Stage 'Waiver Board direct Decision History' -Markers @('Your waiver decision timeline','Review Waiver Board','Back to Dashboard','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $waiverHistory.Body -Stage 'Waiver Board direct Decision History'
+    Write-Pass -Label 'Waiver Board direct Decision History'
     Write-Pass -Label 'Waiver Board'
 
     $trade = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
@@ -702,13 +712,24 @@ try {
     Assert-NoRawDeveloperFailure -Html $trade.Body -Stage 'Trade Analyzer'
     Write-Pass -Label 'Trade Analyzer'
 
-    $history = Invoke-Get -Url ($root + '/history?load=1') -TimeoutMs $timeoutMs
+    $history = $waiverHistory
     Assert-Status -Response $history -Expected 200 -Stage 'Decision History'
     Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')
+    Assert-Markers -Html $history.Body -Stage 'Decision History actions' -Markers @('Review Waiver Board','Back to Dashboard')
     $historyFirstScan = Get-ManagerFirstScanHtml -Html $history.Body
     Assert-AbsentMarkers -Html $historyFirstScan -Stage 'Decision History first scan' -Markers @('Provider frame','Recommendation state','Audit:','BF-603 market:','BF-602 waiver:','ADD / DROP Sleeper ids:')
     Assert-PrimaryNavigation -Html $history.Body -Stage 'Decision History'
     Assert-NoRawDeveloperFailure -Html $history.Body -Stage 'Decision History'
+
+    $historyWaiverHref = Get-FirstSafeHref -Html $history.Body -Pattern 'href="(?<href>/waivers)">Review Waiver Board</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$historyWaiverHref)) {
+        throw 'BF-925 FAILED: Decision History did not expose the direct Waiver Board action.'
+    }
+    $historyWaiver = Invoke-Get -Url ($root + $historyWaiverHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $historyWaiver -Expected 200 -Stage 'Decision History direct Waiver Board'
+    Assert-Markers -Html $historyWaiver.Body -Stage 'Decision History direct Waiver Board' -Markers @('Butler waiver decision','Next step','Players Butler authorized for review','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $historyWaiver.Body -Stage 'Decision History direct Waiver Board'
+    Write-Pass -Label 'Decision History direct Waiver Board'
     Write-Pass -Label 'Decision History'
 
     $notFound = Invoke-Get -Url ($root + '/__bf885_not_found__') -TimeoutMs $timeoutMs
