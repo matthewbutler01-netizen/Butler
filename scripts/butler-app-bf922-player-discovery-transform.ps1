@@ -28,9 +28,9 @@ function Replace-ExactlyOnce {
 
 $core = [System.IO.File]::ReadAllText($CorePath)
 
-$searchHeroOld = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">League tool</div><h1 class="headline">Find a rostered player</h1><p class="lede">$(ConvertTo-HtmlText $summary)</p></div><span class="status $statusClass">$(ConvertTo-HtmlText $status)</span></div>$form</section>'
-$searchHeroNew = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">League tool</div><h1 class="headline">Find a rostered player</h1><p class="lede">$(ConvertTo-HtmlText $summary)</p></div><span class="status $statusClass">$(ConvertTo-HtmlText $status)</span></div>$form<div class="button-row" style="margin-top:12px"><span class="meta">Quick position searches</span><a class="btn btn-secondary" href="/players?q=QB">QB</a><a class="btn btn-secondary" href="/players?q=RB">RB</a><a class="btn btn-secondary" href="/players?q=WR">WR</a><a class="btn btn-secondary" href="/players?q=TE">TE</a></div></section>'
-$core = Replace-ExactlyOnce -Text $core -Old $searchHeroOld -New $searchHeroNew -Contract 'Player Search quick position actions'
+$searchActionsOld = '$form<div class="button-row"><a class="btn btn-secondary" href="/team">Back to My Team</a><a class="btn btn-secondary" href="/league">Back to League</a></div></section>'
+$searchActionsNew = '$form<div class="button-row" style="margin-top:12px"><span class="meta">Quick position searches</span><a class="btn btn-secondary" href="/players?q=QB">QB</a><a class="btn btn-secondary" href="/players?q=RB">RB</a><a class="btn btn-secondary" href="/players?q=WR">WR</a><a class="btn btn-secondary" href="/players?q=TE">TE</a></div><div class="button-row"><a class="btn btn-secondary" href="/team">Back to My Team</a><a class="btn btn-secondary" href="/league">Back to League</a></div></section>'
+$core = Replace-ExactlyOnce -Text $core -Old $searchActionsOld -New $searchActionsNew -Contract 'Player Search quick position actions'
 
 $playerHubIdsOld = @'
     $hrefId = [System.Uri]::EscapeDataString([string]$View.PlayerId)
