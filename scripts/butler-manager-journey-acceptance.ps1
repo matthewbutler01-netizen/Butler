@@ -555,7 +555,8 @@ try {
 
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Status -Response $matchup -Expected 200 -Stage 'Matchup'
-    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','What to do now','Open My Team','READ ONLY')
+    Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','What to do now','READ ONLY')
+    Assert-Markers -Html $matchup.Body -Stage 'Matchup BF-926 actions' -Markers @('Open My Team')
     Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
 
