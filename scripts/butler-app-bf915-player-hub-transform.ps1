@@ -38,6 +38,7 @@ function Add-PlayerHubPresentation {
     $ageText = if ([string]$View.Age -ceq 'UNAVAILABLE') { 'Unavailable' } else { [string]$View.Age }
     $gamesText = if ([string]$View.GamesPlayed -ceq 'UNAVAILABLE') { 'Unavailable' } else { [string]$View.GamesPlayed }
     $hrefId = [System.Uri]::EscapeDataString([string]$View.PlayerId)
+    $teamHrefId = [System.Uri]::EscapeDataString([string]$View.TeamId)
 
     # BF-917: BF-906 already placed Compare in the legacy Player Detail hero.
     # Player Hub owns that manager action now, so remove the older duplicate
@@ -51,7 +52,7 @@ function Add-PlayerHubPresentation {
 
     $playerHub = @"
 <section class="panel"><div class="section-head"><div><div class="eyebrow">Player snapshot</div><h2>Player hub</h2><p class="lede">Start with the roster context, then jump directly to the Butler workflow for the decision you are making.</p></div></div><div class="manager-metrics"><div class="metric-card"><span class="metric-label">Position</span><span class="metric-value">$(ConvertTo-HtmlText $View.Position)</span></div><div class="metric-card"><span class="metric-label">Roster slot</span><span class="metric-value">$(ConvertTo-HtmlText $View.RosterSlot)</span></div><div class="metric-card"><span class="metric-label">Age</span><span class="metric-value">$(ConvertTo-HtmlText $ageText)</span></div><div class="metric-card"><span class="metric-label">Games</span><span class="metric-value">$(ConvertTo-HtmlText $gamesText)</span></div></div></section>
-<section class="panel"><div class="section-head"><div><div class="eyebrow">Decision shortcuts</div><h2>What do you want to decide?</h2><p class="lede">Open the existing Butler workflow that matches your question. This profile stays neutral and does not create a recommendation by itself.</p></div></div><div class="button-row"><a class="btn btn-primary" href="/matchup">Review Matchup</a><a class="btn btn-secondary" href="/compare?left=$hrefId">Compare this player</a><a class="btn btn-secondary" href="/trade">Open Trade Analyzer</a><a class="btn btn-secondary" href="/waivers">Check Waiver Board</a></div></section>
+<section class="panel"><div class="section-head"><div><div class="eyebrow">Decision shortcuts</div><h2>What do you want to decide?</h2><p class="lede">Open the existing Butler workflow that matches your question. This profile stays neutral and does not create a recommendation by itself.</p></div></div><div class="button-row"><a class="btn btn-primary" href="/matchup">Review Matchup</a><a class="btn btn-secondary" href="/compare?left=$hrefId">Compare this player</a><a class="btn btn-secondary" href="/franchise?id=$teamHrefId">Scout franchise</a><a class="btn btn-secondary" href="/trade">Open Trade Analyzer</a><a class="btn btn-secondary" href="/waivers">Check Waiver Board</a></div></section>
 "@
 
     $anchor = '<section class="panel"><div class="section-head"><div><div class="eyebrow">Age context</div>'
@@ -86,6 +87,7 @@ foreach ($required in @(
     'What do you want to decide?',
     'href="/matchup">Review Matchup</a>',
     'href="/compare?left=$hrefId">Compare this player</a>',
+    'href="/franchise?id=$teamHrefId">Scout franchise</a>',
     'href="/trade">Open Trade Analyzer</a>',
     'href="/waivers">Check Waiver Board</a>',
     'This profile stays neutral and does not create a recommendation by itself.',
