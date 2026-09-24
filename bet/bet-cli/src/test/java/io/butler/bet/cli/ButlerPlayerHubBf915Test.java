@@ -38,6 +38,18 @@ class ButlerPlayerHubBf915Test {
     }
 
     @Test
+    void playerHubRemovesLegacyHeroCompareAndOwnsOneManagerCompareAction() throws Exception {
+        String transform = source("scripts/butler-app-bf915-player-hub-transform.ps1");
+        String journey = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertTrue(transform.contains("expected one legacy Player Detail compare action"));
+        assertTrue(transform.contains("$Html = $Html.Replace($legacyCompare, '')"));
+        assertTrue(transform.contains("href=\"/compare?left=$hrefId\">Compare this player</a>"));
+        assertTrue(journey.contains("[regex]::Matches($player.Body, '>Compare this player</a>').Count"));
+        assertTrue(journey.contains("expected exactly one Compare this player action"));
+    }
+
+    @Test
     void playerHubReusesExistingDetailViewWithoutNewReadOrWriteBehavior() throws Exception {
         String transform = source("scripts/butler-app-bf915-player-hub-transform.ps1");
         int start = transform.indexOf("$installedStart =");
