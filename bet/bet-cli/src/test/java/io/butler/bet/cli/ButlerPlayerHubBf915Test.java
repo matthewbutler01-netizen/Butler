@@ -32,6 +32,8 @@ class ButlerPlayerHubBf915Test {
 
         assertTrue(transform.contains("href=\"/matchup\">Review Matchup</a>"));
         assertTrue(transform.contains("href=\"/compare?left=$hrefId\">Compare this player</a>"));
+        assertTrue(transform.contains("$teamHrefId = [System.Uri]::EscapeDataString([string]$View.TeamId)"));
+        assertTrue(transform.contains("href=\"/franchise?id=$teamHrefId\">Scout franchise</a>"));
         assertTrue(transform.contains("href=\"/trade\">Open Trade Analyzer</a>"));
         assertTrue(transform.contains("href=\"/waivers\">Check Waiver Board</a>"));
         assertTrue(transform.contains("This profile stays neutral and does not create a recommendation by itself."));
@@ -85,7 +87,7 @@ class ButlerPlayerHubBf915Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains(
-                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')"));
+                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')"));
     }
 
     @Test
