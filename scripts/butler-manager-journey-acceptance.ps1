@@ -600,7 +600,7 @@ try {
     else {
         $franchise = Invoke-Get -Url ($root + $franchiseHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $franchise -Expected 200 -Stage 'Franchise Detail'
-        Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Coverage and missingness','Back to League','READ ONLY')
+        Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','Back to League','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $franchise.Body -Stage 'Franchise Detail'
         Write-Pass -Label 'Franchise Detail'
     }

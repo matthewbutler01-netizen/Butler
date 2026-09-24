@@ -328,6 +328,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf909CoreTransform -CorePath $stagedCore
 
+    # BF-918: turn Franchise Detail into a manager-first Franchise Scout only after
+    # League Hub has finalized the league intelligence surface. Reuse the existing
+    # BF-880 view and add presentation/navigation only.
+    $bf918CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf918-franchise-scout-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf918CoreTransform -PathType Leaf)) {
+        throw "BF-918 BLOCKED: Franchise Scout transform not found at $bf918CoreTransform"
+    }
+    & $bf918CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
