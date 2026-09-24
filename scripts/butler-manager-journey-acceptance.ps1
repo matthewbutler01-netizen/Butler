@@ -562,7 +562,7 @@ try {
 
     $playerSearch = Invoke-Get -Url ($root + '/players') -TimeoutMs $timeoutMs
     Assert-Status -Response $playerSearch -Expected 200 -Stage 'Player Search'
-    Assert-Markers -Html $playerSearch.Body -Stage 'Player Search' -Markers @('Find a rostered player','Back to My Team','Back to League')
+    Assert-Markers -Html $playerSearch.Body -Stage 'Player Search' -Markers @('Find a rostered player','Quick position searches','href="/players?q=QB">QB</a>','href="/players?q=RB">RB</a>','href="/players?q=WR">WR</a>','href="/players?q=TE">TE</a>','Back to My Team','Back to League')
     Assert-NoRawDeveloperFailure -Html $playerSearch.Body -Stage 'Player Search'
     Write-Pass -Label 'Player Search'
 
@@ -576,7 +576,16 @@ try {
             $directDiagnostic = Invoke-PlayerDetailDirectDiagnostic -PlayerHref $playerHref
             throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
         }
-        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        $morePositionHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/players\?q=[^"]+)">Find more [^<]+</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$morePositionHref)) {
+            throw 'BF-922 FAILED: Player Detail did not render an exact same-position Player Search shortcut.'
+        }
+        $positionSearch = Invoke-Get -Url ($root + $morePositionHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $positionSearch -Expected 200 -Stage 'Player position discovery'
+        Assert-Markers -Html $positionSearch.Body -Stage 'Player position discovery' -Markers @('Find a rostered player','Search results','Rostered players','READ ONLY')
+        Assert-NoRawDeveloperFailure -Html $positionSearch.Body -Stage 'Player position discovery'
+        Write-Pass -Label 'Player position discovery'
         $playerCompareCount = [regex]::Matches($player.Body, '>Compare this player</a>').Count
         if ($playerCompareCount -ne 1) {
             throw "BF-917 FAILED: Player Detail expected exactly one Compare this player action, found $playerCompareCount."

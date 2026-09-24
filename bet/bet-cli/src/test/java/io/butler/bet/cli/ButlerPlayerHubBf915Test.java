@@ -87,7 +87,7 @@ class ButlerPlayerHubBf915Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains(
-                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')"));
+                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')"));
     }
 
     @Test
