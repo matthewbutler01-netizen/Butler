@@ -31,11 +31,15 @@ $core = [System.IO.File]::ReadAllText($CorePath)
 $confirmedVarsOld = @'
     $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
     $decision = Get-MatchupLineupDecisionView -AutoFill $AutoFill
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
+    $opponentHtml = ConvertTo-MatchupOpponentContextHtml -Strength $OpponentStrength -Pressure $OpponentPressure
 '@
 $confirmedVarsNew = @'
     $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
     $opponentHrefId = [System.Uri]::EscapeDataString([string]$Matchup.OpponentTeamId)
     $decision = Get-MatchupLineupDecisionView -AutoFill $AutoFill
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
+    $opponentHtml = ConvertTo-MatchupOpponentContextHtml -Strength $OpponentStrength -Pressure $OpponentPressure
 '@
 $core = Replace-ExactlyOnce -Text $core -Old $confirmedVarsOld.TrimEnd() -New $confirmedVarsNew.TrimEnd() -Contract 'confirmed Matchup opponent href'
 
