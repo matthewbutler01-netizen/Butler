@@ -258,7 +258,8 @@ $playerRoute = @'
             if ($path -eq "/player") {
                 try {
                     $playerId = Get-PlayerDetailRequestId -RequestTarget $parts[1]
-                    $rawPlayerDetail = Invoke-ButlerReadOnly -Arguments "league player-detail $LeagueId $playerId" -BoundaryName "BF-879"
+                    $playerDetailPath = "/__butler/internal/player-detail?player=" + [System.Uri]::EscapeDataString($playerId)
+                    $rawPlayerDetail = Invoke-Bf742DashboardWorkerRead -Path $playerDetailPath -BoundaryName "BF-916"
                     $playerDetail = ConvertTo-PlayerDetailView -Text $rawPlayerDetail
                     if ($playerDetail.LeagueId -cne $LeagueId) {
                         throw 'BF-879 BLOCKED: player detail response does not match the exact current league.'
@@ -288,7 +289,8 @@ foreach ($required in @(
     'function ConvertTo-PlayerDetailView',
     'function ConvertTo-PlayerDetailHtml',
     'Player Detail',
-    'league player-detail $LeagueId $playerId',
+    '/__butler/internal/player-detail?player=',
+    'Invoke-Bf742DashboardWorkerRead -Path $playerDetailPath -BoundaryName "BF-916"',
     'No persisted production snapshot is available',
     '0 games played',
     'Unavailable rates stay unavailable',
