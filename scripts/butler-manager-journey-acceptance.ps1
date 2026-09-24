@@ -607,7 +607,18 @@ try {
         }
         $scoutTrade = Invoke-Get -Url ($root + $scoutTradeHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $scoutTrade -Expected 200 -Stage 'Franchise Scout Trade Analyzer'
-        Assert-Markers -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','READ ONLY')
+        Assert-Markers -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+        $tradeScoutHref = Get-FirstSafeHref -Html $scoutTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
+        if ([string]::IsNullOrWhiteSpace([string]$tradeScoutHref)) {
+            throw 'BF-921 FAILED: loaded Trade Analyzer did not link back to the exact Franchise Scout.'
+        }
+        if ($tradeScoutHref -cne $franchiseHref) {
+            throw "BF-921 FAILED: Trade Analyzer Franchise Scout link changed team context. expected=$franchiseHref actual=$tradeScoutHref"
+        }
+        $tradeScout = Invoke-Get -Url ($root + $tradeScoutHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $tradeScout -Expected 200 -Stage 'Trade Analyzer Franchise Scout'
+        Assert-Markers -Html $tradeScout.Body -Stage 'Trade Analyzer Franchise Scout' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','READ ONLY')
+        Assert-NoRawDeveloperFailure -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer'
         Assert-NoRawDeveloperFailure -Html $franchise.Body -Stage 'Franchise Detail'
         Write-Pass -Label 'Franchise Detail'
     }
