@@ -345,6 +345,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf922CoreTransform -CorePath $stagedCore
 
+    # BF-923: tighten the Player Compare loop after BF-922 has finalized
+    # same-position discovery shortcuts.
+    $bf923CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf923-player-compare-loop-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf923CoreTransform -PathType Leaf)) {
+        throw "BF-923 BLOCKED: Player Compare loop transform not found at $bf923CoreTransform"
+    }
+    & $bf923CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
