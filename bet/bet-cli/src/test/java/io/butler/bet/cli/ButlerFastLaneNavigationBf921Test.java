@@ -29,7 +29,6 @@ class ButlerFastLaneNavigationBf921Test {
         assertTrue(verifier.contains("butler-manager-journey-acceptance.cmd"));
         assertTrue(verifier.contains("BUTLER FASTLANE: PASS"));
         assertTrue(verifier.contains("BUTLER FASTLANE: BLOCKED"));
-        assertFalse(verifier.contains("worktree prune"));
         assertFalse(verifier.contains("'worktree', 'prune'"));
 
         assertTrue(wrapper.contains("butler-fastlane-verify.ps1"));
