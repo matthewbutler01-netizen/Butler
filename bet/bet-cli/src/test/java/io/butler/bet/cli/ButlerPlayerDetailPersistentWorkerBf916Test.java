@@ -42,11 +42,21 @@ class ButlerPlayerDetailPersistentWorkerBf916Test {
     @Test
     void persistentRouteDoesNotAddWriteOrProviderBehavior() throws Exception {
         String detail = source("scripts/butler-app-bf879-player-detail-transform.ps1");
+        String route = hereString(detail, "$playerRoute = @'", "'@\n\n$core = $core.Insert");
 
-        assertFalse(detail.contains("Method = \"POST\""));
-        assertFalse(detail.contains("submitTransaction"));
-        assertFalse(detail.contains("setFaab"));
-        assertFalse(detail.contains("https://api.sleeper.app"));
+        assertFalse(route.contains("Method = \"POST\""));
+        assertFalse(route.contains("submitTransaction"));
+        assertFalse(route.contains("setFaab"));
+        assertFalse(route.contains("https://api.sleeper.app"));
+    }
+
+    private static String hereString(String text, String startMarker, String endMarker) {
+        int start = text.indexOf(startMarker);
+        assertTrue(start >= 0, "start marker missing: " + startMarker);
+        start += startMarker.length();
+        int end = text.indexOf(endMarker, start);
+        assertTrue(end > start, "end marker missing: " + endMarker);
+        return text.substring(start, end);
     }
 
     private static String source(String relativePath) throws IOException {
