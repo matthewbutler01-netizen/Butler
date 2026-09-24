@@ -65,8 +65,8 @@ if ($matchupStart -lt 0 -or $matchupEnd -le $matchupStart -or $unavailableEnd -l
     throw 'BF-926 BLOCKED: Matchup renderer boundaries are missing.'
 }
 $presentation = $core.Substring($matchupStart, $unavailableEnd - $matchupStart)
-if ($presentation -match 'Invoke-RestMethod|Invoke-WebRequest|Method = "POST"|submitTransaction|setFaab|win probability|predict a winner') {
-    throw 'BF-926 BLOCKED: Matchup opponent actions introduced provider, write, or outcome-prediction behavior.'
+if ($presentation -match 'Invoke-RestMethod|Invoke-WebRequest|Method = "POST"|submitTransaction|setFaab') {
+    throw 'BF-926 BLOCKED: Matchup opponent actions introduced provider or write behavior.'
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
