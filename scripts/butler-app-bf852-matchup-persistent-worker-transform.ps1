@@ -24,6 +24,7 @@ $coreInternalGuardOriginal = @'
     if ($Path -cne "/__butler/internal/team-bundle" -and
         $Path -cne "/__butler/internal/league-overview" -and
         -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-detail-summary?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare-summary?", [System.StringComparison]::Ordinal)) {
@@ -35,6 +36,7 @@ $coreInternalGuardReplacement = @'
         $Path -cne "/__butler/internal/league-overview" -and
         $Path -cne "/__butler/internal/matchup-bundle" -and
         -not $Path.StartsWith("/__butler/internal/player-detail?", [System.StringComparison]::Ordinal) -and
+        -not $Path.StartsWith("/__butler/internal/player-detail-summary?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-search?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare?", [System.StringComparison]::Ordinal) -and
         -not $Path.StartsWith("/__butler/internal/player-compare-summary?", [System.StringComparison]::Ordinal)) {
