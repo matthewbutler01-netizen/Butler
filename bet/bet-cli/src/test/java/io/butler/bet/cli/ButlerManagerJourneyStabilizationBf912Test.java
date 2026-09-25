@@ -22,7 +22,7 @@ class ButlerManagerJourneyStabilizationBf912Test {
                 "Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','<h2>Draft capital</h2>')",
                 "Markers @('Weekly matchup','What to do now','READ ONLY')",
                 "Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')",
-                "Markers @('League hub','Top franchise snapshot','Comparable movement','READ ONLY')",
+                "Markers @('League hub','Top franchise snapshot','League pulse','Movement at a glance','Risers','Fallers','Tracked movers','View movement details','READ ONLY')",
                 "Markers @('Analyze a trade','Trade partner','No new trade score is created here.','READ ONLY')",
                 "Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')",
                 "BF-912 RESULT: COMPLETE"
