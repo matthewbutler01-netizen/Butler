@@ -14,13 +14,12 @@ class ButlerManagerActionDisclosureBatchBf937Test {
 
     @Test
     void playerSearchExposesExactCompareAndScoutActions() throws Exception {
-        String transform = source("scripts/butler-app-bf882-player-search-transform.ps1");
+        String transform = source("scripts/butler-app-bf906-player-compare-transform.ps1");
 
-        assertTrue(transform.contains("$teamHrefId = [System.Uri]::EscapeDataString([string]$player.OwnerTeamId)"));
-        assertTrue(transform.contains("$positionHref = [System.Uri]::EscapeDataString([string]$player.Position)"));
-        assertTrue(transform.contains("href=`\"/compare?left=$hrefId&q=$positionHref`\">Compare this player</a>"));
-        assertTrue(transform.contains("href=`\"/franchise?id=$teamHrefId`\">Scout franchise</a>"));
-        assertTrue(transform.contains("href=`\"/player?id=$hrefId`\">View Player Detail</a>"));
+        assertTrue(transform.contains("Player Search Compare action"));
+        assertTrue(transform.contains("href=`\"/player?id=$hrefId&from=players`\">View Player Detail</a>"));
+        assertTrue(transform.contains("href=`\"/compare?left=$hrefId`\">Compare this player</a>"));
+        assertTrue(transform.contains("href=`\"/franchise?id=$([System.Uri]::EscapeDataString([string]$player.OwnerTeamId))`\">Scout franchise</a>"));
     }
 
     @Test
