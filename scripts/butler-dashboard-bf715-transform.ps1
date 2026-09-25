@@ -401,6 +401,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf932CoreTransform -CorePath $stagedCore
 
+    # BF-934: add descriptive QB/RB/WR/TE roster counts after the final My Team
+    # workflow links are installed and before global recovery-page polish.
+    $bf934CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf934-team-position-inventory-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf934CoreTransform -PathType Leaf)) {
+        throw "BF-934 BLOCKED: My Team position inventory transform not found at $bf934CoreTransform"
+    }
+    & $bf934CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
