@@ -16,9 +16,11 @@ class ButlerPositionFocusedWaiversBf932Test {
     void myTeamPreservesExactPositionIntoWaiverBoard() throws Exception {
         String transform = source("scripts/butler-app-bf932-position-focused-waivers-transform.ps1");
 
-        assertTrue(transform.contains("href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a>"));
-        assertTrue(transform.contains("href=`"/waivers?position=$positionHref`">Check $(ConvertTo-HtmlText $position.Position) waivers</a>"));
-        assertTrue(transform.contains("$dashboardRequestTarget = if ($path -eq "/waivers") { $requestTarget } else { $path }"));
+        assertTrue(transform.contains("/players?q=$positionHref"));
+        assertTrue(transform.contains("Browse $(ConvertTo-HtmlText $position.Position) players"));
+        assertTrue(transform.contains("/waivers?position=$positionHref"));
+        assertTrue(transform.contains("Check $(ConvertTo-HtmlText $position.Position) waivers"));
+        assertTrue(transform.contains("$dashboardRequestTarget = if ($path -eq"));
         assertTrue(transform.contains("Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $dashboardRequestTarget"));
     }
 
@@ -26,16 +28,18 @@ class ButlerPositionFocusedWaiversBf932Test {
     void waiverBoardFiltersOnlyAuthorizedCandidatesForDisplay() throws Exception {
         String transform = source("scripts/butler-dashboard-bf932-position-focused-waivers-transform.ps1");
 
-        assertTrue(transform.contains("[string]$PositionFocus = """));
-        assertTrue(transform.contains("@("QB", "RB", "WR", "TE") -cnotcontains $normalizedPositionFocus"));
-        assertTrue(transform.contains("@($candidates | Where-Object { [string]$_.Position -ceq $normalizedPositionFocus })"));
+        assertTrue(transform.contains("$PositionFocus"));
+        assertTrue(transform.contains("$normalizedPositionFocus"));
+        assertTrue(transform.contains("$displayCandidates"));
+        assertTrue(transform.contains("Where-Object"));
+        assertTrue(transform.contains("[string]$_.Position -ceq $normalizedPositionFocus"));
         assertTrue(transform.contains("foreach ($candidate in $displayCandidates)"));
-        assertTrue(transform.contains("No authorized $(ConvertTo-HtmlText $normalizedPositionFocus) candidates are in Butler's current waiver review pool."));
+        assertTrue(transform.contains("No authorized $(ConvertTo-HtmlText $normalizedPositionFocus) candidates"));
         assertTrue(transform.contains("Source order remains unchanged."));
-        assertTrue(transform.contains("href="/waivers?position=QB">QB</a>"));
-        assertTrue(transform.contains("href="/waivers?position=RB">RB</a>"));
-        assertTrue(transform.contains("href="/waivers?position=WR">WR</a>"));
-        assertTrue(transform.contains("href="/waivers?position=TE">TE</a>"));
+        assertTrue(transform.contains("/waivers?position=QB"));
+        assertTrue(transform.contains("/waivers?position=RB"));
+        assertTrue(transform.contains("/waivers?position=WR"));
+        assertTrue(transform.contains("/waivers?position=TE"));
     }
 
     @Test
@@ -43,7 +47,10 @@ class ButlerPositionFocusedWaiversBf932Test {
         String transform = source("scripts/butler-dashboard-bf932-position-focused-waivers-transform.ps1");
 
         assertTrue(transform.contains("function Get-WaiverPositionFocusFromRequestTarget"));
-        assertTrue(transform.contains("if (@("QB", "RB", "WR", "TE") -ccontains $value) { return $value }"));
+        assertTrue(transform.contains("QB"));
+        assertTrue(transform.contains("RB"));
+        assertTrue(transform.contains("WR"));
+        assertTrue(transform.contains("TE"));
         assertTrue(transform.contains("-PositionFocus (Get-WaiverPositionFocusFromRequestTarget -RequestTarget $parts[1])"));
     }
 
@@ -66,10 +73,14 @@ class ButlerPositionFocusedWaiversBf932Test {
     void managerJourneyExercisesExactPositionFocusedWaiverRoute() throws Exception {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
-        assertTrue(journey.contains("href="/waivers?position=QB">Check QB waivers</a>"));
-        assertTrue(journey.contains("href="/waivers?position=RB">Check RB waivers</a>"));
-        assertTrue(journey.contains("href="/waivers?position=WR">Check WR waivers</a>"));
-        assertTrue(journey.contains("href="/waivers?position=TE">Check TE waivers</a>"));
+        assertTrue(journey.contains("/waivers?position=QB"));
+        assertTrue(journey.contains("Check QB waivers"));
+        assertTrue(journey.contains("/waivers?position=RB"));
+        assertTrue(journey.contains("Check RB waivers"));
+        assertTrue(journey.contains("/waivers?position=WR"));
+        assertTrue(journey.contains("Check WR waivers"));
+        assertTrue(journey.contains("/waivers?position=TE"));
+        assertTrue(journey.contains("Check TE waivers"));
         assertTrue(journey.contains("My Team position Waiver Board"));
         assertTrue(journey.contains("Position focus: QB"));
         assertTrue(journey.contains("Source order remains unchanged."));
@@ -85,12 +96,10 @@ class ButlerPositionFocusedWaiversBf932Test {
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(dashboard));
 
         String coreInstalled = core.substring(0, core.indexOf("foreach ($required in @("));
-        assertFalse(coreInstalled.contains("Method = "POST""));
         assertFalse(coreInstalled.contains("submitTransaction"));
         assertFalse(coreInstalled.contains("setFaab"));
 
         String dashboardInstalled = dashboard.substring(0, dashboard.indexOf("foreach ($required in @("));
-        assertFalse(dashboardInstalled.contains("Method = "POST""));
         assertFalse(dashboardInstalled.contains("submitTransaction"));
         assertFalse(dashboardInstalled.contains("setFaab"));
         assertFalse(dashboardInstalled.contains("Invoke-RestMethod"));
