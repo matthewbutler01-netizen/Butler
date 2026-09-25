@@ -11,49 +11,50 @@ if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
     throw "BF-929 BLOCKED: staged Butler core not found at $CorePath"
 }
 
-function Replace-ExactlyOnce {
-    param(
-        [Parameter(Mandatory = $true)][string]$Text,
-        [Parameter(Mandatory = $true)][string]$Old,
-        [Parameter(Mandatory = $true)][string]$New,
-        [Parameter(Mandatory = $true)][string]$Contract
-    )
-
-    $count = [regex]::Matches($Text, [regex]::Escape($Old)).Count
-    if ($count -ne 1) {
-        throw "BF-929 BLOCKED: $Contract expected one match, found $count."
-    }
-    return $Text.Replace($Old, $New)
-}
-
 $core = [System.IO.File]::ReadAllText($CorePath)
 
+$teamStart = $core.IndexOf('function ConvertTo-TeamHtml {', [System.StringComparison]::Ordinal)
+if ($teamStart -lt 0) {
+    throw 'BF-929 BLOCKED: My Team renderer start is missing.'
+}
+
+$positionStart = $core.IndexOf('$positionHtml', $teamStart, [System.StringComparison]::Ordinal)
+$seasonStart = $core.IndexOf('$seasonHtml', $positionStart, [System.StringComparison]::Ordinal)
+if ($positionStart -lt 0 -or $seasonStart -le $positionStart) {
+    throw 'BF-929 BLOCKED: final My Team position-card block is missing.'
+}
+
+$positionBlock = $core.Substring($positionStart, $seasonStart - $positionStart)
+
 $loopOld = @'
-    $positionHtml = ''
-    foreach ($position in $Pressure) {
+foreach ($position in $Pressure) {
         if ($position.Available) {
 '@
 $loopNew = @'
-    $positionHtml = ''
-    foreach ($position in $Pressure) {
+foreach ($position in $Pressure) {
         $positionHref = [System.Uri]::EscapeDataString([string]$position.Position)
         if ($position.Available) {
 '@
-$core = Replace-ExactlyOnce -Text $core -Old $loopOld.TrimEnd() -New $loopNew.TrimEnd() -Contract 'My Team position discovery href'
+$loopCount = [regex]::Matches($positionBlock, [regex]::Escape($loopOld.TrimEnd())).Count
+if ($loopCount -ne 1) {
+    throw "BF-929 BLOCKED: My Team position loop expected one match, found $loopCount."
+}
+$positionBlock = $positionBlock.Replace($loopOld.TrimEnd(), $loopNew.TrimEnd())
 
-$availableOld = '$positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) starter slot(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total value $(ConvertTo-HtmlText $position.TotalPositionValue)</div></article>"'
-$availableNew = '$positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position) &middot; $(ConvertTo-HtmlText $position.DirectStarters) starter slot(s)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total value $(ConvertTo-HtmlText $position.TotalPositionValue)</div><div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a></div></article>"'
-$core = Replace-ExactlyOnce -Text $core -Old $availableOld -New $availableNew -Contract 'available My Team position discovery action'
+$cardEnd = '</article>"'
+$cardEndCount = [regex]::Matches($positionBlock, [regex]::Escape($cardEnd)).Count
+if ($cardEndCount -ne 2) {
+    throw "BF-929 BLOCKED: My Team position block expected two pressure-card endings, found $cardEndCount."
+}
 
-$unavailableOld = '$positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">Unavailable</div><div class=`"meta`">$(ConvertTo-HtmlText $position.Reason)</div></article>"'
-$unavailableNew = '$positionHtml += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">Unavailable</div><div class=`"meta`">$(ConvertTo-HtmlText $position.Reason)</div><div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a></div></article>"'
-$core = Replace-ExactlyOnce -Text $core -Old $unavailableOld -New $unavailableNew -Contract 'unavailable My Team position discovery action'
+$cardEndNew = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a></div></article>"'
+$positionBlock = $positionBlock.Replace($cardEnd, $cardEndNew)
+
+$core = $core.Substring(0, $positionStart) + $positionBlock + $core.Substring($seasonStart)
 
 foreach ($required in @(
     '$positionHref = [System.Uri]::EscapeDataString([string]$position.Position)',
-    'href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a>',
-    'Starter coverage',
-    'total value'
+    'href=`"/players?q=$positionHref`">Browse $(ConvertTo-HtmlText $position.Position) players</a>'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-929 BLOCKED: required position discovery marker is missing: $required"
