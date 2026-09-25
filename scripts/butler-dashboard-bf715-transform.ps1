@@ -484,6 +484,19 @@ if (-not (Test-Path -LiteralPath $bf932DashboardTransform -PathType Leaf)) {
 }
 & $bf932DashboardTransform -DashboardPath $DashboardPath
 
+# BF-936: one late-stage first-scan disclosure batch across Waiver Board,
+# Matchup, and Player Detail. Standalone waiver staging remains valid without core.
+$bf936Transform = Join-Path $PSScriptRoot 'butler-bf936-first-scan-disclosure-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf936Transform -PathType Leaf)) {
+    throw "BF-936 BLOCKED: first-scan disclosure transform not found at $bf936Transform"
+}
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf936Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf936Transform -DashboardPath $DashboardPath
+}
+
 # BF-898: final mobile-manager polish runs after all manager presentation and route
 # transforms so the swipe navigation and stale-lineup copy are the last UI authority.
 $bf898Transform = Join-Path $PSScriptRoot 'butler-bf898-mobile-manager-polish-transform.ps1'
