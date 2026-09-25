@@ -18,9 +18,9 @@ class ButlerManagerActionDisclosureBatchBf937Test {
 
         assertTrue(transform.contains("$teamHrefId = [System.Uri]::EscapeDataString([string]$player.OwnerTeamId)"));
         assertTrue(transform.contains("$positionHref = [System.Uri]::EscapeDataString([string]$player.Position)"));
-        assertTrue(transform.contains("href=\`\"/compare?left=$hrefId&q=$positionHref\`\">Compare this player</a>"));
-        assertTrue(transform.contains("href=\`\"/franchise?id=$teamHrefId\`\">Scout franchise</a>"));
-        assertTrue(transform.contains("href=\`\"/player?id=$hrefId\`\">View Player Detail</a>"));
+        assertTrue(transform.contains("href=`\"/compare?left=$hrefId&q=$positionHref`\">Compare this player</a>"));
+        assertTrue(transform.contains("href=`\"/franchise?id=$teamHrefId`\">Scout franchise</a>"));
+        assertTrue(transform.contains("href=`\"/player?id=$hrefId`\">View Player Detail</a>"));
     }
 
     @Test
@@ -42,8 +42,8 @@ class ButlerManagerActionDisclosureBatchBf937Test {
         String trade = source("scripts/butler-trade-lab.ps1");
 
         assertTrue(trade.contains("$groupOpen = if ($group.Class -ceq 'players') { ' open' } else { '' }"));
-        assertTrue(trade.contains("<details class=\`\"asset-group $($group.Class)\`\"$groupOpen>"));
-        assertTrue(trade.contains("<summary class=\`\"asset-group-head\`\">"));
+        assertTrue(trade.contains("<details class=`\"asset-group $($group.Class)`\"$groupOpen>"));
+        assertTrue(trade.contains("<summary class=`\"asset-group-head`\">"));
         assertTrue(trade.contains(".asset-group>summary{cursor:pointer;list-style:none}"));
         assertTrue(trade.contains("Class = 'players'; Label = 'Players'"));
         assertTrue(trade.contains("Class = 'picks'; Label = 'Draft picks'"));
