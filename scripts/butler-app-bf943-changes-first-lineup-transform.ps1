@@ -57,14 +57,13 @@ $disclosureSetup = @'
 
 '@
 
-$function = $function.Substring(0, $returnPos) + $disclosureSetup + $function.Substring($returnPos)
-
 $oldBoard = '<div class=`"lineup-board`">$rows</div>'
 $boardCount = [regex]::Matches($function, [regex]::Escape($oldBoard)).Count
 if ($boardCount -ne 1) {
     throw "BF-943 BLOCKED: expected one primary lineup-board binding, found $boardCount."
 }
 $function = $function.Replace($oldBoard, '$lineupFocusHtml$unchangedDisclosure')
+$function = $function.Substring(0, $returnPos) + $disclosureSetup + $function.Substring($returnPos)
 
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
 
