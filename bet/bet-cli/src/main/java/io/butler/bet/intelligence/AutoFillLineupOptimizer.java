@@ -192,6 +192,16 @@ public final class AutoFillLineupOptimizer {
                 throw new IllegalStateException("Solved lineup contains player absent from roster evidence: " + assignment.playerId());
             }
             recommendedStarterIds.add(recommended.playerId());
+            BigDecimal currentProjectedPoints = weeklyProjectionByPlayerId.get(current.playerId());
+            if (currentProjectedPoints == null
+                && !explicitlyUnavailablePlayerIds.contains(current.playerId())) {
+                throw new IllegalStateException(
+                    "Scoreable current starter projection became unavailable during AutoFill: " + current.playerId());
+            }
+            BigDecimal recommendedProjectedPoints = assignment.fantasyPoints();
+            BigDecimal projectedGain = currentProjectedPoints == null
+                ? null
+                : recommendedProjectedPoints.subtract(currentProjectedPoints);
             assignments.add(new SlotRecommendation(
                 openOrdinals.get(index),
                 assignment.slot(),
@@ -199,7 +209,9 @@ public final class AutoFillLineupOptimizer {
                 current.displayName(),
                 recommended.playerId(),
                 recommended.displayName(),
-                assignment.fantasyPoints(),
+                currentProjectedPoints,
+                recommendedProjectedPoints,
+                projectedGain,
                 !current.playerId().equals(recommended.playerId())));
         }
 
@@ -324,7 +336,9 @@ public final class AutoFillLineupOptimizer {
         String currentPlayerName,
         String recommendedPlayerId,
         String recommendedPlayerName,
+        BigDecimal currentProjectedPoints,
         BigDecimal projectedPoints,
+        BigDecimal projectedGain,
         boolean changed) {
         public SlotRecommendation {
             if (starterOrdinal < 0) throw new IllegalArgumentException("starterOrdinal must not be negative");
@@ -334,6 +348,14 @@ public final class AutoFillLineupOptimizer {
             recommendedPlayerId = requireText(recommendedPlayerId, "recommendedPlayerId");
             recommendedPlayerName = requireText(recommendedPlayerName, "recommendedPlayerName");
             Objects.requireNonNull(projectedPoints, "projectedPoints must not be null");
+            if ((currentProjectedPoints == null) != (projectedGain == null)) {
+                throw new IllegalArgumentException(
+                    "currentProjectedPoints and projectedGain must both be present or both be unavailable");
+            }
+            if (currentProjectedPoints != null
+                && projectedGain.compareTo(projectedPoints.subtract(currentProjectedPoints)) != 0) {
+                throw new IllegalArgumentException("projectedGain must equal projectedPoints - currentProjectedPoints");
+            }
         }
     }
 

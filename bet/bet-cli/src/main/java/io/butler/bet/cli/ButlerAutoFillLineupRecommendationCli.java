@@ -37,6 +37,10 @@ public final class ButlerAutoFillLineupRecommendationCli {
                 + " | recommended=" + assignment.recommendedPlayerName() + " [" + assignment.recommendedPlayerId() + "]"
                 + " | projected=" + points(assignment.projectedPoints())
                 + " | action=" + (assignment.changed() ? "CHANGE" : "KEEP"));
+            System.out.println("  #" + assignment.starterOrdinal() + " projection_delta"
+                + " | current=" + optionalPoints(assignment.currentProjectedPoints())
+                + " | recommended=" + points(assignment.projectedPoints())
+                + " | gain=" + optionalSignedPoints(assignment.projectedGain()));
         }
         System.out.println("Moves to bench:");
         if (recommendation.movesToBench().isEmpty()) {
@@ -88,6 +92,14 @@ public final class ButlerAutoFillLineupRecommendationCli {
     private static String signedPoints(BigDecimal value) {
         String points = points(value);
         return value.signum() > 0 ? "+" + points : points;
+    }
+
+    private static String optionalPoints(BigDecimal value) {
+        return value == null ? "UNAVAILABLE" : points(value);
+    }
+
+    private static String optionalSignedPoints(BigDecimal value) {
+        return value == null ? "UNAVAILABLE" : signedPoints(value);
     }
 
     private static String value(Object value) {
