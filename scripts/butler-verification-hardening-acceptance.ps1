@@ -105,3 +105,7 @@ finally {
     }
     Remove-Item -LiteralPath $target -Recurse -Force
 }
+# GitHub's PowerShell runner propagates the last native exit code. The fixture
+# deliberately ended with a rejected dirty-worktree command; all assertions passed.
+exit 0
+
