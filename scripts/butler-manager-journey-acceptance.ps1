@@ -594,6 +594,7 @@ try {
     $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
     if (-not $matchupOpponentUnavailable) {
         Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')
+        Assert-Markers -Html $matchup.Body -Stage 'Matchup first-scan disclosure' -Markers @('View opponent context')
 
         $matchupScoutHref = Get-FirstSafeHref -Html $matchup.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout opponent</a>'
         $matchupTradeHref = Get-FirstSafeHref -Html $matchup.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)">Trade with opponent</a>'
@@ -660,6 +661,7 @@ try {
             throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
         }
         Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        Assert-Markers -Html $player.Body -Stage 'Player Detail first-scan disclosure' -Markers @('View player evidence')
         $morePositionHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/players\?q=[^"]+)">Find more [^<]+</a>'
         if ([string]::IsNullOrWhiteSpace([string]$morePositionHref)) {
             throw 'BF-922 FAILED: Player Detail did not render an exact same-position Player Search shortcut.'
@@ -792,6 +794,7 @@ try {
     $waivers = Invoke-Get -Url ($root + '/waivers') -TimeoutMs $timeoutMs
     Assert-Status -Response $waivers -Expected 200 -Stage 'Waiver Board'
     Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')
+    Assert-Markers -Html $waivers.Body -Stage 'Waiver Board first-scan disclosure' -Markers @('Review authorized players')
     $waiverFirstScan = Get-ManagerFirstScanHtml -Html $waivers.Body
     Assert-AbsentMarkers -Html $waiverFirstScan -Stage 'Waiver Board first scan' -Markers @('Current audit ID:','Sleeper ID:','Pair ADD Sleeper ID:','Pair DROP Sleeper ID:')
     Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
