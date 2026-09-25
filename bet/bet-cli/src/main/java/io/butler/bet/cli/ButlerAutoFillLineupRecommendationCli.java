@@ -37,6 +37,10 @@ public final class ButlerAutoFillLineupRecommendationCli {
                 + " | recommended=" + assignment.recommendedPlayerName() + " [" + assignment.recommendedPlayerId() + "]"
                 + " | projected=" + points(assignment.projectedPoints())
                 + " | action=" + (assignment.changed() ? "CHANGE" : "KEEP"));
+            System.out.println("  #" + assignment.starterOrdinal() + " projection_delta"
+                + " | current=" + points(assignment.currentProjectedPoints())
+                + " | recommended=" + points(assignment.projectedPoints())
+                + " | gain=" + signedPoints(assignment.projectedGain()));
         }
         System.out.println("Moves to bench:");
         if (recommendation.movesToBench().isEmpty()) {
