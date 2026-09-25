@@ -385,6 +385,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf929CoreTransform -CorePath $stagedCore
 
+    # BF-930: connect rostered-player discovery to the existing Waiver Board
+    # when the manager needs to continue from Player Search to free agents.
+    $bf930CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf930-player-search-waiver-bridge-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf930CoreTransform -PathType Leaf)) {
+        throw "BF-930 BLOCKED: Player Search Waiver Board bridge transform not found at $bf930CoreTransform"
+    }
+    & $bf930CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
