@@ -438,7 +438,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
     $builder = ''
     if ($null -ne $Opponent) {
         $opponentTeamHrefId = [System.Uri]::EscapeDataString([string]$Opponent.TeamId)
-        $opponentScoutAction = "<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/franchise?id=$opponentTeamHrefId`">Scout franchise</a></div>"
+        $opponentScoutAction = "<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/franchise?id=$opponentTeamHrefId`">Scout franchise</a><a class=`"btn btn-secondary`" href=`"/league`">Back to League</a></div>"
         $giveHtml = ConvertTo-TradeAssetCheckboxes -Team $UserTeam -Name 'give' -Selected @($Give)
         $receiveHtml = ConvertTo-TradeAssetCheckboxes -Team $Opponent -Name 'receive' -Selected @($Receive)
         $builder = @"

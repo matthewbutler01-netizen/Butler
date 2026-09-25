@@ -589,7 +589,7 @@ try {
 
         $matchupTrade = Invoke-Get -Url ($root + $matchupTradeHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $matchupTrade -Expected 200 -Stage 'Matchup opponent Trade Analyzer'
-        Assert-Markers -Html $matchupTrade.Body -Stage 'Matchup opponent Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+        Assert-Markers -Html $matchupTrade.Body -Stage 'Matchup opponent Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','Back to League','READ ONLY')
         $matchupTradeScoutHref = Get-FirstSafeHref -Html $matchupTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
         if ([string]::IsNullOrWhiteSpace([string]$matchupTradeScoutHref) -or $matchupTradeScoutHref -cne $matchupScoutHref) {
             throw "BF-926 FAILED: Matchup Trade Analyzer did not preserve the exact opponent Franchise Scout link. expected=$matchupScoutHref actual=$matchupTradeScoutHref"
@@ -702,11 +702,20 @@ try {
 
     $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
     Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League exact Trade Analyzer'
-    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','Back to League','READ ONLY')
     $leagueTradeScoutHref = Get-FirstSafeHref -Html $leagueTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
     if ([string]::IsNullOrWhiteSpace([string]$leagueTradeScoutHref) -or $leagueTradeScoutHref -cne $franchiseHref) {
         throw "BF-927 FAILED: loaded League Trade Analyzer did not preserve the exact Franchise Scout link. expected=$franchiseHref actual=$leagueTradeScoutHref"
     }
+    $tradeBackToLeagueHref = Get-FirstSafeHref -Html $leagueTrade.Body -Pattern 'href="(?<href>/league)">Back to League</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$tradeBackToLeagueHref)) {
+        throw 'BF-928 FAILED: loaded Trade Analyzer did not expose Back to League.'
+    }
+    $tradeBackToLeague = Invoke-Get -Url ($root + $tradeBackToLeagueHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $tradeBackToLeague -Expected 200 -Stage 'Trade Analyzer back to League'
+    Assert-Markers -Html $tradeBackToLeague.Body -Stage 'Trade Analyzer back to League' -Markers @('League hub','Top franchise snapshot','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $tradeBackToLeague.Body -Stage 'Trade Analyzer back to League'
+    Write-Pass -Label 'Trade Analyzer back to League'
     Assert-NoRawDeveloperFailure -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer'
     Write-Pass -Label 'League direct Trade Analyzer'
 
@@ -724,7 +733,7 @@ try {
         }
         $scoutTrade = Invoke-Get -Url ($root + $scoutTradeHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $scoutTrade -Expected 200 -Stage 'Franchise Scout Trade Analyzer'
-        Assert-Markers -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+        Assert-Markers -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','Back to League','READ ONLY')
         $tradeScoutHref = Get-FirstSafeHref -Html $scoutTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
         if ([string]::IsNullOrWhiteSpace([string]$tradeScoutHref)) {
             throw 'BF-921 FAILED: loaded Trade Analyzer did not link back to the exact Franchise Scout.'
@@ -762,6 +771,7 @@ try {
     $trade = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
     Assert-Status -Response $trade -Expected 200 -Stage 'Trade Analyzer'
     Assert-Markers -Html $trade.Body -Stage 'Trade Analyzer' -Markers @('Analyze a trade','Trade partner','No new trade score is created here.','READ ONLY')
+    Assert-AbsentMarkers -Html $trade.Body -Stage 'Trade Analyzer unloaded opponent actions' -Markers @('Back to League</a>')
     Assert-PrimaryNavigation -Html $trade.Body -Stage 'Trade Analyzer'
     Assert-NoRawDeveloperFailure -Html $trade.Body -Stage 'Trade Analyzer'
     Write-Pass -Label 'Trade Analyzer'
