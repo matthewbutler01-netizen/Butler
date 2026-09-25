@@ -179,9 +179,11 @@ function ConvertTo-PlayerSearchHtml {
             $cards = ''
             foreach ($player in $View.Players) {
                 $hrefId = [System.Uri]::EscapeDataString([string]$player.PlayerId)
+                $teamHrefId = [System.Uri]::EscapeDataString([string]$player.OwnerTeamId)
+                $positionHref = [System.Uri]::EscapeDataString([string]$player.Position)
                 $valueText = if ($player.Value -ceq 'UNAVAILABLE') { 'Value unavailable' } else { "Persisted value $($player.Value)" }
                 $asOfText = if ($player.ValueAsOf -ceq 'UNAVAILABLE') { 'as-of unavailable' } else { "as-of $($player.ValueAsOf)" }
-                $cards += "<article class=`"card`"><div class=`"eyebrow`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.NflTeam)</div><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">Rostered by $(ConvertTo-HtmlText $player.OwnerTeamName) &middot; $(ConvertTo-HtmlText $player.Slot)</div><div class=`"meta`">$(ConvertTo-HtmlText $valueText) &middot; $(ConvertTo-HtmlText $asOfText)</div><div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId`">View Player Detail</a></div></article>"
+                $cards += "<article class=`"card`"><div class=`"eyebrow`">$(ConvertTo-HtmlText $player.Position) &middot; NFL $(ConvertTo-HtmlText $player.NflTeam)</div><div class=`"name`">$(ConvertTo-HtmlText $player.Name)</div><div class=`"meta`">Rostered by $(ConvertTo-HtmlText $player.OwnerTeamName) &middot; $(ConvertTo-HtmlText $player.Slot)</div><div class=`"meta`">$(ConvertTo-HtmlText $valueText) &middot; $(ConvertTo-HtmlText $asOfText)</div><div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-primary`" href=`"/compare?left=$hrefId&q=$positionHref`">Compare this player</a><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId`">View Player Detail</a><a class=`"btn btn-secondary`" href=`"/franchise?id=$teamHrefId`">Scout franchise</a></div></article>"
             }
             $resultsHtml = "<div class=`"grid`">$cards</div>"
         }
@@ -281,6 +283,8 @@ foreach ($required in @(
     'Fantasy-team names are context only and do not cause matches',
     'league player-search $LeagueId $query',
     'href=`"/player?id=$hrefId`"',
+    'href=`"/compare?left=$hrefId&q=$positionHref`">Compare this player</a>',
+    'href=`"/franchise?id=$teamHrefId`">Scout franchise</a>',
     'href="/players">Find a player</a>',
     'href="/players">Find another player</a>'
 )) {
