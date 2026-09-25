@@ -32,8 +32,8 @@ if ($core.IndexOf('$leaderHrefId = [System.Uri]::EscapeDataString([string]$leade
     throw 'BF-927 BLOCKED: League Hub exact franchise href contract is missing.'
 }
 
-$tradeOld = 'href="/trade">Open Trade Analyzer</a>'
-$tradeNew = 'href="/trade?opponent=$leaderHrefId">Open Trade Analyzer</a>'
+$tradeOld = '<a class="btn btn-primary" href="/franchise?id=$leaderHrefId">Scout franchise</a><a class="btn btn-secondary" href="/trade">Open Trade Analyzer</a>'
+$tradeNew = '<a class="btn btn-primary" href="/franchise?id=$leaderHrefId">Scout franchise</a><a class="btn btn-secondary" href="/trade?opponent=$leaderHrefId">Open Trade Analyzer</a>'
 $core = Replace-ExactlyOnce -Text $core -Old $tradeOld -New $tradeNew -Contract 'League Hub exact Trade Analyzer partner'
 
 foreach ($required in @(
@@ -46,7 +46,7 @@ foreach ($required in @(
     }
 }
 
-if ($core.IndexOf('href="/trade">Open Trade Analyzer</a>', [System.StringComparison]::Ordinal) -ge 0) {
+if ($core.IndexOf($tradeOld, [System.StringComparison]::Ordinal) -ge 0) {
     throw 'BF-927 BLOCKED: League Hub still contains a generic Trade Analyzer franchise action.'
 }
 
