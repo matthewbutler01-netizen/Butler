@@ -502,7 +502,7 @@ try {
 
     $dashboard = Invoke-Get -Url ($root + '/') -TimeoutMs $timeoutMs
     Assert-Status -Response $dashboard -Expected 200 -Stage 'Dashboard'
-    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities')
+    Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities','View other priorities')
     Assert-PrimaryNavigation -Html $dashboard.Body -Stage 'Dashboard'
     Assert-NoRawDeveloperFailure -Html $dashboard.Body -Stage 'Dashboard'
     Write-Pass -Label 'Dashboard'
@@ -700,7 +700,7 @@ try {
         }
         $compareResult = Invoke-Get -Url ($root + $compareResultHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $compareResult -Expected 200 -Stage 'Player Compare result'
-        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $compareResult.Body -Stage 'Player Compare result'
 
         $swapHref = Get-FirstSafeHref -Html $compareResult.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&right=[^"]+)">Swap sides</a>'
@@ -709,7 +709,7 @@ try {
         }
         $swappedCompare = Invoke-Get -Url ($root + $swapHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $swappedCompare -Expected 200 -Stage 'Player Compare swapped'
-        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $swappedCompare.Body -Stage 'Player Compare swapped'
         Write-Pass -Label 'Player Compare workflow'
 
@@ -767,7 +767,7 @@ try {
     else {
         $franchise = Invoke-Get -Url ($root + $franchiseHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $franchise -Expected 200 -Stage 'Franchise Detail'
-        Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','Back to League','READ ONLY')
+        Assert-Markers -Html $franchise.Body -Stage 'Franchise Detail' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','View franchise evidence','Back to League','READ ONLY')
         Write-Pass -Label 'League direct Franchise Scout'
         $scoutTradeHref = Get-FirstSafeHref -Html $franchise.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)"'
         if ([string]::IsNullOrWhiteSpace([string]$scoutTradeHref)) {
@@ -785,7 +785,7 @@ try {
         }
         $tradeScout = Invoke-Get -Url ($root + $tradeScoutHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $tradeScout -Expected 200 -Stage 'Trade Analyzer Franchise Scout'
-        Assert-Markers -Html $tradeScout.Body -Stage 'Trade Analyzer Franchise Scout' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','READ ONLY')
+        Assert-Markers -Html $tradeScout.Body -Stage 'Trade Analyzer Franchise Scout' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','View franchise evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $scoutTrade.Body -Stage 'Franchise Scout Trade Analyzer'
         Assert-NoRawDeveloperFailure -Html $franchise.Body -Stage 'Franchise Detail'
         Write-Pass -Label 'Franchise Detail'
