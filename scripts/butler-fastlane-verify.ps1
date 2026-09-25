@@ -4,7 +4,11 @@ param(
     [string]$Branch = 'main',
 
     [ValidateNotNullOrEmpty()]
-    [string]$FastLanePath = 'C:\ButlerDev\fastlane'
+    [string]$FastLanePath = 'C:\ButlerDev\fastlane',
+
+    [string]$JavaHome = $env:JAVA_HOME,
+
+    [switch]$RecoverRoster
 )
 
 Set-StrictMode -Version Latest
@@ -17,8 +21,13 @@ $git = (Get-Command git.exe -ErrorAction Stop).Source
 function Invoke-GitCapture {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
-    $output = & $git @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $git @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previousPreference }
     $text = (($output | ForEach-Object { "$_" }) -join [Environment]::NewLine).Trim()
     if ($exitCode -ne 0) {
         throw "git $($Arguments -join ' ') failed with exit code $exitCode. $text"
@@ -42,12 +51,26 @@ function Get-NormalizedPath {
 }
 
 try {
+    & (Join-Path $scriptDir 'butler-verification-environment.ps1') -JavaHome $JavaHome
     Write-Host 'Butler Fast Lane verification (BF-921)'
     Write-Host "Requested branch: $Branch"
     Write-Host "Reusable worktree: $FastLanePath"
     Write-Host 'Boundary: exact remote branch SHA; clean reusable worktree only; full BF-885/BF-912 journey once; no worktree prune.'
+    if ($RecoverRoster) {
+        Write-Host 'Recovery requested: governed roster evidence may be refreshed before the GET-only journey.'
+    }
 
     [void](Invoke-GitCapture -Arguments @('check-ref-format', '--branch', $Branch))
+
+    $normalizedFastLane = Get-NormalizedPath -Path $FastLanePath
+    foreach ($syncRoot in @($env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial)) {
+        if ([string]::IsNullOrWhiteSpace($syncRoot)) { continue }
+        $syncPath = Get-NormalizedPath -Path $syncRoot
+        if ($normalizedFastLane.Equals($syncPath, [StringComparison]::OrdinalIgnoreCase) -or
+            $normalizedFastLane.StartsWith($syncPath + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Fast Lane must be outside OneDrive. Use C:\ButlerDev\fastlane or another non-synced directory.'
+        }
+    }
 
     $sourceTop = Invoke-GitCapture -Arguments @('-C', $sourceRepo, 'rev-parse', '--show-toplevel')
     if ((Get-NormalizedPath -Path $sourceTop) -cne (Get-NormalizedPath -Path $sourceRepo)) {
@@ -130,6 +153,13 @@ try {
         & '.\gradlew.bat' ':bet:bet-cli:installDist'
         if ($LASTEXITCODE -ne 0) {
             throw "Fast Lane installDist failed with exit code $LASTEXITCODE."
+        }
+
+        if ($RecoverRoster) {
+            & '.\scripts\butler-recover-roster-drift.cmd'
+            if ($LASTEXITCODE -ne 0) {
+                throw "Fast Lane roster recovery or its acceptance failed with exit code $LASTEXITCODE."
+            }
         }
 
         & '.\scripts\butler-manager-journey-acceptance.cmd'

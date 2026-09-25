@@ -1,3 +1,5 @@
+param([string]$JavaHome = $env:JAVA_HOME)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -7,6 +9,7 @@ $betCliDir = Join-Path $repoRoot 'bet\bet-cli'
 $runtimeLibDir = Join-Path $betCliDir 'build\install\bet-cli\lib'
 $acceptancePreflight = Join-Path $scriptDir 'butler-acceptance-preflight.ps1'
 $acceptanceCmd = Join-Path $scriptDir 'butler-acceptance.cmd'
+& (Join-Path $scriptDir 'butler-verification-environment.ps1') -JavaHome $JavaHome
 
 $localAppData = $env:LOCALAPPDATA
 if ([string]::IsNullOrWhiteSpace($localAppData)) {
@@ -92,14 +95,10 @@ $databasePath = Join-Path $dataDir 'butler.db'
 $java = Get-ButlerJavaExecutable
 $classPath = Join-Path $runtimeLibDir '*'
 
-foreach ($required in @($betCliDir, $runtimeLibDir, $acceptancePreflight, $acceptanceCmd, $databasePath)) {
+foreach ($required in @($betCliDir, $acceptancePreflight, $acceptanceCmd, $databasePath)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "BF-723 BLOCKED: required recovery component not found at $required"
     }
-}
-$jars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
-if ($jars.Count -eq 0) {
-    throw "BF-723 BLOCKED: prepared Butler runtime contains no jars at $runtimeLibDir"
 }
 
 function Invoke-ButlerRuntimeCommand {

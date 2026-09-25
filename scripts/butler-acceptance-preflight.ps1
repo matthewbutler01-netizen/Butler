@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'butler-verification-environment.ps1')
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
@@ -51,9 +52,20 @@ function Invoke-InstallDist {
     finally {
         Pop-Location
     }
+    $outputText = (($lines | ForEach-Object { "$_" }) -join "`n")
+    if ($exitCode -ne 0) {
+        $logDir = Join-Path ([IO.Path]::GetTempPath()) 'Butler\diagnostics'
+        [void][IO.Directory]::CreateDirectory($logDir)
+        $logPath = Join-Path $logDir ('preflight-' + [Guid]::NewGuid().ToString('N') + '.log')
+        [IO.File]::WriteAllText($logPath, $outputText)
+        Write-Host "BF-714 build log: $logPath"
+        if ($outputText -match 'not a regular file|Cannot snapshot') {
+            Write-Host 'BF-714: unreadable build output. Use butler-fastlane-verify.cmd <branch> -RecoverRoster with a checkout outside OneDrive.'
+        }
+    }
     return [pscustomobject]@{
         ExitCode = $exitCode
-        Text = (($lines | ForEach-Object { "$_" }) -join "`n")
+        Text = $outputText
     }
 }
 

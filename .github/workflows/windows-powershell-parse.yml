@@ -76,6 +76,10 @@ jobs:
           if ($failed) { exit 1 }
           Write-Host ("ASCII-only Windows source gate passed for {0} file(s)." -f $files.Count)
 
+      - name: Exercise verification hardening fixtures
+        shell: powershell
+        run: .\scripts\butler-verification-hardening-acceptance.ps1
+
       - name: Exercise BF-786 missing runtime database acceptance
         shell: powershell
         run: |
