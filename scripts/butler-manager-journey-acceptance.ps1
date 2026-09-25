@@ -800,7 +800,7 @@ try {
     Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
 
-    $waiverCandidateHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/waivers/candidate/[0-9]+)">View governed details</a>'
+    $waiverCandidateHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/waivers/candidate/[0-9]+)"'
     if ([string]::IsNullOrWhiteSpace([string]$waiverCandidateHref)) {
         Write-Skip -Label 'Waiver Candidate Detail' -Reason 'no exact authorized candidate detail link rendered in current Waiver Board evidence'
     }
@@ -833,7 +833,11 @@ try {
         else {
             $waiverCompareResult = Invoke-Get -Url ($root + $waiverCompareResultHref) -TimeoutMs $timeoutMs
             Assert-Status -Response $waiverCompareResult -Expected 200 -Stage 'Waiver Candidate Compare result'
-            Assert-Markers -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result' -Markers @('Waiver Candidate Compare','Side-by-side neutral waiver evidence','Swap sides','View governed details','NOT A RANKING','READ ONLY')
+            Assert-Markers -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result' -Markers @('Waiver Candidate Compare','Side-by-side neutral waiver evidence','Swap sides','NOT A RANKING','READ ONLY')
+            $waiverCompareDetailLinks = [regex]::Matches($waiverCompareResult.Body, 'href="/waivers/candidate/[0-9]+"')
+            if ($waiverCompareDetailLinks.Count -lt 2) {
+                throw "BF-939 FAILED: Waiver Candidate Compare result exposed $($waiverCompareDetailLinks.Count) exact candidate detail links; expected at least 2."
+            }
             Assert-PrimaryNavigation -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result'
             Assert-NoRawDeveloperFailure -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result'
             Write-Pass -Label 'Waiver Candidate Compare'
