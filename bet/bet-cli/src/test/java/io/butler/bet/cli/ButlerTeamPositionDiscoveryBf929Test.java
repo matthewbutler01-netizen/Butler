@@ -20,9 +20,9 @@ class ButlerTeamPositionDiscoveryBf929Test {
                 "$positionHref = [System.Uri]::EscapeDataString([string]$position.Position)"));
         assertTrue(transform.contains("/players?q=$positionHref"));
         assertTrue(transform.contains("Browse $(ConvertTo-HtmlText $position.Position) players"));
-        assertTrue(transform.contains("Starter coverage"));
-        assertTrue(transform.contains("Total position value"));
-        assertTrue(transform.contains("Unavailable"));
+        assertTrue(transform.contains("$positionBlock = $core.Substring($positionStart, $seasonStart - $positionStart)"));
+        assertTrue(transform.contains("$cardEndCount -ne 2"));
+        assertTrue(transform.contains("final My Team position-card block is missing"));
     }
 
     @Test
