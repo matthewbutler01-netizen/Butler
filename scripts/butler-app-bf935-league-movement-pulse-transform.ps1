@@ -97,7 +97,7 @@ foreach ($required in @(
     'BF-935 League Hub movement pulse',
     '$movementRiserCount = 0',
     '$movementFallerCount = 0',
-    '[string]@($View.Movers).Count',
+    '[string](@($View.Movers).Count)',
     'League pulse',
     'Movement at a glance',
     'Risers',
