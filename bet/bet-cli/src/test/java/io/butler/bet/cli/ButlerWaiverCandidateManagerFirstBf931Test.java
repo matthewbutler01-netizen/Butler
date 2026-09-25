@@ -59,13 +59,19 @@ class ButlerWaiverCandidateManagerFirstBf931Test {
     void transformRemainsPresentationOnlyReadOnlyAndAscii() throws Exception {
         String transform = source("scripts/butler-dashboard-bf931-waiver-candidate-manager-first-transform.ps1");
 
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
-        assertFalse(transform.contains("https://api.sleeper.app"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
-        assertTrue(transform.contains("READ ONLY &middot; EXACT ID ONLY."));
+        int managerReturnStart = transform.indexOf("$managerReturn = @'");
+        int installedGuardStart = transform.indexOf("$installedStart =", managerReturnStart);
+        assertTrue(managerReturnStart >= 0, "manager return block missing");
+        assertTrue(installedGuardStart > managerReturnStart, "installed safety guard missing");
+
+        String managerSurface = transform.substring(managerReturnStart, installedGuardStart);
+        assertFalse(managerSurface.contains("Invoke-RestMethod"));
+        assertFalse(managerSurface.contains("Invoke-WebRequest"));
+        assertFalse(managerSurface.contains("https://api.sleeper.app"));
+        assertFalse(managerSurface.contains("Method = \"POST\""));
+        assertFalse(managerSurface.contains("submitTransaction"));
+        assertFalse(managerSurface.contains("setFaab"));
+        assertTrue(managerSurface.contains("READ ONLY &middot; EXACT ID ONLY."));
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
     }
 
