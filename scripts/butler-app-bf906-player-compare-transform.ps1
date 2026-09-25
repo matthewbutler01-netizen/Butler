@@ -433,7 +433,7 @@ if ($insertIndex -lt 0) {
 $core = $core.Insert($insertIndex, $compareFunctions.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine)
 
 $searchActionOld = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a></div></article>'
-$searchActionNew = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a><a class=`"btn btn-secondary`" href=`"/compare?left=$hrefId`">Compare</a><a class=`"btn btn-secondary`" href=`"/franchise?id=$([System.Uri]::EscapeDataString([string]$player.OwnerTeamId))`">Scout franchise</a></div></article>'
+$searchActionNew = '<div class=`"button-row`" style=`"margin-top:12px`"><a class=`"btn btn-secondary`" href=`"/player?id=$hrefId&from=players`">View Player Detail</a><a class=`"btn btn-secondary`" href=`"/compare?left=$hrefId`">Compare this player</a><a class=`"btn btn-secondary`" href=`"/franchise?id=$([System.Uri]::EscapeDataString([string]$player.OwnerTeamId))`">Scout franchise</a></div></article>'
 $core = Replace-ExactlyOnce -Text $core -Old $searchActionOld -New $searchActionNew -Contract 'Player Search Compare action'
 
 $detailRouteOld = @'
