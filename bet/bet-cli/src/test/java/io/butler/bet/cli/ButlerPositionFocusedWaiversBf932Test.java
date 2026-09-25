@@ -20,7 +20,8 @@ class ButlerPositionFocusedWaiversBf932Test {
         assertTrue(transform.contains("Browse $(ConvertTo-HtmlText $position.Position) players"));
         assertTrue(transform.contains("/waivers?position=$positionHref"));
         assertTrue(transform.contains("Check $(ConvertTo-HtmlText $position.Position) waivers"));
-        assertTrue(transform.contains("$dashboardRequestTarget = if ($path -eq"));
+        assertTrue(transform.contains("$dashboardRequestTarget = if ($path -eq \"/waivers\") { $parts[1] } else { $path }"));
+        assertFalse(transform.contains("{ $requestTarget }"));
         assertTrue(transform.contains("Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $dashboardRequestTarget"));
     }
 
