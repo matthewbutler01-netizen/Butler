@@ -444,6 +444,14 @@ if (-not (Test-Path -LiteralPath $bf925DashboardTransform -PathType Leaf)) {
 }
 & $bf925DashboardTransform -DashboardPath $DashboardPath
 
+# BF-931: make the exact Waiver Candidate Detail manager-first after the Waiver
+# decision/history loop is final, while preserving BF-898 as the mobile authority.
+$bf931DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf931-waiver-candidate-manager-first-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf931DashboardTransform -PathType Leaf)) {
+    throw "BF-931 BLOCKED: Waiver Candidate Detail manager-first transform not found at $bf931DashboardTransform"
+}
+& $bf931DashboardTransform -DashboardPath $DashboardPath
+
 # BF-898: final mobile-manager polish runs after all manager presentation and route
 # transforms so the swipe navigation and stale-lineup copy are the last UI authority.
 $bf898Transform = Join-Path $PSScriptRoot 'butler-bf898-mobile-manager-polish-transform.ps1'
