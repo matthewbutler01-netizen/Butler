@@ -815,6 +815,31 @@ try {
         Write-Pass -Label 'Waiver Candidate Detail'
     }
 
+    $waiverCompareHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/waivers/compare\?left=[0-9]+)">Compare candidate</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$waiverCompareHref)) {
+        Write-Skip -Label 'Waiver Candidate Compare' -Reason 'no authorized candidate compare entry rendered in current Waiver Board evidence'
+    }
+    else {
+        $waiverCompareStart = Invoke-Get -Url ($root + $waiverCompareHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $waiverCompareStart -Expected 200 -Stage 'Waiver Candidate Compare start'
+        Assert-Markers -Html $waiverCompareStart.Body -Stage 'Waiver Candidate Compare start' -Markers @('Waiver Candidate Compare','First candidate selected','Choose second candidate','NOT A RANKING','READ ONLY')
+        Assert-PrimaryNavigation -Html $waiverCompareStart.Body -Stage 'Waiver Candidate Compare start'
+        Assert-NoRawDeveloperFailure -Html $waiverCompareStart.Body -Stage 'Waiver Candidate Compare start'
+
+        $waiverCompareResultHref = Get-FirstSafeHref -Html $waiverCompareStart.Body -Pattern 'href="(?<href>/waivers/compare\?left=[0-9]+&right=[0-9]+)">Compare with this candidate</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$waiverCompareResultHref)) {
+            Write-Skip -Label 'Waiver Candidate Compare result' -Reason 'current BF-616 review pool has no second authorized candidate'
+        }
+        else {
+            $waiverCompareResult = Invoke-Get -Url ($root + $waiverCompareResultHref) -TimeoutMs $timeoutMs
+            Assert-Status -Response $waiverCompareResult -Expected 200 -Stage 'Waiver Candidate Compare result'
+            Assert-Markers -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result' -Markers @('Waiver Candidate Compare','Side-by-side neutral waiver evidence','Swap sides','View governed details','NOT A RANKING','READ ONLY')
+            Assert-PrimaryNavigation -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result'
+            Assert-NoRawDeveloperFailure -Html $waiverCompareResult.Body -Stage 'Waiver Candidate Compare result'
+            Write-Pass -Label 'Waiver Candidate Compare'
+        }
+    }
+
     $waiverHistoryHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/history\?load=1)">View Decision History</a>'
     if ([string]::IsNullOrWhiteSpace([string]$waiverHistoryHref)) {
         throw 'BF-925 FAILED: Waiver Board did not expose the direct Decision History action.'
