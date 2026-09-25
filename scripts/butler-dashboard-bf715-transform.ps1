@@ -369,6 +369,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf926CoreTransform -CorePath $stagedCore
 
+    # BF-927: preserve the exact League franchise when entering Trade Analyzer.
+    # Reuse BF-924's already-escaped leader team ID and the existing opponent query only.
+    $bf927CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf927-league-exact-trade-partner-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf927CoreTransform -PathType Leaf)) {
+        throw "BF-927 BLOCKED: League exact trade-partner transform not found at $bf927CoreTransform"
+    }
+    & $bf927CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.

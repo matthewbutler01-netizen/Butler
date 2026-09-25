@@ -683,22 +683,33 @@ try {
     Assert-PrimaryNavigation -Html $league.Body -Stage 'League'
     Assert-NoRawDeveloperFailure -Html $league.Body -Stage 'League'
 
-    $leagueTradeHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/trade)">Open Trade Analyzer</a>'
-    if ([string]::IsNullOrWhiteSpace([string]$leagueTradeHref)) {
-        throw 'BF-924 FAILED: League Hub franchise card did not expose the safe Trade Analyzer entry.'
+    $franchiseHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout franchise</a>'
+    $leagueTradeHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)">Open Trade Analyzer</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$franchiseHref) -or [string]::IsNullOrWhiteSpace([string]$leagueTradeHref)) {
+        throw 'BF-927 FAILED: League Hub franchise card did not expose exact Scout + Trade Analyzer actions.'
     }
-    $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
-    Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League direct Trade Analyzer'
-    Assert-Markers -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer' -Markers @('Opening Trade Analyzer...','content="1;url=/trade?load=1"','READ ONLY')
-    Assert-NoRawDeveloperFailure -Html $leagueTrade.Body -Stage 'League direct Trade Analyzer'
 
-    $leagueTradeWorkspace = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
-    Assert-Status -Response $leagueTradeWorkspace -Expected 200 -Stage 'League direct Trade Analyzer workspace'
-    Assert-Markers -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace' -Markers @('Analyze a trade','Trade partner','READ ONLY')
-    Assert-NoRawDeveloperFailure -Html $leagueTradeWorkspace.Body -Stage 'League direct Trade Analyzer workspace'
+    $leagueScoutIdMatch = [regex]::Match($franchiseHref, '(?:\?|&)id=(?<id>[^&]+)')
+    $leagueTradeIdMatch = [regex]::Match($leagueTradeHref, '(?:\?|&)opponent=(?<id>[^&]+)')
+    if (-not $leagueScoutIdMatch.Success -or -not $leagueTradeIdMatch.Success) {
+        throw 'BF-927 FAILED: League franchise action IDs could not be parsed.'
+    }
+    $leagueScoutId = [System.Uri]::UnescapeDataString($leagueScoutIdMatch.Groups['id'].Value)
+    $leagueTradeId = [System.Uri]::UnescapeDataString($leagueTradeIdMatch.Groups['id'].Value)
+    if ($leagueScoutId -cne $leagueTradeId) {
+        throw "BF-927 FAILED: League franchise actions changed team context. scout=$leagueScoutId trade=$leagueTradeId"
+    }
+
+    $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League exact Trade Analyzer'
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+    $leagueTradeScoutHref = Get-FirstSafeHref -Html $leagueTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
+    if ([string]::IsNullOrWhiteSpace([string]$leagueTradeScoutHref) -or $leagueTradeScoutHref -cne $franchiseHref) {
+        throw "BF-927 FAILED: loaded League Trade Analyzer did not preserve the exact Franchise Scout link. expected=$franchiseHref actual=$leagueTradeScoutHref"
+    }
+    Assert-NoRawDeveloperFailure -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer'
     Write-Pass -Label 'League direct Trade Analyzer'
 
-    $franchiseHref = Get-FirstSafeHref -Html $league.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout franchise</a>'
     if ([string]::IsNullOrWhiteSpace([string]$franchiseHref)) {
         Write-Skip -Label 'Franchise Detail' -Reason 'no exact Franchise Detail link rendered in current League evidence'
     }
