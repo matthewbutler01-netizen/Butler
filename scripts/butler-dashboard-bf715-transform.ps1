@@ -583,6 +583,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-942 BLOCKED: Lineup Projection Delta transform not found at $bf942Transform"
     }
     & $bf942Transform -CorePath $stagedCore
+
+    # BF-943: keep actionable lineup changes expanded and move unchanged KEEP rows
+    # behind progressive disclosure after BF-942 finalizes projection-delta evidence.
+    $bf943Transform = Join-Path $PSScriptRoot 'butler-app-bf943-changes-first-lineup-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf943Transform -PathType Leaf)) {
+        throw "BF-943 BLOCKED: Changes-First Lineup transform not found at $bf943Transform"
+    }
+    & $bf943Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
