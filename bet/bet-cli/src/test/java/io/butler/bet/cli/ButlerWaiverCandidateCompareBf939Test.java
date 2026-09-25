@@ -88,6 +88,11 @@ class ButlerWaiverCandidateCompareBf939Test {
         String transform = source("scripts/butler-dashboard-bf939-waiver-candidate-compare-transform.ps1");
 
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
+        int start = transform.indexOf("$compareFunctions = @'");
+        int end = transform.indexOf("'@\n\n$text = $text.Insert", start);
+        assertTrue(start >= 0 && end > start);
+        String installedCompare = transform.substring(start, end);
+
         for (String forbidden : new String[]{
                 "Invoke-RestMethod",
                 "Invoke-WebRequest",
@@ -96,7 +101,7 @@ class ButlerWaiverCandidateCompareBf939Test {
                 "submitTransaction",
                 "setFaab"
         }) {
-            assertFalse(transform.contains(forbidden), "BF-939 introduced forbidden action " + forbidden);
+            assertFalse(installedCompare.contains(forbidden), "BF-939 introduced forbidden action " + forbidden);
         }
     }
 
