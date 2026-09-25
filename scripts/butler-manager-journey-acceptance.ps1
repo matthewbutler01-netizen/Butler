@@ -844,6 +844,30 @@ try {
         }
     }
 
+    $waiverRosterCompareHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/waivers/roster-compare\?candidate=[0-9]+)">Compare to roster</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$waiverRosterCompareHref)) {
+        Write-Skip -Label 'Waiver Roster Compare' -Reason 'no authorized waiver candidate roster-compare entry rendered in current evidence'
+    }
+    else {
+        $waiverRosterCompareStart = Invoke-Get -Url ($root + $waiverRosterCompareHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $waiverRosterCompareStart -Expected 200 -Stage 'Waiver Roster Compare start'
+        Assert-Markers -Html $waiverRosterCompareStart.Body -Stage 'Waiver Roster Compare start' -Markers @('Waiver Roster Compare','Candidate selected','Choose roster player','Source order is preserved.','NOT A RANKING','READ ONLY')
+        Assert-PrimaryNavigation -Html $waiverRosterCompareStart.Body -Stage 'Waiver Roster Compare start'
+        Assert-NoRawDeveloperFailure -Html $waiverRosterCompareStart.Body -Stage 'Waiver Roster Compare start'
+
+        $waiverRosterCompareResultHref = Get-FirstSafeHref -Html $waiverRosterCompareStart.Body -Pattern 'href="(?<href>/waivers/roster-compare\?candidate=[0-9]+&roster=[0-9]+)">Compare with this roster player</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$waiverRosterCompareResultHref)) {
+            throw 'BF-940 FAILED: Waiver Roster Compare did not expose an exact verified roster-player comparison action.'
+        }
+
+        $waiverRosterCompareResult = Invoke-Get -Url ($root + $waiverRosterCompareResultHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $waiverRosterCompareResult -Expected 200 -Stage 'Waiver Roster Compare result'
+        Assert-Markers -Html $waiverRosterCompareResult.Body -Stage 'Waiver Roster Compare result' -Markers @('Waiver Roster Compare','Candidate vs roster context','Waiver candidate','Current roster player','VERIFIED ROSTER','Compare another roster player','NOT A RANKING','READ ONLY')
+        Assert-PrimaryNavigation -Html $waiverRosterCompareResult.Body -Stage 'Waiver Roster Compare result'
+        Assert-NoRawDeveloperFailure -Html $waiverRosterCompareResult.Body -Stage 'Waiver Roster Compare result'
+        Write-Pass -Label 'Waiver Roster Compare'
+    }
+
     $waiverHistoryHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/history\?load=1)">View Decision History</a>'
     if ([string]::IsNullOrWhiteSpace([string]$waiverHistoryHref)) {
         throw 'BF-925 FAILED: Waiver Board did not expose the direct Decision History action.'
