@@ -278,6 +278,7 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf881CoreTransform -CorePath $stagedCore
 
+    # BF-937: Player Search action polish still relies on this full staged-core chain; keep BF-742 exercising it.
     # BF-882: add secondary rostered-player discovery after the final Matchup polish.
     # This stays outside primary navigation and reuses existing persisted asset-search evidence.
     $bf882CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf882-player-search-transform.ps1'
