@@ -29,10 +29,12 @@ function Replace-ExactlyOnce {
 $core = [System.IO.File]::ReadAllText($CorePath)
 
 $loopOld = @'
+    $pressureHtml = ""
     foreach ($position in $Pressure) {
         if ($position.Available) {
 '@
 $loopNew = @'
+    $pressureHtml = ""
     foreach ($position in $Pressure) {
         $positionHref = [System.Uri]::EscapeDataString([string]$position.Position)
         if ($position.Available) {
