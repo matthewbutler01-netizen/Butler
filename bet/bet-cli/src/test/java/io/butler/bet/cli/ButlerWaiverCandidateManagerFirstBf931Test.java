@@ -47,7 +47,7 @@ class ButlerWaiverCandidateManagerFirstBf931Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains("/waivers/candidate/[0-9]+"));
-        assertTrue(journey.contains("View governed details</a>"));
+        assertTrue(journey.contains("href=\"(?<href>/waivers/candidate/[0-9]+)\""));
         assertTrue(journey.contains("Waiver Candidate Detail first scan"));
         assertTrue(journey.contains("Candidate Sleeper ID:"));
         assertTrue(journey.contains("Candidate-supported comparators:"));
