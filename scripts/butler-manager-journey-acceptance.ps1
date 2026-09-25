@@ -741,7 +741,7 @@ try {
 
     $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
     Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League exact Trade Analyzer'
-    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','Back to League','READ ONLY')
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','asset-group players','asset-group picks','Draft picks','Scout franchise','Back to League','READ ONLY')
     $leagueTradeScoutHref = Get-FirstSafeHref -Html $leagueTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
     if ([string]::IsNullOrWhiteSpace([string]$leagueTradeScoutHref) -or $leagueTradeScoutHref -cne $franchiseHref) {
         throw "BF-927 FAILED: loaded League Trade Analyzer did not preserve the exact Franchise Scout link. expected=$franchiseHref actual=$leagueTradeScoutHref"
