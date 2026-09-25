@@ -546,7 +546,12 @@ $bf939Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf939-waiver-candida
 if (-not (Test-Path -LiteralPath $bf939Transform -PathType Leaf)) {
     throw "BF-939 BLOCKED: Waiver Candidate Compare transform not found at $bf939Transform"
 }
-& $bf939Transform -DashboardPath $DashboardPath
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf939Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf939Transform -DashboardPath $DashboardPath
+}
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
