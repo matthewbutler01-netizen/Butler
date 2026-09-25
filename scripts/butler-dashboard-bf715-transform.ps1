@@ -574,6 +574,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-941 BLOCKED: Lineup Swap Compare transform not found at $bf941Transform"
     }
     & $bf941Transform -CorePath $stagedCore
+
+    # BF-942: enrich the final AutoFill assignment contract with exact current vs
+    # recommended weekly projections and slot delta evidence. Reuses the same
+    # projection frame already fetched by explicit AutoFill; no provider read is added here.
+    $bf942Transform = Join-Path $PSScriptRoot 'butler-app-bf942-lineup-projection-delta-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf942Transform -PathType Leaf)) {
+        throw "BF-942 BLOCKED: Lineup Projection Delta transform not found at $bf942Transform"
+    }
+    & $bf942Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
