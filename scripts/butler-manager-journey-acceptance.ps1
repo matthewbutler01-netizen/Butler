@@ -781,6 +781,21 @@ try {
     Assert-PrimaryNavigation -Html $waivers.Body -Stage 'Waiver Board'
     Assert-NoRawDeveloperFailure -Html $waivers.Body -Stage 'Waiver Board'
 
+    $waiverCandidateHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/waivers/candidate/[0-9]+)">View governed details</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$waiverCandidateHref)) {
+        Write-Skip -Label 'Waiver Candidate Detail' -Reason 'no exact authorized candidate detail link rendered in current Waiver Board evidence'
+    }
+    else {
+        $waiverCandidate = Invoke-Get -Url ($root + $waiverCandidateHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $waiverCandidate -Expected 200 -Stage 'Waiver Candidate Detail'
+        Assert-Markers -Html $waiverCandidate.Body -Stage 'Waiver Candidate Detail' -Markers @('Waiver candidate','What this means','Evidence snapshot','Why this player is here','Evidence and audit details','Back to Waiver Board','NOT A RANKING.','READ ONLY')
+        $waiverCandidateFirstScan = Get-ManagerFirstScanHtml -Html $waiverCandidate.Body
+        Assert-AbsentMarkers -Html $waiverCandidateFirstScan -Stage 'Waiver Candidate Detail first scan' -Markers @('Candidate Sleeper ID:','Candidate-supported comparators:','Eligible comparators:','Current audit ID:','Raw Sleeper league / roster:')
+        Assert-PrimaryNavigation -Html $waiverCandidate.Body -Stage 'Waiver Candidate Detail'
+        Assert-NoRawDeveloperFailure -Html $waiverCandidate.Body -Stage 'Waiver Candidate Detail'
+        Write-Pass -Label 'Waiver Candidate Detail'
+    }
+
     $waiverHistoryHref = Get-FirstSafeHref -Html $waivers.Body -Pattern 'href="(?<href>/history\?load=1)">View Decision History</a>'
     if ([string]::IsNullOrWhiteSpace([string]$waiverHistoryHref)) {
         throw 'BF-925 FAILED: Waiver Board did not expose the direct Decision History action.'
