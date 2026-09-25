@@ -78,7 +78,7 @@ class ButlerFranchiseScoutBf918Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains(
-                "Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','Back to League','READ ONLY')"));
+                "Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','Open Trade Analyzer','View franchise evidence','Back to League','READ ONLY')"));
     }
 
     @Test

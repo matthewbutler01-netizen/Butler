@@ -18,11 +18,13 @@ class ButlerManagerJourneyStabilizationBf912Test {
 
         for (String marker : new String[]{
                 "BF-912 contract: current all-seven-page manager-first stabilization",
-                "Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities')",
+                "Markers @('Priority 01','Week at a glance','Your fantasy week in one view','After Priority 01','Other priorities','View other priorities')",
                 "Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','<h2>Draft capital</h2>')",
                 "Markers @('Weekly matchup','What to do now','READ ONLY')",
                 "Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')",
                 "Markers @('League hub','Top franchise snapshot','League pulse','Movement at a glance','Risers','Fallers','Tracked movers','View movement details','READ ONLY')",
+                "View player evidence",
+                "View franchise evidence",
                 "Markers @('Analyze a trade','Trade partner','No new trade score is created here.','READ ONLY')",
                 "Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')",
                 "BF-912 RESULT: COMPLETE"
