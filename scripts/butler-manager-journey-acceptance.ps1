@@ -556,8 +556,51 @@ try {
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
     Assert-Status -Response $matchup -Expected 200 -Stage 'Matchup'
     Assert-Markers -Html $matchup.Body -Stage 'Matchup' -Markers @('Weekly matchup','What to do now','READ ONLY')
+    Assert-Markers -Html $matchup.Body -Stage 'Matchup BF-926 actions' -Markers @('Open My Team')
     Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
+
+    $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
+    if (-not $matchupOpponentUnavailable) {
+        Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')
+
+        $matchupScoutHref = Get-FirstSafeHref -Html $matchup.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)">Scout opponent</a>'
+        $matchupTradeHref = Get-FirstSafeHref -Html $matchup.Body -Pattern 'href="(?<href>/trade\?opponent=[^"]+)">Trade with opponent</a>'
+        if ([string]::IsNullOrWhiteSpace([string]$matchupScoutHref) -or [string]::IsNullOrWhiteSpace([string]$matchupTradeHref)) {
+            throw 'BF-926 FAILED: confirmed Matchup did not expose exact opponent Scout + Trade actions.'
+        }
+
+        $scoutIdMatch = [regex]::Match($matchupScoutHref, '(?:\?|&)id=(?<id>[^&]+)')
+        $tradeIdMatch = [regex]::Match($matchupTradeHref, '(?:\?|&)opponent=(?<id>[^&]+)')
+        if (-not $scoutIdMatch.Success -or -not $tradeIdMatch.Success) {
+            throw 'BF-926 FAILED: Matchup opponent action IDs could not be parsed.'
+        }
+        $scoutOpponentId = [System.Uri]::UnescapeDataString($scoutIdMatch.Groups['id'].Value)
+        $tradeOpponentId = [System.Uri]::UnescapeDataString($tradeIdMatch.Groups['id'].Value)
+        if ($scoutOpponentId -cne $tradeOpponentId) {
+            throw "BF-926 FAILED: Matchup opponent actions changed team context. scout=$scoutOpponentId trade=$tradeOpponentId"
+        }
+
+        $matchupScout = Invoke-Get -Url ($root + $matchupScoutHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $matchupScout -Expected 200 -Stage 'Matchup opponent Franchise Scout'
+        Assert-Markers -Html $matchupScout.Body -Stage 'Matchup opponent Franchise Scout' -Markers @('Franchise Detail','Franchise snapshot','Scout this franchise','READ ONLY')
+        Assert-NoRawDeveloperFailure -Html $matchupScout.Body -Stage 'Matchup opponent Franchise Scout'
+        Write-Pass -Label 'Matchup opponent Franchise Scout'
+
+        $matchupTrade = Invoke-Get -Url ($root + $matchupTradeHref) -TimeoutMs $timeoutMs
+        Assert-Status -Response $matchupTrade -Expected 200 -Stage 'Matchup opponent Trade Analyzer'
+        Assert-Markers -Html $matchupTrade.Body -Stage 'Matchup opponent Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','Scout franchise','READ ONLY')
+        $matchupTradeScoutHref = Get-FirstSafeHref -Html $matchupTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
+        if ([string]::IsNullOrWhiteSpace([string]$matchupTradeScoutHref) -or $matchupTradeScoutHref -cne $matchupScoutHref) {
+            throw "BF-926 FAILED: Matchup Trade Analyzer did not preserve the exact opponent Franchise Scout link. expected=$matchupScoutHref actual=$matchupTradeScoutHref"
+        }
+        Assert-NoRawDeveloperFailure -Html $matchupTrade.Body -Stage 'Matchup opponent Trade Analyzer'
+        Write-Pass -Label 'Matchup opponent Trade Analyzer'
+    }
+    else {
+        Assert-AbsentMarkers -Html $matchup.Body -Stage 'Matchup unavailable opponent actions' -Markers @('Scout opponent','Trade with opponent')
+    }
+
     Write-Pass -Label 'Matchup'
 
     $playerSearch = Invoke-Get -Url ($root + '/players') -TimeoutMs $timeoutMs
