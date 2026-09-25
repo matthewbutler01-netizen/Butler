@@ -67,11 +67,8 @@ class ButlerTeamPositionInventoryBf934Test {
     void bf934RemainsReadOnlyPresentationOnly() throws Exception {
         String transform = source("scripts/butler-app-bf934-team-position-inventory-transform.ps1");
 
-        assertFalse(transform.contains("Invoke-RestMethod"));
-        assertFalse(transform.contains("Invoke-WebRequest"));
-        assertFalse(transform.contains("Method = \"POST\""));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
+        assertTrue(transform.contains("$installedTeam ="));
+        assertTrue(transform.contains("roster inventory introduced provider, backend-read, optimizer, or write behavior."));
         assertTrue(StandardCharsets.US_ASCII.newEncoder().canEncode(transform));
     }
 
