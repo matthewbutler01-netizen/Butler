@@ -377,6 +377,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf927CoreTransform -CorePath $stagedCore
 
+    # BF-935: make League Hub movement manager-first after exact franchise
+    # Scout/Trade actions are finalized, using only the already-loaded League view.
+    $bf935CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf935-league-movement-pulse-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf935CoreTransform -PathType Leaf)) {
+        throw "BF-935 BLOCKED: League movement pulse transform not found at $bf935CoreTransform"
+    }
+    & $bf935CoreTransform -CorePath $stagedCore
+
     # BF-929: connect My Team positional-pressure cards to the existing
     # position-filtered Player Search without changing pressure semantics.
     $bf929CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf929-team-position-discovery-transform.ps1'
