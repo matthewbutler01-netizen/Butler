@@ -668,7 +668,7 @@ try {
         }
         $positionSearch = Invoke-Get -Url ($root + $morePositionHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $positionSearch -Expected 200 -Stage 'Player position discovery'
-        Assert-Markers -Html $positionSearch.Body -Stage 'Player position discovery' -Markers @('Find a rostered player','Search results','Rostered players','READ ONLY')
+        Assert-Markers -Html $positionSearch.Body -Stage 'Player position discovery' -Markers @('Find a rostered player','Search results','Rostered players','Compare this player','Scout franchise','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $positionSearch.Body -Stage 'Player position discovery'
         Write-Pass -Label 'Player position discovery'
         $playerCompareCount = [regex]::Matches($player.Body, '>Compare this player</a>').Count
@@ -744,7 +744,7 @@ try {
 
     $leagueTrade = Invoke-Get -Url ($root + $leagueTradeHref) -TimeoutMs $timeoutMs
     Assert-Status -Response $leagueTrade -Expected 200 -Stage 'League exact Trade Analyzer'
-    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','asset-group players','asset-group picks','Draft picks','Scout franchise','Back to League','READ ONLY')
+    Assert-Markers -Html $leagueTrade.Body -Stage 'League exact Trade Analyzer' -Markers @('Analyze a trade','Build the deal','Trade partner','asset-group players','asset-group picks','<details class="asset-group players" open','<details class="asset-group picks"','Draft picks','Scout franchise','Back to League','READ ONLY')
     $leagueTradeScoutHref = Get-FirstSafeHref -Html $leagueTrade.Body -Pattern 'href="(?<href>/franchise\?id=[^"]+)"'
     if ([string]::IsNullOrWhiteSpace([string]$leagueTradeScoutHref) -or $leagueTradeScoutHref -cne $franchiseHref) {
         throw "BF-927 FAILED: loaded League Trade Analyzer did not preserve the exact Franchise Scout link. expected=$franchiseHref actual=$leagueTradeScoutHref"
@@ -838,6 +838,10 @@ try {
     Assert-Status -Response $history -Expected 200 -Stage 'Decision History'
     Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @('Your waiver decision timeline','Latest outcome','Latest recorded','Newest first','READ ONLY')
     Assert-Markers -Html $history.Body -Stage 'Decision History actions' -Markers @('Review Waiver Board','Back to Dashboard')
+    $historyCardCount = [regex]::Matches($history.Body, 'class="history-card(?:\s|")').Count
+    if ($historyCardCount -gt 1) {
+        Assert-Markers -Html $history.Body -Stage 'Decision History older-record disclosure' -Markers @('View older decisions')
+    }
     $historyFirstScan = Get-ManagerFirstScanHtml -Html $history.Body
     Assert-AbsentMarkers -Html $historyFirstScan -Stage 'Decision History first scan' -Markers @('Provider frame','Recommendation state','Audit:','BF-603 market:','BF-602 waiver:','ADD / DROP Sleeper ids:')
     Assert-PrimaryNavigation -Html $history.Body -Stage 'Decision History'
