@@ -553,7 +553,11 @@ try {
         'href="/players?q=QB">Browse QB players</a>',
         'href="/players?q=RB">Browse RB players</a>',
         'href="/players?q=WR">Browse WR players</a>',
-        'href="/players?q=TE">Browse TE players</a>'
+        'href="/players?q=TE">Browse TE players</a>',
+        'href="/waivers?position=QB">Check QB waivers</a>',
+        'href="/waivers?position=RB">Check RB waivers</a>',
+        'href="/waivers?position=WR">Check WR waivers</a>',
+        'href="/waivers?position=TE">Check TE waivers</a>'
     )
     $teamPositionHref = Get-FirstSafeHref -Html $team.Body -Pattern 'href="(?<href>/players\?q=QB)">Browse QB players</a>'
     if ([string]::IsNullOrWhiteSpace([string]$teamPositionHref)) {
@@ -563,6 +567,17 @@ try {
     Assert-Status -Response $teamPositionSearch -Expected 200 -Stage 'My Team position discovery'
     Assert-Markers -Html $teamPositionSearch.Body -Stage 'My Team position discovery' -Markers @('Find a rostered player','Search results','Rostered players','value="QB"','READ ONLY','NOT A RANKING')
     Assert-NoRawDeveloperFailure -Html $teamPositionSearch.Body -Stage 'My Team position discovery'
+
+    $teamPositionWaiverHref = Get-FirstSafeHref -Html $team.Body -Pattern 'href="(?<href>/waivers\?position=QB)">Check QB waivers</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$teamPositionWaiverHref)) {
+        throw 'BF-932 FAILED: My Team did not expose the exact QB Waiver Board focus route.'
+    }
+    $teamPositionWaivers = Invoke-Get -Url ($root + $teamPositionWaiverHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $teamPositionWaivers -Expected 200 -Stage 'My Team position Waiver Board'
+    Assert-Markers -Html $teamPositionWaivers.Body -Stage 'My Team position Waiver Board' -Markers @('Butler waiver decision','Position focus','Position focus: QB','href="/waivers">All</a>','href="/waivers?position=QB">QB</a>','Source order remains unchanged.','NOT A RANKING.','READ ONLY')
+    Assert-PrimaryNavigation -Html $teamPositionWaivers.Body -Stage 'My Team position Waiver Board'
+    Assert-NoRawDeveloperFailure -Html $teamPositionWaivers.Body -Stage 'My Team position Waiver Board'
+    Write-Pass -Label 'My Team position Waiver Board'
     Write-Pass -Label 'My Team position discovery'
     Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
     Assert-NoRawDeveloperFailure -Html $team.Body -Stage 'My Team'
