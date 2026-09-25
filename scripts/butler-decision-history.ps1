@@ -156,7 +156,7 @@ function ConvertTo-DecisionHistoryHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'history'
     $historyCss = @'
-.history-list{display:grid;gap:12px;margin-top:18px}.history-card{padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.history-list>.history-card:first-child{border-left:4px solid var(--turf)}.history-card h3{margin:4px 0 7px}.history-card-compact{padding-top:14px;padding-bottom:14px}.history-card-compact .history-older-details{margin-top:8px}.history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.history-meta div{padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.history-meta strong{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.history-meta span{display:block;margin-top:4px;font-weight:700;word-break:break-word}.history-lineage{font:12px Consolas,monospace;color:var(--muted);word-break:break-word}.history-decision{font-size:22px;font-weight:900;line-height:1.2}.history-card-compact .history-decision{font-size:16px}.history-summary{max-width:72ch;margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.45}.history-integrity{font-size:12px;font-weight:800;color:var(--turf-deep)}.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.history-action{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font-size:12px;font-weight:800;text-decoration:none}.history-action:hover{background:var(--surface)}.history-action-primary{background:#EDF3EF;border-color:#D4E0D8;color:var(--turf-deep)}.history-timeline-label{margin-top:20px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}@media(max-width:760px){.history-meta{grid-template-columns:1fr}.history-card .statusrow{align-items:flex-start}.history-card .status{margin-top:8px}.history-actions .history-action{flex:1 1 45%}}
+.history-list{display:grid;gap:12px;margin-top:18px}.history-card{padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.history-list>.history-card:first-child{border-left:4px solid var(--turf)}.history-card h3{margin:4px 0 7px}.history-card-compact{padding-top:14px;padding-bottom:14px}.history-card-compact .history-older-details{margin-top:8px}.history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.history-meta div{padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.history-meta strong{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.history-meta span{display:block;margin-top:4px;font-weight:700;word-break:break-word}.history-lineage{font:12px Consolas,monospace;color:var(--muted);word-break:break-word}.history-decision{font-size:22px;font-weight:900;line-height:1.2}.history-card-compact .history-decision{font-size:16px}.history-summary{max-width:72ch;margin:7px 0 0;color:var(--muted);font-size:13px;line-height:1.45}.history-integrity{font-size:12px;font-weight:800;color:var(--turf-deep)}.history-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.history-action{display:inline-flex;align-items:center;justify-content:center;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink);font-size:12px;font-weight:800;text-decoration:none}.history-action:hover{background:var(--surface)}.history-action-primary{background:#EDF3EF;border-color:#D4E0D8;color:var(--turf-deep)}.history-timeline-label{margin-top:20px;color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.history-older-list{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.history-older-list>summary{cursor:pointer;padding:12px 14px;color:var(--turf-deep);font-size:12px;font-weight:800}.history-older-list[open]>summary{border-bottom:1px solid var(--line)}.history-older-list>.history-list{padding:12px;margin-top:0}@media(max-width:760px){.history-meta{grid-template-columns:1fr}.history-card .statusrow{align-items:flex-start}.history-card .status{margin-top:8px}.history-actions .history-action{flex:1 1 45%}}
 '@
 
     # BF-679 reverses the already-authoritative BF-628 sequence for presentation only.
@@ -165,6 +165,7 @@ function ConvertTo-DecisionHistoryHtml {
     # ConvertTo-DecisionHistoryView keeps the parsed source order and exact captured value unchanged.
     $presentationEntries = @($History.Entries)
     $cards = ''
+    $olderCards = ''
     $latestOutcome = 'No recorded decisions'
     $latestCaptured = 'None yet'
     for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
@@ -223,17 +224,28 @@ function ConvertTo-DecisionHistoryHtml {
 </article>
 "@
         }
-        $cards += $cardHtml
+        if ($isNewest) {
+            $cards += $cardHtml
+        }
+        else {
+            $olderCards += $cardHtml
+        }
     }
     if ([string]::IsNullOrWhiteSpace($cards)) {
         $cards = '<div class="empty">No recorded governed waiver decisions are available for this league yet.</div>'
+    }
+
+    $olderHistoryHtml = ''
+    if (-not [string]::IsNullOrWhiteSpace($olderCards)) {
+        $olderCount = [Math]::Max(0, $presentationEntries.Count - 1)
+        $olderHistoryHtml = "<details class=`"history-older-list`"><summary>View older decisions ($olderCount)</summary><div class=`"history-list`">$olderCards</div></details>"
     }
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision History</title><style>$css$historyCss</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History &middot; $(ConvertTo-HtmlText $History.RecordCount) recorded</div></header>
 $nav
-<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div></section>
+<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div>$olderHistoryHtml</section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> Decision History reads recorded governed waiver history only. It cannot capture or rewrite a decision record, refresh evidence, rerank a waiver decision, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
