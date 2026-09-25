@@ -540,6 +540,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & $bf938Transform -DashboardPath $DashboardPath -CorePath $stagedCore
 }
 
+# BF-939: add the exact-ID Waiver Candidate Compare flow after all Waiver Board
+# presentation transforms are final. Dashboard-only staging remains supported.
+$bf939Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf939-waiver-candidate-compare-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf939Transform -PathType Leaf)) {
+    throw "BF-939 BLOCKED: Waiver Candidate Compare transform not found at $bf939Transform"
+}
+& $bf939Transform -DashboardPath $DashboardPath
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
