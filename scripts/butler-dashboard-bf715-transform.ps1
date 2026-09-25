@@ -591,6 +591,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-943 BLOCKED: Changes-First Lineup transform not found at $bf943Transform"
     }
     & $bf943Transform -CorePath $stagedCore
+
+    # BF-944: close the Lineup Advisor -> Player Compare -> Lineup Advisor loop
+    # with one fixed safe context flag after BF-943 finalizes lineup presentation.
+    $bf944Transform = Join-Path $PSScriptRoot 'butler-app-bf944-lineup-compare-return-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf944Transform -PathType Leaf)) {
+        throw "BF-944 BLOCKED: Lineup Compare Return transform not found at $bf944Transform"
+    }
+    & $bf944Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
