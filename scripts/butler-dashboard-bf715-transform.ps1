@@ -553,6 +553,19 @@ else {
     & $bf939Transform -DashboardPath $DashboardPath
 }
 
+# BF-940: compare one exact authorized waiver candidate with one exact verified
+# BF-610 roster player after BF-939 has finalized the Waiver Board actions.
+$bf940Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf940-waiver-roster-compare-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf940Transform -PathType Leaf)) {
+    throw "BF-940 BLOCKED: Waiver Roster Compare transform not found at $bf940Transform"
+}
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf940Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf940Transform -DashboardPath $DashboardPath
+}
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
