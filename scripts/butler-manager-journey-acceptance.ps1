@@ -620,7 +620,16 @@ try {
 
     $playerSearch = Invoke-Get -Url ($root + '/players') -TimeoutMs $timeoutMs
     Assert-Status -Response $playerSearch -Expected 200 -Stage 'Player Search'
-    Assert-Markers -Html $playerSearch.Body -Stage 'Player Search' -Markers @('Find a rostered player','Quick position searches','href="/players?q=QB">QB</a>','href="/players?q=RB">RB</a>','href="/players?q=WR">WR</a>','href="/players?q=TE">TE</a>','Back to My Team','Back to League')
+    Assert-Markers -Html $playerSearch.Body -Stage 'Player Search' -Markers @('Find a rostered player','Quick position searches','href="/players?q=QB">QB</a>','href="/players?q=RB">RB</a>','href="/players?q=WR">WR</a>','href="/players?q=TE">TE</a>','Back to My Team','Back to League','Check Waiver Board')
+    $playerSearchWaiverHref = Get-FirstSafeHref -Html $playerSearch.Body -Pattern 'href="(?<href>/waivers)">Check Waiver Board</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$playerSearchWaiverHref)) {
+        throw 'BF-930 FAILED: Player Search did not expose the Waiver Board bridge.'
+    }
+    $playerSearchWaivers = Invoke-Get -Url ($root + $playerSearchWaiverHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $playerSearchWaivers -Expected 200 -Stage 'Player Search direct Waiver Board'
+    Assert-Markers -Html $playerSearchWaivers.Body -Stage 'Player Search direct Waiver Board' -Markers @('Butler waiver decision','Next step','Players Butler authorized for review','NOT A RANKING.','READ ONLY')
+    Assert-NoRawDeveloperFailure -Html $playerSearchWaivers.Body -Stage 'Player Search direct Waiver Board'
+    Write-Pass -Label 'Player Search direct Waiver Board'
     Assert-NoRawDeveloperFailure -Html $playerSearch.Body -Stage 'Player Search'
     Write-Pass -Label 'Player Search'
 
