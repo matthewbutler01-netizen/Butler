@@ -53,7 +53,7 @@ $movementPulsePrelude = @'
         }
     }
 
-    $movementTrackedText = if ($View.MovementAvailable) { [string]@($View.Movers).Count } else { "Unavailable" }
+    $movementTrackedText = if ($View.MovementAvailable) { [string](@($View.Movers).Count) } else { "Unavailable" }
     $movementRiserText = if ($View.MovementAvailable) { [string]$movementRiserCount } else { "Unavailable" }
     $movementFallerText = if ($View.MovementAvailable) { [string]$movementFallerCount } else { "Unavailable" }
     $movementPulseCoverageText = if ($View.MovementAvailable) { "$($View.MovementCoverage)%" } else { "Unavailable" }
