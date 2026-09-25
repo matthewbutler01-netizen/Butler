@@ -148,7 +148,7 @@ $dashboardCss = '.dashboard-priority-disclosure{margin-top:14px;border:1px solid
 $dashboardBlock = $dashboardBlock.Insert($dashboardCssEnd, [Environment]::NewLine + $dashboardCss + [Environment]::NewLine)
 
 $queueStart = $dashboardBlock.IndexOf('<section class="panel manager-queue">', [System.StringComparison]::Ordinal)
-$queueBoundary = $dashboardBlock.IndexOf('<section class="panel boundary">', $queueStart, [System.StringComparison]::Ordinal)
+$queueBoundary = $dashboardBlock.IndexOf('<div class="manager-readonly"><strong>Butler is read only.</strong>', $queueStart, [System.StringComparison]::Ordinal)
 if ($queueStart -lt 0 -or $queueBoundary -le $queueStart) {
     throw 'BF-938 BLOCKED: final Dashboard other-priority queue boundary is missing.'
 }
