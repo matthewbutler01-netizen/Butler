@@ -79,6 +79,8 @@ class ButlerWaiverCandidateCompareBf939Test {
         assertTrue(journey.contains("Waiver Candidate Compare result"));
         assertTrue(journey.contains("Compare with this candidate"));
         assertTrue(journey.contains("Side-by-side neutral waiver evidence"));
+        assertTrue(journey.contains("href=\"/waivers/candidate/[0-9]+\""));
+        assertTrue(journey.contains("$waiverCompareDetailLinks.Count -lt 2"));
         assertTrue(journey.contains("Write-Pass -Label 'Waiver Candidate Compare'"));
         assertTrue(journey.contains("current BF-616 review pool has no second authorized candidate"));
     }
