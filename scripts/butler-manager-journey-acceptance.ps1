@@ -549,6 +549,21 @@ try {
         throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect; $teamProcessOutput"
     }
     Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','<h2>Draft capital</h2>')
+    Assert-Markers -Html $team.Body -Stage 'My Team position discovery' -Markers @(
+        'href="/players?q=QB">Browse QB players</a>',
+        'href="/players?q=RB">Browse RB players</a>',
+        'href="/players?q=WR">Browse WR players</a>',
+        'href="/players?q=TE">Browse TE players</a>'
+    )
+    $teamPositionHref = Get-FirstSafeHref -Html $team.Body -Pattern 'href="(?<href>/players\?q=QB)">Browse QB players</a>'
+    if ([string]::IsNullOrWhiteSpace([string]$teamPositionHref)) {
+        throw 'BF-929 FAILED: My Team did not expose the exact QB Player Search route.'
+    }
+    $teamPositionSearch = Invoke-Get -Url ($root + $teamPositionHref) -TimeoutMs $timeoutMs
+    Assert-Status -Response $teamPositionSearch -Expected 200 -Stage 'My Team position discovery'
+    Assert-Markers -Html $teamPositionSearch.Body -Stage 'My Team position discovery' -Markers @('Find a rostered player','Search results','Rostered players','value="QB"','READ ONLY','NOT A RANKING')
+    Assert-NoRawDeveloperFailure -Html $teamPositionSearch.Body -Stage 'My Team position discovery'
+    Write-Pass -Label 'My Team position discovery'
     Assert-PrimaryNavigation -Html $team.Body -Stage 'My Team'
     Assert-NoRawDeveloperFailure -Html $team.Body -Stage 'My Team'
     Write-Pass -Label 'My Team'

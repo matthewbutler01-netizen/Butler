@@ -377,6 +377,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf927CoreTransform -CorePath $stagedCore
 
+    # BF-929: connect My Team positional-pressure cards to the existing
+    # position-filtered Player Search without changing pressure semantics.
+    $bf929CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf929-team-position-discovery-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf929CoreTransform -PathType Leaf)) {
+        throw "BF-929 BLOCKED: My Team position discovery transform not found at $bf929CoreTransform"
+    }
+    & $bf929CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
