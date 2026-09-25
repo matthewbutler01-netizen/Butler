@@ -566,6 +566,16 @@ else {
     & $bf940Transform -DashboardPath $DashboardPath
 }
 
+# BF-941: add the exact AutoFill swap -> Player Compare loop after BF-940.
+# This is staged-core presentation/navigation only and reuses already-loaded My Team roster identity.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf941Transform = Join-Path $PSScriptRoot 'butler-app-bf941-lineup-swap-compare-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf941Transform -PathType Leaf)) {
+        throw "BF-941 BLOCKED: Lineup Swap Compare transform not found at $bf941Transform"
+    }
+    & $bf941Transform -CorePath $stagedCore
+}
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
