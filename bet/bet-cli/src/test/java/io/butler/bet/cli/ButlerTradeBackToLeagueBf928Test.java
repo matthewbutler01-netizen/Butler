@@ -18,16 +18,16 @@ class ButlerTradeBackToLeagueBf928Test {
 
         assertTrue(trade.contains(
                 "$opponentTeamHrefId = [System.Uri]::EscapeDataString([string]$Opponent.TeamId)"));
-        assertTrue(trade.contains(
-                "href=\`\"/franchise?id=$opponentTeamHrefId\`\">Scout franchise</a>"));
-        assertTrue(trade.contains(
-                "href=\`\"/league\`\">Back to League</a>"));
-
         int loadedBlock = trade.indexOf("if ($null -ne $Opponent)");
         int action = trade.indexOf("$opponentScoutAction =", loadedBlock);
         int builder = trade.indexOf("$giveHtml =", action);
         assertTrue(loadedBlock >= 0 && action > loadedBlock && builder > action);
-        assertTrue(trade.substring(action, builder).contains("Back to League"));
+
+        String loadedActions = trade.substring(action, builder);
+        assertTrue(loadedActions.contains("/franchise?id=$opponentTeamHrefId"));
+        assertTrue(loadedActions.contains("Scout franchise</a>"));
+        assertTrue(loadedActions.contains("/league"));
+        assertTrue(loadedActions.contains("Back to League</a>"));
     }
 
     @Test
