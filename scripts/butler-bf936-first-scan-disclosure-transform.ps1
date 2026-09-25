@@ -143,7 +143,7 @@ $dashboard = $dashboard.Substring(0, $waiverStart) + $waiverBlock + $dashboard.S
 foreach ($required in @(
     'Review authorized players',
     'Butler waiver decision',
-    'What to do now',
+    'Next step',
     'Position focus',
     'Players Butler authorized for review',
     'NOT A RANKING.'
