@@ -393,6 +393,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf930CoreTransform -CorePath $stagedCore
 
+    # BF-932: preserve My Team position context into the existing Waiver Board
+    # and keep the exact position query through the governed dashboard proxy.
+    $bf932CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf932-position-focused-waivers-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf932CoreTransform -PathType Leaf)) {
+        throw "BF-932 BLOCKED: position-focused waiver core transform not found at $bf932CoreTransform"
+    }
+    & $bf932CoreTransform -CorePath $stagedCore
+
     # BF-884: final manager recovery-page polish runs after every manager/detail route
     # has been installed so blocked and unknown-route pages can be styled without
     # changing the underlying fail-closed catches or HTTP status codes.
@@ -451,6 +459,14 @@ if (-not (Test-Path -LiteralPath $bf931DashboardTransform -PathType Leaf)) {
     throw "BF-931 BLOCKED: Waiver Candidate Detail manager-first transform not found at $bf931DashboardTransform"
 }
 & $bf931DashboardTransform -DashboardPath $DashboardPath
+
+# BF-932: filter only the already-authorized waiver shortlist for display,
+# after decision/history/candidate-detail presentation is final.
+$bf932DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf932-position-focused-waivers-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf932DashboardTransform -PathType Leaf)) {
+    throw "BF-932 BLOCKED: position-focused Waiver Board transform not found at $bf932DashboardTransform"
+}
+& $bf932DashboardTransform -DashboardPath $DashboardPath
 
 # BF-898: final mobile-manager polish runs after all manager presentation and route
 # transforms so the swipe navigation and stale-lineup copy are the last UI authority.
