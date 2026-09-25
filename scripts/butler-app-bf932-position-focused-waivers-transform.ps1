@@ -36,7 +36,7 @@ $core = $core.Substring(0, $positionStart) + $positionBlock + $core.Substring($s
 
 $proxyOld = '                $proxied = Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $path'
 $proxyNew = @'
-                $dashboardRequestTarget = if ($path -eq "/waivers") { $requestTarget } else { $path }
+                $dashboardRequestTarget = if ($path -eq "/waivers") { $parts[1] } else { $path }
                 $proxied = Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $dashboardRequestTarget
 '@
 $proxyCount = [regex]::Matches($core, [regex]::Escape($proxyOld)).Count
@@ -47,7 +47,7 @@ $core = $core.Replace($proxyOld, $proxyNew.TrimEnd())
 
 foreach ($required in @(
     'href=`"/waivers?position=$positionHref`">Check $(ConvertTo-HtmlText $position.Position) waivers</a>',
-    '$dashboardRequestTarget = if ($path -eq "/waivers") { $requestTarget } else { $path }',
+    '$dashboardRequestTarget = if ($path -eq "/waivers") { $parts[1] } else { $path }',
     'Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $dashboardRequestTarget'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
