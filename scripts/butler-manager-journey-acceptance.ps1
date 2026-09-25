@@ -549,6 +549,7 @@ try {
         throw "BF-912 FAILED: My Team returned HTTP $($team.StatusCode), expected 200. $teamTechnicalText; $teamDirect; $teamProcessOutput"
     }
     Assert-Markers -Html $team.Body -Stage 'My Team' -Markers @('Roster hub','Lineup and depth at a glance','Player Search','Player Compare','Roster construction','<h2>Draft capital</h2>')
+    Assert-Markers -Html $team.Body -Stage 'My Team roster inventory' -Markers @('aria-label="Core position inventory"','<span>QB</span>','<span>RB</span>','<span>WR</span>','<span>TE</span>','Roster inventory only.','Starters','Bench','Reserve','Taxi')
     Assert-Markers -Html $team.Body -Stage 'My Team position discovery' -Markers @(
         'href="/players?q=QB">Browse QB players</a>',
         'href="/players?q=RB">Browse RB players</a>',
