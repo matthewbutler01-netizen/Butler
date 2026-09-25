@@ -65,8 +65,8 @@ class ButlerWaiverRosterCompareBf940Test {
     void appShellAllowsRosterCompareAndPreservesQuery() throws Exception {
         String transform = source("scripts/butler-dashboard-bf940-waiver-roster-compare-transform.ps1");
 
-        assertTrue(transform.contains("$waiverRosterCompare = $path -eq "/waivers/roster-compare""));
-        assertTrue(transform.contains("$path -eq "/waivers/roster-compare") { $parts[1] }"));
+        assertTrue(transform.contains("$waiverRosterCompare = $path -eq \"/waivers/roster-compare\""));
+        assertTrue(transform.contains("$path -eq \"/waivers/roster-compare\") { $parts[1] }"));
         assertTrue(transform.contains("Invoke-GovernedDashboardGet -InnerPort $innerPort -Path $dashboardRequestTarget"));
     }
 
