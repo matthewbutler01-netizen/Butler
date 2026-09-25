@@ -31,7 +31,8 @@ class ButlerPositionFocusedWaiversBf932Test {
 
         assertTrue(transform.contains("$PositionFocus"));
         assertTrue(transform.contains("$normalizedPositionFocus"));
-        assertTrue(transform.contains("$displayCandidates"));
+        assertTrue(transform.contains("$displayCandidates = @("));
+        assertTrue(transform.contains("@($displayCandidates).Count"));
         assertTrue(transform.contains("Where-Object"));
         assertTrue(transform.contains("[string]$_.Position -ceq $normalizedPositionFocus"));
         assertTrue(transform.contains("foreach ($candidate in $displayCandidates)"));
