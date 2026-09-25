@@ -544,7 +544,7 @@ foreach ($required in @(
     'Compare this player',
     'href="/franchise?id=$teamHrefId">Scout franchise</a>',
     'OwnerTeamId',
-    'href=`"/compare?left=$hrefId`">Compare</a>',
+    'href=`"/compare?left=$hrefId`">Compare this player</a>',
     'href=`"/compare?left=$leftHref&right=$rightHref`"',
     'NOT A RANKING',
     'Butler does not choose a winner',
