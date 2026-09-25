@@ -64,12 +64,14 @@ $focusPrelude = @'
     if (@("QB", "RB", "WR", "TE") -cnotcontains $normalizedPositionFocus) {
         $normalizedPositionFocus = ""
     }
-    $displayCandidates = if ([string]::IsNullOrWhiteSpace($normalizedPositionFocus)) {
-        @($candidates)
-    }
-    else {
-        @($candidates | Where-Object { [string]$_.Position -ceq $normalizedPositionFocus })
-    }
+    $displayCandidates = @(
+        if ([string]::IsNullOrWhiteSpace($normalizedPositionFocus)) {
+            $candidates
+        }
+        else {
+            $candidates | Where-Object { [string]$_.Position -ceq $normalizedPositionFocus }
+        }
+    )
 
 '@
 $anchorCount = [regex]::Matches($waiverBlock, [regex]::Escape($countAnchor)).Count
@@ -89,7 +91,7 @@ $emptyOld = @'
 
 '@
 $emptyNew = @'
-    if ($displayCandidates.Count -eq 0) {
+    if (@($displayCandidates).Count -eq 0) {
         if ([string]::IsNullOrWhiteSpace($normalizedPositionFocus)) {
             $cards = '<div class="subtle">BF-616 has no authorized shortlist entries in the current governed frame.</div>'
         }
@@ -107,7 +109,7 @@ if ($returnStart -lt 0) {
 }
 
 $focusHtmlPrelude = @'
-    $waiverFocusCount = $displayCandidates.Count
+    $waiverFocusCount = @($displayCandidates).Count
     $waiverFocusSummary = if ([string]::IsNullOrWhiteSpace($normalizedPositionFocus)) {
         "Showing all $($counts.Total) authorized candidates. Source order remains unchanged."
     }
