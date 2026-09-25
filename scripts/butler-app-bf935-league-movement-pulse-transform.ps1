@@ -44,10 +44,10 @@ $movementPulsePrelude = @'
     if ($View.MovementAvailable) {
         foreach ($movementItem in @($View.Movers)) {
             $movementText = ([string]$movementItem).TrimStart()
-            if ($movementText.StartsWith('+', [System.StringComparison]::Ordinal)) {
+            if ($movementText.StartsWith("+", [System.StringComparison]::Ordinal)) {
                 $movementRiserCount++
             }
-            elseif ($movementText.StartsWith('-', [System.StringComparison]::Ordinal)) {
+            elseif ($movementText.StartsWith("-", [System.StringComparison]::Ordinal)) {
                 $movementFallerCount++
             }
         }
