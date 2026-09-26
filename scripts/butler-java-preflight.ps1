@@ -1,6 +1,8 @@
 param(
     [ValidateRange(1, 999)]
-    [int]$MinimumMajor = 25
+    [int]$MinimumMajor = 25,
+
+    [switch]$PassThru
 )
 
 Set-StrictMode -Version Latest
@@ -64,4 +66,8 @@ if ($major -eq 1 -and $versionParts.Length -gt 1) {
 
 if ($major -lt $MinimumMajor) {
     throw "BF-782 BLOCKED: Java $MinimumMajor or newer is required; resolved Java major version $major at $java."
+}
+
+if ($PassThru) {
+    [pscustomobject]@{ Executable = $java; Major = $major; Version = $versionMatch.Groups['version'].Value }
 }
