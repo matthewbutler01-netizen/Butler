@@ -428,6 +428,7 @@ function ConvertTo-ButlerUserFacingHtml {
         if (-not $bf890AcceptanceDiagnostic) {
             $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
         }
+        $Body = Add-ButlerAccessibility -Html $Body
         if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             $DiagnosticTimings.presentation_ms = Get-Bf856ElapsedMs -StartedTicks $bf856PresentationStarted
         }

@@ -296,6 +296,18 @@ function Assert-PrimaryNavigation {
             throw "BF-912 FAILED: $Stage is missing primary navigation marker: $marker"
         }
     }
+    if ($Stage -in @('Dashboard', 'My Team', 'Matchup', 'League', 'Waiver Board', 'Trade Analyzer', 'Decision History')) {
+        $currentLabel = if ($Stage -eq 'Decision History') { 'History' } else { $Stage }
+        if ($Html -notmatch '<html\b[^>]*lang="en"' -or
+            $Html -notmatch '<a class="butler-skip-link" href="#butler-main-content">Skip to main content</a>' -or
+            $Html -notmatch '<section\b[^>]*id="butler-main-content"[^>]*tabindex="-1"') {
+            throw "BF-912 FAILED: $Stage is missing language metadata or a focusable skip-navigation destination."
+        }
+        $current = [regex]::Matches($Html, '<a\b[^>]*aria-current="page"[^>]*>([^<]+)</a>')
+        if ($current.Count -ne 1 -or $current[0].Groups[1].Value -cne $currentLabel) {
+            throw "BF-912 FAILED: $Stage must announce exactly its own primary navigation link as the current page."
+        }
+    }
 }
 
 function Assert-NoRawDeveloperFailure {
