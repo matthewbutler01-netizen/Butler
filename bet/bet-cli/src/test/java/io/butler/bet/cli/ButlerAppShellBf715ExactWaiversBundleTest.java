@@ -51,9 +51,12 @@ class ButlerAppShellBf715ExactWaiversBundleTest {
 
         int transformSource = core.indexOf("butler-dashboard-bf715-transform.ps1");
         int copyDashboard = core.indexOf("Copy-Item -LiteralPath $dashboardSource -Destination $runtimeDashboard -Force");
-        int runTransform = core.indexOf("& $dashboardTransformSource -DashboardPath $runtimeDashboard");
+        int runTransform = core.indexOf("& $runtimeDashboardTransform -DashboardPath $runtimeDashboard");
         int startWorkers = core.indexOf("for ($index = 0; $index -lt $maxCoreWorkers; $index++)");
         assertTrue(core.contains("ReadAllText($runtimeCoreSingle).Replace(\"`r`n\", \"`n\")"));
+        assertTrue(core.contains("Copy-Item -Path (Join-Path $scriptDir '*.ps1') -Destination $runtimeTransformsDir"));
+        assertTrue(core.contains("$runtimeDashboardTransform = Join-Path $runtimeTransformsDir 'butler-dashboard-bf715-transform.ps1'"));
+        assertTrue(core.contains("& $runtimeDashboardTransform -DashboardPath $runtimeDashboard"));
         assertTrue(transformSource >= 0);
         assertTrue(copyDashboard >= 0 && runTransform > copyDashboard);
         assertTrue(startWorkers > runTransform);
