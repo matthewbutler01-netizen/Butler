@@ -1,77 +1,100 @@
-# Butler v0.2.0 Release
+# Butler v0.3.0 Release
 
 ## Release scope
 
-v0.2.0 adds a packaged path for moving an existing Butler installation to a fresh
-Windows profile: read-only setup checks, explicitly selected private-backup restore
-with league-membership validation, and verified first launch with a dashboard
-handoff and an instance-specific stop command.
+v0.3.0 completes Butler's Windows MVP onboarding boundary. A brand-new Windows
+profile can start from the verified runtime package, provide a Sleeper username
+and current Sleeper league ID, and reach a verified Butler Dashboard without
+manual SQLite work, a pre-existing Butler database, or an internal Butler league
+UUID.
+
+The packaged new-league flow reuses Butler's existing governed capabilities:
+
+- runtime/package integrity and Java checks;
+- existing Sleeper league, roster, lineup, scoring, draft-pick, and value import;
+- exact requesting-user account, league, and roster discovery/binding;
+- current matchup plus governed waiver/My Team evidence hydration;
+- staged database creation before fresh-profile commit; and
+- the existing seven-page first-launch verifier and Dashboard handoff.
+
+The Sleeper username is required so Butler can prove exactly which roster belongs
+to the requesting manager. It does not infer roster ownership from team names,
+players, or other heuristics.
 
 Release acceptance must prove that:
 
-- its downloaded runtime ZIP matched the published SHA-256 sidecar;
-- the extracted prebuilt runtime launched without a Gradle wrapper or toolchain;
-- BF-768 release-security checks passed;
-- BF-773 packaged-runtime launch acceptance passed; and
-- all seven manager pages return HTTP 200 against governed external runtime data;
-- an isolated profile can restore an existing private backup and saved selection;
-- first launch, owned shutdown, and restart pass without changing the database; and
+- the downloaded runtime ZIP matches its SHA-256 sidecar;
+- the extracted prebuilt runtime launches without a Gradle wrapper or toolchain;
+- BF-768 release-security checks pass;
+- BF-773 packaged-runtime launch acceptance passes;
+- the existing private-backup restore path remains intact;
+- the fresh-profile new-league flow refuses existing Butler data/settings;
+- new-league setup stages data before committing `butler.db` and the saved league;
+- the exact bound Sleeper manager/league/roster is live-verified;
+- all seven manager pages return HTTP 200 from the isolated fresh profile; and
 - failure cleanup preserves unrelated processes and existing settings.
 
 The published runtime remains code/runtime-only. It contains no Butler database,
-credentials, provider payloads, logs, Git metadata, or user runtime data.
+credentials, provider payloads, logs, Git metadata, or user runtime data. New
+league data is acquired only when the operator explicitly runs the packaged
+new-league setup.
 
 ## Exact-commit release gate
 
-The v0.2.0 release retains the v0.1.1 maintenance baseline:
+v0.3.0 retains the v0.2.0 release baseline and its external runtime-data boundary,
+including JUnit 6.1.3 with strict dependency verification and the BF-534
+seven-page UX guardrail.
 
-- JUnit 6.1.3 and its strict dependency-verification metadata; and
-- the BF-534 seven-page UX guardrail, now required by the authoritative release
-  gate after BF-688 peak-load acceptance.
+Before `v0.3.0` may be published, its exact clean main commit must pass:
 
-Before `v0.2.0` may be published, its exact clean main commit must pass
-`scripts\butler-release-acceptance.cmd`, a fresh extraction and launch soak, and
-the exact-head BF-885/BF-912 Fast Lane journey. Publication must use the source,
-runtime, verification-record, and evidence artifacts generated for that same
-commit.
+1. `scripts\butler-release-acceptance.cmd`;
+2. the exact-head BF-885/BF-912 Fast Lane journey;
+3. `scripts\butler-mvp-completion-acceptance.cmd`, which builds the exact-HEAD
+   runtime and performs real fresh-profile Sleeper onboarding under an isolated
+   temporary Windows profile; and
+4. the human under-five-minute manager task recorded by the accessibility review.
 
-Use `butler-setup-restore.cmd` and `butler-setup-launch.cmd -VerifyOnly` from a fresh
-extraction for the isolated-profile check, then repeat launch using the saved
-selection and verify the dashboard handoff and owned stop. Keep private backup
-data and logs outside the release assets. Browser spot-checks of layout and
-keyboard navigation supplement the HTTP checks; they do not establish a complete
-accessibility audit or a timed human decision task.
+The MVP completion acceptance must use the packaged runtime, the requesting
+manager's Sleeper username, and the current Sleeper league ID. It runs with
+`-VerifyOnly`, verifies all seven manager pages, stops its owned test runtime,
+and removes only its isolated temporary profile. It does not use or replace the
+operator's existing Butler profile.
 
-This release still requires Java 25 or newer and an existing governed database
-or private backup. A league UUID alone cannot recreate missing evidence. Existing
-stale roster evidence can block manager-page readiness and needs the governed
-recovery workflow. New-league data acquisition is outside this release's scope.
+Publication must use source, runtime, verification-record, and release-evidence
+artifacts generated for that same exact commit. Browser spot-checks and the human
+task supplement automated HTTP checks; they do not claim full WCAG conformance.
 
-Publication status and downloadable assets are recorded on the GitHub Releases
-page; this document defines the release contract rather than claiming publication.
+## Safety boundary
+
+Fresh onboarding writes Butler-local data and evidence only. It does not submit a
+lineup, waiver claim, trade, FAAB change, or any other Sleeper transaction. The
+existing restore/migration paths remain separate, and fresh setup refuses an
+existing Butler database or saved league selection instead of overwriting them.
+
+The runtime package preserves the fail-closed Gradle shim and external
+runtime-data boundary. A runtime ZIP by itself still contains no Butler database;
+data creation occurs only through an explicit governed setup/restore action.
 
 ## Release history
+
+`v0.2.0` was published from exact commit
+`a9f76be71822a39b75771c4c3d6f0eccac7a76e8`. It added read-only setup checks,
+guided private-backup restore with league-membership validation, and verified
+first launch for an existing Butler installation.
 
 `v0.1.1` was published from exact commit
 `4eb714bdf07cc1b63910bff7f7e51570e3d38155`, adding JUnit 6.1.3 and the
 BF-534 seven-page UX guardrail. The preceding `v0.1.0` stable release used
 `6eefc53a75608ca5c97f18a6d0c6c966be783626` after the RC4 fresh-package soak.
 
-`v0.1.0-rc.1` was the first public governed release candidate. Published-package
-testing then exposed a portability defect in fully loaded Trade Analyzer and
-Decision History routes. BF-789 repaired those routes by using the prebuilt
-direct-Java read dispatcher while preserving the fail-closed Gradle shim and
-external runtime-data boundary.
-
-RC2 and RC3 hardened that packaged-runtime path. RC4 added the final dependency,
-Windows watchdog, PowerShell module-discovery, Gradle-output, and staging
-line-ending repairs. The RC4 commit became the exact `v0.1.0` stable commit after
-the clean fresh-package soak.
+The v0.1.0 release-candidate series established the prebuilt direct-Java runtime,
+the fail-closed Gradle shim, Windows watchdog/process ownership, package
+portability, and release-evidence gates that v0.2.0 and v0.3.0 retain.
 
 ## Publication boundary
 
 Repository release documentation and acceptance commands generate and verify
 local artifacts only. They do not create a Git tag, create or modify a GitHub
-Release, upload artifacts, alter runtime data, or authorize a Butler or Sleeper
-transaction write. Publishing a release remains a separate explicit operation
-after the exact-head gates pass.
+Release, upload artifacts, alter an existing runtime profile, or authorize a
+Butler or Sleeper transaction write. Publishing a release remains a separate
+explicit operation after the exact-head gates pass.
