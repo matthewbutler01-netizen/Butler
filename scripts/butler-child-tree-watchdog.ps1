@@ -98,7 +98,7 @@ while ($true) {
     }
 
     for ($attempt = 0; $attempt -lt 50; $attempt++) {
-        if ((Get-TrackedCoreChildren).Count -eq 0) {
+        if (@(Get-TrackedCoreChildren).Count -eq 0) {
             exit 0
         }
         Stop-TrackedCoreTrees
