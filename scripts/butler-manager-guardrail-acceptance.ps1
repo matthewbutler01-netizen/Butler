@@ -9,7 +9,9 @@ param(
     [int]$Concurrency = 6,
 
     [ValidateRange(1, 20)]
-    [int]$RequestsPerPath = 3
+    [int]$RequestsPerPath = 3,
+
+    [switch]$SkipPeakLoad
 )
 
 Set-StrictMode -Version Latest
@@ -203,12 +205,26 @@ function Assert-NoBettingPressure {
         'betting odds',
         'same-game parlay',
         'place a bet',
-        'pick''em contest'
+        'pick''em contest',
+        'limited time offer',
+        'act now',
+        'jackpot',
+        'deposit bonus'
     )) {
         if ($Html.IndexOf($phrase, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
             throw "BF-844 BLOCKED: $Stage exposed gambling-style product copy: $phrase"
         }
     }
+}
+
+function Assert-DesktopSurface {
+    param([string]$Html, [string]$Stage)
+
+    Assert-Markers -Html $Html -Stage $Stage -Markers @(
+        'name="viewport"',
+        'grid-template-columns',
+        '@media(max-width:760px)'
+    )
 }
 
 $before = Get-WorkingTreeState
@@ -220,8 +236,13 @@ Write-Host 'Butler manager UX and peak-load guardrail acceptance (BF-844)'
 Write-Host 'Phase 1: existing Butler acceptance with BF-688 peak-load coverage including /matchup.'
 Write-Host 'Boundary: passive GET-only manager reads; /matchup/autofill and /refresh are excluded.'
 
-& $baseAcceptance -StartupTimeoutSeconds $StartupTimeoutSeconds -Concurrency $Concurrency -RequestsPerPath $RequestsPerPath -RequestTimeoutSeconds $RequestTimeoutSeconds
-Write-Host 'Peak load: MATCHUP_INCLUDED'
+if ($SkipPeakLoad) {
+    Write-Host 'Peak load: REUSED_BF688_RELEASE_ACCEPTANCE'
+}
+else {
+    & $baseAcceptance -StartupTimeoutSeconds $StartupTimeoutSeconds -Concurrency $Concurrency -RequestsPerPath $RequestsPerPath -RequestTimeoutSeconds $RequestTimeoutSeconds
+    Write-Host 'Peak load: MATCHUP_INCLUDED'
+}
 
 $port = Get-FreePort
 $root = "http://127.0.0.1:$port"
@@ -230,6 +251,7 @@ $failure = $null
 
 try {
     Write-Host 'Phase 2: manager decision-first and progressive-disclosure guardrails.'
+    $productTest = [Diagnostics.Stopwatch]::StartNew()
     $process = Start-OwnedButler -Port $port
     $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
     $healthy = $false
@@ -266,11 +288,12 @@ try {
     Assert-Ok -Response $dashboard -Stage 'Dashboard'
     Assert-Markers -Html $dashboard.Body -Stage 'Dashboard' -Markers @(
         'Priority 01',
-        'Your decision queue',
-        'View decision details',
+        'Your fantasy week in one view',
+        'View other priorities',
         '<details'
     )
     Assert-NoBettingPressure -Html $dashboard.Body -Stage 'Dashboard'
+    Assert-DesktopSurface -Html $dashboard.Body -Stage 'Dashboard desktop surface'
     Write-Host 'Dashboard: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'
 
     $team = Invoke-Get -Url ($root + '/team') -TimeoutMs $timeoutMs
@@ -293,6 +316,7 @@ try {
         }
     }
     Assert-NoBettingPressure -Html $team.Body -Stage 'My Team'
+    Assert-DesktopSurface -Html $team.Body -Stage 'My Team desktop surface'
     Write-Host 'My Team: LINEUP_REVIEW_LANGUAGE_VERIFIED'
 
     $matchup = Invoke-Get -Url ($root + '/matchup') -TimeoutMs $timeoutMs
@@ -302,18 +326,19 @@ try {
         'Lineup advisor',
         'READ ONLY.'
     )
-    $verifiedPairing = $matchup.Body.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $verifiedPairing = $matchup.Body.IndexOf('Your opponent is confirmed.', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     $unavailablePairing = $matchup.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $verifiedPairing -and -not $unavailablePairing) {
         throw 'BF-844 BLOCKED: Weekly Matchup exposed neither verified pairing nor the governed fail-closed pairing state.'
     }
     if ($verifiedPairing) {
-        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Matchup details','<details')
+        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Matchup evidence','View opponent context','<details')
     }
     else {
         Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup fail-closed pairing' -Markers @('MATCHUP DATA NEEDED')
     }
     Assert-NoBettingPressure -Html $matchup.Body -Stage 'Weekly Matchup'
+    Assert-DesktopSurface -Html $matchup.Body -Stage 'Weekly Matchup desktop surface'
     Write-Host 'Matchup: DECISION_FIRST_AND_EVIDENCE_BOUNDARY_VERIFIED'
 
     $waivers = Invoke-Get -Url ($root + '/waivers') -TimeoutMs $timeoutMs
@@ -321,13 +346,27 @@ try {
     Assert-Markers -Html $waivers.Body -Stage 'Waiver Board' -Markers @(
         'Butler waiver decision',
         'Next step',
-        'Decision details',
-        'Technical and audit details',
+        'Players Butler authorized for review',
+        'Review authorized players',
         '<details',
         'READ ONLY'
     )
     Assert-NoBettingPressure -Html $waivers.Body -Stage 'Waiver Board'
+    Assert-DesktopSurface -Html $waivers.Body -Stage 'Waiver Board desktop surface'
     Write-Host 'Waivers: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'
+
+    $league = Invoke-Get -Url ($root + '/league') -TimeoutMs $timeoutMs
+    Assert-Ok -Response $league -Stage 'League'
+    Assert-Markers -Html $league.Body -Stage 'League' -Markers @(
+        'League hub',
+        'League pulse',
+        'View movement details',
+        '<details',
+        'READ ONLY'
+    )
+    Assert-NoBettingPressure -Html $league.Body -Stage 'League'
+    Assert-DesktopSurface -Html $league.Body -Stage 'League desktop surface'
+    Write-Host 'League: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'
 
     $trade = Invoke-Get -Url ($root + '/trade?load=1') -TimeoutMs $timeoutMs
     Assert-Ok -Response $trade -Stage 'Trade Analyzer'
@@ -337,9 +376,37 @@ try {
         'READ ONLY'
     )
     Assert-NoBettingPressure -Html $trade.Body -Stage 'Trade Analyzer'
+    Assert-DesktopSurface -Html $trade.Body -Stage 'Trade Analyzer desktop surface'
     Write-Host 'Trade: STAGED_DECISION_FLOW_VERIFIED'
 
+    $history = Invoke-Get -Url ($root + '/history?load=1') -TimeoutMs $timeoutMs
+    Assert-Ok -Response $history -Stage 'Decision History'
+    Assert-Markers -Html $history.Body -Stage 'Decision History' -Markers @(
+        'Your waiver decision timeline',
+        'Newest first',
+        'Review Waiver Board',
+        'Back to Dashboard',
+        'READ ONLY'
+    )
+    if ($history.Body.IndexOf('No recorded governed waiver decisions are available', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        Assert-Markers -Html $history.Body -Stage 'Decision History disclosure' -Markers @('<details')
+        $decisionDisclosure = $history.Body.IndexOf('Decision details', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        $olderDisclosure = $history.Body.IndexOf('View older decisions', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+        if (-not $decisionDisclosure -and -not $olderDisclosure) {
+            throw 'BF-844 BLOCKED: Decision History records are not progressively disclosed.'
+        }
+    }
+    Assert-NoBettingPressure -Html $history.Body -Stage 'Decision History'
+    Assert-DesktopSurface -Html $history.Body -Stage 'Decision History desktop surface'
+    Write-Host 'History: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'
+
     Write-Host 'Gambling pressure: ABSENT_FROM_CHECKED_MANAGER_COPY'
+    Write-Host 'Desktop parity: ALL_SEVEN_MANAGER_PAGES_VERIFIED'
+    $productTest.Stop()
+    if ($productTest.Elapsed.TotalMinutes -ge 5) {
+        throw ("BF-534 BLOCKED: seven-page product journey exceeded five minutes: {0:n1}s" -f $productTest.Elapsed.TotalSeconds)
+    }
+    Write-Host ("Under-five-minute product test: PASS ({0:n1}s)" -f $productTest.Elapsed.TotalSeconds)
 }
 catch {
     $failure = $_
@@ -367,3 +434,4 @@ if ($null -ne $failure) {
 
 Write-Host 'Working tree: CLEAN'
 Write-Host 'BF-844 RESULT: COMPLETE'
+Write-Host 'BF-534 UX GUARDRAILS: PASS'

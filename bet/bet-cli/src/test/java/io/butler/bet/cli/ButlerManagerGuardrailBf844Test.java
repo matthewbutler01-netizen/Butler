@@ -39,24 +39,29 @@ class ButlerManagerGuardrailBf844Test {
                 "Butler manager UX and peak-load guardrail acceptance (BF-844)",
                 "Peak load: MATCHUP_INCLUDED",
                 "Priority 01",
-                "Your decision queue",
-                "View decision details",
+                "Your fantasy week in one view",
+                "View other priorities",
                 "How Butler reads this roster",
                 "Review Matchup",
                 "href=\"/matchup/autofill\"",
                 "Weekly matchup",
                 "Lineup advisor",
-                "OPPONENT CONFIRMED",
+                "Your opponent is confirmed.",
                 "Opponent not confirmed",
                 "Butler waiver decision",
                 "Next step",
-                "Decision details",
-                "Technical and audit details",
+                "Players Butler authorized for review",
+                "Review authorized players",
                 "Analyze a trade",
                 "Choose a league opponent",
+                "League: DECISION_FIRST_AND_DISCLOSURE_VERIFIED",
+                "History: DECISION_FIRST_AND_DISCLOSURE_VERIFIED",
                 "Gambling pressure: ABSENT_FROM_CHECKED_MANAGER_COPY",
+                "Desktop parity: ALL_SEVEN_MANAGER_PAGES_VERIFIED",
+                "Under-five-minute product test: PASS",
                 "Working tree: CLEAN",
-                "BF-844 RESULT: COMPLETE"
+                "BF-844 RESULT: COMPLETE",
+                "BF-534 UX GUARDRAILS: PASS"
         }) {
             assertTrue(script.contains(marker), "BF-844 live guardrail missing " + marker);
         }
@@ -97,10 +102,28 @@ class ButlerManagerGuardrailBf844Test {
                 "betting odds",
                 "same-game parlay",
                 "place a bet",
-                "pick''em contest"
+                "pick''em contest",
+                "limited time offer",
+                "act now",
+                "jackpot",
+                "deposit bonus"
         }) {
             assertTrue(script.contains(phrase), "BF-844 betting-copy guardrail missing " + phrase);
         }
+    }
+
+    @Test
+    void issue534ChecksAllSevenPagesAndDesktopResponsiveContracts() throws Exception {
+        String script = source("scripts/butler-manager-guardrail-acceptance.ps1");
+
+        for (String route : new String[]{"'/'", "'/team'", "'/matchup'", "'/waivers'", "'/league'", "'/trade?load=1'", "'/history?load=1'"}) {
+            assertTrue(script.contains(route), "BF-534 guardrail missing route " + route);
+        }
+        assertTrue(script.contains("function Assert-DesktopSurface"));
+        assertTrue(script.contains("name=\"viewport\""));
+        assertTrue(script.contains("grid-template-columns"));
+        assertTrue(script.contains("@media(max-width:760px)"));
+        assertTrue(script.contains("$productTest.Elapsed.TotalMinutes -ge 5"));
     }
 
     private static String source(String relativePath) throws IOException {
