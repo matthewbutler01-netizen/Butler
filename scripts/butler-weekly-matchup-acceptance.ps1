@@ -393,8 +393,15 @@ try {
     if ($hasPartialReview -and $decisionDetail.IndexOf('Projection hold:', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         throw ("BF-902 FAILED: partial lineup review did not expose its projection hold. detail={0}" -f $decisionDetail)
     }
-    if ($review.Body.IndexOf('href="/team/autofill"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        throw 'BF-842 BLOCKED: reviewed Weekly Matchup escaped to the My Team AutoFill route.'
+    $lineupReviewHref = 'href="/team/autofill"'
+    $lineupReviewLabel = 'Open Lineup Review'
+    if ($hasChanges -or $hasPartialReview) {
+        Assert-Contains -Html $review.Body -Marker $lineupReviewHref -Stage 'Weekly Matchup completed lineup bridge'
+        Assert-Contains -Html $review.Body -Marker $lineupReviewLabel -Stage 'Weekly Matchup completed lineup bridge'
+    }
+    elseif ($review.Body.IndexOf($lineupReviewHref, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $review.Body.IndexOf($lineupReviewLabel, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-945 BLOCKED: no-change Matchup state exposed an unnecessary Lineup Review action.'
     }
     foreach ($blocked in @(
         'Opponent not confirmed',

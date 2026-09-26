@@ -599,6 +599,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-944 BLOCKED: Lineup Compare Return transform not found at $bf944Transform"
     }
     & $bf944Transform -CorePath $stagedCore
+
+    # BF-945: route completed Matchup lineup decisions into the richer My Team
+    # review after BF-944 finalizes the compare-return loop.
+    $bf945Transform = Join-Path $PSScriptRoot 'butler-app-bf945-matchup-lineup-review-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf945Transform -PathType Leaf)) {
+        throw "BF-945 BLOCKED: Matchup to Lineup Review transform not found at $bf945Transform"
+    }
+    & $bf945Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
