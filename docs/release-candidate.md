@@ -2,7 +2,7 @@
 
 ## Release scope
 
-v0.3.0 completes Butler's Windows MVP onboarding boundary. A brand-new Windows
+v0.3.0 completes Butler's Windows MVP zero-to-Dashboard onboarding boundary. A brand-new Windows
 profile can start from the verified runtime package, provide a Sleeper username
 and current Sleeper league ID, and reach a verified Butler Dashboard without
 manual SQLite work, a pre-existing Butler database, or an internal Butler league
@@ -95,6 +95,5 @@ portability, and release-evidence gates that v0.2.0 and v0.3.0 retain.
 
 Repository release documentation and acceptance commands generate and verify
 local artifacts only. They do not create a Git tag, create or modify a GitHub
-Release, upload artifacts, alter an existing runtime profile, or authorize a
-Butler or Sleeper transaction write. Publishing a release remains a separate
+Release, upload artifacts, alter an existing runtime profile, or authorize a Butler or Sleeper transaction write. Publishing a release remains a separate
 explicit operation after the exact-head gates pass.
