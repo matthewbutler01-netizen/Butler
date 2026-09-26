@@ -38,6 +38,12 @@ if (-not (Test-Path -LiteralPath $DashboardPath -PathType Leaf)) {
     throw "BF-715 BLOCKED: staged dashboard not found at $DashboardPath"
 }
 
+$stagedCorePath = Join-Path (Split-Path -Parent $DashboardPath) 'butler-app-shell-core-single.ps1'
+if (Test-Path -LiteralPath $stagedCorePath -PathType Leaf) {
+    $stagedCoreText = [System.IO.File]::ReadAllText($stagedCorePath).Replace("`r`n", "`n")
+    [System.IO.File]::WriteAllText($stagedCorePath, $stagedCoreText, [System.Text.UTF8Encoding]::new($false))
+}
+
 $helperOriginal = @'
 function Invoke-ButlerReadOnlyWaiverBoard {
     return Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverComparisonBundle" -BoundaryName "BF-646"
