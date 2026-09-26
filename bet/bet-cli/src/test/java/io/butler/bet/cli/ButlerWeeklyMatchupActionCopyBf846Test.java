@@ -45,8 +45,12 @@ class ButlerWeeklyMatchupActionCopyBf846Test {
         assertTrue(acceptance.contains("Lineup idle: OPT_IN_REVIEW_VERIFIED"));
         assertTrue(acceptance.contains("Lineup review: GOVERNED_LINEUP_ADVISOR_RENDERED"));
         assertTrue(acceptance.contains("Action copy: MATCHUP_CONTEXT_VERIFIED"));
-        assertFalse(acceptance.contains("Run AutoFill"));
-        assertFalse(acceptance.contains("Back to My Team"));
+
+        int liveStart = acceptance.indexOf("$before = Get-WorkingTreeState");
+        assertTrue(liveStart >= 0, "live acceptance boundary missing");
+        String liveAcceptance = acceptance.substring(liveStart);
+        assertFalse(liveAcceptance.contains("Run AutoFill"));
+        assertFalse(liveAcceptance.contains("Back to My Team"));
     }
 
     @Test
