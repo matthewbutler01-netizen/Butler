@@ -13,37 +13,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerReleaseCandidateMetadataBf790Test {
 
     @Test
-    void rootMetadataDeclaresRc2Exactly() throws Exception {
+    void rootMetadataDeclaresNextMaintenanceReleaseExactly() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.1.0-rc.2\""));
-        assertFalse(build.contains("version = \"0.1.0-rc.1\""));
+        assertTrue(build.contains("version = \"0.1.1\""));
+        assertFalse(build.contains("version = \"0.1.0-rc."));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
 
     @Test
-    void rc2DocumentExplainsBf789StabilizationAndPublicationBoundary() throws Exception {
+    void releaseDocumentExplainsStableAndMaintenanceStatus() throws Exception {
         String doc = source("docs/release-candidate.md");
 
-        assertTrue(doc.contains("Current candidate metadata: `v0.1.0-rc.2`"));
-        assertTrue(doc.contains("`v0.1.0-rc.1` was the first public governed Butler release candidate"));
-        assertTrue(doc.contains("BF-789 repairs that mismatch without weakening the package boundary"));
-        assertTrue(doc.contains("GET /trade?load=1"));
-        assertTrue(doc.contains("GET /history?load=1"));
-        assertTrue(doc.contains("BF-789 PACKAGED COMPANION ROUTES: PASS"));
-        assertTrue(doc.contains("Publishing `v0.1.0-rc.2` remains a separate explicit approval step"));
+        assertTrue(doc.contains("current public stable release is `v0.1.0`"));
+        assertTrue(doc.contains("6eefc53a75608ca5c97f18a6d0c6c966be783626"));
+        assertTrue(doc.contains("next planned maintenance release is `v0.1.1`"));
+        assertTrue(doc.contains("JUnit 6.1.3"));
+        assertTrue(doc.contains("BF-534 seven-page UX guardrail"));
+        assertTrue(doc.contains("exact-head BF-885/BF-912 Fast Lane journey"));
+        assertTrue(doc.contains("Publishing a release remains a separate explicit operation"));
     }
 
     @Test
-    void rc2DocumentPreservesGovernedSafetyBoundaries() throws Exception {
+    void releaseDocumentPreservesGovernedSafetyBoundaries() throws Exception {
         String doc = source("docs/release-candidate.md");
 
-        assertTrue(doc.contains("no Gradle wrapper or Gradle toolchain is restored to the runtime ZIP"));
-        assertTrue(doc.contains("governed external `BUTLER_APP_DATA_DIR` behavior is preserved"));
-        assertTrue(doc.contains("exact POST `/refresh` remains excluded"));
-        assertTrue(doc.contains("no Butler or Sleeper transaction write is added"));
-        assertTrue(doc.contains("does not create a Git tag"));
-        assertTrue(doc.contains("create or modify a GitHub Release"));
+        assertTrue(doc.contains("without a Gradle wrapper or toolchain"));
+        assertTrue(doc.contains("external runtime-data boundary"));
+        assertTrue(doc.contains("no Butler database"));
+        assertTrue(doc.contains("authorize a Butler or Sleeper"));
+        assertTrue(doc.contains("transaction write."));
+        assertTrue(doc.contains("do not create a Git tag"));
+        assertTrue(doc.contains("create or modify a GitHub"));
+        assertTrue(doc.contains("Release, upload artifacts"));
     }
 
     private static String rootSource(String relativePath) throws IOException {

@@ -21,6 +21,8 @@ class ButlerReadmeReleaseWorkflowBf781Test {
         assertTrue(readme.contains("%LOCALAPPDATA%\\Butler\\data"));
         assertTrue(readme.contains("BUTLER_APP_DATA_DIR"));
         assertTrue(readme.contains(".\\scripts\\butler-release-acceptance.cmd"));
+        assertTrue(readme.contains("BF-534/BF-844 seven-page UX guardrail"));
+        assertTrue(readme.contains("BF-534 UX GUARDRAILS: PASS"));
         assertTrue(readme.contains("BF-780 RELEASE SELF-VERIFICATION: PASS"));
         assertTrue(readme.contains("release-output\\"));
         assertTrue(readme.contains("Butler-release-<shortsha>.verified.txt"));
