@@ -80,6 +80,10 @@ jobs:
         shell: powershell
         run: .\scripts\butler-verification-hardening-acceptance.ps1
 
+      - name: Exercise read-only fresh-host setup fixtures
+        shell: powershell
+        run: .\scripts\butler-setup-check-acceptance.ps1
+
       - name: Exercise BF-786 missing runtime database acceptance
         shell: powershell
         run: |
