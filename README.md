@@ -39,6 +39,8 @@ git status --short
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
+For v0.3.0 publication, the exact clean commit must also pass `scripts\butler-mvp-completion-acceptance.cmd`. That one command runs the authoritative exact-HEAD release acceptance, then performs real fresh-profile Sleeper onboarding inside an isolated temporary Windows profile, verifies all seven manager pages with `-VerifyOnly`, stops its owned runtime, and removes only that temporary profile.
+
 ### Release artifacts
 
 Generated release evidence is written under the ignored `release-output\` directory and is named by the exact short commit:
@@ -63,11 +65,25 @@ BF-787 packages only the BF-778-verified runtime ZIP, runtime checksum, runtime 
 
 `Butler-runtime-<shortsha>.zip` is code/runtime-only deployment or update material for a machine that already has governed Butler runtime data. It is not a complete fresh-machine installer and it does not contain, export, restore, or recreate `butler.db`, credentials, provider payloads, or other user runtime data.
 
-Normal packaged deployment therefore assumes that the target machine already has a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Supplying `-LeagueId` selects which persisted Butler league the app should use; the league UUID does not recreate that league's database or evidence.
+Normal packaged deployment for an existing Butler installation therefore assumes that the target machine already has a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Supplying `-LeagueId` selects which persisted Butler league the app should use; the league UUID does not recreate that league's database or evidence. A fresh profile can instead use the separate new-league setup below, which creates Butler-local data from an explicitly selected current Sleeper league and binds the requesting manager before launch.
 
 BF-770 `scripts\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database into the governed external data location without overwriting an existing governed database. It is not the portable cross-machine transfer path.
 
 BF-897 adds a separate private runtime-data backup/restore path for moving an existing governed Butler database to a fresh Windows host. These private backups are never part of BF-773 runtime releases, BF-777 verification records, or BF-787 release-evidence archives.
+
+### Fresh Sleeper league setup
+
+v0.3.0 adds a zero-to-Dashboard path for a brand-new Butler profile. Use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for the Sleeper username and current Sleeper league ID when they are not supplied explicitly:
+
+```text
+.\scripts\butler-setup-new-league.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"
+```
+
+For unattended use, pass `-SleeperUsername <username> -SleeperLeagueId <sleeper-league-id>`. The username is required because Butler must prove exactly which roster belongs to the requesting manager; it does not guess ownership from team names or players.
+
+The new-league flow verifies the runtime package first, builds the database in an isolated staging directory, imports the existing Sleeper league and DynastyProcess values, binds the exact requesting-user roster, hydrates the governed matchup and waiver/My Team evidence needed by the manager pages, and only then installs `butler.db` plus the Butler league selection. It finishes by running the existing seven-page launch verifier and hands off to Dashboard. `-VerifyOnly` performs the same verification and stops the owned runtime afterward.
+
+This path is fresh-profile only. It refuses an existing Butler database or saved league selection and never overwrites them. It writes Butler-local evidence only and does not submit a lineup, waiver, trade, FAAB change, or other transaction to Sleeper. Existing installations should continue using normal launch/refresh, and cross-machine moves should continue using the private backup/restore workflow.
 
 ### Read-only fresh-host setup check
 
@@ -75,7 +91,7 @@ From an extracted runtime package, run `scripts\butler-setup-check.cmd -RuntimeZ
 
 The check reports Windows PowerShell 5.1, Java 25 or newer (including the selected executable), ZIP checksum and extracted-file consistency, external database presence and SQLite header, and saved league UUID format. It needs no Git or Gradle, starts no server, and does not create directories, databases, or saved settings. It prints a next action for each blocker and exits nonzero. `BUTLER_APP_DATA_DIR` selects an alternate absolute data directory outside the package, matching the app launcher; otherwise it checks `%LOCALAPPDATA%\Butler\data`.
 
-Use an unmodified extraction: changed package files or extra executable files fail the consistency check. The checksum detects corruption and mismatch, not publisher authenticity. A PASS confirms prerequisites only, not database schema, league membership, or manager-page readiness. Missing or malformed saved league selection blocks this check even though the app supports explicit first-launch league selection as described below. A fresh host still needs a private backup from an existing installation; a league UUID cannot reconstruct missing data.
+Use an unmodified extraction: changed package files or extra executable files fail the consistency check. The checksum detects corruption and mismatch, not publisher authenticity. A PASS confirms prerequisites only, not database schema, league membership, or manager-page readiness. Missing or malformed saved league selection blocks this check even though the app supports explicit first-launch league selection as described below. A fresh profile can either restore a private backup or use the v0.3.0 new-league setup; a Butler league UUID by itself still cannot reconstruct missing data.
 
 ### Portable private runtime-data backup and fresh-host restore
 

@@ -1,5 +1,6 @@
 param(
-    [string]$RuntimeZip
+    [string]$RuntimeZip,
+    [switch]$RuntimeOnly
 )
 
 Set-StrictMode -Version Latest
@@ -85,6 +86,16 @@ Report-Check 'PACKAGE' {
     finally { $archive.Dispose() }
 } 'Download the runtime ZIP and matching .sha256 from the same Butler release, extract to an empty folder, and pass -RuntimeZip with that ZIP path.'
 
+if ($RuntimeOnly) {
+    if ($script:blockers -gt 0) {
+        Write-Output "BUTLER SETUP RUNTIME CHECK: BLOCKED ($script:blockers checks)"
+        exit 1
+    }
+    Write-Output 'BUTLER SETUP RUNTIME CHECK: PASS'
+    Write-Output 'NEXT: Runtime integrity and prerequisites are ready for a restore or new-league setup.'
+    exit 0
+}
+
 $configDir = $null
 $dataDir = $null
 Report-Check 'DATA' {
@@ -107,7 +118,7 @@ Report-Check 'DATA' {
     }
     finally { $stream.Dispose() }
     "$database exists with a SQLite header; schema and league contents require launch verification"
-} 'Use an external data directory. On a fresh host, restore an existing private Butler backup with scripts\butler-runtime-data-restore.ps1 -BackupZip and, for a custom location, -DataDir matching BUTLER_APP_DATA_DIR. A league UUID cannot recreate missing data.'
+} 'Use an external data directory. Restore an existing private Butler backup, or on a fresh profile run scripts\butler-setup-new-league.cmd -RuntimeZip <runtime.zip> to build Butler from your current Sleeper league.'
 
 Report-Check 'LEAGUE' {
     if ([string]::IsNullOrWhiteSpace($script:configDir)) { throw 'Saved league location is unavailable.' }
@@ -117,7 +128,7 @@ Report-Check 'LEAGUE' {
     $league = [Guid]::Empty
     if (-not [Guid]::TryParse($raw, [ref]$league)) { throw "Saved league selection is not a UUID: $selection" }
     "$league (format only; membership is checked during launch)"
-} 'Restore the matching private backup and league selection. Preserve conflicting settings for review before changing them; this check never changes app-league.txt.'
+} 'Restore the matching private backup and league selection, or use scripts\butler-setup-new-league.cmd on a fresh profile. This check never changes app-league.txt.'
 
 if ($script:blockers -gt 0) {
     Write-Output "BUTLER SETUP CHECK: BLOCKED ($script:blockers checks)"
