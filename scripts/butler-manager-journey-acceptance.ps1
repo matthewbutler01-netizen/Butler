@@ -59,6 +59,9 @@ function Start-OwnedButler {
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    # BF-890 scopes raw failed-recovery detail to this owned acceptance child.
+    # Normal Butler launches never receive this process-local diagnostic flag.
+    $start.EnvironmentVariables['BUTLER_BF890_ACCEPTANCE_DIAGNOSTICS'] = '1'
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $start
