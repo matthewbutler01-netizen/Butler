@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set "PSModulePath=%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules;%PSModulePath%"
 echo Butler one-command runtime release acceptance (BF-776)
 echo Boundary: exact current-HEAD prebuilt runtime package first; packaged Trade Lab/History proof second; isolated missing-database fail-closed probe third; existing Butler acceptance fourth; verified evidence archive last; /refresh excluded; no Butler or Sleeper transaction write.
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0butler-runtime-packaged-launch-acceptance.ps1"

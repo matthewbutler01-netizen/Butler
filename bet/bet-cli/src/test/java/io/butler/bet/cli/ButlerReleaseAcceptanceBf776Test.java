@@ -32,6 +32,8 @@ class ButlerReleaseAcceptanceBf776Test {
     void releaseGatePropagatesBothFailureCodesAndReusesExistingSuite() throws Exception {
         String gate = source("scripts/butler-release-acceptance.cmd");
 
+        assertTrue(gate.contains(
+            "set \"PSModulePath=%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\Modules;%PSModulePath%\""));
         assertTrue(gate.contains("set \"BF776_RUNTIME_ERROR=%ERRORLEVEL%\""));
         assertTrue(gate.contains("if not \"%BF776_RUNTIME_ERROR%\"==\"0\" exit /b %BF776_RUNTIME_ERROR%"));
         assertTrue(gate.contains("set \"BF776_ACCEPTANCE_ERROR=%ERRORLEVEL%\""));
