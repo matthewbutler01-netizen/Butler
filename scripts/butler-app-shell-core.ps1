@@ -26,7 +26,6 @@ $runtimeLibDir = Join-Path $runtimeInstallDir 'lib'
 $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
 $runtimeRoot = Join-Path $localAppData ("Butler\app-runtime-{0}" -f $PID)
 $runtimeScriptsDir = Join-Path $runtimeRoot 'scripts'
-$runtimeTransformsDir = Join-Path $runtimeRoot 'transforms'
 $runtimeCoreSingle = Join-Path $runtimeScriptsDir 'butler-app-shell-core-single.ps1'
 $runtimeDashboard = Join-Path $runtimeScriptsDir 'butler-dashboard.ps1'
 $loopback = [System.Net.IPAddress]::Parse('127.0.0.1')
@@ -116,9 +115,7 @@ function Initialize-DirectJavaRuntime {
         Remove-Item -LiteralPath $runtimeRoot -Recurse -Force -ErrorAction Stop
     }
     New-Item -ItemType Directory -Path $runtimeScriptsDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $runtimeTransformsDir -Force | Out-Null
     Copy-Item -LiteralPath $coreSingleSource -Destination $runtimeCoreSingle -Force
-    Copy-Item -Path (Join-Path $scriptDir '*.ps1') -Destination $runtimeTransformsDir -Force
 
     $coreSingleText = [System.IO.File]::ReadAllText($runtimeCoreSingle).Replace("`r`n", "`n")
     $navigationMatchCount = [regex]::Matches($coreSingleText, [regex]::Escape($coreSingleNavigationOriginal)).Count
@@ -129,12 +126,7 @@ function Initialize-DirectJavaRuntime {
     [System.IO.File]::WriteAllText($runtimeCoreSingle, $coreSingleText, [System.Text.UTF8Encoding]::new($false))
 
     Copy-Item -LiteralPath $dashboardSource -Destination $runtimeDashboard -Force
-    foreach ($stagedTransform in @(Get-ChildItem -LiteralPath $runtimeTransformsDir -Filter '*.ps1' -File)) {
-        $stagedTransformText = [System.IO.File]::ReadAllText($stagedTransform.FullName).Replace("`r`n", "`n")
-        [System.IO.File]::WriteAllText($stagedTransform.FullName, $stagedTransformText, [System.Text.UTF8Encoding]::new($false))
-    }
-    $runtimeDashboardTransform = Join-Path $runtimeTransformsDir 'butler-dashboard-bf715-transform.ps1'
-    & $runtimeDashboardTransform -DashboardPath $runtimeDashboard
+    & $dashboardTransformSource -DashboardPath $runtimeDashboard
     Copy-Item -LiteralPath $directDispatchSource -Destination (Join-Path $runtimeScriptsDir 'butler-direct-java-dispatch.ps1') -Force
     Copy-Item -LiteralPath $directProxySource -Destination (Join-Path $runtimeRoot 'gradlew.bat') -Force
     $env:BUTLER_APP_RUNTIME_LIB = $runtimeLibDir
