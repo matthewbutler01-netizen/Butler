@@ -2,7 +2,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$BackupZip,
 
-    [string]$DataDir
+    [string]$DataDir,
+
+    [switch]$ValidateLeague,
+
+    [string]$LeagueId
 )
 
 Set-StrictMode -Version Latest
@@ -19,6 +23,9 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 }
 
 $configDir = Join-Path $localAppData 'Butler'
+if (-not $ValidateLeague -and -not [string]::IsNullOrWhiteSpace($LeagueId)) {
+    throw 'BF-897 BLOCKED: -LeagueId requires -ValidateLeague.'
+}
 
 function Resolve-ExternalPath {
     param(
@@ -110,7 +117,7 @@ if ($actualArchiveHash -cne $expectedArchiveHash) {
 }
 
 $resolvedDataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) {
-    [IO.Path]::GetFullPath((Join-Path $configDir 'data'))
+    Resolve-ExternalPath -Value (Join-Path $configDir 'data') -Label 'default data directory'
 }
 else {
     Resolve-ExternalPath -Value $DataDir -Label '-DataDir'
@@ -195,7 +202,7 @@ try {
 
     $leagueState = [string]$manifest['league_selection']
     $stagedLeaguePath = Join-Path $tempRoot 'app-league.txt'
-    $leagueId = $null
+    $restoredLeagueId = $null
     if ($leagueState -ceq 'PRESENT') {
         if (-not (Test-Path -LiteralPath $stagedLeaguePath -PathType Leaf)) {
             throw 'BF-897 BLOCKED: backup manifest requires a saved league selection but app-league.txt is missing.'
@@ -205,17 +212,50 @@ try {
         if ([string]::IsNullOrWhiteSpace($rawLeague) -or -not [Guid]::TryParse($rawLeague, [ref]$parsedLeague)) {
             throw 'BF-897 BLOCKED: backup saved league selection is invalid.'
         }
-        $leagueId = $parsedLeague.ToString('D').ToLowerInvariant()
+        $restoredLeagueId = $parsedLeague.ToString('D').ToLowerInvariant()
 
         if (Test-Path -LiteralPath $leagueConfigPath -PathType Leaf) {
             $existingLeague = [IO.File]::ReadAllText($leagueConfigPath, [Text.Encoding]::ASCII).Trim().ToLowerInvariant()
-            if ($existingLeague -cne $leagueId) {
+            if ($existingLeague -cne $restoredLeagueId) {
                 throw 'BF-897 BLOCKED: target machine already has a different Butler league selection; restore will not overwrite it.'
             }
         }
     }
     elseif (Test-Path -LiteralPath $stagedLeaguePath) {
         throw 'BF-897 BLOCKED: backup contains app-league.txt while the manifest declares league selection absent.'
+    }
+
+    if ($ValidateLeague) {
+        if (-not [string]::IsNullOrWhiteSpace($LeagueId)) {
+            $requested = [Guid]::Empty
+            if (-not [Guid]::TryParse($LeagueId, [ref]$requested)) { throw 'BF-897 BLOCKED: -LeagueId must be a UUID.' }
+            $requestedId = $requested.ToString('D').ToLowerInvariant()
+            if ($null -ne $restoredLeagueId -and $restoredLeagueId -cne $requestedId) { throw 'BF-897 BLOCKED: -LeagueId conflicts with the backup selection; choose the matching backup.' }
+            $restoredLeagueId = $requestedId
+        }
+        if (Test-Path -LiteralPath $leagueConfigPath) {
+            $existing = [IO.File]::ReadAllText($leagueConfigPath).Trim().ToLowerInvariant()
+            $parsedExisting = [Guid]::Empty
+            if (-not [Guid]::TryParse($existing, [ref]$parsedExisting)) { throw 'BF-897 BLOCKED: existing league selection is invalid; preserve and review it before retrying.' }
+            $existing = $parsedExisting.ToString('D').ToLowerInvariant()
+            if ($null -ne $restoredLeagueId -and $existing -cne $restoredLeagueId) { throw 'BF-897 BLOCKED: target machine already has a different Butler league selection; restore will not overwrite it.' }
+            $restoredLeagueId = $existing
+        }
+        if ($null -eq $restoredLeagueId) { throw 'BF-897 BLOCKED: backup has no saved league selection. Supply -LeagueId with the Butler UUID from the source installation.' }
+        $java = & (Join-Path $scriptDir 'butler-java-preflight.ps1') -PassThru
+        $lib = Join-Path $repoRoot 'bet\bet-cli\build\install\bet-cli\lib'
+        if (-not (Test-Path -LiteralPath $lib -PathType Container)) { throw 'BF-897 BLOCKED: prebuilt runtime is missing. Use the extracted Butler runtime package.' }
+        $oldPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $probe = @(& $java.Executable '-cp' (Join-Path $lib '*') 'io.butler.bet.cli.ButlerSetupLeagueCheckCli' $stagedDatabase $restoredLeagueId 2>&1)
+            $probeExit = $LASTEXITCODE
+        }
+        finally { $ErrorActionPreference = $oldPreference }
+        if ($probeExit -ne 0 -or ($probe -join "`n") -notmatch 'BUTLER SETUP LEAGUE: VERIFIED') {
+            throw ('BF-897 BLOCKED: league validation failed before restore. ' + (($probe | Select-Object -First 8) -join ' '))
+        }
+        Write-Host 'BUTLER SETUP LEAGUE: VERIFIED'
     }
 
     [IO.Directory]::CreateDirectory($resolvedDataDir) | Out-Null
@@ -229,6 +269,7 @@ try {
         throw "BF-897 BLOCKED: governed Butler database appeared during restore at $targetDatabase; refusing overwrite."
     }
 
+    Assert-ButlerStopped
     Move-Item -LiteralPath $tempTarget -Destination $targetDatabase -ErrorAction Stop
     $tempTarget = $null
     $finalHash = (Get-FileHash -LiteralPath $targetDatabase -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -236,11 +277,11 @@ try {
         throw 'BF-897 BLOCKED: final restored database hash does not match the verified backup.'
     }
 
-    if ($null -ne $leagueId -and -not (Test-Path -LiteralPath $leagueConfigPath -PathType Leaf)) {
+    if ($null -ne $restoredLeagueId -and -not (Test-Path -LiteralPath $leagueConfigPath -PathType Leaf)) {
         [IO.Directory]::CreateDirectory($configDir) | Out-Null
         $leagueTemp = $leagueConfigPath + '.bf897.tmp'
         try {
-            [IO.File]::WriteAllText($leagueTemp, ($leagueId + "`r`n"), [Text.Encoding]::ASCII)
+            [IO.File]::WriteAllText($leagueTemp, ($restoredLeagueId + "`r`n"), [Text.Encoding]::ASCII)
             Move-Item -LiteralPath $leagueTemp -Destination $leagueConfigPath -ErrorAction Stop
         }
         finally {
@@ -256,6 +297,7 @@ try {
     Write-Host "Database: $targetDatabase"
     Write-Host "Database SHA-256: $finalHash"
     Write-Host "League selection: $leagueState"
+    if ($ValidateLeague) { Write-Host "Verified selected league: $restoredLeagueId" }
     Write-Host 'Boundary: FRESH_HOST_ONLY; VERIFIED_PRIVATE_RUNTIME_DATA; NEVER_OVERWRITE_EXISTING_GOVERNED_DATABASE.'
     Write-Host 'BF-897 RUNTIME DATA RESTORE: PASS'
 }
