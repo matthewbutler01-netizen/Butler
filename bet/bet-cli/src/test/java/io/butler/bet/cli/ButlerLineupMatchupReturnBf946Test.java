@@ -16,9 +16,9 @@ class ButlerLineupMatchupReturnBf946Test {
     void completedLineupReviewLinksBackToMatchupAndMyTeam() throws Exception {
         String transform = source("scripts/butler-app-bf946-lineup-matchup-return-transform.ps1");
 
-        assertTrue(transform.contains("href=\"/matchup\">Back to Matchup</a>"));
-        assertTrue(transform.contains("href=\"/team\">Back to My Team</a>"));
-        assertTrue(transform.contains("href=\"/team/autofill\">Refresh projection</a>"));
+        assertTrue(transform.contains("href=`\"/matchup`\">Back to Matchup</a>"));
+        assertTrue(transform.contains("href=`\"/team`\">Back to My Team</a>"));
+        assertTrue(transform.contains("href=`\"/team/autofill`\">Refresh projection</a>"));
         assertTrue(transform.contains("must expose exactly one Back to Matchup action"));
     }
 
@@ -53,7 +53,7 @@ class ButlerLineupMatchupReturnBf946Test {
 
         assertTrue(acceptance.contains("butler-app-bf946-lineup-matchup-return-transform.ps1"));
         assertTrue(acceptance.contains("BF946_MATCHUP_RETURN_CONTRACT_VERIFIED"));
-        assertTrue(acceptance.contains("href=\"/matchup\">Back to Matchup</a>"));
+        assertTrue(acceptance.contains("href=`\"/matchup`\">Back to Matchup</a>"));
         assertTrue(acceptance.contains("Back to Lineup Review"));
 
         int bridgeRuntime = acceptance.indexOf("$review = Invoke-Get -Url ($root + '/matchup/autofill')");
