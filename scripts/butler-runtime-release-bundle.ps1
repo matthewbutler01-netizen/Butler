@@ -71,8 +71,15 @@ try {
 
     Push-Location $repoRoot
     try {
-        $buildLines = @(& $gradle '--no-daemon' ':bet:bet-cli:installDist' 2>&1)
-        $buildExit = $LASTEXITCODE
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $buildLines = @(& $gradle '--no-daemon' ':bet:bet-cli:installDist' 2>&1)
+            $buildExit = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
     }
     finally {
         Pop-Location
