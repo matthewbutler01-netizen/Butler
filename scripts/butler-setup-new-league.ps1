@@ -44,7 +44,7 @@ function Invoke-ButlerRuntime {
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
 
-    Write-Output ("SETUP START: {0}" -f $Label)
+    Write-Host ("SETUP START: {0}" -f $Label)
     $javaArgs = @('--enable-native-access=ALL-UNNAMED', '-cp', $script:classPath, $MainClass) + @($Arguments)
     $previousPreference = $ErrorActionPreference
     $lines = @()
@@ -67,7 +67,7 @@ function Invoke-ButlerRuntime {
     if ($exitCode -ne 0) {
         throw ("{0} failed with runtime exit code {1}. {2}" -f $Label, $exitCode, (Get-BoundedTail -Lines $lines))
     }
-    Write-Output ("SETUP PASS: {0}" -f $Label)
+    Write-Host ("SETUP PASS: {0}" -f $Label)
     return (($lines | ForEach-Object { "$_" }) -join "`n")
 }
 
