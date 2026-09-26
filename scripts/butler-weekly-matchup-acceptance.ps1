@@ -261,8 +261,8 @@ if ($routeSource.IndexOf(':bet:bet-cli:weeklyMatchupWorkspace', [System.StringCo
 
 $lineupReturnSource = [IO.File]::ReadAllText($lineupReturnTransform, [Text.Encoding]::UTF8)
 foreach ($marker in @(
-    'href="/matchup">Back to Matchup</a>',
-    'href="/team">Back to My Team</a>',
+    'href=`"/matchup`">Back to Matchup</a>',
+    'href=`"/team`">Back to My Team</a>',
     "ActionLabel = 'Open Lineup Review'",
     "ActionHref = '/team/autofill'",
     'Back to Lineup Review'
