@@ -419,7 +419,15 @@ function ConvertTo-ButlerUserFacingHtml {
         } else {
             [long]0
         }
-        $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+        # BF-890 lets the owned BF-885 journey inspect the original fail-closed
+        # recovery detail. Successful pages and every normal Butler launch keep
+        # the existing BF-791/BF-794 user-facing presentation cleanup.
+        $bf890AcceptanceDiagnostic =
+            [string]$env:BUTLER_BF890_ACCEPTANCE_DIAGNOSTICS -ceq '1' -and
+            $StatusCode -ge 400
+        if (-not $bf890AcceptanceDiagnostic) {
+            $Body = ConvertTo-ButlerUserFacingHtml -Html $Body
+        }
         if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             $DiagnosticTimings.presentation_ms = Get-Bf856ElapsedMs -StartedTicks $bf856PresentationStarted
         }
