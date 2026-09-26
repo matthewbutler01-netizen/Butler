@@ -27,8 +27,9 @@ class ButlerReleaseCandidateMetadataBf790Test {
 
         assertTrue(doc.contains("# Butler v0.3.0 Release"));
         assertTrue(doc.contains("a9f76be71822a39b75771c4c3d6f0eccac7a76e8"));
-        assertTrue(doc.contains("league-membership validation"));
-        assertTrue(doc.contains("isolated-profile check"));
+        assertTrue(doc.contains("zero-to-Dashboard"));
+        assertTrue(doc.contains("Sleeper username"));
+        assertTrue(doc.contains("butler-mvp-completion-acceptance.cmd"));
         assertTrue(doc.contains("JUnit 6.1.3"));
         assertTrue(doc.contains("BF-534 seven-page UX guardrail"));
         assertTrue(doc.contains("exact-head BF-885/BF-912 Fast Lane journey"));
