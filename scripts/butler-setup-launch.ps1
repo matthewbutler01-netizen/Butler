@@ -93,7 +93,8 @@ try {
     }
     foreach ($route in $routes.Keys) {
         if ($process.HasExited) { throw "Butler exited before checking $route" }
-        $body = Read-Page ($url + $route) ($RequestTimeoutSeconds * 1000)
+        try { $body = Read-Page ($url + $route) ($RequestTimeoutSeconds * 1000) }
+        catch { throw "Manager page $route failed: $($_.Exception.Message)" }
         if ($body -notmatch '<html' -or $body -notmatch '(?i)Butler' -or $body -notmatch [regex]::Escape($routes[$route]) -or $body -match '(?i)http-equiv=["'']refresh') { throw "Invalid manager page at $route" }
         Write-Output "SETUP PAGE: PASS $route"
     }
