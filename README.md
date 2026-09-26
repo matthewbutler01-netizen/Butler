@@ -71,7 +71,7 @@ BF-897 adds a separate private runtime-data backup/restore path for moving an ex
 
 ### Fresh Sleeper league setup
 
-For a brand-new Butler profile, use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for the Sleeper username and current Sleeper league ID when they are not supplied explicitly:
+v0.3.0 adds a zero-to-Dashboard path for a brand-new Butler profile. Use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for the Sleeper username and current Sleeper league ID when they are not supplied explicitly:
 
 ```text
 .\scripts\butler-setup-new-league.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"
