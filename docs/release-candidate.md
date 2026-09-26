@@ -49,9 +49,9 @@ Before `v0.3.0` may be published, its exact clean main commit must pass:
 
 1. `scripts\butler-release-acceptance.cmd`;
 2. the exact-head BF-885/BF-912 Fast Lane journey;
-3. `scripts\butler-mvp-completion-acceptance.cmd`, which builds the exact-HEAD
-   runtime and performs real fresh-profile Sleeper onboarding under an isolated
-   temporary Windows profile; and
+3. `scripts\butler-mvp-completion-acceptance.cmd`, which runs the authoritative
+   exact-HEAD release acceptance and then performs real fresh-profile Sleeper
+   onboarding under an isolated temporary Windows profile; and
 4. the human under-five-minute manager task recorded by the accessibility review.
 
 The MVP completion acceptance must use the packaged runtime, the requesting
