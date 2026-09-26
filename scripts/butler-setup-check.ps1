@@ -1,5 +1,6 @@
 param(
-    [string]$RuntimeZip
+    [string]$RuntimeZip,
+    [switch]$RuntimeOnly
 )
 
 Set-StrictMode -Version Latest
@@ -84,6 +85,16 @@ Report-Check 'PACKAGE' {
     }
     finally { $archive.Dispose() }
 } 'Download the runtime ZIP and matching .sha256 from the same Butler release, extract to an empty folder, and pass -RuntimeZip with that ZIP path.'
+
+if ($RuntimeOnly) {
+    if ($script:blockers -gt 0) {
+        Write-Output "BUTLER SETUP RUNTIME CHECK: BLOCKED ($script:blockers checks)"
+        exit 1
+    }
+    Write-Output 'BUTLER SETUP RUNTIME CHECK: PASS'
+    Write-Output 'NEXT: Runtime integrity and prerequisites are ready for a restore or new-league setup.'
+    exit 0
+}
 
 $configDir = $null
 $dataDir = $null
