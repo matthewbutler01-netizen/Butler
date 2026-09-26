@@ -63,11 +63,25 @@ BF-787 packages only the BF-778-verified runtime ZIP, runtime checksum, runtime 
 
 `Butler-runtime-<shortsha>.zip` is code/runtime-only deployment or update material for a machine that already has governed Butler runtime data. It is not a complete fresh-machine installer and it does not contain, export, restore, or recreate `butler.db`, credentials, provider payloads, or other user runtime data.
 
-Normal packaged deployment therefore assumes that the target machine already has a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Supplying `-LeagueId` selects which persisted Butler league the app should use; the league UUID does not recreate that league's database or evidence.
+Normal packaged launch still uses a governed external Butler data directory, normally `%LOCALAPPDATA%\Butler\data` or an absolute external `BUTLER_APP_DATA_DIR`. Existing installations can restore/migrate that data as before. A fresh profile can instead use the new-league setup below, which creates the database from an explicitly selected current Sleeper league and binds the requesting manager before launch.
 
 BF-770 `scripts\butler-migrate-runtime-data.ps1` remains available only for moving a legacy Butler database into the governed external data location without overwriting an existing governed database. It is not the portable cross-machine transfer path.
 
 BF-897 adds a separate private runtime-data backup/restore path for moving an existing governed Butler database to a fresh Windows host. These private backups are never part of BF-773 runtime releases, BF-777 verification records, or BF-787 release-evidence archives.
+
+### Fresh Sleeper league setup
+
+For a brand-new Butler profile, use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for the Sleeper username and current Sleeper league ID when they are not supplied explicitly:
+
+```text
+.\scripts\butler-setup-new-league.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"
+```
+
+For unattended use, pass `-SleeperUsername <username> -SleeperLeagueId <sleeper-league-id>`. The username is required because Butler must prove exactly which roster belongs to the requesting manager; it does not guess ownership from team names or players.
+
+The new-league flow verifies the runtime package first, builds the database in an isolated staging directory, imports the existing Sleeper league and DynastyProcess values, binds the exact requesting-user roster, hydrates the governed matchup and waiver/My Team evidence needed by the manager pages, and only then installs `butler.db` plus the Butler league selection. It finishes by running the existing seven-page launch verifier and hands off to Dashboard. `-VerifyOnly` performs the same verification and stops the owned runtime afterward.
+
+This path is fresh-profile only. It refuses an existing Butler database or saved league selection and never overwrites them. It writes Butler-local evidence only and does not submit a lineup, waiver, trade, FAAB change, or other transaction to Sleeper. Existing installations should continue using normal launch/refresh, and cross-machine moves should continue using the private backup/restore workflow.
 
 ### Read-only fresh-host setup check
 
