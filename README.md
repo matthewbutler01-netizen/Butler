@@ -85,6 +85,16 @@ The guided flow verifies the saved league against the staged database before ins
 
 The default destination is `%LOCALAPPDATA%\Butler\data`. The guided entry point also honors `BUTLER_APP_DATA_DIR`, or an explicit `-DataDir` override. For a custom destination, keep `BUTLER_APP_DATA_DIR` set to that same absolute external path when checking or launching Butler. After a successful restore, run the setup check above and then launch verification. Private backups stay separate from public release artifacts.
 
+### Verified first launch and dashboard handoff
+
+Builds after v0.1.1 include `scripts\butler-setup-launch.cmd -RuntimeZip` followed by the downloaded runtime ZIP path. Run this from an extracted package after restoring your private data and saved league selection. The command first runs the read-only setup check, starts Butler on an available loopback port, verifies Butler's health identity, and reads all seven manager pages, including loaded Trade Analyzer and Decision History. It makes no transaction requests.
+
+On success, the app stays running and the command prints its dashboard URL and a command to stop that specific instance. Startup logs and process identity are saved under `%LOCALAPPDATA%\Butler\setup-runs`. The stop command refuses mismatched process identities. With `-VerifyOnly`, the command stops its own runtime after the checks instead of leaving a dashboard running. Failed checks stop only the launched process group, including descendants, and print at most 2,000 characters of startup-log context. `-StartupTimeoutSeconds` and `-RequestTimeoutSeconds` bound startup and individual requests.
+
+These are HTTP and page-content checks. They do not establish visual accessibility or human task-completion time. First launch can perform the application's normal database initialization/migrations on the restored copy; keep your original private backup. The setup command itself does not restore or replace a database or change league selection.
+
+### Creating a private backup
+
 Stop Butler before creating a backup. The backup command fails closed if a live Butler run-state marker or SQLite `-wal`, `-shm`, or `-journal` sidecar exists:
 
 ```text
