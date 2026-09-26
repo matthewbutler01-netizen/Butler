@@ -126,7 +126,8 @@ class ButlerProcessLifetimeBf812Test {
 
             assertTrue(waitUntilDead(corePid, Duration.ofSeconds(10)), "BF-812 watchdog left the preserved core alive");
             assertTrue(watchdogProcess.waitFor(10, TimeUnit.SECONDS), "BF-812 watchdog did not exit after cleanup");
-            assertEquals(0, watchdogProcess.exitValue());
+            String watchdogOutput = new String(watchdogProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertEquals(0, watchdogProcess.exitValue(), "BF-812 watchdog output:\n" + watchdogOutput);
         }
         finally {
             if (watchdogProcess != null && watchdogProcess.isAlive()) {
