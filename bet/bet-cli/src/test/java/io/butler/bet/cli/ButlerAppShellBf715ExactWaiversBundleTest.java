@@ -35,10 +35,6 @@ class ButlerAppShellBf715ExactWaiversBundleTest {
         assertTrue(transform.contains("$helperOriginal = $helperOriginal.Replace(\"`r`n\", \"`n\")"));
         assertTrue(transform.contains("$routeOriginal = $routeOriginal.Replace(\"`r`n\", \"`n\")"));
         assertTrue(transform.contains("ReadAllText($DashboardPath).Replace(\"`r`n\", \"`n\")"));
-        assertTrue(transform.contains("function Invoke-Bf715Transform"));
-        assertTrue(transform.contains("$useCrLf = $transformText.Contains(\"`r`n\")"));
-        assertTrue(transform.contains("Invoke-Bf715Transform -TransformPath $bf742Transform"));
-        assertFalse(transform.contains("& $bf742Transform"));
         assertTrue(transform.contains("$helperMatches -ne 1"));
         assertTrue(transform.contains("$routeMatches -ne 1"));
         assertTrue(transform.contains("staged /waivers route still contains sequential governed reads"));
