@@ -20,6 +20,8 @@ $stagedDatabase = $null
 $finalDatabase = $null
 $tempDatabase = $null
 $committed = $false
+$databaseInstalled = $false
+$selectionInstalled = $false
 $originalDataDir = [string]$env:BUTLER_APP_DATA_DIR
 
 function Get-BoundedTail {
@@ -211,6 +213,7 @@ try {
     $copyHash = (Get-FileHash -LiteralPath $tempDatabase -Algorithm SHA256).Hash
     if ($sourceHash -ine $copyHash) { throw 'Staged database copy verification failed.' }
     [IO.File]::Move($tempDatabase, $finalDatabase)
+    $databaseInstalled = $true
     $tempDatabase = $null
 
     [IO.Directory]::CreateDirectory($configDir) | Out-Null
@@ -221,6 +224,7 @@ try {
         throw 'Saved league selection appeared during setup; Butler refused to overwrite it.'
     }
     [IO.File]::Move($selectionTemp, $selectionPath)
+    $selectionInstalled = $true
     $committed = $true
 
     $env:BUTLER_APP_DATA_DIR = $resolvedDataDir
@@ -255,6 +259,15 @@ catch {
     exit 1
 }
 finally {
+    if (-not $committed) {
+        if ($selectionInstalled -and (Test-Path -LiteralPath $selectionPath -PathType Leaf)) {
+            Remove-Item -LiteralPath $selectionPath -Force -ErrorAction SilentlyContinue
+        }
+        if ($databaseInstalled -and $null -ne $finalDatabase -and (Test-Path -LiteralPath $finalDatabase -PathType Leaf)) {
+            Remove-Item -LiteralPath $finalDatabase -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     if ($null -ne $tempDatabase -and (Test-Path -LiteralPath $tempDatabase)) {
         Remove-Item -LiteralPath $tempDatabase -Force -ErrorAction SilentlyContinue
     }
