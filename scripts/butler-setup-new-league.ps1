@@ -21,7 +21,9 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $packageRoot = Split-Path -Parent $scriptDir
 $runtimeLibDir = Join-Path $packageRoot 'bet\bet-cli\build\install\bet-cli\lib'
 $javaPreflight = Join-Path $scriptDir 'butler-java-preflight.ps1'
+$setupCheck = Join-Path $scriptDir 'butler-setup-check.ps1'
 $setupLaunch = Join-Path $scriptDir 'butler-setup-launch.ps1'
+$windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
 function Get-LocalAppData {
     $value = [string]$env:LOCALAPPDATA
@@ -124,7 +126,7 @@ if (-not (Test-Path -LiteralPath ($zipPath + '.sha256') -PathType Leaf)) {
     throw "MVP SETUP BLOCKED: matching runtime checksum sidecar not found at $($zipPath + '.sha256')"
 }
 
-foreach ($required in @($javaPreflight, $setupLaunch, $runtimeLibDir)) {
+foreach ($required in @($javaPreflight, $setupCheck, $setupLaunch, $windowsPowerShell, $runtimeLibDir)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "MVP SETUP BLOCKED: required packaged component not found at $required"
     }
@@ -132,6 +134,12 @@ foreach ($required in @($javaPreflight, $setupLaunch, $runtimeLibDir)) {
 $runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
 if ($runtimeJars.Count -eq 0 -or @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' }).Count -ne 1) {
     throw 'MVP SETUP BLOCKED: packaged Butler runtime JAR set is incomplete or ambiguous.'
+}
+
+Write-Host 'MVP SETUP: verifying runtime package before any Butler data/provider work.'
+& $windowsPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $setupCheck -RuntimeZip $zipPath -PackageOnly
+if ($LASTEXITCODE -ne 0) {
+    throw 'MVP SETUP BLOCKED: runtime package verification failed; no Butler database or provider evidence was created.'
 }
 
 $javaInfo = & $javaPreflight -PassThru
