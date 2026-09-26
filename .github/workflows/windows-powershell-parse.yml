@@ -92,6 +92,10 @@ jobs:
         shell: powershell
         run: .\scripts\butler-setup-launch-acceptance.ps1
 
+      - name: Exercise zero-to-Dashboard onboarding fixtures
+        shell: powershell
+        run: .\scripts\butler-setup-new-league-acceptance.ps1
+
       - name: Set up Java 25 for guided restore fixtures
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
