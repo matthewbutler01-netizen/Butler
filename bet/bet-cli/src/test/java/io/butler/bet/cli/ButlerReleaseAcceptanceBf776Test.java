@@ -44,6 +44,23 @@ class ButlerReleaseAcceptanceBf776Test {
     }
 
     @Test
+    void releaseGateRequiresIssue534UxGuardrailsAfterPeakLoad() throws Exception {
+        String gate = source("scripts/butler-release-acceptance.cmd");
+
+        int baseAcceptance = gate.indexOf("call \"%~dp0butler-acceptance.cmd\" %*");
+        int guardrail = gate.indexOf("butler-manager-guardrail-acceptance.ps1\" -SkipPeakLoad");
+        int verificationRecord = gate.indexOf("butler-release-verification-record.ps1");
+
+        assertTrue(guardrail > baseAcceptance,
+            "BF-534 must reuse the release gate's completed BF-688 peak-load acceptance");
+        assertTrue(verificationRecord > guardrail,
+            "release verification must not be recorded before BF-534 UX guardrails pass");
+        assertTrue(gate.contains("set \"BF534_GUARDRAIL_ERROR=%ERRORLEVEL%\""));
+        assertTrue(gate.contains("if not \"%BF534_GUARDRAIL_ERROR%\"==\"0\" exit /b %BF534_GUARDRAIL_ERROR%"));
+        assertTrue(gate.contains("BF-534 UX GUARDRAILS: PASS"));
+    }
+
+    @Test
     void bf776CommandSourceRemainsAsciiOnly() throws Exception {
         String gate = source("scripts/butler-release-acceptance.cmd");
         byte[] encoded = gate.getBytes(StandardCharsets.US_ASCII);
