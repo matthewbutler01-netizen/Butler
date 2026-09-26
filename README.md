@@ -77,6 +77,22 @@ The check reports Windows PowerShell 5.1, Java 25 or newer (including the select
 
 Use an unmodified extraction: changed package files or extra executable files fail the consistency check. The checksum detects corruption and mismatch, not publisher authenticity. A PASS confirms prerequisites only, not database schema, league membership, or manager-page readiness. Missing or malformed saved league selection blocks this check even though the app supports explicit first-launch league selection as described below. A fresh host still needs a private backup from an existing installation; a league UUID cannot reconstruct missing data.
 
+### Fresh Sleeper league setup
+
+For a brand-new Butler installation that does not have an existing Butler database or private backup, the MVP setup path creates governed Butler data directly from an existing Sleeper league.
+
+From an extracted runtime package, keep the matching runtime ZIP and its `.sha256` sidecar available and run:
+
+```text
+scripts\butler-setup-new-league.cmd -RuntimeZip "C:\path\Butler-runtime-<shortsha>.zip" -SleeperLeagueId <sleeper-league-id> -SleeperUsername <your-sleeper-username>
+```
+
+The Sleeper username is required because a league ID identifies the league but does not identify which roster belongs to the person running Butler.
+
+The command stages a new database outside the package, reuses Butler's existing Sleeper full-league import, binds the exact requesting account/league/roster for My Team, builds the current matchup and governed waiver evidence, captures the first decision-history record, installs the database only after the governed evidence chain succeeds, saves Butler's internal league UUID automatically, then reuses the existing seven-page setup-launch verification and Dashboard handoff.
+
+This setup path does not submit a lineup, waiver claim, trade, FAAB bid, cancellation, replacement, or any other Sleeper transaction write. If Butler data or a saved Butler league already exists, fresh-league setup fails closed and directs the operator to normal launch or backup/restore instead.
+
 ### Portable private runtime-data backup and fresh-host restore
 
 v0.2.0 includes a guided entry point: from the extracted runtime package, run `scripts\butler-setup-restore.cmd -BackupZip` followed by the full path to your private backup ZIP. Keep its `.sha256` file beside it. Selecting a backup explicitly authorizes the restore; running without `-BackupZip` makes no changes. This command uses the existing BF-897 restore safeguards and requires Java 25 or newer plus the prebuilt runtime.
