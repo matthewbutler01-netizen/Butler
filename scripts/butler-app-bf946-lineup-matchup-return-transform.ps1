@@ -28,14 +28,14 @@ function Replace-ExactlyOnce {
 
 $core = [System.IO.File]::ReadAllText($CorePath)
 
-$readyActionsOld = '<div class="button-row"><a class="btn btn-secondary" href="/team/autofill">Refresh projection</a><a class="btn btn-secondary" href="/team">Back to My Team</a></div>'
-$readyActionsNew = '<div class="button-row"><a class="btn btn-secondary" href="/team/autofill">Refresh projection</a><a class="btn btn-secondary" href="/matchup">Back to Matchup</a><a class="btn btn-secondary" href="/team">Back to My Team</a></div>'
+$readyActionsOld = '<div class=`"button-row`"><a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div>'
+$readyActionsNew = '<div class=`"button-row`"><a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a><a class=`"btn btn-secondary`" href=`"/matchup`">Back to Matchup</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a></div>'
 $core = Replace-ExactlyOnce -Text $core -Old $readyActionsOld -New $readyActionsNew -Contract 'completed Lineup Review return actions'
 
 foreach ($required in @(
-    'href="/matchup">Back to Matchup</a>',
-    'href="/team">Back to My Team</a>',
-    'href="/team/autofill">Refresh projection</a>',
+    'href=`"/matchup`">Back to Matchup</a>',
+    'href=`"/team`">Back to My Team</a>',
+    'href=`"/team/autofill`">Refresh projection</a>',
     "ActionLabel = 'Open Lineup Review'",
     "ActionHref = '/team/autofill'",
     'Back to Lineup Review',
@@ -53,7 +53,7 @@ if ($autoFillStart -lt 0 -or $teamStart -le $autoFillStart) {
     throw 'BF-946 BLOCKED: final Lineup Advisor renderer boundary is missing.'
 }
 $installed = $core.Substring($autoFillStart, $teamStart - $autoFillStart)
-if ([regex]::Matches($installed, [regex]::Escape('href="/matchup">Back to Matchup</a>')).Count -ne 1) {
+if ([regex]::Matches($installed, [regex]::Escape('href=`"/matchup`">Back to Matchup</a>')).Count -ne 1) {
     throw 'BF-946 BLOCKED: completed Lineup Review must expose exactly one Back to Matchup action.'
 }
 foreach ($forbidden in @(
