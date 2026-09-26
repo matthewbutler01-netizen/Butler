@@ -17,13 +17,15 @@ function Snapshot {
 }
 
 function Check-Case {
-    param([string]$Name, [int]$Exit, [string]$Expected, [switch]$UseCmd)
+    param([string]$Name, [int]$Exit, [string]$Expected, [switch]$UseCmd, [switch]$RuntimeOnly)
     $before = Snapshot
+    $extra = @()
+    if ($RuntimeOnly) { $extra += '-RuntimeOnly' }
     if ($UseCmd) {
-        $output = @(& (Join-Path $package 'scripts\butler-setup-check.cmd') -RuntimeZip $zip 2>&1) -join "`n"
+        $output = @(& (Join-Path $package 'scripts\butler-setup-check.cmd') -RuntimeZip $zip @extra 2>&1) -join "`n"
     }
     else {
-        $output = @(& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $package 'scripts\butler-setup-check.ps1') -RuntimeZip $zip 2>&1) -join "`n"
+        $output = @(& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $package 'scripts\butler-setup-check.ps1') -RuntimeZip $zip @extra 2>&1) -join "`n"
     }
     $actualExit = $LASTEXITCODE
     if ($actualExit -ne $Exit -or $output -notmatch [regex]::Escape($Expected)) { throw "${Name}: expected exit $Exit and '$Expected', got $actualExit`n$output" }
@@ -60,6 +62,11 @@ public class ButlerSetupFixtureJava {
     $env:PATH = Join-Path $env:SystemRoot 'System32'
     $env:BUTLER_FIXTURE_JAVA = '25.0.1'
     Check-Case 'ready prerequisites without Git or Gradle' 0 'BUTLER SETUP CHECK: PASS'
+    Remove-Item -LiteralPath $db -Force
+    Remove-Item -LiteralPath $selection -Force
+    Check-Case 'runtime-only preflight does not require data or selection' 0 'BUTLER SETUP RUNTIME CHECK: PASS' -RuntimeOnly
+    [IO.File]::WriteAllText($db, "SQLite format 3`0fixture")
+    [IO.File]::WriteAllText($selection, 'a75ccbfa-18b4-4e02-9d21-ccb0356568cf')
     $env:PATH = (Join-Path $env:SystemRoot 'System32') + ';' + (Split-Path -Parent $shell)
     Check-Case 'CMD wrapper ready' 0 'BUTLER SETUP CHECK: PASS' -UseCmd
     $env:JAVA_HOME = ''
