@@ -12,6 +12,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
 $appLauncher = Join-Path $scriptDir 'butler-app.ps1'
 $matchupTransform = Join-Path $scriptDir 'butler-app-bf840-weekly-matchup-transform.ps1'
+$lineupReturnTransform = Join-Path $scriptDir 'butler-app-bf946-lineup-matchup-return-transform.ps1'
 $gradle = Join-Path $repoRoot 'gradlew.bat'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
@@ -27,7 +28,7 @@ if ([string]::IsNullOrWhiteSpace($localAppData)) {
 $configDir = Join-Path $localAppData 'Butler'
 $configPath = Join-Path $configDir 'app-league.txt'
 
-foreach ($required in @($appLauncher, $matchupTransform, $gradle, $powershell, $taskkill, $git)) {
+foreach ($required in @($appLauncher, $matchupTransform, $lineupReturnTransform, $gradle, $powershell, $taskkill, $git)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
         throw "BF-841 BLOCKED: required component not found at $required"
     }
@@ -257,6 +258,20 @@ foreach ($marker in @(
 if ($routeSource.IndexOf(':bet:bet-cli:weeklyMatchupWorkspace', [System.StringComparison]::Ordinal) -ge 0) {
     throw 'BF-849 BLOCKED: Weekly Matchup route still invokes the standalone matchup workspace task.'
 }
+
+$lineupReturnSource = [IO.File]::ReadAllText($lineupReturnTransform, [Text.Encoding]::UTF8)
+foreach ($marker in @(
+    'href="/matchup">Back to Matchup</a>',
+    'href="/team">Back to My Team</a>',
+    "ActionLabel = 'Open Lineup Review'",
+    "ActionHref = '/team/autofill'",
+    'Back to Lineup Review'
+)) {
+    if ($lineupReturnSource.IndexOf($marker, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-946 BLOCKED: weekly lineup return contract is missing marker: $marker"
+    }
+}
+Write-Host 'Lineup return loop: BF946_MATCHUP_RETURN_CONTRACT_VERIFIED'
 
 $before = Get-WorkingTreeState
 if (-not [string]::IsNullOrWhiteSpace($before)) {
