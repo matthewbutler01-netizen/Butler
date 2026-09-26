@@ -79,6 +79,12 @@ Use an unmodified extraction: changed package files or extra executable files fa
 
 ### Portable private runtime-data backup and fresh-host restore
 
+Builds after v0.1.1 include a guided entry point: from the extracted runtime package, run `scripts\butler-setup-restore.cmd -BackupZip` followed by the full path to your private backup ZIP. Keep its `.sha256` file beside it. Selecting a backup explicitly authorizes the restore; running without `-BackupZip` makes no changes. This command uses the existing BF-897 restore safeguards and requires Java 25 or newer plus the prebuilt runtime.
+
+The guided flow verifies the saved league against the staged database before installing any data or settings. If the backup has no saved selection, supply `-LeagueId` with the Butler UUID from the source installation, or use an existing matching saved selection. A conflicting selection blocks the restore and is preserved for review. A UUID that is absent from the backup database is rejected. This verifies league membership only, not complete schema/evidence readiness or manager-page behavior.
+
+The default destination is `%LOCALAPPDATA%\Butler\data`. The guided entry point also honors `BUTLER_APP_DATA_DIR`, or an explicit `-DataDir` override. For a custom destination, keep `BUTLER_APP_DATA_DIR` set to that same absolute external path when checking or launching Butler. After a successful restore, run the setup check above and then launch verification. Private backups stay separate from public release artifacts.
+
 Stop Butler before creating a backup. The backup command fails closed if a live Butler run-state marker or SQLite `-wal`, `-shm`, or `-journal` sidecar exists:
 
 ```text
