@@ -32,6 +32,9 @@ class ButlerAppShellBf715ExactWaiversBundleTest {
     void stagingTransformFailsClosedOnDashboardSourceDrift() throws Exception {
         String transform = source("scripts/butler-dashboard-bf715-transform.ps1");
 
+        assertTrue(transform.contains("$helperOriginal = $helperOriginal.Replace(\"`r`n\", \"`n\")"));
+        assertTrue(transform.contains("$routeOriginal = $routeOriginal.Replace(\"`r`n\", \"`n\")"));
+        assertTrue(transform.contains("ReadAllText($DashboardPath).Replace(\"`r`n\", \"`n\")"));
         assertTrue(transform.contains("$helperMatches -ne 1"));
         assertTrue(transform.contains("$routeMatches -ne 1"));
         assertTrue(transform.contains("staged /waivers route still contains sequential governed reads"));

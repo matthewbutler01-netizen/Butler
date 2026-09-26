@@ -85,7 +85,11 @@ $routeReplacement = @'
                 }
 '@
 
-$text = [System.IO.File]::ReadAllText($DashboardPath)
+$helperOriginal = $helperOriginal.Replace("`r`n", "`n")
+$helperReplacement = $helperReplacement.Replace("`r`n", "`n")
+$routeOriginal = $routeOriginal.Replace("`r`n", "`n")
+$routeReplacement = $routeReplacement.Replace("`r`n", "`n")
+$text = [System.IO.File]::ReadAllText($DashboardPath).Replace("`r`n", "`n")
 $helperMatches = [regex]::Matches($text, [regex]::Escape($helperOriginal)).Count
 $routeMatches = [regex]::Matches($text, [regex]::Escape($routeOriginal)).Count
 
