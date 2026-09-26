@@ -117,7 +117,7 @@ function Initialize-DirectJavaRuntime {
     New-Item -ItemType Directory -Path $runtimeScriptsDir -Force | Out-Null
     Copy-Item -LiteralPath $coreSingleSource -Destination $runtimeCoreSingle -Force
 
-    $coreSingleText = [System.IO.File]::ReadAllText($runtimeCoreSingle)
+    $coreSingleText = [System.IO.File]::ReadAllText($runtimeCoreSingle).Replace("`r`n", "`n")
     $navigationMatchCount = [regex]::Matches($coreSingleText, [regex]::Escape($coreSingleNavigationOriginal)).Count
     if ($navigationMatchCount -lt 1) {
         throw 'BF-707 BLOCKED: staged core navigation injection contract is missing.'

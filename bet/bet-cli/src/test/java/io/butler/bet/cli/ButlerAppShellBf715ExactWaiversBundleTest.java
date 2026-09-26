@@ -49,6 +49,7 @@ class ButlerAppShellBf715ExactWaiversBundleTest {
         int copyDashboard = core.indexOf("Copy-Item -LiteralPath $dashboardSource -Destination $runtimeDashboard -Force");
         int runTransform = core.indexOf("& $dashboardTransformSource -DashboardPath $runtimeDashboard");
         int startWorkers = core.indexOf("for ($index = 0; $index -lt $maxCoreWorkers; $index++)");
+        assertTrue(core.contains("ReadAllText($runtimeCoreSingle).Replace(\"`r`n\", \"`n\")"));
         assertTrue(transformSource >= 0);
         assertTrue(copyDashboard >= 0 && runTransform > copyDashboard);
         assertTrue(startWorkers > runTransform);
