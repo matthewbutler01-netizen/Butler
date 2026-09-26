@@ -39,6 +39,8 @@ git status --short
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
+For v0.3.0 publication, the exact clean commit must also pass `scripts\butler-mvp-completion-acceptance.cmd`. That one command builds the exact-HEAD runtime, performs real fresh-profile Sleeper onboarding inside an isolated temporary Windows profile, verifies all seven manager pages with `-VerifyOnly`, stops its owned runtime, and removes only that temporary profile.
+
 ### Release artifacts
 
 Generated release evidence is written under the ignored `release-output\` directory and is named by the exact short commit:
@@ -89,7 +91,7 @@ From an extracted runtime package, run `scripts\butler-setup-check.cmd -RuntimeZ
 
 The check reports Windows PowerShell 5.1, Java 25 or newer (including the selected executable), ZIP checksum and extracted-file consistency, external database presence and SQLite header, and saved league UUID format. It needs no Git or Gradle, starts no server, and does not create directories, databases, or saved settings. It prints a next action for each blocker and exits nonzero. `BUTLER_APP_DATA_DIR` selects an alternate absolute data directory outside the package, matching the app launcher; otherwise it checks `%LOCALAPPDATA%\Butler\data`.
 
-Use an unmodified extraction: changed package files or extra executable files fail the consistency check. The checksum detects corruption and mismatch, not publisher authenticity. A PASS confirms prerequisites only, not database schema, league membership, or manager-page readiness. Missing or malformed saved league selection blocks this check even though the app supports explicit first-launch league selection as described below. A fresh host still needs a private backup from an existing installation; a league UUID cannot reconstruct missing data.
+Use an unmodified extraction: changed package files or extra executable files fail the consistency check. The checksum detects corruption and mismatch, not publisher authenticity. A PASS confirms prerequisites only, not database schema, league membership, or manager-page readiness. Missing or malformed saved league selection blocks this check even though the app supports explicit first-launch league selection as described below. A fresh profile can either restore a private backup or use the v0.3.0 new-league setup; a Butler league UUID by itself still cannot reconstruct missing data.
 
 ### Portable private runtime-data backup and fresh-host restore
 
