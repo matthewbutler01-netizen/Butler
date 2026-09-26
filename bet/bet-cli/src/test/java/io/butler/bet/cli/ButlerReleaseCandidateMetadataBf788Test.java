@@ -16,7 +16,7 @@ class ButlerReleaseCandidateMetadataBf788Test {
     void gradleMetadataDeclaresCurrentMaintenanceRelease() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.1.1\""));
+        assertTrue(build.contains("version = \"0.2.0\""));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
 
