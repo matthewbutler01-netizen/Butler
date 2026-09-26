@@ -95,5 +95,4 @@ portability, and release-evidence gates that v0.2.0 and v0.3.0 retain.
 
 Repository release documentation and acceptance commands generate and verify
 local artifacts only. They do not create a Git tag, create or modify a GitHub
-Release, upload artifacts, alter an existing runtime profile, or authorize a Butler or Sleeper transaction write. Publishing a release remains a separate
-explicit operation after the exact-head gates pass.
+Release, upload artifacts, alter an existing runtime profile, or authorize a Butler or Sleeper transaction write. Publishing a release remains a separate explicit operation after the exact-head gates pass.
