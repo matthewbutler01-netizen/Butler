@@ -25,6 +25,9 @@ class ButlerPrebuiltRuntimeBf773Test {
         assertTrue(builder.contains("Butler-source-{0}.zip"));
         assertTrue(builder.contains(":bet:bet-cli:installDist"));
         assertTrue(builder.contains("'--no-daemon'"));
+        assertTrue(builder.contains("$previousPreference = $ErrorActionPreference"));
+        assertTrue(builder.contains("$ErrorActionPreference = 'Continue'"));
+        assertTrue(builder.contains("$ErrorActionPreference = $previousPreference"));
     }
 
     @Test
