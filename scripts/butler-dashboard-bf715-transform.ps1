@@ -7,8 +7,41 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ([string]$env:BUTLER_BF715_NORMALIZED_TRANSFORMS -cne '1') {
+    $normalizationRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("Butler-bf715-transforms-{0}-{1}" -f $PID, [guid]::NewGuid().ToString('N'))
+    $previousNormalization = $env:BUTLER_BF715_NORMALIZED_TRANSFORMS
+    try {
+        New-Item -ItemType Directory -Path $normalizationRoot -Force | Out-Null
+        Copy-Item -Path (Join-Path $PSScriptRoot '*.ps1') -Destination $normalizationRoot -Force
+        foreach ($stagedTransform in @(Get-ChildItem -LiteralPath $normalizationRoot -Filter '*.ps1' -File)) {
+            $stagedTransformText = [System.IO.File]::ReadAllText($stagedTransform.FullName).Replace("`r`n", "`n")
+            [System.IO.File]::WriteAllText($stagedTransform.FullName, $stagedTransformText, [System.Text.UTF8Encoding]::new($false))
+        }
+        $env:BUTLER_BF715_NORMALIZED_TRANSFORMS = '1'
+        & (Join-Path $normalizationRoot 'butler-dashboard-bf715-transform.ps1') -DashboardPath $DashboardPath
+    }
+    finally {
+        if ($null -eq $previousNormalization) {
+            Remove-Item Env:BUTLER_BF715_NORMALIZED_TRANSFORMS -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:BUTLER_BF715_NORMALIZED_TRANSFORMS = $previousNormalization
+        }
+        if (Test-Path -LiteralPath $normalizationRoot) {
+            Remove-Item -LiteralPath $normalizationRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    return
+}
+
 if (-not (Test-Path -LiteralPath $DashboardPath -PathType Leaf)) {
     throw "BF-715 BLOCKED: staged dashboard not found at $DashboardPath"
+}
+
+$stagedCorePath = Join-Path (Split-Path -Parent $DashboardPath) 'butler-app-shell-core-single.ps1'
+if (Test-Path -LiteralPath $stagedCorePath -PathType Leaf) {
+    $stagedCoreText = [System.IO.File]::ReadAllText($stagedCorePath).Replace("`r`n", "`n")
+    [System.IO.File]::WriteAllText($stagedCorePath, $stagedCoreText, [System.Text.UTF8Encoding]::new($false))
 }
 
 $helperOriginal = @'
@@ -85,7 +118,11 @@ $routeReplacement = @'
                 }
 '@
 
-$text = [System.IO.File]::ReadAllText($DashboardPath)
+$helperOriginal = $helperOriginal.Replace("`r`n", "`n")
+$helperReplacement = $helperReplacement.Replace("`r`n", "`n")
+$routeOriginal = $routeOriginal.Replace("`r`n", "`n")
+$routeReplacement = $routeReplacement.Replace("`r`n", "`n")
+$text = [System.IO.File]::ReadAllText($DashboardPath).Replace("`r`n", "`n")
 $helperMatches = [regex]::Matches($text, [regex]::Escape($helperOriginal)).Count
 $routeMatches = [regex]::Matches($text, [regex]::Escape($routeOriginal)).Count
 
