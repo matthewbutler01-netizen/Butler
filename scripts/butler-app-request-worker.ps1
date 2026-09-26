@@ -339,6 +339,65 @@ function Invoke-ExpensiveReadSingleFlightGet {
     }
 }
 
+function Add-ButlerAccessibility {
+    param([Parameter(Mandatory = $true)][string]$Html)
+
+    # Apply once at the public HTML boundary, after all page-specific styling.
+    if ($Html.Contains('id="butler-accessibility-style"')) { return $Html }
+    $result = [regex]::Replace($Html, '(?i)<html(?![^>]*\blang\s*=)([^>]*)>', '<html lang="en"$1>')
+    $nav = [regex]::Match($result, '(?is)<nav\b[^>]*aria-label="Butler sections"[^>]*>.*?</nav>')
+    if (-not $nav.Success) { return $result }
+
+    $navigation = [regex]::Replace($nav.Value, '<a\b[^>]*>', [System.Text.RegularExpressions.MatchEvaluator]{
+        param($link)
+        if ($link.Value -match 'class="[^"]*\bactive\b[^"]*"' -and $link.Value -notmatch '\baria-current=') {
+            return $link.Value.Insert(2, ' aria-current="page"')
+        }
+        return $link.Value
+    })
+    $result = $result.Remove($nav.Index, $nav.Length).Insert($nav.Index, $navigation)
+
+    # Focus the first content panel, beyond the repeated brand and navigation.
+    # Retain an existing fragment id so links into that panel keep working.
+    # Dashboard inserts a hidden recovery contract immediately after nav.
+    # Skip that diagnostic markup and land on the first visible content section.
+    $afterNav = $nav.Index + $navigation.Length
+    $content = [regex]::Match($result.Substring($afterNav), '(?is)<section\b(?![^>]*\bhidden\b)(?<attrs>[^>]*)>')
+    if ($content.Success) {
+        $opening = $content.Value
+        $id = [regex]::Match($content.Groups['attrs'].Value, '\bid="(?<id>[^"]+)"')
+        $target = 'butler-main-content'
+        if ($id.Success) { $target = $id.Groups['id'].Value }
+        else { $opening = $opening.Insert($opening.Length - 1, ' id="butler-main-content"') }
+        if ($content.Groups['attrs'].Value -notmatch '\btabindex=') {
+            $opening = $opening.Insert($opening.Length - 1, ' tabindex="-1"')
+        }
+        $contentIndex = $afterNav + $content.Index
+        $result = $result.Remove($contentIndex, $content.Length).Insert($contentIndex, $opening)
+        $body = [regex]::Match($result, '(?i)<body\b[^>]*>')
+        if ($body.Success) {
+            $result = $result.Insert($body.Index + $body.Length, '<a class="butler-skip-link" href="#' + $target + '">Skip to main content</a>')
+        }
+    }
+    $style = @'
+<style id="butler-accessibility-style">
+.butler-skip-link{position:fixed;left:12px;top:12px;transform:translateY(-200%);z-index:10000;padding:12px 16px;background:#fff;color:#111315;font:700 16px Arial,sans-serif;border:2px solid #111315;border-radius:4px}
+.butler-skip-link:focus{transform:none}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline:3px solid #28543D;outline-offset:3px}
+@media(prefers-color-scheme:dark){
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline-color:#A8D3B5}
+html body .command-button:not(.secondary),html body .btn-primary,html body a.button,html body .trade-button{color:#111315!important}
+html body .history-action-primary{background:#26352C;color:#A8D3B5;border-color:#35483C}
+html body .history-action-primary:hover{background:#202426}
+}
+@media(forced-colors:active){a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline-color:Highlight}}
+</style>
+'@
+    $headEnd = $result.IndexOf('</head>', [StringComparison]::OrdinalIgnoreCase)
+    if ($headEnd -ge 0) { $result = $result.Insert($headEnd, $style) }
+    return $result
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
