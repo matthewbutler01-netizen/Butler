@@ -1,34 +1,54 @@
-# Butler Release Candidate
+# Butler Release Status
 
-Current candidate metadata: `v0.1.0-rc.2`.
+## Current stable release
 
-## Why RC2 exists
+The current public stable release is `v0.1.0`, published from exact commit
+`6eefc53a75608ca5c97f18a6d0c6c966be783626` after the RC4 fresh-package
+soak completed successfully.
 
-`v0.1.0-rc.1` was the first public governed Butler release candidate. Post-publication testing of the published runtime package exposed a portability defect in the fully loaded Trade Lab and Decision History routes. Those routes still entered through Gradle-backed read helpers even though the runtime package intentionally ships without the Gradle toolchain and preserves a fail-closed Gradle shim.
+The stable package proved that:
 
-BF-789 repairs that mismatch without weakening the package boundary:
+- its downloaded runtime ZIP matched the published SHA-256 sidecar;
+- the extracted prebuilt runtime launched without a Gradle wrapper or toolchain;
+- BF-768 release-security checks passed;
+- BF-773 packaged-runtime launch acceptance passed; and
+- all seven manager pages returned HTTP 200 against governed external runtime data.
 
-- packaged Trade Lab and Decision History reads use the existing prebuilt `bet-cli` runtime through Butler's governed direct-Java dispatcher;
-- the BF-628 decision-history CLI is explicitly allowlisted for direct-Java read execution;
-- the runtime Gradle shim remains fail-closed and still authorizes only the exact internal prebuilt `installDist` startup probe;
-- no Gradle wrapper or Gradle toolchain is restored to the runtime ZIP;
-- governed external `BUTLER_APP_DATA_DIR` behavior is preserved;
-- exact POST `/refresh` remains excluded from the packaged read-only acceptance;
-- no Butler or Sleeper transaction write is added.
+The published runtime remains code/runtime-only. It contains no Butler database,
+credentials, provider payloads, logs, Git metadata, or user runtime data.
 
-## RC2 release gate
+## Next maintenance release
 
-Before RC2 may be published, the exact clean release commit must pass the authoritative Windows release acceptance. In addition to the existing source/runtime packaging, security, missing-database, BF-688, BF-777, BF-778, BF-780, and BF-787 gates, BF-789 must prove the actual extracted runtime can fully render:
+The next planned maintenance release is `v0.1.1`. Main has advanced beyond
+`v0.1.0` with two release-maintenance changes:
 
-- `GET /trade?load=1`
-- `GET /history?load=1`
+- JUnit 6.1.3 and its strict dependency-verification metadata; and
+- the BF-534 seven-page UX guardrail, now required by the authoritative release
+  gate after BF-688 peak-load acceptance.
 
-The app must remain healthy after each request. A successful repair includes:
+Before `v0.1.1` may be published, its exact clean main commit must pass
+`scripts\butler-release-acceptance.cmd`, a fresh extraction and launch soak, and
+the exact-head BF-885/BF-912 Fast Lane journey. Publication must use the source,
+runtime, verification-record, and evidence artifacts generated for that same
+commit.
 
-```text
-BF-789 PACKAGED COMPANION ROUTES: PASS
-```
+## Release history
+
+`v0.1.0-rc.1` was the first public governed release candidate. Published-package
+testing then exposed a portability defect in fully loaded Trade Analyzer and
+Decision History routes. BF-789 repaired those routes by using the prebuilt
+direct-Java read dispatcher while preserving the fail-closed Gradle shim and
+external runtime-data boundary.
+
+RC2 and RC3 hardened that packaged-runtime path. RC4 added the final dependency,
+Windows watchdog, PowerShell module-discovery, Gradle-output, and staging
+line-ending repairs. The RC4 commit became the exact `v0.1.0` stable commit after
+the clean fresh-package soak.
 
 ## Publication boundary
 
-This document prepares release-candidate metadata only. BF-790 does not create a Git tag, create or modify a GitHub Release, upload artifacts, alter runtime data, or authorize stable publication. Publishing `v0.1.0-rc.2` remains a separate explicit approval step.
+Repository release documentation and acceptance commands generate and verify
+local artifacts only. They do not create a Git tag, create or modify a GitHub
+Release, upload artifacts, alter runtime data, or authorize a Butler or Sleeper
+transaction write. Publishing a release remains a separate explicit operation
+after the exact-head gates pass.

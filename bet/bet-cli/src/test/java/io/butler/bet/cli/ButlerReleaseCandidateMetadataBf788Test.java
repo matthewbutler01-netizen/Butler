@@ -13,10 +13,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerReleaseCandidateMetadataBf788Test {
 
     @Test
-    void gradleMetadataDeclaresReleaseCandidate() throws Exception {
+    void gradleMetadataDeclaresCurrentMaintenanceRelease() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.1.0-rc."));
+        assertTrue(build.contains("version = \"0.1.1\""));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
 
@@ -27,6 +27,7 @@ class ButlerReleaseCandidateMetadataBf788Test {
         int packaged = readme.indexOf("prebuilt read-runtime bundle with no runtime data or Gradle toolchain (BF-773)");
         int missingDatabase = readme.indexOf("isolated BF-786 missing-runtime-database probe");
         int windowsAcceptance = readme.indexOf("existing Butler Windows acceptance and diagnostics");
+        int guardrail = readme.indexOf("BF-534/BF-844 seven-page UX guardrail");
         int record = readme.indexOf("BF-777 release verification record");
         int verifier = readme.indexOf("offline BF-778 verifier");
         int evidence = readme.indexOf("BF-787 portable release-evidence archive");
@@ -34,7 +35,8 @@ class ButlerReleaseCandidateMetadataBf788Test {
         assertTrue(packaged >= 0);
         assertTrue(missingDatabase > packaged);
         assertTrue(windowsAcceptance > missingDatabase);
-        assertTrue(record > windowsAcceptance);
+        assertTrue(guardrail > windowsAcceptance);
+        assertTrue(record > guardrail);
         assertTrue(verifier > record);
         assertTrue(evidence > verifier);
         assertTrue(readme.contains("BF-780 RELEASE SELF-VERIFICATION: PASS"));

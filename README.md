@@ -31,10 +31,11 @@ git status --short
 3. Extracts and launches that packaged runtime, then runs the BF-768 release-security smoke checks.
 4. Runs the isolated BF-786 missing-runtime-database probe, proving a package with no governed external `butler.db` fails closed without creating the database or saving league selection.
 5. Runs the existing Butler Windows acceptance and diagnostics, including the GET-only BF-688 workload.
-6. Writes the BF-777 release verification record only after those acceptance layers pass.
-7. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
-8. Packages exactly the four BF-778-verified runtime evidence files into the BF-787 portable release-evidence archive and emits its SHA-256 sidecar.
-9. Reports `BF-780 RELEASE SELF-VERIFICATION: PASS` and `BF-787 RELEASE EVIDENCE ARCHIVE: PASS` only after the complete gate succeeds.
+6. Runs the BF-534/BF-844 seven-page UX guardrail after BF-688, checking decision-first presentation, progressive disclosure, desktop responsiveness, absence of gambling-style pressure, and the under-five-minute manager journey without repeating the peak-load workload.
+7. Writes the BF-777 release verification record only after those acceptance layers pass.
+8. Runs the offline BF-778 verifier against the just-created record, re-hashing the runtime ZIP and cross-checking the checksum sidecar and BF-773 manifest.
+9. Packages exactly the four BF-778-verified runtime evidence files into the BF-787 portable release-evidence archive and emits its SHA-256 sidecar.
+10. Reports `BF-534 UX GUARDRAILS: PASS`, `BF-780 RELEASE SELF-VERIFICATION: PASS`, and `BF-787 RELEASE EVIDENCE ARCHIVE: PASS` only after the complete gate succeeds.
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
