@@ -39,7 +39,7 @@ git status --short
 
 The release/acceptance path does not submit exact POST `/refresh` and does not execute a Butler or Sleeper transaction write.
 
-For v0.3.0 publication, the exact clean commit must also pass `scripts\butler-mvp-completion-acceptance.cmd`. That one command builds the exact-HEAD runtime, performs real fresh-profile Sleeper onboarding inside an isolated temporary Windows profile, verifies all seven manager pages with `-VerifyOnly`, stops its owned runtime, and removes only that temporary profile.
+For v0.3.0 publication, the exact clean commit must also pass `scripts\butler-mvp-completion-acceptance.cmd`. That one command runs the authoritative exact-HEAD release acceptance, then performs real fresh-profile Sleeper onboarding inside an isolated temporary Windows profile, verifies all seven manager pages with `-VerifyOnly`, stops its owned runtime, and removes only that temporary profile.
 
 ### Release artifacts
 
