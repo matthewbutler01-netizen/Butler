@@ -17,9 +17,14 @@ function Snapshot {
 }
 
 function Check-Case {
-    param([string]$Name, [int]$Exit, [string]$Expected)
+    param([string]$Name, [int]$Exit, [string]$Expected, [switch]$UseCmd)
     $before = Snapshot
-    $output = @(& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $package 'scripts\butler-setup-check.ps1') -RuntimeZip $zip 2>&1) -join "`n"
+    if ($UseCmd) {
+        $output = @(& (Join-Path $package 'scripts\butler-setup-check.cmd') -RuntimeZip $zip 2>&1) -join "`n"
+    }
+    else {
+        $output = @(& $shell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $package 'scripts\butler-setup-check.ps1') -RuntimeZip $zip 2>&1) -join "`n"
+    }
     $actualExit = $LASTEXITCODE
     if ($actualExit -ne $Exit -or $output -notmatch [regex]::Escape($Expected)) { throw "${Name}: expected exit $Exit and '$Expected', got $actualExit`n$output" }
     if ((Snapshot) -cne $before) { throw "${Name}: read-only setup changed fixture files or directories." }
@@ -30,7 +35,7 @@ try {
     foreach ($dir in @('scripts', 'bet\bet-cli\build\install\bet-cli\lib')) { [IO.Directory]::CreateDirectory((Join-Path $package $dir)) | Out-Null }
     [IO.Directory]::CreateDirectory((Join-Path $profile 'Butler\data')) | Out-Null
     [IO.Directory]::CreateDirectory((Join-Path $javaHome 'bin')) | Out-Null
-    foreach ($name in @('butler-setup-check.ps1', 'butler-java-preflight.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $package ('scripts\' + $name)) }
+    foreach ($name in @('butler-setup-check.ps1', 'butler-setup-check.cmd', 'butler-java-preflight.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $package ('scripts\' + $name)) }
     foreach ($name in @('butler-app.cmd', 'butler-app.ps1', 'butler-app-shell-core.ps1')) { [IO.File]::WriteAllText((Join-Path $package ('scripts\' + $name)), 'fixture - never executed') }
     [IO.File]::WriteAllText((Join-Path $package 'bet\bet-cli\build\install\bet-cli\lib\bet-cli-fixture.jar'), 'fixture - never executed')
     Add-Type -TypeDefinition @'
@@ -55,8 +60,10 @@ public class ButlerSetupFixtureJava {
     $env:PATH = Join-Path $env:SystemRoot 'System32'
     $env:BUTLER_FIXTURE_JAVA = '25.0.1'
     Check-Case 'ready prerequisites without Git or Gradle' 0 'BUTLER SETUP CHECK: PASS'
+    $env:PATH = (Join-Path $env:SystemRoot 'System32') + ';' + (Split-Path -Parent $shell)
+    Check-Case 'CMD wrapper ready' 0 'BUTLER SETUP CHECK: PASS' -UseCmd
     $env:JAVA_HOME = ''
-    Check-Case 'missing Java' 1 'java.exe is unavailable'
+    Check-Case 'CMD wrapper propagates missing Java failure' 1 'java.exe is unavailable' -UseCmd
     $env:JAVA_HOME = $javaHome
     $env:BUTLER_FIXTURE_JAVA = '17.0.1'
     Check-Case 'unsupported Java' 1 'resolved Java major version 17'
@@ -91,3 +98,5 @@ finally {
     if (-not $resolvedRoot.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe fixture cleanup path.' }
     if (Test-Path -LiteralPath $resolvedRoot) { Remove-Item -LiteralPath $resolvedRoot -Recurse -Force }
 }
+# Expected child-process failures must not become the CI step's final exit code.
+$global:LASTEXITCODE = 0

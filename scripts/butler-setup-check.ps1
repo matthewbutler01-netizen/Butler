@@ -7,6 +7,14 @@ $ErrorActionPreference = 'Stop'
 $packageRoot = Split-Path -Parent $PSScriptRoot
 $script:blockers = 0
 
+function Get-SetupHash {
+    param([string]$Path)
+    $stream = [IO.File]::OpenRead($Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '') }
+    finally { $stream.Dispose(); $sha.Dispose() }
+}
+
 function Report-Check {
     param([string]$Name, [scriptblock]$Check, [string]$Next)
     try {
@@ -43,7 +51,7 @@ Report-Check 'PACKAGE' {
     if ($checksum -notmatch '^([0-9a-fA-F]{64})\s{2}(.+)$') { throw 'Invalid runtime checksum sidecar.' }
     $expectedHash = $Matches[1]
     if ($Matches[2] -cne [IO.Path]::GetFileName($zipPath)) { throw 'Checksum names a different ZIP.' }
-    if ((Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash -ine $expectedHash) { throw 'Runtime ZIP checksum mismatch.' }
+    if ((Get-SetupHash $zipPath) -ine $expectedHash) { throw 'Runtime ZIP checksum mismatch.' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
@@ -65,7 +73,7 @@ Report-Check 'PACKAGE' {
             $sha = [Security.Cryptography.SHA256]::Create()
             try { $entryHash = [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '') }
             finally { $stream.Dispose(); $sha.Dispose() }
-            if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -cne $entryHash) { throw "Extracted file differs from ZIP: $name" }
+            if ((Get-SetupHash $path) -cne $entryHash) { throw "Extracted file differs from ZIP: $name" }
         }
         # Extra executable content could alter class loading or launch behavior.
         foreach ($file in Get-ChildItem -LiteralPath $packageRoot -Recurse -File) {
