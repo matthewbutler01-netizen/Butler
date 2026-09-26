@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
-$runtimeBuilder = Join-Path $scriptDir 'butler-runtime-release-bundle.ps1'
+$releaseAcceptance = Join-Path $scriptDir 'butler-release-acceptance.cmd'
 $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
 if ($null -eq $gitCommand) { $gitCommand = Get-Command git -ErrorAction SilentlyContinue }
 if ($null -eq $gitCommand) { throw 'MVP ACCEPTANCE BLOCKED: Git is unavailable.' }
@@ -41,11 +41,11 @@ function Require-Text {
 
 try {
     Write-Host 'Butler MVP completion acceptance'
-    Write-Host 'Boundary: exact clean HEAD package; isolated temporary Windows profile; real Butler profile is not used.'
+    Write-Host 'Boundary: authoritative exact-HEAD release gate plus isolated temporary Windows profile; real Butler profile is not used by onboarding.'
     Write-Host 'Boundary: Butler-local setup/evidence only; no lineup, waiver, trade, FAAB, or other Sleeper transaction write.'
 
-    if (-not (Test-Path -LiteralPath $runtimeBuilder -PathType Leaf)) {
-        throw "MVP ACCEPTANCE BLOCKED: runtime builder missing at $runtimeBuilder"
+    if (-not (Test-Path -LiteralPath $releaseAcceptance -PathType Leaf)) {
+        throw "MVP ACCEPTANCE BLOCKED: authoritative release acceptance missing at $releaseAcceptance"
     }
 
     if ([string]::IsNullOrWhiteSpace($SleeperUsername)) {
@@ -71,10 +71,11 @@ try {
     $head = $head.ToLowerInvariant()
     $short = $head.Substring(0, 8)
 
+    Write-Host 'Running authoritative exact-HEAD release acceptance...'
     Push-Location $repoRoot
     try {
-        & $runtimeBuilder -Force
-        if ($LASTEXITCODE -ne 0) { throw "MVP ACCEPTANCE BLOCKED: runtime bundle exited with code $LASTEXITCODE." }
+        & $releaseAcceptance
+        if ($LASTEXITCODE -ne 0) { throw "MVP ACCEPTANCE BLOCKED: release acceptance exited with code $LASTEXITCODE." }
     }
     finally { Pop-Location }
 
