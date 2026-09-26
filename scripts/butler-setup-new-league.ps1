@@ -1,91 +1,61 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
     [string]$RuntimeZip,
-
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [string]$SleeperLeagueId,
-
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
     [string]$SleeperUsername,
-
+    [string]$SleeperLeagueId,
+    [string]$DataDir,
     [switch]$VerifyOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$packageRoot = Split-Path -Parent $scriptDir
+$packageRoot = Split-Path -Parent $PSScriptRoot
+$shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$setupCheck = Join-Path $PSScriptRoot 'butler-setup-check.ps1'
+$setupLaunch = Join-Path $PSScriptRoot 'butler-setup-launch.ps1'
+$javaPreflight = Join-Path $PSScriptRoot 'butler-java-preflight.ps1'
 $runtimeLibDir = Join-Path $packageRoot 'bet\bet-cli\build\install\bet-cli\lib'
-$javaPreflight = Join-Path $scriptDir 'butler-java-preflight.ps1'
-$setupCheck = Join-Path $scriptDir 'butler-setup-check.ps1'
-$setupLaunch = Join-Path $scriptDir 'butler-setup-launch.ps1'
-$windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-
-function Get-LocalAppData {
-    $value = [string]$env:LOCALAPPDATA
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        $value = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
-    }
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        throw 'MVP SETUP BLOCKED: LocalApplicationData is unavailable.'
-    }
-    return $value
-}
-
-function Resolve-TargetDataDir {
-    param([Parameter(Mandatory = $true)][string]$ConfigDir)
-
-    $configured = [string]$env:BUTLER_APP_DATA_DIR
-    if ([string]::IsNullOrWhiteSpace($configured)) {
-        $candidate = Join-Path $ConfigDir 'data'
-    }
-    else {
-        if (-not [IO.Path]::IsPathRooted($configured)) {
-            throw 'MVP SETUP BLOCKED: BUTLER_APP_DATA_DIR must be an absolute path.'
-        }
-        $candidate = $configured
-    }
-
-    $resolved = [IO.Path]::GetFullPath($candidate)
-    $package = [IO.Path]::GetFullPath($packageRoot).TrimEnd('\')
-    if ($resolved.Equals($package, [StringComparison]::OrdinalIgnoreCase) -or
-        $resolved.StartsWith($package + '\', [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'MVP SETUP BLOCKED: Butler runtime data must remain outside the source/package tree.'
-    }
-    return $resolved
-}
+$stagingRoot = $null
+$stagedDatabase = $null
+$finalDatabase = $null
+$tempDatabase = $null
+$committed = $false
+$databaseInstalled = $false
+$selectionInstalled = $false
+$originalDataDir = [string]$env:BUTLER_APP_DATA_DIR
 
 function Get-BoundedTail {
-    param([AllowNull()][string]$Text, [int]$Limit = 2600)
-
-    if ([string]::IsNullOrWhiteSpace($Text)) { return 'no task output' }
-    $normalized = [regex]::Replace($Text, '\s+', ' ').Trim()
-    if ($normalized.Length -le $Limit) { return $normalized }
-    return '...' + $normalized.Substring($normalized.Length - $Limit)
+    param([AllowNull()][object[]]$Lines, [int]$Limit = 2400)
+    if ($null -eq $Lines -or @($Lines).Count -eq 0) { return 'no captured output' }
+    $text = ((@($Lines) | ForEach-Object { "$_" }) -join ' ')
+    $text = [regex]::Replace($text, '\s+', ' ').Trim()
+    if ($text.Length -le $Limit) { return $text }
+    return '...' + $text.Substring($text.Length - $Limit)
 }
 
-function Invoke-ButlerJava {
+function Require-Text {
+    param([AllowNull()][string]$Value, [string]$Label)
+    if ([string]::IsNullOrWhiteSpace($Value)) { throw "$Label is required." }
+    return $Value.Trim()
+}
+
+function Invoke-ButlerRuntime {
     param(
+        [Parameter(Mandatory = $true)][string]$Label,
         [Parameter(Mandatory = $true)][string]$MainClass,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$Label
+        [Parameter(Mandatory = $true)][string[]]$Arguments
     )
 
-    Write-Host ("MVP SETUP: {0}..." -f $Label)
-    $previousPreference = $ErrorActionPreference
-    $lines = $null
-    $exitCode = $null
+    Write-Host ("SETUP START: {0}" -f $Label)
     $javaArgs = @('--enable-native-access=ALL-UNNAMED', '-cp', $script:classPath, $MainClass) + @($Arguments)
-
-    Push-Location $script:stagingDir
+    $previousPreference = $ErrorActionPreference
+    $lines = @()
+    $exitCode = -1
+    Push-Location $script:stagingRoot
     try {
         try {
             $ErrorActionPreference = 'Continue'
-            $lines = & $script:java $javaArgs 2>&1
+            $lines = @(& $script:java @javaArgs 2>&1)
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -96,162 +66,222 @@ function Invoke-ButlerJava {
         Pop-Location
     }
 
-    $text = (($lines | ForEach-Object { "$_" }) -join [Environment]::NewLine)
     if ($exitCode -ne 0) {
-        throw ("MVP SETUP BLOCKED: {0} failed with exit code {1}; output={2}" -f
-            $Label, $exitCode, (Get-BoundedTail -Text $text))
+        throw ("{0} failed with runtime exit code {1}. {2}" -f $Label, $exitCode, (Get-BoundedTail -Lines $lines))
     }
-    Write-Host ("MVP SETUP: {0} complete." -f $Label)
-    return $text
+    Write-Host ("SETUP PASS: {0}" -f $Label)
+    return (($lines | ForEach-Object { "$_" }) -join "`n")
 }
 
-Write-Host 'Butler MVP fresh-league setup'
-Write-Host 'Boundary: Butler-local data creation and read-only/provider evidence acquisition only.'
-Write-Host 'Boundary: no Sleeper lineup, waiver, trade, FAAB, cancel, replace, or transaction write is performed.'
-
-if ($SleeperLeagueId.Trim() -notmatch '^\d+$') {
-    throw 'MVP SETUP BLOCKED: SleeperLeagueId must contain digits only.'
+function Get-ExactField {
+    param([string]$Text, [string]$Pattern, [string]$Label)
+    $matches = [regex]::Matches($Text, $Pattern)
+    if ($matches.Count -ne 1) { throw "Expected exactly one $Label in setup output." }
+    return $matches[0].Groups['value'].Value.Trim()
 }
-$SleeperLeagueId = $SleeperLeagueId.Trim()
-$SleeperUsername = $SleeperUsername.Trim()
-if ([string]::IsNullOrWhiteSpace($SleeperUsername)) {
-    throw 'MVP SETUP BLOCKED: SleeperUsername must not be blank.'
-}
-
-$zipPath = [IO.Path]::GetFullPath($RuntimeZip)
-if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) {
-    throw "MVP SETUP BLOCKED: runtime ZIP not found at $zipPath"
-}
-if (-not (Test-Path -LiteralPath ($zipPath + '.sha256') -PathType Leaf)) {
-    throw "MVP SETUP BLOCKED: matching runtime checksum sidecar not found at $($zipPath + '.sha256')"
-}
-
-foreach ($required in @($javaPreflight, $setupCheck, $setupLaunch, $windowsPowerShell, $runtimeLibDir)) {
-    if (-not (Test-Path -LiteralPath $required)) {
-        throw "MVP SETUP BLOCKED: required packaged component not found at $required"
-    }
-}
-$runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
-if ($runtimeJars.Count -eq 0 -or @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' }).Count -ne 1) {
-    throw 'MVP SETUP BLOCKED: packaged Butler runtime JAR set is incomplete or ambiguous.'
-}
-
-Write-Host 'MVP SETUP: verifying runtime package before any Butler data/provider work.'
-& $windowsPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $setupCheck -RuntimeZip $zipPath -PackageOnly
-if ($LASTEXITCODE -ne 0) {
-    throw 'MVP SETUP BLOCKED: runtime package verification failed; no Butler database or provider evidence was created.'
-}
-
-$javaInfo = & $javaPreflight -PassThru
-$script:java = [string]$javaInfo.Executable
-$script:classPath = Join-Path $runtimeLibDir '*'
-
-$localAppData = Get-LocalAppData
-$configDir = Join-Path $localAppData 'Butler'
-$targetDataDir = Resolve-TargetDataDir -ConfigDir $configDir
-$targetDatabase = Join-Path $targetDataDir 'butler.db'
-$configPath = Join-Path $configDir 'app-league.txt'
-
-if (Test-Path -LiteralPath $targetDatabase -PathType Leaf) {
-    throw "MVP SETUP BLOCKED: an existing Butler database is already installed at $targetDatabase. Use normal launch or backup/restore instead of fresh-league setup."
-}
-if (Test-Path -LiteralPath $configPath -PathType Leaf) {
-    throw "MVP SETUP BLOCKED: an existing Butler league selection is already saved at $configPath. Preserve it and use normal launch or backup/restore instead of fresh-league setup."
-}
-
-[IO.Directory]::CreateDirectory($configDir) | Out-Null
-$script:stagingDir = Join-Path $configDir ('fresh-league-staging-' + [Guid]::NewGuid().ToString('N'))
-[IO.Directory]::CreateDirectory($script:stagingDir) | Out-Null
-$installed = $false
-$originalDataDir = [string]$env:BUTLER_APP_DATA_DIR
 
 try {
-    $env:BUTLER_APP_DATA_DIR = $script:stagingDir
+    Write-Output 'Butler MVP new-league setup'
+    Write-Output 'Boundary: creates Butler-local data and evidence only. It never submits a lineup, waiver, trade, FAAB change, or other Sleeper transaction.'
 
-    $syncText = Invoke-ButlerJava -MainClass 'io.butler.bet.cli.ButlerMain' -Arguments @('sleeper', 'sync-all', $SleeperLeagueId) -Label 'importing Sleeper league, rosters, draft picks, and DynastyProcess values'
-
-    $leagueMatch = [regex]::Match($syncText, '(?m)^League ID:\s*(?<id>[0-9a-fA-F-]{36})\s*$')
-    if (-not $leagueMatch.Success) {
-        throw 'MVP SETUP BLOCKED: full league sync completed without one parseable Butler league UUID.'
-    }
-    $parsedLeague = [Guid]::Empty
-    if (-not [Guid]::TryParse($leagueMatch.Groups['id'].Value, [ref]$parsedLeague)) {
-        throw 'MVP SETUP BLOCKED: imported Butler league identifier is not a UUID.'
-    }
-    $butlerLeagueId = $parsedLeague.ToString('D').ToLowerInvariant()
-    Write-Host "MVP SETUP: Butler league resolved automatically: $butlerLeagueId"
-
-    [void](Invoke-ButlerJava -MainClass 'io.butler.bet.cli.ButlerSleeperPersonalTargetBindCli' -Arguments @($butlerLeagueId, $SleeperUsername, $SleeperLeagueId) -Label 'binding your Sleeper account to My Team')
-
-    $stages = @(
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli'; Label = 'synchronizing the current weekly matchup' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli'; Label = 'building the current waiver candidate frame' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli'; Label = 'capturing waiver market attention' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli'; Label = 'hydrating governed prior-season production' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli'; Label = 'capturing current availability evidence' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli'; Label = 'capturing current-week stat evidence' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli'; Label = 'hydrating My Team production evidence' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverFinalRecommendationBundleCli'; Label = 'building the first governed waiver decision' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli'; Label = 'capturing the first decision history record' },
-        [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli'; Label = 'verifying the first governed decision summary' }
-    )
-
-    foreach ($stage in $stages) {
-        [void](Invoke-ButlerJava -MainClass $stage.MainClass -Arguments @($butlerLeagueId) -Label $stage.Label)
+    if (-not (Test-Path -LiteralPath $shell -PathType Leaf)) { throw 'Windows PowerShell 5.1 is unavailable.' }
+    foreach ($required in @($setupCheck, $setupLaunch, $javaPreflight)) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required setup component missing: $required" }
     }
 
-    $stagedDatabase = Join-Path $script:stagingDir 'butler.db'
-    if (-not (Test-Path -LiteralPath $stagedDatabase -PathType Leaf)) {
-        throw 'MVP SETUP BLOCKED: staged setup completed without a Butler database.'
+    $RuntimeZip = Require-Text -Value $RuntimeZip -Label 'RuntimeZip'
+    if ([string]::IsNullOrWhiteSpace($SleeperUsername)) {
+        $SleeperUsername = Read-Host 'Sleeper username'
     }
-    foreach ($suffix in @('-wal', '-shm', '-journal')) {
-        if (Test-Path -LiteralPath ($stagedDatabase + $suffix)) {
-            throw "MVP SETUP BLOCKED: staged database still has live SQLite sidecar $suffix; installation was not attempted."
+    if ([string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
+        $SleeperLeagueId = Read-Host 'Sleeper league ID'
+    }
+    $SleeperUsername = Require-Text -Value $SleeperUsername -Label 'Sleeper username'
+    $SleeperLeagueId = Require-Text -Value $SleeperLeagueId -Label 'Sleeper league ID'
+    if ($SleeperLeagueId -notmatch '^\d+$') { throw 'Sleeper league ID must contain digits only.' }
+
+    & $shell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $setupCheck -RuntimeZip $RuntimeZip -RuntimeOnly
+    if ($LASTEXITCODE -ne 0) { throw 'Runtime integrity/prerequisite check failed.' }
+
+    $localData = [string]$env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($localData)) {
+        $localData = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    }
+    if ([string]::IsNullOrWhiteSpace($localData)) { throw 'LocalApplicationData is unavailable.' }
+
+    $configDir = Join-Path $localData 'Butler'
+    $selectionPath = Join-Path $configDir 'app-league.txt'
+    if (Test-Path -LiteralPath $selectionPath -PathType Leaf) {
+        throw "Saved Butler league selection already exists at $selectionPath. New-league setup is fresh-profile only and will not overwrite it."
+    }
+
+    $candidate = $DataDir
+    if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = $originalDataDir }
+    if ([string]::IsNullOrWhiteSpace($candidate)) { $candidate = Join-Path $configDir 'data' }
+    if (-not [IO.Path]::IsPathRooted($candidate)) { throw 'DataDir/BUTLER_APP_DATA_DIR must be an absolute path.' }
+    $resolvedDataDir = [IO.Path]::GetFullPath($candidate)
+    $resolvedPackageRoot = [IO.Path]::GetFullPath($packageRoot).TrimEnd('\')
+    if ($resolvedDataDir.Equals($resolvedPackageRoot, [StringComparison]::OrdinalIgnoreCase) -or
+        $resolvedDataDir.StartsWith($resolvedPackageRoot + '\', [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Butler runtime data must be outside the extracted package.'
+    }
+
+    $finalDatabase = Join-Path $resolvedDataDir 'butler.db'
+    if (Test-Path -LiteralPath $finalDatabase) {
+        throw "Butler database already exists at $finalDatabase. New-league setup never overwrites an existing database."
+    }
+    if (Test-Path -LiteralPath $resolvedDataDir -PathType Container) {
+        $existing = @(Get-ChildItem -LiteralPath $resolvedDataDir -Force -ErrorAction Stop)
+        if ($existing.Count -gt 0) {
+            throw "Data directory is not empty: $resolvedDataDir. Use an empty fresh directory or the existing restore/launch workflow."
         }
     }
 
-    [IO.Directory]::CreateDirectory($targetDataDir) | Out-Null
-    if (Test-Path -LiteralPath $targetDatabase) {
-        throw "MVP SETUP BLOCKED: target database appeared during setup at $targetDatabase; refusing to overwrite it."
+    $javaInfo = & $javaPreflight -PassThru
+    $java = [string]$javaInfo.Executable
+    if ([string]::IsNullOrWhiteSpace($java) -or -not (Test-Path -LiteralPath $java -PathType Leaf)) {
+        throw 'Java preflight did not return a usable executable.'
+    }
+    if (-not (Test-Path -LiteralPath $runtimeLibDir -PathType Container)) {
+        throw "Prebuilt Butler runtime library is missing at $runtimeLibDir"
+    }
+    $runtimeJars = @(Get-ChildItem -LiteralPath $runtimeLibDir -Filter '*.jar' -File -ErrorAction Stop)
+    $appJars = @($runtimeJars | Where-Object { $_.Name -like 'bet-cli*.jar' })
+    if ($runtimeJars.Count -eq 0 -or $appJars.Count -ne 1) {
+        throw 'Prebuilt runtime must contain exactly one bet-cli application JAR and its dependencies.'
+    }
+    $classPath = Join-Path $runtimeLibDir '*'
+
+    $stagingParent = Join-Path $configDir 'setup-new-league-staging'
+    [IO.Directory]::CreateDirectory($stagingParent) | Out-Null
+    $stagingRoot = Join-Path $stagingParent ([Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($stagingRoot) | Out-Null
+    $stagedDatabase = Join-Path $stagingRoot 'butler.db'
+    $env:BUTLER_APP_DATA_DIR = $stagingRoot
+
+    $sync = Invoke-ButlerRuntime -Label 'Sleeper league import + dynasty values' -MainClass 'io.butler.bet.cli.ButlerMain' -Arguments @('sleeper', 'sync-all', $SleeperLeagueId)
+    $butlerLeagueId = Get-ExactField -Text $sync -Pattern '(?m)^League ID:\s+(?<value>[0-9a-fA-F-]{36})\s*$' -Label 'Butler league ID'
+    $parsedLeague = [Guid]::Empty
+    if (-not [Guid]::TryParse($butlerLeagueId, [ref]$parsedLeague)) { throw 'Imported Butler league ID is not a UUID.' }
+    $butlerLeagueId = $parsedLeague.ToString('D').ToLowerInvariant()
+
+    $discovery = Invoke-ButlerRuntime -Label 'Exact Sleeper manager/roster discovery' -MainClass 'io.butler.bet.cli.ButlerSleeperPersonalTargetDiscoveryCli' -Arguments @($SleeperUsername, $SleeperLeagueId)
+    if ($discovery -notmatch '(?m)^Discovery state:\s+EXACT_USER_LEAGUE_ROSTER_DISCOVERED\s*$') {
+        throw 'Sleeper manager discovery did not prove exactly one current roster.'
     }
 
-    Move-Item -LiteralPath $stagedDatabase -Destination $targetDatabase
+    $binding = Invoke-ButlerRuntime -Label 'Exact manager/league/roster binding' -MainClass 'io.butler.bet.cli.ButlerSleeperPersonalTargetBindCli' -Arguments @($butlerLeagueId, $SleeperUsername, $SleeperLeagueId)
+    if ($binding -notmatch '(?m)^Binding state:\s+BOUND_VERIFIED\s*$') {
+        throw 'Fresh setup did not create the exact personalized Sleeper target binding.'
+    }
+
+    $verified = Invoke-ButlerRuntime -Label 'Live personalized-target verification' -MainClass 'io.butler.bet.cli.ButlerSleeperPersonalTargetVerificationDiagnosticCli' -Arguments @($butlerLeagueId)
+    if ($verified -notmatch '(?m)^BF855_STATE\s+BOUND_TARGET_LIVE_VERIFIED\s*$') {
+        throw 'Bound Sleeper target did not pass live verification.'
+    }
+
+    $stages = @(
+        @{ Label = 'Current weekly matchup'; Main = 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' },
+        @{ Label = 'Waiver identity snapshot'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli' },
+        @{ Label = 'Waiver market attention'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverMarketAttentionSyncCli' },
+        @{ Label = 'Waiver production hydration'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverProductionHydrationCli' },
+        @{ Label = 'Waiver availability'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli' },
+        @{ Label = 'Current-week waiver stats'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli' },
+        @{ Label = 'My Team production hydration'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli' },
+        @{ Label = 'Waiver comparison readiness'; Main = 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli' }
+    )
+    foreach ($stage in $stages) {
+        [void](Invoke-ButlerRuntime -Label $stage.Label -MainClass $stage.Main -Arguments @($butlerLeagueId))
+    }
+
+    if (-not (Test-Path -LiteralPath $stagedDatabase -PathType Leaf)) {
+        throw 'Setup completed its provider stages without producing butler.db.'
+    }
+    $stream = [IO.File]::Open($stagedDatabase, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
     try {
-        [IO.File]::WriteAllText($configPath, ($butlerLeagueId + [Environment]::NewLine), [Text.Encoding]::ASCII)
+        $header = New-Object byte[] 16
+        if ($stream.Read($header, 0, 16) -ne 16 -or [Text.Encoding]::ASCII.GetString($header) -cne "SQLite format 3`0") {
+            throw 'Staged Butler database does not have a valid SQLite header.'
+        }
     }
-    catch {
-        Move-Item -LiteralPath $targetDatabase -Destination $stagedDatabase -Force
-        throw
-    }
-    $installed = $true
+    finally { $stream.Dispose() }
 
-    Write-Host 'MVP SETUP: governed Butler data installed.'
-    Write-Host "MVP SETUP: Data: $targetDataDir"
-    Write-Host "MVP SETUP: League: $butlerLeagueId"
+    [IO.Directory]::CreateDirectory($resolvedDataDir) | Out-Null
+    $tempDatabase = Join-Path $resolvedDataDir ('butler.db.setup-' + [Guid]::NewGuid().ToString('N'))
+    [IO.File]::Copy($stagedDatabase, $tempDatabase, $false)
+    $sourceHash = (Get-FileHash -LiteralPath $stagedDatabase -Algorithm SHA256).Hash
+    $copyHash = (Get-FileHash -LiteralPath $tempDatabase -Algorithm SHA256).Hash
+    if ($sourceHash -ine $copyHash) { throw 'Staged database copy verification failed.' }
+    [IO.File]::Move($tempDatabase, $finalDatabase)
+    $databaseInstalled = $true
+    $tempDatabase = $null
+
+    [IO.Directory]::CreateDirectory($configDir) | Out-Null
+    $selectionTemp = Join-Path $configDir ('app-league.txt.setup-' + [Guid]::NewGuid().ToString('N'))
+    [IO.File]::WriteAllText($selectionTemp, ($butlerLeagueId + "`r`n"), [Text.Encoding]::ASCII)
+    if (Test-Path -LiteralPath $selectionPath) {
+        Remove-Item -LiteralPath $selectionTemp -Force
+        throw 'Saved league selection appeared during setup; Butler refused to overwrite it.'
+    }
+    [IO.File]::Move($selectionTemp, $selectionPath)
+    $selectionInstalled = $true
+    $committed = $true
+
+    $env:BUTLER_APP_DATA_DIR = $resolvedDataDir
+    Write-Output "BUTLER NEW LEAGUE: INITIALIZED $butlerLeagueId"
+    Write-Output "Data: $resolvedDataDir"
+    Write-Output 'Running seven-page launch verification...'
+
+    $launchArgs = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$setupLaunch,'-RuntimeZip',$RuntimeZip)
+    if ($VerifyOnly) { $launchArgs += '-VerifyOnly' }
+    & $shell @launchArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw 'League initialization succeeded, but seven-page launch verification was blocked. Keep the initialized data and use the reported launch diagnostics.'
+    }
+
+    Write-Output 'BUTLER MVP ONBOARDING: PASS'
+    if ($VerifyOnly) {
+        Write-Output 'Verified onboarding runtime was stopped.'
+    }
+    else {
+        Write-Output 'Butler is ready in the Dashboard window opened by setup launch.'
+    }
+}
+catch {
+    Write-Output ('BUTLER MVP ONBOARDING: BLOCKED - ' + $_.Exception.Message)
+    if ($committed) {
+        Write-Output 'Butler data was already initialized before the final launch check. It was preserved; do not rerun fresh setup over it.'
+        Write-Output 'NEXT: Resolve the reported launch blocker, then run scripts\butler-setup-launch.cmd with the same RuntimeZip.'
+    }
+    else {
+        Write-Output 'No existing Butler database or saved league selection was overwritten.'
+    }
+    exit 1
 }
 finally {
+    if (-not $committed) {
+        if ($selectionInstalled -and (Test-Path -LiteralPath $selectionPath -PathType Leaf)) {
+            Remove-Item -LiteralPath $selectionPath -Force -ErrorAction SilentlyContinue
+        }
+        if ($databaseInstalled -and $null -ne $finalDatabase -and (Test-Path -LiteralPath $finalDatabase -PathType Leaf)) {
+            Remove-Item -LiteralPath $finalDatabase -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($null -ne $tempDatabase -and (Test-Path -LiteralPath $tempDatabase)) {
+        Remove-Item -LiteralPath $tempDatabase -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $committed -and $null -ne $stagingRoot -and (Test-Path -LiteralPath $stagingRoot)) {
+        Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    elseif ($null -ne $stagingRoot -and (Test-Path -LiteralPath $stagingRoot)) {
+        Remove-Item -LiteralPath $stagingRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
     if ([string]::IsNullOrWhiteSpace($originalDataDir)) {
         Remove-Item Env:BUTLER_APP_DATA_DIR -ErrorAction SilentlyContinue
     }
     else {
         $env:BUTLER_APP_DATA_DIR = $originalDataDir
     }
-    if (-not $installed -and (Test-Path -LiteralPath $script:stagingDir)) {
-        Remove-Item -LiteralPath $script:stagingDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
 }
-
-if (Test-Path -LiteralPath $script:stagingDir) {
-    Remove-Item -LiteralPath $script:stagingDir -Recurse -Force -ErrorAction SilentlyContinue
-}
-
-Write-Host 'MVP SETUP: running existing package/setup and seven-page launch verification.'
-$launchArgs = @{ RuntimeZip = $zipPath }
-if ($VerifyOnly) { $launchArgs.VerifyOnly = $true }
-& $setupLaunch @launchArgs
-if ($LASTEXITCODE -ne 0) {
-    throw 'MVP SETUP INSTALLED BUT LAUNCH VERIFICATION BLOCKED: Butler data is installed. Fix the reported launch blocker, then run scripts\butler-setup-launch.cmd with the same -RuntimeZip; do not rerun fresh-league setup.'
-}
-
-Write-Host 'BUTLER MVP FRESH LEAGUE SETUP: PASS'
-Write-Host 'Boundary verified: Butler-local evidence only; no Sleeper transaction write was submitted.'

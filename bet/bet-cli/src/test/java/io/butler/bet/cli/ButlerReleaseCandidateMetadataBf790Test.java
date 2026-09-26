@@ -16,7 +16,7 @@ class ButlerReleaseCandidateMetadataBf790Test {
     void rootMetadataDeclaresOnboardingReleaseExactly() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.2.0\""));
+        assertTrue(build.contains("version = \"0.3.0\""));
         assertFalse(build.contains("version = \"0.1.0-rc."));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
@@ -25,10 +25,11 @@ class ButlerReleaseCandidateMetadataBf790Test {
     void releaseDocumentExplainsOnboardingScopeAndBaseline() throws Exception {
         String doc = source("docs/release-candidate.md");
 
-        assertTrue(doc.contains("# Butler v0.2.0 Release"));
-        assertTrue(doc.contains("4eb714bdf07cc1b63910bff7f7e51570e3d38155"));
-        assertTrue(doc.contains("league-membership validation"));
-        assertTrue(doc.contains("isolated-profile check"));
+        assertTrue(doc.contains("# Butler v0.3.0 Release"));
+        assertTrue(doc.contains("a9f76be71822a39b75771c4c3d6f0eccac7a76e8"));
+        assertTrue(doc.contains("zero-to-Dashboard"));
+        assertTrue(doc.contains("Sleeper username"));
+        assertTrue(doc.contains("butler-mvp-completion-acceptance.cmd"));
         assertTrue(doc.contains("JUnit 6.1.3"));
         assertTrue(doc.contains("BF-534 seven-page UX guardrail"));
         assertTrue(doc.contains("exact-head BF-885/BF-912 Fast Lane journey"));
