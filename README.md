@@ -8,7 +8,7 @@ Butler is a governed fantasy-football decision-support application. On Windows, 
 
 - Windows PowerShell 5.1.
 - Java 25 or newer available to the host. The packaged runtime contains Butler's application JARs and dependencies, but it intentionally does not contain the Gradle wrapper or Gradle toolchain.
-- Git, used to bind release artifacts and verification evidence to one exact commit.
+- Git is required only when building releases from source, to bind artifacts and verification evidence to one exact commit. Packaged setup and launch do not require Git.
 - Runtime data outside the source/package tree. Butler defaults to `%LOCALAPPDATA%\Butler\data`. `BUTLER_APP_DATA_DIR` may override that location only with an absolute path outside the source/package tree.
 
 Butler's SQLite runtime data, local credentials, build output, IDE state, and Git metadata are not part of the release package.
@@ -71,7 +71,7 @@ BF-897 adds a separate private runtime-data backup/restore path for moving an ex
 
 ### Read-only fresh-host setup check
 
-From an extracted runtime package, run `scripts\butler-setup-check.cmd -RuntimeZip` with the full path to the downloaded runtime ZIP. Keep its matching `.sha256` file beside the ZIP. This command is available in builds after v0.1.1; it is not included in that release.
+From an extracted runtime package, run `scripts\butler-setup-check.cmd -RuntimeZip` with the full path to the downloaded runtime ZIP. Keep its matching `.sha256` file beside the ZIP. This command is included in v0.2.0.
 
 The check reports Windows PowerShell 5.1, Java 25 or newer (including the selected executable), ZIP checksum and extracted-file consistency, external database presence and SQLite header, and saved league UUID format. It needs no Git or Gradle, starts no server, and does not create directories, databases, or saved settings. It prints a next action for each blocker and exits nonzero. `BUTLER_APP_DATA_DIR` selects an alternate absolute data directory outside the package, matching the app launcher; otherwise it checks `%LOCALAPPDATA%\Butler\data`.
 
@@ -79,7 +79,7 @@ Use an unmodified extraction: changed package files or extra executable files fa
 
 ### Portable private runtime-data backup and fresh-host restore
 
-Builds after v0.1.1 include a guided entry point: from the extracted runtime package, run `scripts\butler-setup-restore.cmd -BackupZip` followed by the full path to your private backup ZIP. Keep its `.sha256` file beside it. Selecting a backup explicitly authorizes the restore; running without `-BackupZip` makes no changes. This command uses the existing BF-897 restore safeguards and requires Java 25 or newer plus the prebuilt runtime.
+v0.2.0 includes a guided entry point: from the extracted runtime package, run `scripts\butler-setup-restore.cmd -BackupZip` followed by the full path to your private backup ZIP. Keep its `.sha256` file beside it. Selecting a backup explicitly authorizes the restore; running without `-BackupZip` makes no changes. This command uses the existing BF-897 restore safeguards and requires Java 25 or newer plus the prebuilt runtime.
 
 The guided flow verifies the saved league against the staged database before installing any data or settings. If the backup has no saved selection, supply `-LeagueId` with the Butler UUID from the source installation, or use an existing matching saved selection. A conflicting selection blocks the restore and is preserved for review. A UUID that is absent from the backup database is rejected. This verifies league membership only, not complete schema/evidence readiness or manager-page behavior.
 
@@ -87,7 +87,7 @@ The default destination is `%LOCALAPPDATA%\Butler\data`. The guided entry point 
 
 ### Verified first launch and dashboard handoff
 
-Builds after v0.1.1 include `scripts\butler-setup-launch.cmd -RuntimeZip` followed by the downloaded runtime ZIP path. Run this from an extracted package after restoring your private data and saved league selection. The command first runs the read-only setup check, starts Butler on an available loopback port, verifies Butler's health identity, and reads all seven manager pages, including loaded Trade Analyzer and Decision History. It makes no transaction requests.
+v0.2.0 includes `scripts\butler-setup-launch.cmd -RuntimeZip` followed by the downloaded runtime ZIP path. Run this from an extracted package after restoring your private data and saved league selection. The command first runs the read-only setup check, starts Butler on an available loopback port, verifies Butler's health identity, and reads all seven manager pages, including loaded Trade Analyzer and Decision History. It makes no transaction requests.
 
 On success, the app stays running and the command prints its dashboard URL and a command to stop that specific instance. Startup logs and process identity are saved under `%LOCALAPPDATA%\Butler\setup-runs`. The stop command refuses mismatched process identities. With `-VerifyOnly`, the command stops its own runtime after the checks instead of leaving a dashboard running. Failed checks stop only the launched process group, including descendants, and print at most 2,000 characters of startup-log context. `-StartupTimeoutSeconds` and `-RequestTimeoutSeconds` bound startup and individual requests.
 

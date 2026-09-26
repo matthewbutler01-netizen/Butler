@@ -13,21 +13,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButlerReleaseCandidateMetadataBf790Test {
 
     @Test
-    void rootMetadataDeclaresNextMaintenanceReleaseExactly() throws Exception {
+    void rootMetadataDeclaresOnboardingReleaseExactly() throws Exception {
         String build = rootSource("build.gradle.kts");
 
-        assertTrue(build.contains("version = \"0.1.1\""));
+        assertTrue(build.contains("version = \"0.2.0\""));
         assertFalse(build.contains("version = \"0.1.0-rc."));
         assertFalse(build.contains("0.1.0-SNAPSHOT"));
     }
 
     @Test
-    void releaseDocumentExplainsStableAndMaintenanceStatus() throws Exception {
+    void releaseDocumentExplainsOnboardingScopeAndBaseline() throws Exception {
         String doc = source("docs/release-candidate.md");
 
-        assertTrue(doc.contains("current public stable release is `v0.1.0`"));
-        assertTrue(doc.contains("6eefc53a75608ca5c97f18a6d0c6c966be783626"));
-        assertTrue(doc.contains("next planned maintenance release is `v0.1.1`"));
+        assertTrue(doc.contains("# Butler v0.2.0 Release"));
+        assertTrue(doc.contains("4eb714bdf07cc1b63910bff7f7e51570e3d38155"));
+        assertTrue(doc.contains("league-membership validation"));
+        assertTrue(doc.contains("isolated-profile check"));
         assertTrue(doc.contains("JUnit 6.1.3"));
         assertTrue(doc.contains("BF-534 seven-page UX guardrail"));
         assertTrue(doc.contains("exact-head BF-885/BF-912 Fast Lane journey"));
