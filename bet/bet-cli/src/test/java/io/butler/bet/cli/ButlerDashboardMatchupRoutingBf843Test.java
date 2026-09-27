@@ -25,7 +25,7 @@ class ButlerDashboardMatchupRoutingBf843Test {
     }
 
     @Test
-    void lineupQueueRoutesWeeklyDecisionsToMatchup() throws Exception {
+    void lineupReviewRoutesStayAvailableWithoutMatchup() throws Exception {
         String transform = source("scripts/butler-dashboard-bf843-matchup-routing-transform.ps1");
 
         for (String marker : new String[]{
@@ -34,15 +34,16 @@ class ButlerDashboardMatchupRoutingBf843Test {
                 "\"AUTOFILL READY\"",
                 "\"NO CHANGES\"",
                 "\"EVIDENCE GAP\"",
-                "$actionHref = \"/matchup/autofill\"",
+                "$actionHref = \"/team/autofill\"",
                 "$actionHref = \"/matchup\"",
-                "$actionLabel = \"Review Matchup\"",
+                "$actionLabel = \"Review Lineup\"",
                 "$actionLabel = \"Refresh Lineup\"",
                 "$actionLabel = \"View Matchup\""
         }) {
             assertTrue(transform.contains(marker), "BF-843 queue routing missing " + marker);
         }
 
+        assertFalse(transform.contains("$actionHref = \"/matchup/autofill\""));
         assertFalse(transform.contains("\"NEEDS ATTENTION\" {"));
     }
 
@@ -50,9 +51,9 @@ class ButlerDashboardMatchupRoutingBf843Test {
     void priorityOneNextActionUsesSameMatchupRouting() throws Exception {
         String transform = source("scripts/butler-dashboard-bf843-matchup-routing-transform.ps1");
 
-        assertTrue(transform.contains("$primaryNextActionHref = \"/matchup/autofill\""));
+        assertTrue(transform.contains("$primaryNextActionHref = \"/team/autofill\""));
         assertTrue(transform.contains("$primaryNextActionHref = \"/matchup\""));
-        assertTrue(transform.contains("$primaryNextActionLabel = \"Review Matchup\""));
+        assertTrue(transform.contains("$primaryNextActionLabel = \"Review Lineup\""));
         assertTrue(transform.contains("$primaryNextActionLabel = \"Refresh Lineup\""));
         assertTrue(transform.contains("$primaryNextActionLabel = \"View Matchup\""));
     }
