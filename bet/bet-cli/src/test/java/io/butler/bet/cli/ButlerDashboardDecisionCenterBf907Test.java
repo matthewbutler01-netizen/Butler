@@ -23,6 +23,8 @@ class ButlerDashboardDecisionCenterBf907Test {
         assertTrue(transform.contains("Kind = \"Waivers\""));
         assertTrue(transform.contains("Kind = \"Trade\""));
         assertTrue(transform.contains("$managerAttentionCount"));
+        assertTrue(transform.contains("$managerAttentionItems"));
+        assertTrue(transform.contains("$bf907AttentionKind.ToUpperInvariant()"));
         assertTrue(transform.contains("$bf907WeekGlanceHtml"));
     }
 
