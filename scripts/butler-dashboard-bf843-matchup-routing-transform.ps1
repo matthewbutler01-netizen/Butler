@@ -71,24 +71,24 @@ $proofRouting = @'
     if ($null -ne $priorityOne -and [string]$priorityOne.Kind -ceq "Lineup") {
         switch ([string]$lineupSignalStatus) {
             "NOT REVIEWED" {
-                $primaryNextActionHref = "/matchup/autofill"
-                $primaryNextActionLabel = "Review Matchup"
+                $primaryNextActionHref = "/team/autofill"
+                $primaryNextActionLabel = "Review Lineup"
             }
             "REFRESH AUTOFILL" {
-                $primaryNextActionHref = "/matchup/autofill"
+                $primaryNextActionHref = "/team/autofill"
                 $primaryNextActionLabel = "Refresh Lineup"
             }
             "AUTOFILL READY" {
-                $primaryNextActionHref = "/matchup"
-                $primaryNextActionLabel = "Review Matchup"
+                $primaryNextActionHref = "/team/autofill"
+                $primaryNextActionLabel = "Review Lineup"
             }
             "NO CHANGES" {
                 $primaryNextActionHref = "/matchup"
                 $primaryNextActionLabel = "View Matchup"
             }
             "EVIDENCE GAP" {
-                $primaryNextActionHref = "/matchup"
-                $primaryNextActionLabel = "Review Matchup"
+                $primaryNextActionHref = "/team/autofill"
+                $primaryNextActionLabel = "Review Lineup"
             }
         }
     }
