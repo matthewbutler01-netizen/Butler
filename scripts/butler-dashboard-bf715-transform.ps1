@@ -660,6 +660,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "My Team workspace transform not found at $teamWorkspaceTransform"
     }
     & $teamWorkspaceTransform -CorePath $stagedCore
+
+    $dashboardMatchupTransform = Join-Path $PSScriptRoot 'butler-dashboard-matchup-summary-transform.ps1'
+    if (-not (Test-Path -LiteralPath $dashboardMatchupTransform -PathType Leaf)) {
+        throw "Dashboard matchup summary transform not found at $dashboardMatchupTransform"
+    }
+    & $dashboardMatchupTransform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
