@@ -37,28 +37,28 @@ $dashboardBlock = $text.Substring($dashboardStart, $dashboardEnd - $dashboardSta
 
 $queueAnchor = '        $cardClass = if ($managerIndex -eq 0) { "manager-decision-card primary" } else { "manager-decision-card" }'
 $queueRouting = @'
-        # BF-843: Weekly Matchup owns lineup review routes; My Team remains roster repair/inspection.
+        # BF-843: lineup review stays available even when exact opponent context is unavailable.
         if ($kind -ceq "Lineup") {
             switch ([string]$lineupSignalStatus) {
                 "NOT REVIEWED" {
-                    $actionHref = "/matchup/autofill"
-                    $actionLabel = "Review Matchup"
+                    $actionHref = "/team/autofill"
+                    $actionLabel = "Review Lineup"
                 }
                 "REFRESH AUTOFILL" {
-                    $actionHref = "/matchup/autofill"
+                    $actionHref = "/team/autofill"
                     $actionLabel = "Refresh Lineup"
                 }
                 "AUTOFILL READY" {
-                    $actionHref = "/matchup"
-                    $actionLabel = "Review Matchup"
+                    $actionHref = "/team/autofill"
+                    $actionLabel = "Review Lineup"
                 }
                 "NO CHANGES" {
                     $actionHref = "/matchup"
                     $actionLabel = "View Matchup"
                 }
                 "EVIDENCE GAP" {
-                    $actionHref = "/matchup"
-                    $actionLabel = "Review Matchup"
+                    $actionHref = "/team/autofill"
+                    $actionLabel = "Review Lineup"
                 }
             }
         }
@@ -100,11 +100,11 @@ $text = $text.Substring(0, $dashboardStart) + $dashboardBlock + $text.Substring(
 
 foreach ($required in @(
     'BF-843',
-    '$actionHref = "/matchup/autofill"',
+    '$actionHref = "/team/autofill"',
     '$actionHref = "/matchup"',
-    '$primaryNextActionHref = "/matchup/autofill"',
+    '$primaryNextActionHref = "/team/autofill"',
     '$primaryNextActionHref = "/matchup"',
-    '$actionLabel = "Review Matchup"',
+    '$actionLabel = "Review Lineup"',
     '$actionLabel = "Refresh Lineup"',
     '$actionLabel = "View Matchup"'
 )) {
