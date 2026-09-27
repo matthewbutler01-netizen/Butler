@@ -17,6 +17,8 @@ class ButlerDashboardManagerProofModeBf819Test {
         String transform = source("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
 
         assertTrue(transform.contains("What matters now"));
+        assertTrue(transform.contains("$managerAttentionItems"));
+        assertTrue(transform.contains("$managerAttentionKind needs your attention."));
         assertTrue(transform.contains("1 item needs your attention."));
         assertTrue(transform.contains("Your decision queue"));
         assertTrue(transform.contains("Your lineup recommendation is out of date"));

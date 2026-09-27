@@ -107,7 +107,8 @@ $bf907Prelude = @'
         "ON TRACK"
     }
     elseif ($managerAttentionCount -eq 1) {
-        "1 NEEDS ATTENTION"
+        $bf907AttentionKind = if (@($managerAttentionItems).Count -eq 1) { [string]$managerAttentionItems[0].Kind } else { "" }
+        if ([string]::IsNullOrWhiteSpace($bf907AttentionKind)) { "1 NEEDS ATTENTION" } else { "$($bf907AttentionKind.ToUpperInvariant()) NEEDS ATTENTION" }
     }
     else {
         "$managerAttentionCount NEED ATTENTION"

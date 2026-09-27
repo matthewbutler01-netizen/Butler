@@ -28,8 +28,14 @@ if ($finalReturn -lt 0 -or $functionClose -le $finalReturn) {
 $managerPrelude = @'
     # BF-819 is presentation-only. It reuses the already-derived priority, evidence, record,
     # and safety state, then separates the fast manager scan from expandable proof.
-    $managerAttentionCount = @($orderedPrioritySignals | Where-Object { [string]$_.AttentionGroup -ceq "attention" }).Count
-    $managerHeroCopy = if ($managerAttentionCount -eq 1) { "1 item needs your attention." } elseif ($managerAttentionCount -gt 1) { "$managerAttentionCount items need your attention." } else { "Nothing needs immediate attention." }
+    $managerAttentionItems = @($orderedPrioritySignals | Where-Object { [string]$_.AttentionGroup -ceq "attention" })
+    $managerAttentionCount = $managerAttentionItems.Count
+    $managerHeroCopy = if ($managerAttentionCount -eq 1) {
+        $managerAttentionKind = [string]$managerAttentionItems[0].Kind
+        if ([string]::IsNullOrWhiteSpace($managerAttentionKind)) { "1 item needs your attention." } else { "$managerAttentionKind needs your attention." }
+    }
+    elseif ($managerAttentionCount -gt 1) { "$managerAttentionCount items need your attention." }
+    else { "Nothing needs immediate attention." }
 
     $lineupViews = @{
         "REFRESH AUTOFILL" = @("Your lineup recommendation is out of date", "Your roster or projection data changed since the last lineup review.", "REFRESH", "warn", "/team/autofill", "Refresh Lineup")
