@@ -575,6 +575,7 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-938 BLOCKED: compact manager evidence transform not found at $bf938Transform"
     }
     & $bf938Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+
 }
 
 # BF-939: add the exact-ID Waiver Candidate Compare flow after all Waiver Board
@@ -652,6 +653,13 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-946 BLOCKED: Lineup Review to Matchup return transform not found at $bf946Transform"
     }
     & $bf946Transform -CorePath $stagedCore
+
+    # The final My Team pass changes layout and navigation only.
+    $teamWorkspaceTransform = Join-Path $PSScriptRoot 'butler-app-team-workspace-transform.ps1'
+    if (-not (Test-Path -LiteralPath $teamWorkspaceTransform -PathType Leaf)) {
+        throw "My Team workspace transform not found at $teamWorkspaceTransform"
+    }
+    & $teamWorkspaceTransform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
