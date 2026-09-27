@@ -163,13 +163,13 @@ function Get-ExpectedLineupRoute {
     param([string]$Title)
 
     switch ($Title) {
-        'Lineup needs a fresh review' { return @('/matchup/autofill','Refresh Lineup') }
-        'Your lineup recommendation is out of date' { return @('/matchup/autofill','Refresh Lineup') }
-        'Lineup review needs more evidence' { return @('/matchup','Review Matchup') }
-        'Lineup changes are ready to review' { return @('/matchup','Review Matchup') }
+        'Lineup needs a fresh review' { return @('/team/autofill','Refresh Lineup') }
+        'Your lineup recommendation is out of date' { return @('/team/autofill','Refresh Lineup') }
+        'Lineup review needs more evidence' { return @('/team/autofill','Review Lineup') }
+        'Lineup changes are ready to review' { return @('/team/autofill','Review Lineup') }
         'No lineup change proven' { return @('/matchup','View Matchup') }
         'Your roster needs review first' { return @('/team','Review My Team') }
-        'Lineup has not been reviewed yet' { return @('/matchup/autofill','Review Matchup') }
+        'Lineup has not been reviewed yet' { return @('/team/autofill','Review Lineup') }
         default { throw "BF-843 BLOCKED: unrecognized live lineup card title: $Title" }
     }
 }
