@@ -25,7 +25,7 @@ function Add-DashboardMatchupSummary {
         if (-not [int]::TryParse([string]$roster.ProviderLeg, [ref]$week) -or $week -le 0) { throw 'Current week unavailable.' }
         $rawMatchup = Get-TeamEvidenceBundleSection -Text $bundle -Name 'MATCHUP'
         $matchup = ConvertTo-WeeklyMatchupView -Text $rawMatchup
-        if ($matchup.UserTeamId -cne $roster.ButlerTeamId -or $matchup.Season -ne $roster.Season -or $matchup.Week -ne $week) {
+        if ($matchup.LeagueId -cne $roster.SleeperLeagueId -or $matchup.UserTeamId -cne $roster.ButlerTeamId -or $matchup.Season -ne $roster.Season -or $matchup.Week -ne $week) {
             throw 'Matchup frame does not match the bound team.'
         }
         $title = "Week $($matchup.Week): $($matchup.UserTeamName) vs. $($matchup.OpponentTeamName)"
