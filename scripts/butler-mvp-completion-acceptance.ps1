@@ -1,6 +1,7 @@
 param(
     [string]$SleeperUsername,
-    [string]$SleeperLeagueId
+    [string]$SleeperLeagueId,
+    [switch]$SelectLeague
 )
 
 Set-StrictMode -Version Latest
@@ -51,13 +52,20 @@ try {
     if ([string]::IsNullOrWhiteSpace($SleeperUsername)) {
         $SleeperUsername = Read-Host 'Sleeper username'
     }
-    if ([string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
+    if (-not $SelectLeague -and [string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
         $SleeperLeagueId = Read-Host 'Sleeper league ID'
     }
     $SleeperUsername = Require-Text -Value $SleeperUsername -Label 'Sleeper username'
-    $SleeperLeagueId = Require-Text -Value $SleeperLeagueId -Label 'Sleeper league ID'
-    if ($SleeperLeagueId -notmatch '^\d+$') {
-        throw 'MVP ACCEPTANCE BLOCKED: Sleeper league ID must contain digits only.'
+    if ($SelectLeague) {
+        if (-not [string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
+            throw 'MVP ACCEPTANCE BLOCKED: choose either -SelectLeague or -SleeperLeagueId.'
+        }
+    }
+    else {
+        $SleeperLeagueId = Require-Text -Value $SleeperLeagueId -Label 'Sleeper league ID'
+        if ($SleeperLeagueId -notmatch '^\d+$') {
+            throw 'MVP ACCEPTANCE BLOCKED: Sleeper league ID must contain digits only.'
+        }
     }
 
     $status = Invoke-GitText -Arguments @('status', '--porcelain', '--untracked-files=all')
@@ -107,7 +115,9 @@ try {
     Write-Host "Isolated profile: $profileDir"
     Write-Host 'Running packaged zero-to-Dashboard onboarding with seven-page verification...'
 
-    $lines = @(& $entry -RuntimeZip $runtimeZip -SleeperUsername $SleeperUsername -SleeperLeagueId $SleeperLeagueId -VerifyOnly 2>&1)
+    $setupArgs = @('-RuntimeZip', $runtimeZip, '-SleeperUsername', $SleeperUsername, '-VerifyOnly')
+    if (-not $SelectLeague) { $setupArgs += @('-SleeperLeagueId', $SleeperLeagueId) }
+    $lines = @(& $entry @setupArgs 2>&1)
     $exitCode = $LASTEXITCODE
     $text = ($lines | ForEach-Object { "$_" }) -join "`n"
     $lines | ForEach-Object { Write-Host "$_" }
