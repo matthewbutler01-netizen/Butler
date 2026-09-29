@@ -21,7 +21,7 @@ class ButlerDashboardDecisionCenterBf907Test {
         assertTrue(transform.contains("Your fantasy week in one view"));
         assertTrue(transform.contains("Kind = \"Lineup\""));
         assertTrue(transform.contains("Kind = \"Waivers\""));
-        assertTrue(transform.contains("Kind = \"Trade\""));
+        assertTrue(transform.contains("Kind = \"Matchup\""));
         assertTrue(transform.contains("$managerAttentionCount"));
         assertTrue(transform.contains("$managerAttentionItems"));
         assertTrue(transform.contains("$bf907AttentionKind.ToUpperInvariant()"));
@@ -32,7 +32,7 @@ class ButlerDashboardDecisionCenterBf907Test {
     void dashboardKeepsUsefulSecondaryToolsOutsidePrimaryNav() throws Exception {
         String transform = source("scripts/butler-dashboard-bf907-decision-center-transform.ps1");
 
-        assertTrue(transform.contains("href=\"/matchup\">Weekly Matchup</a>"));
+        assertTrue(transform.contains("href=\"/trade\">Trade Analyzer</a>"));
         assertTrue(transform.contains("href=\"/players\">Player Search</a>"));
         assertTrue(transform.contains("href=\"/compare\">Player Compare</a>"));
         assertTrue(transform.contains("href=\"/league\">League</a>"));

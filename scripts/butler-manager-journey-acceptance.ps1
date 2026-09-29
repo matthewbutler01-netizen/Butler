@@ -606,6 +606,17 @@ try {
     Assert-PrimaryNavigation -Html $matchup.Body -Stage 'Matchup'
     Assert-NoRawDeveloperFailure -Html $matchup.Body -Stage 'Matchup'
 
+    $dashboardMatchupCard = [regex]::Match($dashboard.Body, '(?s)<article class="week-glance-card"><div class="week-kind">Matchup</div>.*?</article>')
+    if (-not $dashboardMatchupCard.Success) {
+        throw 'BF-912 FAILED: Dashboard weekly matchup card is missing.'
+    }
+    $matchupConfirmed = $matchup.Body.IndexOf('Your opponent is confirmed.', [System.StringComparison]::Ordinal) -ge 0
+    $dashboardConfirmed = $dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::Ordinal) -ge 0
+    if ($matchupConfirmed -ne $dashboardConfirmed) {
+        throw 'BF-912 FAILED: Dashboard matchup confirmation disagrees with Weekly Matchup.'
+    }
+    Write-Pass -Label 'Dashboard weekly matchup consistency'
+
     $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
     if (-not $matchupOpponentUnavailable) {
         Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')

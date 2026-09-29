@@ -70,6 +70,14 @@ $bf907Prelude = @'
 
     $bf907GlanceItems = @(
         [pscustomobject]@{
+            Kind = "Matchup"
+            Title = "Review this week's matchup"
+            Status = "VIEW MATCHUP"
+            StatusClass = "done"
+            ActionHref = "/matchup"
+            ActionLabel = "Open Weekly Matchup"
+        },
+        [pscustomobject]@{
             Kind = "Lineup"
             Title = [string]$bf907LineupView[0]
             Status = [string]$bf907LineupView[2]
@@ -84,14 +92,6 @@ $bf907Prelude = @'
             StatusClass = [string]$bf907WaiverView[3]
             ActionHref = [string]$bf907WaiverView[4]
             ActionLabel = [string]$bf907WaiverView[5]
-        },
-        [pscustomobject]@{
-            Kind = "Trade"
-            Title = "Trade analysis is ready when you are"
-            Status = "ON DEMAND"
-            StatusClass = "done"
-            ActionHref = "/trade"
-            ActionLabel = "Open Trade Analyzer"
         }
     )
 
@@ -116,7 +116,7 @@ $bf907Prelude = @'
     $bf907AttentionClass = if ($managerAttentionCount -gt 0) { "warn" } else { "good" }
 
     $bf907WeekGlanceHtml = @"
-<section class="panel week-glance"><div class="week-glance-head"><div><div class="eyebrow">Week at a glance</div><h2>Your fantasy week in one view</h2><p>Lineup, waiver, and trade state from Butler's existing decision frame. Start with Priority 01 above, then use this summary to see what else deserves attention.</p></div><div class="status $bf907AttentionClass">$(ConvertTo-HtmlText $bf907AttentionText)</div></div><div class="week-glance-grid">$bf907GlanceCards</div><div class="week-tools"><strong>Quick tools</strong><a class="week-tool" href="/matchup">Weekly Matchup</a><a class="week-tool" href="/players">Player Search</a><a class="week-tool" href="/compare">Player Compare</a><a class="week-tool" href="/league">League</a></div></section>
+<section class="panel week-glance"><div class="week-glance-head"><div><div class="eyebrow">Week at a glance</div><h2>Your fantasy week in one view</h2><p>Open your matchup for confirmed opponent context, review your lineup state, and check waivers.</p></div><div class="status $bf907AttentionClass">$(ConvertTo-HtmlText $bf907AttentionText)</div></div><div class="week-glance-grid">$bf907GlanceCards</div><div class="week-tools"><strong>Quick tools</strong><a class="week-tool" href="/trade">Trade Analyzer</a><a class="week-tool" href="/players">Player Search</a><a class="week-tool" href="/compare">Player Compare</a><a class="week-tool" href="/league">League</a></div></section>
 "@
 
 '@
@@ -147,8 +147,8 @@ foreach ($required in @(
     '$bf907GlanceItems',
     'Kind = "Lineup"',
     'Kind = "Waivers"',
-    'Kind = "Trade"',
-    'href="/matchup">Weekly Matchup</a>',
+    'Kind = "Matchup"',
+    'href="/trade">Trade Analyzer</a>',
     'href="/players">Player Search</a>',
     'href="/compare">Player Compare</a>',
     'href="/league">League</a>',
