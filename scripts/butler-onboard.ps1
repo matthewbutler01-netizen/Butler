@@ -117,7 +117,7 @@ function Status {
     }
     $tail = ($output + "`n" + $errors)
     if ($tail.Length -gt 2600) { $tail = $tail.Substring($tail.Length - 2600) }
-    return '<h2>Setup needs attention</h2><p>No existing profile was overwritten. Review the last setup messages:</p><pre>' + (Escape-Html $tail) + '</pre>'
+    return ('<h2>Setup needs attention</h2><p>Setup process exit code: ' + $setupProcess.ExitCode + '. Review the last setup messages:</p><pre>' + (Escape-Html $tail) + '</pre>')
 }
 
 $listener = [Net.HttpListener]::new()

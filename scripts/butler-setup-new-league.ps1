@@ -308,3 +308,4 @@ finally {
         $env:BUTLER_APP_DATA_DIR = $originalDataDir
     }
 }
+exit 0
