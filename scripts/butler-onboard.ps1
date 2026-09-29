@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$RuntimeZip,
     [ValidateRange(1024, 65535)][int]$Port = 8765,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$VerifyOnly
 )
 
 Set-StrictMode -Version Latest
@@ -109,6 +110,7 @@ function Status {
     $output = if (Test-Path -LiteralPath $stdoutPath) { [IO.File]::ReadAllText($stdoutPath) } else { '' }
     $errors = if (Test-Path -LiteralPath $stderrPath) { [IO.File]::ReadAllText($stderrPath) } else { '' }
     if ($setupProcess.ExitCode -eq 0 -and $output.Contains('BUTLER MVP ONBOARDING: PASS')) {
+        if ($VerifyOnly) { return '<h2>Verification passed</h2><p>Your selected team reached all seven Butler pages in this temporary profile. The app was stopped after verification.</p>' }
         $dashboard = [regex]::Match($output, '(?m)^BUTLER DASHBOARD:\s+(http://127\.0\.0\.1:\d+/)')
         $link = if ($dashboard.Success) { "<p><a class='button' href='$($dashboard.Groups[1].Value)'>Open Dashboard</a></p>" } else { '<p>Butler opened Dashboard in a new browser window.</p>' }
         return "<h2>Your team is ready</h2>$link<p>Exact roster binding and seven-page verification passed.</p>"
@@ -181,7 +183,9 @@ try {
             $stdoutPath = Join-Path $runDir 'setup.out.log'
             $stderrPath = Join-Path $runDir 'setup.err.log'
             $arguments = '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + $setup + '" -RuntimeZip "' + $RuntimeZip + '" -SleeperUsername ' + $selectedUsername + ' -SleeperLeagueId ' + $leagueId
+            if ($VerifyOnly) { $arguments += ' -VerifyOnly' }
             $setupProcess = Start-Process -FilePath $shell -ArgumentList $arguments -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -WindowStyle Hidden -PassThru
+            [IO.File]::WriteAllText((Join-Path $runDir 'setup.pid'), ($setupProcess.Id.ToString() + '|' + $setupProcess.StartTime.ToUniversalTime().Ticks.ToString()))
             $context.Response.Redirect($url + 'progress')
             $context.Response.Close()
         }
