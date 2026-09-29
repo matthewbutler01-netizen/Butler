@@ -73,13 +73,13 @@ BF-897 adds a separate private runtime-data backup/restore path for moving an ex
 
 ### Fresh Sleeper league setup
 
-v0.3.0 adds a zero-to-Dashboard path for a brand-new Butler profile. Use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for the Sleeper username and current Sleeper league ID when they are not supplied explicitly:
+v0.3.0 adds a zero-to-Dashboard path for a brand-new Butler profile. Use the packaged new-league setup instead of creating or editing SQLite data by hand. The setup requires the downloaded runtime ZIP and matching checksum sidecar. It asks for a Sleeper username, lists that public profile's current-season leagues, and asks you to choose one:
 
 ```text
 .\scripts\butler-setup-new-league.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"
 ```
 
-For unattended use, pass `-SleeperUsername <username> -SleeperLeagueId <sleeper-league-id>`. The username is required because Butler must prove exactly which roster belongs to the requesting manager; it does not guess ownership from team names or players.
+For unattended use, pass `-SleeperUsername <username> -SleeperLeagueId <sleeper-league-id>`. Username lookup is public and read only; it is not Sleeper account authentication. Butler verifies that the chosen league belongs to the profile and resolves to exactly one current roster. It does not guess ownership from team names or players.
 
 The new-league flow verifies the runtime package first, builds the database in an isolated staging directory, imports the existing Sleeper league and DynastyProcess values, binds the exact requesting-user roster, hydrates the governed matchup and waiver/My Team evidence needed by the manager pages, and only then installs `butler.db` plus the Butler league selection. It finishes by running the existing seven-page launch verifier and hands off to Dashboard. `-VerifyOnly` performs the same verification and stops the owned runtime afterward.
 

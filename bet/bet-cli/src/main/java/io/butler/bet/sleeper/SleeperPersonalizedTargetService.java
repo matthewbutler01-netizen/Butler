@@ -50,6 +50,13 @@ public final class SleeperPersonalizedTargetService {
         return discover(username, selectedSleeperLeagueId, ProviderStageObserver.NO_OP);
     }
 
+    /** Public, read-only profile lookup for explicit league selection during fresh setup. */
+    public List<LeagueObservation> listCurrentLeagues(String username)
+        throws IOException, InterruptedException {
+        UserObservation user = parseUser(source.user(requireText(username, "username")));
+        return parseLeagues(source.userLeagues(user.userId(), TARGET_SEASON));
+    }
+
     DiscoveryReport discover(
         String username,
         String selectedSleeperLeagueId,
