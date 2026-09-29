@@ -48,12 +48,12 @@ function Escape-Html([AllowNull()][string]$Value) {
 function Page([string]$Body) {
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connect Sleeper · Butler</title><style>
+<title>Connect Sleeper | Butler</title><style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#101416;color:#f4f5f1;font:16px/1.5 system-ui,Segoe UI,sans-serif}
 main{max-width:760px;margin:6vh auto;padding:0 20px}header,.panel{background:#181d1f;border:1px solid #33403d;border-radius:14px;padding:26px;margin-bottom:18px}
 h1{font-size:30px;margin:0 0 6px}h2{font-size:23px;margin:0 0 12px}p{color:#c6d1cc}small{color:#aebdb5}
 label{display:block;margin:14px 0}input[type=text]{display:block;width:100%;padding:12px;border:1px solid #72877b;border-radius:8px;background:#101416;color:white;font:inherit}
-button,.button{display:inline-block;border:0;border-radius:8px;background:#75b592;color:#102018;font:700 15px system-ui;padding:12px 18px;cursor:pointer;text-decoration:none}
+button,.button{display:inline-block;border:0;border-radius:8px;background:#75b592;color:#102018;font:700 15px system-ui;padding:12px 18px;cursor:pointer;text-decoration:none}a{color:#91d4aa}
 .choice{display:flex;gap:12px;align-items:start;border:1px solid #34413d;border-radius:10px;padding:14px;margin:10px 0;cursor:pointer}.choice strong{display:block}
 .note{border-left:3px solid #75b592;padding-left:13px}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere}
 </style></head><body><main><header><h1>BUTLER</h1><small>We're here to serve you. Less Research. Better Decisions.</small></header>$Body</main></body></html>
@@ -97,11 +97,11 @@ function Choices {
     foreach ($league in $leagueOptions) {
         $id = Escape-Html $league.Id
         $name = Escape-Html $league.Name
-        $status = Escape-Html $league.Status
-        $items += "<label class='choice'><input type='radio' name='league' value='$id' required><span><strong>$name</strong><small>2026 · $status · $id</small></span></label>"
+        $status = Escape-Html $league.Status.Replace('_', ' ')
+        $items += "<label class='choice'><input type='radio' name='league' value='$id' required><span><strong>$name</strong><small>2026 | $status | League ID $id</small></span></label>"
     }
     $user = Escape-Html $selectedUsername
-    return Page ("<section class='panel'><h2>Choose your team’s league</h2><p>Leagues found for <strong>$user</strong>. Butler will verify your exact current roster before creating a local profile.</p><form method='post' action='/import'><input type='hidden' name='token' value='$token'>$($items -join '')<button>Import selected league</button></form><p><a href='/'>Use another username</a></p></section>")
+    return Page ("<section class='panel'><h2>Choose your team's league</h2><p>Leagues found for <strong>$user</strong>. Butler will verify your exact current roster before creating a local profile.</p><form method='post' action='/import'><input type='hidden' name='token' value='$token'>$($items -join '')<button>Import selected league</button></form><p><a href='/'>Use another username</a></p></section>")
 }
 
 function Status {
