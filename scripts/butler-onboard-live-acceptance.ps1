@@ -95,6 +95,7 @@ try {
         if ($log -notmatch ('(?m)^SETUP PAGE: PASS\s+' + [regex]::Escape($route) + '\s*$')) { throw "Manager page $route was not verified." }
     }
     if ($log -notmatch '(?m)^BUTLER MVP ONBOARDING: PASS\s*$') { throw 'Packaged onboarding did not report PASS.' }
+    if ($log -notmatch '(?m)^BUTLER NEW LEAGUE PROCESS: COMPLETE\s*$') { throw 'Packaged onboarding did not finish cleanup.' }
     $passed = $true
     Write-Host 'BUTLER BROWSER LIVE ONBOARDING ACCEPTANCE: PASS'
     Write-Host "Exact commit: $head"

@@ -107,9 +107,13 @@ function Choices {
 function Status {
     if ($null -eq $setupProcess) { return '<p>No import is running.</p>' }
     if (-not $setupProcess.HasExited) { return '<p>Importing and verifying your league. This can take several minutes. Keep this window open.</p>' }
+    $setupProcess.WaitForExit()
+    $setupProcess.Refresh()
+    $exitCode = $setupProcess.ExitCode
     $output = if (Test-Path -LiteralPath $stdoutPath) { [IO.File]::ReadAllText($stdoutPath) } else { '' }
     $errors = if (Test-Path -LiteralPath $stderrPath) { [IO.File]::ReadAllText($stderrPath) } else { '' }
-    if ($setupProcess.ExitCode -eq 0 -and $output.Contains('BUTLER MVP ONBOARDING: PASS')) {
+    if (($null -eq $exitCode -or $exitCode -eq 0) -and $errors.Trim().Length -eq 0 -and
+        $output.Contains('BUTLER MVP ONBOARDING: PASS') -and $output.Contains('BUTLER NEW LEAGUE PROCESS: COMPLETE')) {
         if ($VerifyOnly) { return '<h2>Verification passed</h2><p>Your selected team reached all seven Butler pages in this temporary profile. The app was stopped after verification.</p>' }
         $dashboard = [regex]::Match($output, '(?m)^BUTLER DASHBOARD:\s+(http://127\.0\.0\.1:\d+/)')
         $link = if ($dashboard.Success) { "<p><a class='button' href='$($dashboard.Groups[1].Value)'>Open Dashboard</a></p>" } else { '<p>Butler opened Dashboard in a new browser window.</p>' }
@@ -117,7 +121,8 @@ function Status {
     }
     $tail = ($output + "`n" + $errors)
     if ($tail.Length -gt 2600) { $tail = $tail.Substring($tail.Length - 2600) }
-    return ('<h2>Setup needs attention</h2><p>Setup process exit code: ' + $setupProcess.ExitCode + '. Review the last setup messages:</p><pre>' + (Escape-Html $tail) + '</pre>')
+    $exitLabel = if ($null -eq $exitCode) { 'unavailable' } else { [string]$exitCode }
+    return ('<h2>Setup needs attention</h2><p>Setup process exit code: ' + $exitLabel + '. Review the last setup messages:</p><pre>' + (Escape-Html $tail) + '</pre>')
 }
 
 $listener = [Net.HttpListener]::new()
