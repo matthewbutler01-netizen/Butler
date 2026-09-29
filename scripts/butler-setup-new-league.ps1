@@ -308,3 +308,5 @@ finally {
         $env:BUTLER_APP_DATA_DIR = $originalDataDir
     }
 }
+Write-Output 'BUTLER NEW LEAGUE PROCESS: COMPLETE'
+exit 0
