@@ -203,6 +203,8 @@ try {
         'scripts/butler-setup-new-league.ps1',
         'scripts/butler-onboard.cmd',
         'scripts/butler-onboard.ps1',
+        'scripts/butler-start.cmd',
+        'scripts/butler-start.ps1',
         'scripts/butler-setup-restore.cmd',
         'scripts/butler-setup-restore.ps1',
         'scripts/butler-setup-launch.cmd',
