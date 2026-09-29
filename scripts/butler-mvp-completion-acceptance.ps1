@@ -117,10 +117,11 @@ try {
 
     $setupArgs = @('-RuntimeZip', $runtimeZip, '-SleeperUsername', $SleeperUsername, '-VerifyOnly')
     if (-not $SelectLeague) { $setupArgs += @('-SleeperLeagueId', $SleeperLeagueId) }
-    $lines = @(& $entry @setupArgs 2>&1)
+    # Keep the league list visible before Read-Host asks for a numbered choice.
+    $setupLines = @()
+    & $entry @setupArgs 2>&1 | Tee-Object -Variable setupLines
     $exitCode = $LASTEXITCODE
-    $text = ($lines | ForEach-Object { "$_" }) -join "`n"
-    $lines | ForEach-Object { Write-Host "$_" }
+    $text = (@($setupLines) | ForEach-Object { "$_" }) -join "`n"
 
     if ($exitCode -ne 0) {
         throw "MVP ACCEPTANCE BLOCKED: packaged onboarding exited with code $exitCode."
