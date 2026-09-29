@@ -160,6 +160,15 @@ public static class ButlerMvpFixtureJava {
     Assert-True ($chosenOutput -match 'Selected Sleeper league: Fixture Dynasty \(123456789012345678\)') "selected league was not reported: $chosenOutput"
     Assert-True ($chosenOutput -match 'BUTLER MVP ONBOARDING: PASS') "league choice setup did not finish: $chosenOutput"
     Assert-True (Test-Path -LiteralPath (Join-Path $choiceProfile 'Butler\data\butler.db') -PathType Leaf) 'league choice did not install database'
+
+    $idProfile = Join-Path $root 'id-profile'
+    [IO.Directory]::CreateDirectory($idProfile) | Out-Null
+    $env:LOCALAPPDATA = $idProfile
+    $idCommand = 'echo 123456789012345678|"{0}" -RuntimeZip "{1}" -SleeperUsername fixture-user -VerifyOnly' -f $entry, $zip
+    $idOutput = @(& $env:ComSpec /d /s /c $idCommand 2>&1) -join "`n"
+    $idExit = $LASTEXITCODE
+    Assert-True ($idExit -eq 0) "exact listed league ID setup failed, exit=$idExit output=$idOutput"
+    Assert-True ($idOutput -match 'Selected Sleeper league: Fixture Dynasty \(123456789012345678\)') "exact league ID was not selected: $idOutput"
     $env:LOCALAPPDATA = $profile
 
     $source = [IO.File]::ReadAllText((Join-Path $package 'scripts\butler-setup-new-league.ps1'))

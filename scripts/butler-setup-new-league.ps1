@@ -166,13 +166,20 @@ try {
         for ($index = 0; $index -lt $options.Count; $index++) {
             Write-Host ('  [{0}] {1} ({2}, {3})' -f ($index + 1), $options[$index].Groups['name'].Value, $options[$index].Groups['season'].Value, $options[$index].Groups['status'].Value)
         }
-        $choice = Read-Host 'Choose the league number to set up'
+        $choice = ([string](Read-Host 'Enter the league number or exact Sleeper league ID')).Trim()
         $selection = 0
-        if (-not [int]::TryParse($choice, [ref]$selection) -or $selection -lt 1 -or $selection -gt $options.Count) {
-            throw 'Choose a number from the displayed league list. No profile was created.'
+        if ([int]::TryParse($choice, [ref]$selection) -and $selection -ge 1 -and $selection -le $options.Count) {
+            $selectedOption = $options[$selection - 1]
         }
-        $SleeperLeagueId = $options[$selection - 1].Groups['id'].Value
-        Write-Output ('Selected Sleeper league: {0} ({1})' -f $options[$selection - 1].Groups['name'].Value, $SleeperLeagueId)
+        else {
+            $exactMatches = @($options | Where-Object { $_.Groups['id'].Value -ceq $choice })
+            if ($exactMatches.Count -ne 1) {
+                throw 'Enter a displayed league number or exact listed Sleeper league ID. No profile was created.'
+            }
+            $selectedOption = $exactMatches[0]
+        }
+        $SleeperLeagueId = $selectedOption.Groups['id'].Value
+        Write-Output ('Selected Sleeper league: {0} ({1})' -f $selectedOption.Groups['name'].Value, $SleeperLeagueId)
     }
 
     $sync = Invoke-ButlerRuntime -Label 'Sleeper league import + dynasty values' -MainClass 'io.butler.bet.cli.ButlerMain' -Arguments @('sleeper', 'sync-all', $SleeperLeagueId)
