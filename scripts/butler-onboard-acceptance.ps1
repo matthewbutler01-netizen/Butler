@@ -45,7 +45,7 @@ try {
     }
     if ($page.Content -notmatch "name='token' value='([a-f0-9]+)'") { throw 'Fresh-profile form token is missing.' }
     $formToken = $Matches[1]
-    foreach ($testOrigin in @($url.TrimEnd('/'), 'http://example.invalid')) {
+    foreach ($testOrigin in @($url.TrimEnd('/'), 'null', 'http://example.invalid')) {
         $lookup = [Net.HttpWebRequest]::Create($url + 'lookup')
         $lookup.Method = 'POST'
         $lookup.ContentType = 'application/x-www-form-urlencoded'
@@ -54,7 +54,7 @@ try {
         $lookup.ContentLength = $lookupBody.Length
         $lookupStream = $lookup.GetRequestStream()
         try { $lookupStream.Write($lookupBody, 0, $lookupBody.Length) } finally { $lookupStream.Dispose() }
-        $expectedStatus = if ($testOrigin -ceq $url.TrimEnd('/')) { 400 } else { 403 }
+        $expectedStatus = if ($testOrigin -ceq 'http://example.invalid') { 403 } else { 400 }
         try {
             $lookupResponse = $lookup.GetResponse()
             try { throw "Origin guard accepted invalid username with HTTP $([int]$lookupResponse.StatusCode)." } finally { $lookupResponse.Close() }
@@ -69,6 +69,7 @@ try {
     $request = [Net.HttpWebRequest]::Create($url + 'import')
     $request.Method = 'POST'
     $request.ContentType = 'application/x-www-form-urlencoded'
+    $request.Headers['Origin'] = 'null'
     $body = [Text.Encoding]::UTF8.GetBytes('token=invalid&league=123')
     $request.ContentLength = $body.Length
     $stream = $request.GetRequestStream()
