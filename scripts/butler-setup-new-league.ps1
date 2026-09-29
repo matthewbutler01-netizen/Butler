@@ -93,12 +93,11 @@ try {
     if ([string]::IsNullOrWhiteSpace($SleeperUsername)) {
         $SleeperUsername = Read-Host 'Sleeper username'
     }
-    if ([string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
-        $SleeperLeagueId = Read-Host 'Sleeper league ID'
-    }
     $SleeperUsername = Require-Text -Value $SleeperUsername -Label 'Sleeper username'
-    $SleeperLeagueId = Require-Text -Value $SleeperLeagueId -Label 'Sleeper league ID'
-    if ($SleeperLeagueId -notmatch '^\d+$') { throw 'Sleeper league ID must contain digits only.' }
+    if (-not [string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
+        $SleeperLeagueId = Require-Text -Value $SleeperLeagueId -Label 'Sleeper league ID'
+        if ($SleeperLeagueId -notmatch '^\d+$') { throw 'Sleeper league ID must contain digits only.' }
+    }
 
     & $shell -NoLogo -NoProfile -ExecutionPolicy Bypass -File $setupCheck -RuntimeZip $RuntimeZip -RuntimeOnly
     if ($LASTEXITCODE -ne 0) { throw 'Runtime integrity/prerequisite check failed.' }
@@ -158,6 +157,30 @@ try {
     [IO.Directory]::CreateDirectory($stagingRoot) | Out-Null
     $stagedDatabase = Join-Path $stagingRoot 'butler.db'
     $env:BUTLER_APP_DATA_DIR = $stagingRoot
+
+    if ([string]::IsNullOrWhiteSpace($SleeperLeagueId)) {
+        Write-Output 'Looking up current-season leagues for this public Sleeper username (read only; this is not account sign-in).'
+        $leagueList = Invoke-ButlerRuntime -Label 'Current Sleeper league lookup' -MainClass 'io.butler.bet.cli.ButlerSleeperLeagueSelectionCli' -Arguments @($SleeperUsername)
+        $options = @([regex]::Matches($leagueList, '(?m)^LEAGUE\t(?<id>\d+)\t(?<name>[^\r\n\t]*)\t(?<season>\d+)\t(?<status>[^\r\n\t]*)\s*$'))
+        if ($options.Count -eq 0) { throw 'No current-season Sleeper leagues were found for that username.' }
+        for ($index = 0; $index -lt $options.Count; $index++) {
+            Write-Host ('  [{0}] {1} ({2}, {3})' -f ($index + 1), $options[$index].Groups['name'].Value, $options[$index].Groups['season'].Value, $options[$index].Groups['status'].Value)
+        }
+        $choice = ([string](Read-Host 'Enter the league number or exact Sleeper league ID')).Trim()
+        $selection = 0
+        if ([int]::TryParse($choice, [ref]$selection) -and $selection -ge 1 -and $selection -le $options.Count) {
+            $selectedOption = $options[$selection - 1]
+        }
+        else {
+            $exactMatches = @($options | Where-Object { $_.Groups['id'].Value -ceq $choice })
+            if ($exactMatches.Count -ne 1) {
+                throw 'Enter a displayed league number or exact listed Sleeper league ID. No profile was created.'
+            }
+            $selectedOption = $exactMatches[0]
+        }
+        $SleeperLeagueId = $selectedOption.Groups['id'].Value
+        Write-Output ('Selected Sleeper league: {0} ({1})' -f $selectedOption.Groups['name'].Value, $SleeperLeagueId)
+    }
 
     $sync = Invoke-ButlerRuntime -Label 'Sleeper league import + dynasty values' -MainClass 'io.butler.bet.cli.ButlerMain' -Arguments @('sleeper', 'sync-all', $SleeperLeagueId)
     $butlerLeagueId = Get-ExactField -Text $sync -Pattern '(?m)^League ID:\s+(?<value>[0-9a-fA-F-]{36})\s*$' -Label 'Butler league ID'

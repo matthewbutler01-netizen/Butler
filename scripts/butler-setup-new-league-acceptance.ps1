@@ -85,6 +85,10 @@ public static class ButlerMvpFixtureJava {
         }
 
         string main = args[3];
+        if (main == "io.butler.bet.cli.ButlerSleeperLeagueSelectionCli") {
+            Console.WriteLine("LEAGUE\t123456789012345678\tFixture Dynasty\t2026\tin_season");
+            return;
+        }
         if (main == "io.butler.bet.cli.ButlerMain") {
             byte[] header = new byte[] {
                 83,81,76,105,116,101,32,102,111,114,109,97,116,32,51,0,
@@ -146,9 +150,31 @@ public static class ButlerMvpFixtureJava {
     Assert-True ((Get-FileHash -LiteralPath $db -Algorithm SHA256).Hash -ceq $beforeDb) 'blocked retry changed existing database'
     Assert-True ([IO.File]::ReadAllText($selection) -ceq $beforeSelection) 'blocked retry changed saved league selection'
 
+    $choiceProfile = Join-Path $root 'choice-profile'
+    [IO.Directory]::CreateDirectory($choiceProfile) | Out-Null
+    $env:LOCALAPPDATA = $choiceProfile
+    $choiceCommand = 'echo 1|"{0}" -RuntimeZip "{1}" -SleeperUsername fixture-user -VerifyOnly' -f $entry, $zip
+    $chosenOutput = @(& $env:ComSpec /d /s /c $choiceCommand 2>&1) -join "`n"
+    $chosenExit = $LASTEXITCODE
+    Assert-True ($chosenExit -eq 0) "league choice setup failed, exit=$chosenExit output=$chosenOutput"
+    Assert-True ($chosenOutput -match 'Selected Sleeper league: Fixture Dynasty \(123456789012345678\)') "selected league was not reported: $chosenOutput"
+    Assert-True ($chosenOutput -match 'BUTLER MVP ONBOARDING: PASS') "league choice setup did not finish: $chosenOutput"
+    Assert-True (Test-Path -LiteralPath (Join-Path $choiceProfile 'Butler\data\butler.db') -PathType Leaf) 'league choice did not install database'
+
+    $idProfile = Join-Path $root 'id-profile'
+    [IO.Directory]::CreateDirectory($idProfile) | Out-Null
+    $env:LOCALAPPDATA = $idProfile
+    $idCommand = 'echo 123456789012345678|"{0}" -RuntimeZip "{1}" -SleeperUsername fixture-user -VerifyOnly' -f $entry, $zip
+    $idOutput = @(& $env:ComSpec /d /s /c $idCommand 2>&1) -join "`n"
+    $idExit = $LASTEXITCODE
+    Assert-True ($idExit -eq 0) "exact listed league ID setup failed, exit=$idExit output=$idOutput"
+    Assert-True ($idOutput -match 'Selected Sleeper league: Fixture Dynasty \(123456789012345678\)') "exact league ID was not selected: $idOutput"
+    $env:LOCALAPPDATA = $profile
+
     $source = [IO.File]::ReadAllText((Join-Path $package 'scripts\butler-setup-new-league.ps1'))
     foreach ($requiredClass in @(
         'io.butler.bet.cli.ButlerMain',
+        'io.butler.bet.cli.ButlerSleeperLeagueSelectionCli',
         'io.butler.bet.cli.ButlerSleeperPersonalTargetDiscoveryCli',
         'io.butler.bet.cli.ButlerSleeperPersonalTargetBindCli',
         'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli',

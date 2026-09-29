@@ -15,6 +15,18 @@ class SleeperPersonalizedTargetServiceTest {
     @TempDir Path tempDir;
 
     @Test
+    void listsCurrentLeaguesForExactUsernameBeforeRosterBinding() throws Exception {
+        Database database = database("1312110516008677376");
+        var service = new SleeperPersonalizedTargetService(
+            database, new PersonalizedSleeperTargetRepository(database), new FakeSource());
+
+        var leagues = service.listCurrentLeagues("mbutler0624");
+        assertEquals(1, leagues.size());
+        assertEquals("1312110516008677376", leagues.get(0).leagueId());
+        assertEquals(2026, leagues.get(0).season());
+    }
+
+    @Test
     void discoversBindsAndLiveVerifiesExactRequestingUserLeagueRoster() throws Exception {
         Database database = database("1312110516008677376");
         FakeSource source = new FakeSource();
