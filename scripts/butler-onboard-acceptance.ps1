@@ -43,6 +43,29 @@ try {
     if ($page.StatusCode -ne 200 -or $page.Content -notmatch 'Connect your Sleeper profile' -or $page.Content -notmatch 'not Sleeper account sign-in') {
         throw 'Fresh-profile connection page is missing its primary flow or public-lookup boundary.'
     }
+    if ($page.Content -notmatch "name='token' value='([a-f0-9]+)'") { throw 'Fresh-profile form token is missing.' }
+    $formToken = $Matches[1]
+    foreach ($testOrigin in @($url.TrimEnd('/'), 'http://example.invalid')) {
+        $lookup = [Net.HttpWebRequest]::Create($url + 'lookup')
+        $lookup.Method = 'POST'
+        $lookup.ContentType = 'application/x-www-form-urlencoded'
+        $lookup.Headers['Origin'] = $testOrigin
+        $lookupBody = [Text.Encoding]::UTF8.GetBytes('token=' + $formToken + '&username=invalid!')
+        $lookup.ContentLength = $lookupBody.Length
+        $lookupStream = $lookup.GetRequestStream()
+        try { $lookupStream.Write($lookupBody, 0, $lookupBody.Length) } finally { $lookupStream.Dispose() }
+        $expectedStatus = if ($testOrigin -ceq $url.TrimEnd('/')) { 400 } else { 403 }
+        try {
+            $lookupResponse = $lookup.GetResponse()
+            try { throw "Origin guard accepted invalid username with HTTP $([int]$lookupResponse.StatusCode)." } finally { $lookupResponse.Close() }
+        }
+        catch [Net.WebException] {
+            $lookupResponse = $_.Exception.Response
+            if ($null -eq $lookupResponse) { throw }
+            try { if ([int]$lookupResponse.StatusCode -ne $expectedStatus) { throw "Expected HTTP $expectedStatus for origin $testOrigin, got $([int]$lookupResponse.StatusCode)." } }
+            finally { $lookupResponse.Close() }
+        }
+    }
     $request = [Net.HttpWebRequest]::Create($url + 'import')
     $request.Method = 'POST'
     $request.ContentType = 'application/x-www-form-urlencoded'
