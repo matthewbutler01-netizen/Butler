@@ -154,7 +154,10 @@ try {
             if ($request.HttpMethod -cne 'POST' -or $path -notin @('/lookup','/import')) { Send-Page $context.Response 405 (Page '<p>Method not allowed.</p>'); continue }
             if ($request.ContentLength64 -lt 0 -or $request.ContentLength64 -gt 4096 -or $request.ContentType -notlike 'application/x-www-form-urlencoded*') { Send-Page $context.Response 400 (Page '<p>Invalid form.</p>'); continue }
             $origin = [string]$request.Headers['Origin']
-            if ($origin -and $origin -cne $url.TrimEnd('/')) { Send-Page $context.Response 403 (Page '<p>Invalid origin.</p>'); continue }
+            if ($origin -and $origin -cne $url.TrimEnd('/')) {
+                Send-Page $context.Response 403 (Page ('<section class="panel"><h2>Browser request blocked</h2><p>The browser sent origin <code>' + (Escape-Html $origin) + '</code>; this setup page expects <code>' + (Escape-Html $url.TrimEnd('/')) + '</code>.</p></section>'))
+                continue
+            }
             $reader = [IO.StreamReader]::new($request.InputStream, $request.ContentEncoding)
             try { $form = Form-Fields $reader.ReadToEnd() } finally { $reader.Dispose() }
             if (-not $form.ContainsKey('token') -or $form['token'] -cne $token) { Send-Page $context.Response 403 (Page '<p>Invalid setup token.</p>'); continue }
