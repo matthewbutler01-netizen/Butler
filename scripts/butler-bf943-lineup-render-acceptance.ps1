@@ -129,6 +129,16 @@ Projection holds:
     }
     if ($review -notmatch 'href="#lineup-hold-0"' -or $replacementHtml -notmatch 'href="#lineup-comparison-0"' -or
         $replacementHtml -notmatch 'href="#lineup-expert-1"') { throw 'Review queue must link hold, comparison and exact-player expert evidence.' }
+    if ($replacementHtml -notmatch 'href="#lineup-review-queue"' -or $replacementHtml -notmatch 'id="lineup-review-queue"') {
+        throw 'Comparison evidence must provide a return to the review queue.'
+    }
+    $savedGain = $parsed.SwapReviews[0].projectedGain
+    $parsed.SwapReviews[0].projectedGain = 'Unavailable'
+    $unavailableDelta = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($unavailableDelta -match 'Unavailable points' -or $unavailableDelta -notmatch 'Projected slot change unavailable; comparable player projections are incomplete.') {
+        throw 'Missing comparison delta must explain the evidence gap without presenting a point value.'
+    }
+    $parsed.SwapReviews[0].projectedGain = $savedGain
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {

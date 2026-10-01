@@ -89,8 +89,10 @@ $disclosureSetup = @'
             if ([string]$evidence -cmatch '^Replacement review for ') { $queueItems += "<li>$(ConvertTo-HtmlText $evidence)</li>" }
         }
     }
+    $reviewQueueReturn = ''
     if ($queueItems.Length -gt 0) {
-        $holdEvidenceHtml = "<section class=`"swap-review-card review-queue`"><h3>Review queue</h3><p class=`"meta`">Unresolved signals may overlap. Projection totals do not settle these decisions.</p><ul>$queueItems</ul></section>$holdEvidenceHtml"
+        $reviewQueueReturn = '<p><a href="#lineup-review-queue">Back to review queue</a></p>'
+        $holdEvidenceHtml = "<section id=`"lineup-review-queue`" tabindex=`"-1`" class=`"swap-review-card review-queue`"><h3>Review queue</h3><p class=`"meta`">Unresolved signals may overlap. Projection totals do not settle these decisions.</p><ul>$queueItems</ul></section>$holdEvidenceHtml"
     }
     $reviewIndex = 0
     foreach ($review in $structuredReviews) {
@@ -119,7 +121,10 @@ $disclosureSetup = @'
                 $expertSignalsHtml = "<p><strong>Current expert:</strong> $(ConvertTo-HtmlText $review.currentExpert)<br><strong>Candidate expert:</strong> $(ConvertTo-HtmlText $review.proposedExpert)</p><p class=`"meta`">Attributed opinion; no consensus. Source and dates are in expert coverage below.</p>"
             }
         }
-        $comparisonHtml = "<section id=`"lineup-comparison-$reviewIndex`" tabindex=`"-1`" class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p>$expertSignalsHtml$reasonHtml<table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table><p class=`"meta`">Carries and targets describe rushing and receiving opportunities; passing attempts are shown separately when available.</p>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
+        $deltaText = if ([string]$review.projectedGain -cin @('Unavailable', 'UNAVAILABLE', '')) {
+            'Projected slot change unavailable; comparable player projections are incomplete.'
+        } else { "Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points" }
+        $comparisonHtml = "<section id=`"lineup-comparison-$reviewIndex`" tabindex=`"-1`" class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>$deltaText</p>$expertSignalsHtml$reasonHtml<table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table><p class=`"meta`">Carries and targets describe rushing and receiving opportunities; passing attempts are shown separately when available.</p>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details>$reviewQueueReturn</section>"
         if ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') {
             $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Bench comparison: $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
         } else { $holdEvidenceHtml += $comparisonHtml }
@@ -149,7 +154,7 @@ $disclosureSetup = @'
             if ([string]$pick.selection -cin @('START', 'SIT')) {
                 $pickDetails += "<p class=`"meta`">Published $(ConvertTo-HtmlText $pick.publishedAt); updated $(ConvertTo-HtmlText $pick.modifiedAt).</p>"
             }
-            $pickDetails += "<p class=`"meta`">Checked $(ConvertTo-HtmlText $pick.checkedAt). $expertLink</p>"
+            $pickDetails += "<p class=`"meta`">Checked $(ConvertTo-HtmlText $pick.checkedAt). $expertLink</p>$reviewQueueReturn"
             if ([string]$pick.selection -cin @('START', 'SIT')) {
                 $expertHtml += "<div class=`"expert-selection`"><strong>$(ConvertTo-HtmlText $pick.player): $(ConvertTo-HtmlText $pick.selection)</strong><span class=`"meta`">$(ConvertTo-HtmlText $pick.author)</span><details><summary>Source and dates</summary>$pickDetails</details></div>"
             } else {
@@ -171,7 +176,7 @@ $disclosureSetup = @'
                 elseif ([string]$hold.Reason -like 'Usage review hold:*') { 'Observed snaps and workload declined sharply.' }
                 elseif ([string]$hold.Reason -like 'Availability hold:*') { 'Availability needs clearance before promotion.' }
                 else { 'Usable weekly projection evidence is incomplete.' }
-            $holdEvidenceHtml += "<details class=`"callout swap-review-card`"><summary>$(ConvertTo-HtmlText $hold.Name): review hold</summary><p id=`"lineup-hold-$holdIndex`" tabindex=`"-1`">$holdSummary</p><p>$(ConvertTo-HtmlText $hold.Reason)</p></details>"
+            $holdEvidenceHtml += "<details class=`"callout swap-review-card`"><summary>$(ConvertTo-HtmlText $hold.Name): review hold</summary><p id=`"lineup-hold-$holdIndex`" tabindex=`"-1`">$holdSummary</p><p>$(ConvertTo-HtmlText $hold.Reason)</p>$reviewQueueReturn</details>"
         }
         $holdIndex++
     }
@@ -220,7 +225,7 @@ if ($cssTerminator -lt 0) {
 }
 $css = @'
 /* BF-943 changes-first lineup progressive disclosure. */
-[id^="lineup-hold-"],[id^="lineup-expert-"],[id^="lineup-comparison-"]{scroll-margin-top:24px}[id^="lineup-"]:target{outline:2px solid var(--accent);outline-offset:4px}.review-queue a{display:inline-block;margin:4px 8px 4px 0}
+#lineup-review-queue,[id^="lineup-hold-"],[id^="lineup-expert-"],[id^="lineup-comparison-"]{scroll-margin-top:24px}[id^="lineup-"]:target{outline:2px solid var(--accent);outline-offset:4px}.review-queue a{display:inline-block;margin:4px 8px 4px 0}
 .swap-review-card{margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.swap-review-card h3{margin-top:0}.swap-usage-table{width:100%;table-layout:fixed;border-collapse:collapse;margin:12px 0}.swap-usage-table caption{text-align:left;font-weight:700;margin-bottom:6px}.swap-usage-table th,.swap-usage-table td{padding:10px;vertical-align:top;text-align:left;border:1px solid var(--line);overflow-wrap:anywhere}.swap-review-sources{display:flex;flex-wrap:wrap;gap:12px}.swap-review-card summary{cursor:pointer;font-weight:700}.expert-selection{display:grid;gap:4px;padding:10px 0;border-top:1px solid var(--line)}.expert-selection details,.expert-coverage,.expert-gap{margin-top:6px}.expert-coverage{padding-top:10px;border-top:1px solid var(--line)}
 .lineup-focus{margin-top:18px}.lineup-focus-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:10px}.lineup-focus-head h3{margin:2px 0 0}.lineup-focus .lineup-row:not(.changed){display:none}.lineup-clear{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft)}.lineup-unchanged{margin-top:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft);overflow:hidden}.lineup-unchanged>summary{cursor:pointer;padding:14px 16px;font-weight:800;list-style-position:inside}.lineup-unchanged[open]>summary{border-bottom:1px solid var(--line)}.lineup-unchanged .lineup-row.changed{display:none}.lineup-unchanged .lineup-board{padding:10px 12px 12px}@media(max-width:900px){.lineup-focus-head{flex-direction:column;align-items:flex-start}.lineup-unchanged .lineup-board{padding:8px}}
 /* Respond to the advisor panel width, including narrow desktop sidebars. */
