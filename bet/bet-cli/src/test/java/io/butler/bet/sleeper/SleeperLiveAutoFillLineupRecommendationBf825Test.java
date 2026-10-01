@@ -183,6 +183,26 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertTrue(report.reason().contains("fantasy-position eligibility for Receiver B"));
     }
 
+    @Test
+    void projectedPlayerWithCurrentInjuryCannotBeRecommendedAsAnUnqualifiedStart() throws Exception {
+        Database database = initializedDatabase("league-projected-injury");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        for (String injury : List.of("Out", "Questionable", "Doubtful", "IR")) {
+            var report = new SleeperLiveAutoFillLineupRecommendation(database,
+                (season, week, scoring) -> projections,
+                ids -> {
+                    assertEquals(java.util.Set.of("s-qb", "s-wr-a", "s-wr-b"), ids);
+                    return Map.of("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                        "s-wr-b", "Active", injury));
+                }).recommend(rosterReport("league-projected-injury"));
+            assertFalse(report.ready());
+            assertTrue(report.reason().contains("Receiver B"));
+            assertTrue(report.reason().contains(injury));
+            assertTrue(report.reason().contains("does not override"));
+        }
+    }
+
     private Database initializedDatabase(String leagueId) throws Exception {
         Database database = new Database(tempDir.resolve(leagueId + ".db"));
         database.initialize();
