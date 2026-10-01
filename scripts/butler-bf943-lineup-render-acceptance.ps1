@@ -55,6 +55,7 @@ Projection coverage: FULL
 Current projected starter total: 10
 Recommended projected starter total: 10.25
 Projected gain: +0.25
+Expert pick: {"playerId":"2","player":"Gap <unsafe>","position":"WR","selection":"UNVERIFIED","author":"","publishedAt":"","modifiedAt":"","checkedAt":"2026-10-01T07:00:00Z","source":"javascript:alert(1)","coverage":"Missing <data>"}
 Expert pick: {"playerId":"1","player":"Current <unsafe>","position":"WR","selection":"SIT","author":"Test Author","publishedAt":"2026-09-30T17:00:00Z","modifiedAt":"2026-09-30T18:00:00Z","checkedAt":"2026-10-01T07:00:00Z","source":"https://www.nfl.com/news/test-column","coverage":"Single author; review required"}
 Decision review: $($structured | ConvertTo-Json -Compress -Depth 5)
 Recommended lineup:
@@ -70,10 +71,22 @@ Projection holds:
   none
 "@
     $parsed = ConvertTo-AutoFillView -Text $fixture
-    if (@($parsed.ExpertPicks).Count -ne 1) { throw 'Expert pick parser lost attribution.' }
+    if (@($parsed.ExpertPicks).Count -ne 2) { throw 'Expert pick parser lost attribution.' }
     if (@($parsed.SwapReviews).Count -ne 1) { throw 'Structured swap review parser lost the exact review.' }
     $rendered = ConvertTo-AutoFillHtml -AutoFill $parsed
     if ($rendered -notmatch 'Attributed expert selections and coverage' -or $rendered -notmatch 'Test Author' -or $rendered -notmatch 'Current &lt;unsafe&gt;: SIT' -or $rendered -notmatch 'NFL.com weekly column') { throw 'Expert selections, escaping or attribution missing.' }
+    if ($rendered -notmatch 'View 1 player with unverified coverage' -or
+        $rendered -notmatch 'Source and dates' -or $rendered -notmatch 'Missing &lt;data&gt;' -or
+        $rendered.IndexOf('Current &lt;unsafe&gt;: SIT') -gt $rendered.IndexOf('Gap &lt;unsafe&gt;: UNVERIFIED')) {
+        throw 'Explicit expert selections must precede collapsed, escaped coverage gaps.'
+    }
+    $savedPicks = $parsed.ExpertPicks
+    $parsed.ExpertPicks = @($savedPicks | Where-Object { $_.selection -ceq 'UNVERIFIED' })
+    $gapsOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($gapsOnly -notmatch 'No verified expert selections available.' -or $gapsOnly -match 'class="expert-selection"') {
+        throw 'Missing expert coverage must not appear as a verified selection.'
+    }
+    $parsed.ExpertPicks = $savedPicks
     if ($rendered -notmatch 'NFL opponent and observed defense' -or $rendered -notmatch 'Missing &lt;coverage&gt;') { throw 'NFL matchup evidence missing or unescaped.' }
     if ($rendered -notmatch 'WITHHELD: USAGE CONFLICT' -or $rendered -notmatch '<table' -or
         $rendered -notmatch 'targets 9' -or $rendered -notmatch 'Sources and commentary' -or
