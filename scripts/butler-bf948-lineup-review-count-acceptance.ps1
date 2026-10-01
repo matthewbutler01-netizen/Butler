@@ -6,7 +6,7 @@ if (-not (Test-Path -LiteralPath $acceptance -PathType Leaf)) {
     throw "BF-948 BLOCKED: shared lineup render acceptance not found at $acceptance"
 }
 
-$lines = @(& $acceptance 2>&1)
+$lines = @(& $acceptance *>&1)
 $text = ($lines | ForEach-Object { "$_" }) -join "`n"
 
 if ($text -notmatch 'BF-947 Compact lineup comparison evidence applied\.' -or
