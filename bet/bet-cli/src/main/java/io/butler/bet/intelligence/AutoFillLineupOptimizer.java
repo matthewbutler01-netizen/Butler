@@ -60,6 +60,16 @@ public final class AutoFillLineupOptimizer {
         Map<String, BigDecimal> weeklyProjectionByPlayerId,
         Set<String> explicitlyUnavailablePlayerIds,
         Set<String> projectionHoldPlayerIds) {
+        return optimize(providerLineupSlots, rosterPlayers, weeklyProjectionByPlayerId,
+            explicitlyUnavailablePlayerIds, projectionHoldPlayerIds, Set.of());
+    }
+
+    /** Empty ordinals must come from explicit provider placeholders, never inferred missing players. */
+    public Recommendation optimize(
+        List<String> providerLineupSlots, List<RosterPlayer> rosterPlayers,
+        Map<String, BigDecimal> weeklyProjectionByPlayerId, Set<String> explicitlyUnavailablePlayerIds,
+        Set<String> projectionHoldPlayerIds, Set<Integer> emptyStartingOrdinals) {
+        Objects.requireNonNull(emptyStartingOrdinals, "emptyStartingOrdinals must not be null");
         Objects.requireNonNull(providerLineupSlots, "providerLineupSlots must not be null");
         Objects.requireNonNull(rosterPlayers, "rosterPlayers must not be null");
         Objects.requireNonNull(weeklyProjectionByPlayerId, "weeklyProjectionByPlayerId must not be null");
@@ -126,23 +136,26 @@ public final class AutoFillLineupOptimizer {
             .sorted(Comparator.comparingInt(player -> Objects.requireNonNull(
                 player.starterOrdinal(), "starterOrdinal must be present for STARTER")))
             .toList();
-        if (currentStarters.size() != providerLineupSlots.size()) {
-            throw new IllegalStateException("Current starter count does not match governed starting-slot count");
-        }
-        for (int index = 0; index < currentStarters.size(); index++) {
-            if (currentStarters.get(index).starterOrdinal() != index) {
-                throw new IllegalStateException("Current starter ordinals must be contiguous and ordered");
+        Map<Integer, RosterPlayer> startersByOrdinal = new LinkedHashMap<>();
+        for (RosterPlayer starter : currentStarters) {
+            int ordinal = starter.starterOrdinal();
+            if (ordinal >= providerLineupSlots.size() || emptyStartingOrdinals.contains(ordinal)
+                || startersByOrdinal.putIfAbsent(ordinal, starter) != null
+                || !providerLineupSlots.get(ordinal).equals(starter.currentLineupSlot())) {
+                throw new IllegalStateException("Current starter ordinals and lineup slots must match the governed frame");
             }
+        }
+        if (emptyStartingOrdinals.stream().anyMatch(i -> i == null || i < 0 || i >= providerLineupSlots.size())
+            || currentStarters.size() + emptyStartingOrdinals.size() != providerLineupSlots.size()) {
+            throw new IllegalStateException("Current starter count does not match governed starting-slot count and explicit empty slots");
         }
 
         List<Integer> openOrdinals = new ArrayList<>();
         List<String> openLineupSlots = new ArrayList<>();
         List<RosterPlayer> currentOpenStarters = new ArrayList<>();
-        for (RosterPlayer starter : currentStarters) {
-            int ordinal = Objects.requireNonNull(starter.starterOrdinal());
-            if (projectionHoldPlayerIds.contains(starter.playerId())) {
-                continue;
-            }
+        for (int ordinal = 0; ordinal < providerLineupSlots.size(); ordinal++) {
+            RosterPlayer starter = startersByOrdinal.get(ordinal);
+            if (starter != null && projectionHoldPlayerIds.contains(starter.playerId())) continue;
             openOrdinals.add(ordinal);
             openLineupSlots.add(providerLineupSlots.get(ordinal));
             currentOpenStarters.add(starter);
@@ -192,8 +205,8 @@ public final class AutoFillLineupOptimizer {
                 throw new IllegalStateException("Solved lineup contains player absent from roster evidence: " + assignment.playerId());
             }
             recommendedStarterIds.add(recommended.playerId());
-            BigDecimal currentProjectedPoints = weeklyProjectionByPlayerId.get(current.playerId());
-            if (currentProjectedPoints == null
+            BigDecimal currentProjectedPoints = current == null ? null : weeklyProjectionByPlayerId.get(current.playerId());
+            if (current != null && currentProjectedPoints == null
                 && !explicitlyUnavailablePlayerIds.contains(current.playerId())) {
                 throw new IllegalStateException(
                     "Scoreable current starter projection became unavailable during AutoFill: " + current.playerId());
@@ -205,14 +218,14 @@ public final class AutoFillLineupOptimizer {
             assignments.add(new SlotRecommendation(
                 openOrdinals.get(index),
                 assignment.slot(),
-                current.playerId(),
-                current.displayName(),
+                current == null ? "0" : current.playerId(),
+                current == null ? "Empty slot" : current.displayName(),
                 recommended.playerId(),
                 recommended.displayName(),
                 currentProjectedPoints,
                 recommendedProjectedPoints,
                 projectedGain,
-                !current.playerId().equals(recommended.playerId())));
+                current == null || !current.playerId().equals(recommended.playerId())));
         }
 
         List<RosterPlayer> movesToBench = currentStarters.stream()
@@ -265,6 +278,7 @@ public final class AutoFillLineupOptimizer {
             Set<String> preservedPlayerIds = new LinkedHashSet<>();
             Set<Integer> preservedIndices = new HashSet<>();
             for (int index : indices) {
+                if (currentOpenStarters.get(index) == null) continue;
                 String currentPlayerId = currentOpenStarters.get(index).playerId();
                 var selected = byPlayerId.get(currentPlayerId);
                 if (selected == null || !preservedPlayerIds.add(currentPlayerId)) continue;

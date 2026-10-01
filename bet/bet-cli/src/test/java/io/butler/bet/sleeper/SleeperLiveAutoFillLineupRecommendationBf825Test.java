@@ -30,6 +30,35 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     Path tempDir;
 
     @Test
+    void explicitEmptyStarterProducesLegalFillAndNoSyntheticSlotDelta() throws Exception {
+        Database database = initializedDatabase("league-empty-starter");
+        var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var original = rosterReport("league-empty-starter");
+        var players = original.targetPlayers().stream().map(p -> "s-wr-a".equals(p.sleeperPlayerId())
+            ? new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(p.sleeperPlayerId(), "BENCH", null, null,
+                p.butlerPlayerId(), p.displayName(), p.position(), p.nflTeam(), p.mappingState()) : p).toList();
+        var emptyRoster = new SleeperLiveWaiverTargetRosterContextAudit.AuditReport(
+            original.policyId(), original.leagueId(), original.marketSnapshotId(), original.waiverSnapshotId(),
+            original.sleeperLeagueId(), original.providerSeason(), original.providerStatus(), original.providerLeg(),
+            original.sleeperOwnerId(), original.ownerDisplayName(), original.ownerTeamName(), original.rosterId(),
+            original.butlerTeamId(), original.butlerTeamName(), original.lineupSlots(), original.startingSlots(),
+            original.candidateCount(), original.reviewableCandidateCount(), 3, 1, 2, 0, 0, 3, 0, players, List.of(1));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
+            ids -> Map.of(), playersToCheck -> Map.of()).recommend(emptyRoster);
+        assertTrue(report.ready());
+        assertEquals(new BigDecimal("20"), report.currentProjectedTotal());
+        assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
+        assertEquals(new BigDecimal("15"), report.projectedGain());
+        assertTrue(report.recommendation().movesToBench().isEmpty());
+        var fill = report.recommendation().assignments().get(1);
+        assertEquals("0", fill.currentPlayerId());
+        assertEquals("s-wr-b", fill.recommendedPlayerId());
+        assertEquals(null, fill.currentProjectedPoints());
+        assertEquals(null, fill.projectedGain());
+        assertTrue(report.swapReviews().getFirst().reason().contains("Explicit empty starting slot"));
+    }
+
+    @Test
     void expertSitStarterGetsLowerProjectedBenchComparisonWithoutChangingLineup() throws Exception {
         Database database = initializedDatabase("league-replacement");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "8")));

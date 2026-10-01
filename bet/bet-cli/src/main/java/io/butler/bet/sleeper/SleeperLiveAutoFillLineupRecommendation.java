@@ -350,7 +350,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 optimizerRoster,
                 projectionsBySleeperId,
                 Set.copyOf(explicitlyUnavailablePlayerIds),
-                Set.copyOf(projectionHoldPlayerIds));
+                Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
         List<AutoFillLineupOptimizer.SlotRecommendation> withheldSwaps = new ArrayList<>();
         // Re-evaluate after each batch of held bench candidates so replacement alternatives are checked too.
         while (recommendation.ready()) {
@@ -379,7 +379,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
             if (!changed) break;
             recommendation = new AutoFillLineupOptimizer().optimize(roster.startingSlots(), optimizerRoster,
-                projectionsBySleeperId, Set.copyOf(explicitlyUnavailablePlayerIds), Set.copyOf(projectionHoldPlayerIds));
+                projectionsBySleeperId, Set.copyOf(explicitlyUnavailablePlayerIds), Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
         }
         if (!recommendation.ready()) {
             return RecommendationReport.unavailable(
@@ -509,7 +509,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         var proposed = usage.get(assignment.recommendedPlayerId());
         boolean missing = current == null || proposed == null || !current.complete() || !proposed.complete();
         boolean conflict = LineupSwapReviewPolicy.conflictingUsage(assignment.projectedGain(), current, proposed);
-        String reason = conflict
+        String reason = "0".equals(assignment.currentPlayerId())
+            ? "Explicit empty starting slot; candidate fills a legal slot. No current-player projection or slot delta is inferred."
+            : conflict
             ? "Small projection edge conflicts with observed workload: current opportunities rose at least 25%; proposed opportunities fell at least 50%."
             : missing ? "Usage coverage is incomplete; missing observations do not establish zero workload."
             : "Usage is available, but it does not establish a better future role or a complete start/sit decision.";
@@ -518,7 +520,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             withheld ? "WITHHELD_USAGE_CONFLICT" : conflict ? "MANUAL_REVIEW_USAGE_CONFLICT"
                 : missing ? "MANUAL_REVIEW_USAGE_GAP" : "MANUAL_REVIEW_PROJECTION_PROPOSAL",
             reason + " Review NFL matchup and attributed expert coverage below; no consensus is established.",
-            current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
+            "0".equals(assignment.currentPlayerId()) ? "Empty slot; no current player" : current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
             analysis.getOrDefault(assignment.currentPlayerId(), "No matched public commentary")
                 + " | " + analysis.getOrDefault(assignment.recommendedPlayerId(), "No matched public commentary")
                 + (analysis.isEmpty() ? ". " + analysisCoverage : "")

@@ -27,7 +27,8 @@ final class LineupDecisionEvidence {
             var proposed = targets.get(assignment.recommendedPlayerId());
             evidence.add(assignment.slot() + ": " + assignment.currentPlayerName() + " -> "
                 + assignment.recommendedPlayerName() + ". Projection proposes the change; observed production is separate evidence. "
-                + describePlayer(repository, current, roster.providerSeason(), roster.providerLeg()) + " "
+                + ("0".equals(assignment.currentPlayerId()) ? "Explicit empty slot; no current player production."
+                    : describePlayer(repository, current, roster.providerSeason(), roster.providerLeg())) + " "
                 + describePlayer(repository, proposed, roster.providerSeason(), roster.providerLeg())
                 + " NFL defensive matchup and expert start/sit advice: not verified. "
                 + "Lower past production alone does not establish a worse future role.");

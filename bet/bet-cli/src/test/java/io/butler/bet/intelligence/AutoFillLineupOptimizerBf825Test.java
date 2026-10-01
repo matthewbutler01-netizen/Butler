@@ -16,6 +16,54 @@ class AutoFillLineupOptimizerBf825Test {
     private final AutoFillLineupOptimizer optimizer = new AutoFillLineupOptimizer();
 
     @Test
+    void emptySlotUsesBenchWithoutSyntheticCurrentProjectionOrBenchMove() {
+        var result = optimizer.optimize(List.of("WR", "WR"),
+            List.of(starter("wr-start", "Starter", 1), bench("wr-bench", "Bench")),
+            Map.of("wr-start", points("10"), "wr-bench", points("8")), Set.of(), Set.of(), Set.of(0));
+        assertTrue(result.ready());
+        assertEquals("wr-bench", result.assignments().get(0).recommendedPlayerId());
+        assertEquals("0", result.assignments().get(0).currentPlayerId());
+        assertEquals(null, result.assignments().get(0).currentProjectedPoints());
+        assertEquals(null, result.assignments().get(0).projectedGain());
+        assertEquals("wr-start", result.assignments().get(1).recommendedPlayerId());
+        assertTrue(result.movesToBench().isEmpty());
+        assertEquals(List.of("wr-bench"), result.promotions().stream().map(p -> p.playerId()).toList());
+        assertEquals(points("18"), result.projectedTotal());
+    }
+
+    @Test
+    void multipleEmptySlotsRequireDistinctEligibleCandidatesAndPreserveHolds() {
+        var result = optimizer.optimize(List.of("WR", "WR", "WR"),
+            List.of(starter("held", "Held", 1), bench("a", "A"), bench("b", "B")),
+            Map.of("a", points("7"), "b", points("6")), Set.of(), Set.of("held"), Set.of(0, 2));
+        assertTrue(result.ready());
+        assertEquals(List.of(0, 2), result.assignments().stream().map(a -> a.starterOrdinal()).toList());
+        assertEquals(2, result.assignments().stream().map(a -> a.recommendedPlayerId()).distinct().count());
+        assertTrue(result.movesToBench().isEmpty());
+        var insufficient = optimizer.optimize(List.of("WR", "WR"), List.of(bench("a", "A")),
+            Map.of("a", points("7")), Set.of(), Set.of(), Set.of(0, 1));
+        assertFalse(insufficient.ready());
+        var ineligible = optimizer.optimize(List.of("QB"), List.of(bench("a", "A")),
+            Map.of("a", points("7")), Set.of(), Set.of(), Set.of(0));
+        assertFalse(ineligible.ready());
+    }
+
+    @Test
+    void explicitEmptySlotCanBeFilledByEligibleNegativeProjection() {
+        var result = optimizer.optimize(List.of("WR"), List.of(bench("a", "A")),
+            Map.of("a", points("-1")), Set.of(), Set.of(), Set.of(0));
+        assertTrue(result.ready());
+        assertEquals(points("-1"), result.projectedTotal());
+        assertEquals(null, result.assignments().getFirst().projectedGain());
+    }
+
+    @Test
+    void missingStarterWithoutExplicitEmptyOrdinalAndOccupiedEmptyOrdinalFailClosed() {
+        assertThrows(IllegalStateException.class, () -> optimizer.optimize(List.of("WR"), List.of(bench("a", "A")), Map.of("a", points("7"))));
+        assertThrows(IllegalStateException.class, () -> optimizer.optimize(List.of("WR"), List.of(starter("a", "A", 0)), Map.of("a", points("7")), Set.of(), Set.of(), Set.of(0)));
+    }
+
+    @Test
     void explicitlyUnavailableBenchPlayerNeedsNoProjectionAndCannotStart() {
         var result = optimizer.optimize(
             List.of("WR"),

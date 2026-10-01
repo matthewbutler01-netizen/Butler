@@ -49,6 +49,41 @@ class SleeperLiveWaiverTargetRosterContextAuditTest {
     }
 
     @Test
+    void explicitEmptySlotsPreserveOrdinalsAndReconcileRealPlayers() throws Exception {
+        Database database = seededDatabase();
+        String rosters = standardRosters().replace("[\"p1\",\"p2\",\"p3\",\"p4\"]", "[\"0\",\"p2\",\"0\",\"p4\"]");
+        var report = audit(database, rosters, standardUsers(), rosteredIds()).audit("L", "owner-1");
+        assertEquals(List.of(0, 2), report.emptyStartingOrdinals());
+        assertEquals(2, report.starterCount());
+        assertEquals(3, report.benchCount());
+        assertEquals(7, report.targetPlayers().size());
+        assertEquals(1, report.targetPlayers().get(0).starterOrdinal());
+        assertEquals("RB", report.targetPlayers().get(0).lineupSlot());
+        assertEquals(3, report.targetPlayers().get(1).starterOrdinal());
+        assertTrue(report.targetPlayers().stream().noneMatch(p -> "0".equals(p.sleeperPlayerId())));
+    }
+
+    @Test
+    void entirelyEmptyStartingFrameContainsNoPlaceholderPlayers() throws Exception {
+        Database database = seededDatabase();
+        String rosters = standardRosters().replace("[\"p1\",\"p2\",\"p3\",\"p4\"]", "[0,\"0\",0,\"0\"]");
+        var report = audit(database, rosters, standardUsers(), rosteredIds()).audit("L", "owner-1");
+        assertEquals(List.of(0, 1, 2, 3), report.emptyStartingOrdinals());
+        assertEquals(0, report.starterCount());
+        assertEquals(5, report.benchCount());
+        assertEquals(7, report.exactMappedTargetPlayers() + report.unmappedTargetPlayers());
+    }
+
+    @Test
+    void duplicateRealStartersAndMalformedEmptyEntriesRemainBlocked() throws Exception {
+        Database database = seededDatabase();
+        for (String entries : List.of("[\"0\",\"p2\",\"p2\",\"p4\"]", "[null,\"p2\",\"p3\",\"p4\"]", "[\"\",\"p2\",\"p3\",\"p4\"]")) {
+            String rosters = standardRosters().replace("[\"p1\",\"p2\",\"p3\",\"p4\"]", entries);
+            assertThrows(IllegalStateException.class, () -> audit(database, rosters, standardUsers(), rosteredIds()).audit("L", "owner-1"));
+        }
+    }
+
+    @Test
     void currentRosterMembershipDriftFailsClosed() throws Exception {
         Database database = seededDatabase();
         Set<String> stale = Set.of("p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8");

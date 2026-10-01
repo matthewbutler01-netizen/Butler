@@ -115,6 +115,10 @@ Projection holds:
     $matchup = Get-MatchupLineupDecisionView -AutoFill $parsed
     if ($matchup.Status -cne 'MANUAL REVIEW' -or $matchup.Title -match '^Make ' -or
         $matchup.ActionHref -cne '/team/autofill') { throw 'Matchup decision qualification or review navigation failed.' }
+    $emptyFixture = $fixture.Replace('current=Current Player [1]', 'current=Empty slot [0]').Replace('current=10 | recommended=10.25 | gain=+0.25', 'current=UNAVAILABLE | recommended=10.25 | gain=UNAVAILABLE')
+    $emptyParsed = ConvertTo-AutoFillView -Text $emptyFixture
+    $emptyHtml = ConvertTo-AutoFillHtml -AutoFill $emptyParsed
+    if ($emptyParsed.Assignments[0].CurrentId -cne '0' -or $emptyParsed.Assignments[0].CurrentPoints -cne 'UNAVAILABLE' -or $emptyHtml -notmatch 'Empty slot') { throw 'Explicit empty slot must render without inventing current points.' }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {
