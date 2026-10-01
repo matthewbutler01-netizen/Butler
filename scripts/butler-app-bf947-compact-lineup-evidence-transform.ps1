@@ -85,3 +85,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-947 Compact lineup comparison evidence applied.'
+
+$bf948Transform = Join-Path $PSScriptRoot 'butler-app-bf948-lineup-review-count-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf948Transform -PathType Leaf)) {
+    throw "BF-948 BLOCKED: Lineup Review unresolved-item count transform not found at $bf948Transform"
+}
+& $bf948Transform -CorePath $CorePath
