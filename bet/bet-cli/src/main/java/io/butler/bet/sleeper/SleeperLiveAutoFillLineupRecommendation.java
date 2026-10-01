@@ -315,7 +315,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             roster.providerSeason(), roster.providerLeg(), scoring,
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-            projectionHolds, projectionProvenance(snapshot));
+            projectionHolds, projectionProvenance(snapshot))
+            .withDecisionEvidence(LineupDecisionEvidence.describe(database, roster, recommendation));
     }
 
     private static ProjectionSource productionProjectionSource() {
@@ -464,8 +465,10 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         AutoFillLineupOptimizer.Recommendation recommendation,
         List<UnavailablePlayerExclusion> availabilityExclusions,
         List<ProjectionHold> projectionHolds,
-        String projectionProvenance) {
+        String projectionProvenance,
+        List<String> decisionEvidence) {
         public RecommendationReport {
+            decisionEvidence = List.copyOf(Objects.requireNonNull(decisionEvidence));
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
             availabilityExclusions = List.copyOf(Objects.requireNonNull(
@@ -489,7 +492,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 reason = requireText(reason, "reason");
                 if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
-                    || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null) {
+                    || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null
+                    || !decisionEvidence.isEmpty()) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
             }
@@ -502,7 +506,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), List.of(), null);
+                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of());
         }
 
         public static RecommendationReport ready(
@@ -523,7 +527,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 POLICY_ID, true, null, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-                projectionHolds, projectionProvenance);
+                projectionHolds, projectionProvenance, List.of());
+        }
+
+        RecommendationReport withDecisionEvidence(List<String> evidence) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence);
         }
     }
 
