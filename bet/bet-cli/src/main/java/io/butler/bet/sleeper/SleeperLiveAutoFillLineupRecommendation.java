@@ -30,10 +30,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final ProjectionSource projectionSource;
     private final AvailabilitySource availabilitySource;
     private final NewsSource newsSource;
+    private final NewsSource analysisSource;
     private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
-        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load);
+        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load, SHARED_NEWS_PROVIDER::loadAnalysis);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -49,6 +50,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource) {
+        this(database, projectionSource, availabilitySource, newsSource, players -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource) {
+        this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
         this.newsSource = Objects.requireNonNull(newsSource, "newsSource must not be null");
         this.database = Objects.requireNonNull(database, "database must not be null");
         this.projectionSource = Objects.requireNonNull(projectionSource, "projectionSource must not be null");
@@ -311,12 +318,33 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
+        List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
+        Map<String, String> analysis = Map.of();
+        String analysisCoverage = "No matching recent public analysis was found; this is not expert consensus.";
+        try {
+            analysis = analysisSource.load(roster.targetPlayers());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            analysisCoverage = "Public analysis check interrupted; expert coverage unverified.";
+        } catch (IOException | IllegalStateException e) {
+            analysisCoverage = "Public analysis feed unavailable; expert coverage unverified.";
+        }
+        for (var assignment : recommendation.assignments()) {
+            if (!assignment.changed()) continue;
+            String currentAnalysis = analysis.get(assignment.currentPlayerId());
+            String proposedAnalysis = analysis.get(assignment.recommendedPlayerId());
+            decisionEvidence.add("Public analysis for " + assignment.currentPlayerName() + " -> "
+                + assignment.recommendedPlayerName() + ": "
+                + (currentAnalysis == null ? "Current player: no matched commentary. " : currentAnalysis + " ")
+                + (proposedAnalysis == null ? "Proposed player: no matched commentary. " : proposedAnalysis + " ")
+                + (currentAnalysis == null && proposedAnalysis == null ? analysisCoverage : ""));
+        }
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
-            .withDecisionEvidence(LineupDecisionEvidence.describe(database, roster, recommendation));
+            .withDecisionEvidence(decisionEvidence);
     }
 
     private static ProjectionSource productionProjectionSource() {
