@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueRepository;
+import io.butler.bet.data.LiveWaiverSnapshotRepository;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
 import io.butler.bet.data.PlayerFantasyPositionRepository;
 import io.butler.bet.data.PlayerRepository;
@@ -142,6 +143,44 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertEquals("s-wr-a", report.projectionHolds().getFirst().sleeperPlayerId());
         assertTrue(report.projectionHolds().getFirst().reason().contains("availability evidence has no exact match"));
         assertFalse(report.projectionHolds().getFirst().reason().contains("wrong-id"));
+    }
+
+    @Test
+    void newlyAcquiredPlayerUsesExactAuditedRosterEligibilityWithoutUpdatingImportedMetadata() throws Exception {
+        Database database = initializedDatabase("league-acquisition");
+        new PlayerFantasyPositionRepository(database).replace("butler-wr-b", List.of());
+        var repository = new LiveWaiverSnapshotRepository(database);
+        repository.save(new LiveWaiverSnapshotRepository.Snapshot(
+            "waiver", "league-acquisition", "sleeper-league-acquisition", 2026, "in_season", 2,
+            "Sleeper", "proof", "eligibility", PROJECTION_OBSERVED_AT, 1, 1, 1, 0, 0, 0),
+            List.of(new LiveWaiverSnapshotRepository.Entry(
+                "s-wr-b", "Receiver B", "WR", List.of("WR"), "WAS", "Active",
+                true, false, false, "ROSTERED")));
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections).recommend(rosterReport("league-acquisition"));
+        assertTrue(report.ready());
+        assertEquals("s-wr-b", report.recommendation().assignments().get(1).recommendedPlayerId());
+        assertTrue(new PlayerFantasyPositionRepository(database).findByPlayerId("butler-wr-b").isEmpty());
+        assertTrue(repository.rosterFantasyPositions("wrong-frame", "league-acquisition",
+            "sleeper-league-acquisition", 2026, "s-wr-b").isEmpty());
+        assertTrue(repository.rosterFantasyPositions("waiver", "other-league",
+            "sleeper-league-acquisition", 2026, "s-wr-b").isEmpty());
+        assertTrue(repository.rosterFantasyPositions("waiver", "league-acquisition",
+            "sleeper-league-acquisition", 2025, "s-wr-b").isEmpty());
+    }
+
+    @Test
+    void missingEligibilityStillBlocksInsteadOfInferringNominalPosition() throws Exception {
+        Database database = initializedDatabase("league-missing-eligibility");
+        new PlayerFantasyPositionRepository(database).replace("butler-wr-b", List.of());
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections).recommend(rosterReport("league-missing-eligibility"));
+        assertFalse(report.ready());
+        assertTrue(report.reason().contains("fantasy-position eligibility for Receiver B"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {
