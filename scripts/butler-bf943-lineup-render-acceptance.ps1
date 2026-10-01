@@ -23,6 +23,17 @@ try {
         Requested = $true; Ready = $false; Week = 4; Scoring = 'PPR'; Reason = 'Weekly projection evidence unavailable'
     })
     if ($gap -notmatch 'PROJECTIONS NEEDED' -or $gap -match 'CHANGES FIRST') { throw 'Projection-gap state lost.' }
+    $review = ConvertTo-AutoFillHtml -AutoFill ([pscustomobject]@{
+        Requested = $true; Ready = $true; Week = 4; Scoring = 'PPR'; Reason = ''
+        Assignments = @(); BenchMoves = @(); Promotions = @(); AvailabilityExclusions = @(); ProjectionCoverage = 'PARTIAL'
+        ProjectionHolds = @([pscustomobject]@{ Name = 'Example Player'; Reason = 'Questionable; checked=2026-10-01; practice=Limited' })
+        DecisionEvidence = @('Example production: receptions=3; expert advice not verified <unsafe>')
+        CurrentTotal = '10'; RecommendedTotal = '10'; Gain = '0'; Source = 'Sleeper'
+    })
+    if ($review -notmatch 'receptions=3' -or $review -notmatch 'practice=Limited' -or
+        $review -notmatch '&lt;unsafe&gt;' -or $review -match '<unsafe>') {
+        throw 'Decision or injury evidence is missing or not HTML escaped.'
+    }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {
