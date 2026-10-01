@@ -38,6 +38,15 @@ class RosterInjuryNewsProviderTest {
     }
 
     @Test
+    void publicAnalysisIsAttributedButNotInventedAsAnExpertPick() throws Exception {
+        var news = RosterInjuryNewsProvider.parseAnalysis(item("Jadarian Price fantasy outlook",
+            "Wed, 30 Sep 2026 20:00:00 GMT", "https://www.espn.com/nfl/story"), List.of(PRICE), NOW);
+        assertTrue(news.get("13286").contains("Public ESPN analysis"));
+        assertTrue(news.get("13286").contains("no expert start/sit pick has been extracted"));
+        assertTrue(news.get("13286").contains("author=not supplied"));
+    }
+
+    @Test
     void externalEntitiesAreRejected() {
         assertThrows(java.io.IOException.class, () -> RosterInjuryNewsProvider.parse(
             "<!DOCTYPE rss [<!ENTITY x SYSTEM 'file:///etc/passwd'>]><rss>&x;</rss>", List.of(PRICE), NOW));
