@@ -32,7 +32,7 @@ final class NflverseRosterUsageProvider {
             + season + ".csv");
     }
 
-    private synchronized String download(URI uri) throws IOException, InterruptedException {
+    synchronized String download(URI uri) throws IOException, InterruptedException {
         Instant now = Instant.now();
         Cached saved = cache.get(uri);
         if (saved != null && now.isBefore(saved.expires())) return saved.body();

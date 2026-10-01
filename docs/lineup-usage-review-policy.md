@@ -65,3 +65,25 @@ postseason/current-week exclusion, ambiguous identities, duplicate rows, invalid
 bench-promotion exclusion, and source failure. The staged PowerShell rendering check
 verifies missing-evidence disclosure and avoids an unqualified “all keep” conclusion.
 Windows packaged launch and live lineup review remain a separate acceptance step.
+
+## NFL defensive matchup context
+
+Each structured swap review includes the scheduled NFL opponent for the roster's
+saved NFL team and the observed production by opposing QB/RB/WR/TE players against
+that defense. This uses nflverse `schedules/games.csv` and the same season's weekly
+player stats, joined by exact game ID, offense team, opponent team and position.
+The sample includes completed regular-season games in the three weeks before the
+current scoring week. Passing, rushing and receiving yards and offensive TDs are
+totals across all players at that position, not per-player forecasts or fantasy
+points. The game count and week range are displayed. No adjustment is made for
+opponent strength, game script, or small samples.
+
+The roster team is saved metadata, not a fresh transaction verification. A missing
+team, unsupported position, bye, ambiguous schedule, missing positional rows, or
+missing QB coverage marker remains unverified. Duplicate player/game or schedule
+identities and missing numeric fields fail closed. The QB marker detects wholly
+missing game stats; it cannot establish every positional row is complete at the
+publisher. Missing coverage is never represented as zero. A checked timestamp
+records the fetch/parse time, not the publisher's update time. Successful bodies
+are cached for 15 minutes with bounded requests. NFL matchup context does not
+change projected points, lift holds, or claim an extracted expert start/sit pick.

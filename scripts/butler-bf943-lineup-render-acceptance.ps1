@@ -42,6 +42,7 @@ try {
         ordinal = 0; slot = 'WR'; current = 'Current Player'; proposed = 'Candidate <unsafe>'
         projectedGain = '0.25'; status = 'WITHHELD_USAGE_CONFLICT'; reason = 'Conflicting workload needs review'
         currentUsage = 'Week 2: targets 6; Week 3: targets 9'; proposedUsage = 'Week 2: targets 7; Week 3: targets 2'
+        currentMatchup = 'Saved team KC; week 4 vs LV'; proposedMatchup = 'Missing <coverage>'
         commentary = 'Expert picks unverified'; sources = @('https://github.com/nflverse/nflverse-data', 'javascript:alert(1)')
     }
     $fixture = @"
@@ -70,6 +71,7 @@ Projection holds:
     $parsed = ConvertTo-AutoFillView -Text $fixture
     if (@($parsed.SwapReviews).Count -ne 1) { throw 'Structured swap review parser lost the exact review.' }
     $rendered = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($rendered -notmatch 'NFL opponent and observed defense' -or $rendered -notmatch 'Missing &lt;coverage&gt;') { throw 'NFL matchup evidence missing or unescaped.' }
     if ($rendered -notmatch 'WITHHELD: USAGE CONFLICT' -or $rendered -notmatch '<table' -or
         $rendered -notmatch 'targets 9' -or $rendered -notmatch 'Sources and commentary' -or
         $rendered -notmatch '&lt;unsafe&gt;' -or $rendered -match '<unsafe>|javascript:|Make 1 lineup|<h3>Start</h3>|<h3>Sit</h3>') {

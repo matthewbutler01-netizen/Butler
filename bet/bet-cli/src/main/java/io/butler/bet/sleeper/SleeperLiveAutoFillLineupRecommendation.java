@@ -32,12 +32,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final NewsSource newsSource;
     private final NewsSource analysisSource;
     private final UsageSource usageSource;
+    private final MatchupSource matchupSource;
+    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
     private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
     private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
         this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
-            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load);
+            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -63,6 +65,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource,
+            (season, week, players) -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource) {
+        this.matchupSource = Objects.requireNonNull(matchupSource);
         this.usageSource = Objects.requireNonNull(usageSource, "usageSource must not be null");
         this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
         this.newsSource = Objects.requireNonNull(newsSource, "newsSource must not be null");
@@ -412,12 +422,22 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 + (proposedAnalysis == null ? "Proposed player: no matched commentary. " : proposedAnalysis + " ")
                 + (currentAnalysis == null && proposedAnalysis == null ? analysisCoverage : ""));
         }
+        Map<String, String> matchups = Map.of();
+        if (!withheldSwaps.isEmpty() || recommendation.assignments().stream().anyMatch(a -> a.changed())) {
+            try {
+                matchups = matchupSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | IllegalStateException e) {
+                // Optional evidence failure leaves the proposal qualified for manual review.
+            }
+        }
         List<SwapReview> reviews = new ArrayList<>();
         for (var assignment : withheldSwaps) {
-            reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason()));
+            reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason(), matchups));
         }
         for (var assignment : recommendation.assignments()) {
-            if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason()));
+            if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups));
         }
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,
@@ -429,7 +449,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     private static SwapReview swapReview(AutoFillLineupOptimizer.SlotRecommendation assignment,
         Map<String, NflverseRosterUsageProvider.UsageEvidence> usage, Map<String, String> analysis,
-        String analysisCoverage, boolean withheld, int season) {
+        String analysisCoverage, boolean withheld, int season, Map<String, String> matchups) {
         var current = usage.get(assignment.currentPlayerId());
         var proposed = usage.get(assignment.recommendedPlayerId());
         boolean missing = current == null || proposed == null || !current.complete() || !proposed.complete();
@@ -442,7 +462,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             assignment.recommendedPlayerName(), assignment.projectedGain() == null ? "Unavailable" : assignment.projectedGain().toPlainString(),
             withheld ? "WITHHELD_USAGE_CONFLICT" : conflict ? "MANUAL_REVIEW_USAGE_CONFLICT"
                 : missing ? "MANUAL_REVIEW_USAGE_GAP" : "MANUAL_REVIEW_PROJECTION_PROPOSAL",
-            reason + " NFL defensive matchup and expert start/sit picks remain unverified.",
+            reason + " Review NFL matchup coverage below; expert start/sit picks remain unverified.",
             current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
             analysis.getOrDefault(assignment.currentPlayerId(), "No matched public commentary")
                 + " | " + analysis.getOrDefault(assignment.recommendedPlayerId(), "No matched public commentary")
@@ -450,11 +470,15 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 + ". Headlines are context, not extracted expert picks.",
             List.of(io.butler.bet.intelligence.NflversePlayerWeekProductionImporter.statsUri(season).toString(),
                 NflverseRosterUsageProvider.snapsUri(season).toString(),
-                io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI.toString()));
+                io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI.toString(),
+                NflverseDefensiveMatchupProvider.SCHEDULE_URI.toString()),
+            matchups.getOrDefault(assignment.currentPlayerId(), "NFL matchup evidence unavailable; manual review required."),
+            matchups.getOrDefault(assignment.recommendedPlayerId(), "NFL matchup evidence unavailable; manual review required."));
     }
 
     public record SwapReview(int ordinal, String slot, String current, String proposed, String projectedGain,
-        String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources) {
+        String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources,
+        String currentMatchup, String proposedMatchup) {
         public SwapReview { sources = List.copyOf(sources); }
     }
 
@@ -543,6 +567,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     }
 
     @FunctionalInterface
+    interface MatchupSource {
+        Map<String, String> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException;
+    }
+
     interface UsageSource {
         Map<String, NflverseRosterUsageProvider.UsageEvidence> load(int season, int week, Set<String> ids)
             throws IOException, InterruptedException;
