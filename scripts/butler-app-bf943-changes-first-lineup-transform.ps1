@@ -53,6 +53,26 @@ $disclosureSetup = @'
     $recommendedMetricLabel = if ($partialCoverage) { 'Comparable proposed' } else { 'Proposed projection' }
     $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals. Review holds and evidence gaps before changing your lineup."
     $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review. Review attributed expert selections and coverage below, plus NFL matchup coverage in each comparison.</p>'
+    $queueItems = ''
+    foreach ($hold in @($AutoFill.ProjectionHolds)) {
+        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review; see the hold evidence below.</li>"
+    }
+    $queuePicks = @()
+    if ($null -ne $AutoFill.PSObject.Properties['ExpertPicks']) { $queuePicks = @($AutoFill.ExpertPicks) }
+    foreach ($assignment in @($AutoFill.Assignments)) {
+        $starterId = [string]$assignment.CurrentId
+        if ([string]::IsNullOrWhiteSpace($starterId)) { continue }
+        $matchingPicks = @($queuePicks | Where-Object { [string]$_.playerId -ceq $starterId })
+        if ($matchingPicks.Count -eq 1 -and [string]$matchingPicks[0].selection -ceq 'SIT') {
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Current)</strong>: current starter with an attributed SIT selection from $(ConvertTo-HtmlText $matchingPicks[0].author). Review scoring, roster fit and the source below; this opinion does not establish consensus.</li>"
+        }
+        if ($assignment.Changed) {
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.</li>"
+        }
+    }
+    if ($queueItems.Length -gt 0) {
+        $holdEvidenceHtml = "<section class=`"swap-review-card review-queue`"><h3>Review queue</h3><p class=`"meta`">Unresolved signals may overlap. Projection totals do not settle these decisions.</p><ul>$queueItems</ul></section>$holdEvidenceHtml"
+    }
     $structuredReviews = @()
     if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
     foreach ($review in $structuredReviews) {

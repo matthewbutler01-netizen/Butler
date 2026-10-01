@@ -80,6 +80,17 @@ Projection holds:
         $rendered.IndexOf('Current &lt;unsafe&gt;: SIT') -gt $rendered.IndexOf('Gap &lt;unsafe&gt;: UNVERIFIED')) {
         throw 'Explicit expert selections must precede collapsed, escaped coverage gaps.'
     }
+    if ($rendered -notmatch 'Review queue' -or $rendered -notmatch 'Current Player</strong>: current starter with an attributed SIT selection') { throw 'Review queue must join expert selections to starters by exact ID, even when names differ.' }
+    $savedChanged = $parsed.Assignments[0].Changed
+    $parsed.Assignments[0].Changed = $false
+    $noProposal = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($noProposal -notmatch 'current starter with an attributed SIT selection' -or $noProposal -match 'review the projection proposal') { throw 'Starter expert conflict must remain visible without a projection proposal.' }
+    $parsed.Assignments[0].Changed = $savedChanged
+    $originalPicks = $parsed.ExpertPicks
+    $parsed.ExpertPicks = @($originalPicks) + @($originalPicks | Where-Object { $_.playerId -ceq '1' })
+    $ambiguous = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($ambiguous -match 'current starter with an attributed SIT selection') { throw 'Duplicate expert IDs must not establish a starter conflict.' }
+    $parsed.ExpertPicks = $originalPicks
     $savedPicks = $parsed.ExpertPicks
     $parsed.ExpertPicks = @($savedPicks | Where-Object { $_.selection -ceq 'UNVERIFIED' })
     $gapsOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
