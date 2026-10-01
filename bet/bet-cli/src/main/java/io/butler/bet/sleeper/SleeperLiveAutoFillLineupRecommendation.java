@@ -33,13 +33,15 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final NewsSource analysisSource;
     private final UsageSource usageSource;
     private final MatchupSource matchupSource;
+    private final ExpertSource expertSource;
+    private static final NflExpertPickProvider SHARED_EXPERT_PROVIDER = new NflExpertPickProvider();
     private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
     private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
     private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
         this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
-            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load);
+            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load, SHARED_EXPERT_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -72,6 +74,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
         MatchupSource matchupSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource, matchupSource,
+            (season, week, players) -> List.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource, ExpertSource expertSource) {
+        this.expertSource = Objects.requireNonNull(expertSource);
         this.matchupSource = Objects.requireNonNull(matchupSource);
         this.usageSource = Objects.requireNonNull(usageSource, "usageSource must not be null");
         this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
@@ -432,6 +442,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 // Optional evidence failure leaves the proposal qualified for manual review.
             }
         }
+        List<ExpertPick> expertPicks = List.of();
+        try { expertPicks = expertSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         List<SwapReview> reviews = new ArrayList<>();
         for (var assignment : withheldSwaps) {
             reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason(), matchups));
@@ -444,7 +457,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
-            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews);
+            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks);
     }
 
     private static SwapReview swapReview(AutoFillLineupOptimizer.SlotRecommendation assignment,
@@ -462,7 +475,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             assignment.recommendedPlayerName(), assignment.projectedGain() == null ? "Unavailable" : assignment.projectedGain().toPlainString(),
             withheld ? "WITHHELD_USAGE_CONFLICT" : conflict ? "MANUAL_REVIEW_USAGE_CONFLICT"
                 : missing ? "MANUAL_REVIEW_USAGE_GAP" : "MANUAL_REVIEW_PROJECTION_PROPOSAL",
-            reason + " Review NFL matchup coverage below; expert start/sit picks remain unverified.",
+            reason + " Review NFL matchup and attributed expert coverage below; no consensus is established.",
             current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
             analysis.getOrDefault(assignment.currentPlayerId(), "No matched public commentary")
                 + " | " + analysis.getOrDefault(assignment.recommendedPlayerId(), "No matched public commentary")
@@ -475,6 +488,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             matchups.getOrDefault(assignment.currentPlayerId(), "NFL matchup evidence unavailable; manual review required."),
             matchups.getOrDefault(assignment.recommendedPlayerId(), "NFL matchup evidence unavailable; manual review required."));
     }
+
+    public record ExpertPick(String playerId, String player, String position, String selection,
+        String author, String publishedAt, String modifiedAt, String checkedAt, String source, String coverage) {}
 
     public record SwapReview(int ordinal, String slot, String current, String proposed, String projectedGain,
         String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources,
@@ -567,6 +583,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     }
 
     @FunctionalInterface
+    interface ExpertSource {
+        List<ExpertPick> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws InterruptedException;
+    }
+
     interface MatchupSource {
         Map<String, String> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
             throws IOException, InterruptedException;
@@ -640,10 +661,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         List<ProjectionHold> projectionHolds,
         String projectionProvenance,
         List<String> decisionEvidence,
-        List<SwapReview> swapReviews) {
+        List<SwapReview> swapReviews, List<ExpertPick> expertPicks) {
         public RecommendationReport {
             decisionEvidence = List.copyOf(Objects.requireNonNull(decisionEvidence));
             swapReviews = List.copyOf(Objects.requireNonNull(swapReviews));
+            expertPicks = List.copyOf(Objects.requireNonNull(expertPicks));
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
             availabilityExclusions = List.copyOf(Objects.requireNonNull(
@@ -668,7 +690,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
                     || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null
-                    || !decisionEvidence.isEmpty() || !swapReviews.isEmpty()) {
+                    || !decisionEvidence.isEmpty() || !swapReviews.isEmpty() || !expertPicks.isEmpty()) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
             }
@@ -681,7 +703,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of());
+                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of(), List.of());
         }
 
         public static RecommendationReport ready(
@@ -702,19 +724,26 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 POLICY_ID, true, null, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-                projectionHolds, projectionProvenance, List.of(), List.of());
+                projectionHolds, projectionProvenance, List.of(), List.of(), List.of());
         }
 
         RecommendationReport withDecisionEvidence(List<String> evidence) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
-                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence, swapReviews);
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence, swapReviews, expertPicks);
+        }
+
+        RecommendationReport withExpertPicks(List<ExpertPick> picks) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance,
+                decisionEvidence, swapReviews, picks);
         }
 
         RecommendationReport withSwapReviews(List<SwapReview> reviews) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
-                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, decisionEvidence, reviews);
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, decisionEvidence, reviews, expertPicks);
         }
     }
 

@@ -37,6 +37,13 @@ public final class ButlerAutoFillLineupRecommendationCli {
                 throw new IllegalStateException("Unable to render structured swap review", e);
             }
         }
+        for (var pick : report.expertPicks()) {
+            try {
+                System.out.println("Expert pick: " + new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(pick));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                throw new IllegalStateException("Unable to render attributed expert pick", e);
+            }
+        }
         for (String evidence : report.decisionEvidence()) {
             System.out.println("Decision evidence: " + evidence);
         }

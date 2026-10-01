@@ -17,7 +17,7 @@ $evidenceAnchor = '        SourceSurface = $sourceSurface.Groups[''value''].Valu
 if (-not $core.Contains($evidenceAnchor)) {
     throw 'BF-943 BLOCKED: lineup decision evidence parser anchor is missing.'
 }
-$core = $core.Replace($evidenceAnchor, $evidenceAnchor + "`n" + '        DecisionEvidence = @([regex]::Matches($Text, ''(?m)^Decision evidence: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() })' + "`n" + '        SwapReviews = @([regex]::Matches($Text, ''(?m)^Decision review: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() | ConvertFrom-Json })')
+$core = $core.Replace($evidenceAnchor, $evidenceAnchor + "`n" + '        DecisionEvidence = @([regex]::Matches($Text, ''(?m)^Decision evidence: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() })' + "`n" + '        ExpertPicks = @([regex]::Matches($Text, ''(?m)^Expert pick: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() | ConvertFrom-Json })' + "`n" + '        SwapReviews = @([regex]::Matches($Text, ''(?m)^Decision review: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() | ConvertFrom-Json })')
 
 $functionStart = $core.IndexOf('function ConvertTo-AutoFillHtml {', [System.StringComparison]::Ordinal)
 $functionEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $functionStart, [System.StringComparison]::Ordinal)
@@ -52,7 +52,7 @@ $disclosureSetup = @'
     $decisionStatusClass = 'warn'
     $recommendedMetricLabel = if ($partialCoverage) { 'Comparable proposed' } else { 'Proposed projection' }
     $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals. Review holds and evidence gaps before changing your lineup."
-    $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review; expert start/sit picks remain unverified. Review NFL matchup coverage in each comparison.</p>'
+    $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review. Review attributed expert selections and coverage below, plus NFL matchup coverage in each comparison.</p>'
     $structuredReviews = @()
     if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
     foreach ($review in $structuredReviews) {
@@ -81,6 +81,23 @@ $disclosureSetup = @'
             $extraEvidence += "<p>$(ConvertTo-HtmlText $evidence)</p>"
         }
         if ($extraEvidence.Length -gt 0) { $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Additional evidence and gaps</summary>$extraEvidence</details>" }
+    }
+    if ($null -ne $AutoFill.PSObject.Properties['ExpertPicks'] -and @($AutoFill.ExpertPicks).Count -gt 0) {
+        $expertHtml = '<p class="meta">One author''s weekly selections. Check league scoring and roster fit; existing injury and usage holds remain. No consensus or point adjustment inferred.</p>'
+        foreach ($pick in @($AutoFill.ExpertPicks)) {
+            $expertLink = ''
+            $expertUri = $null
+            if ([uri]::TryCreate([string]$pick.source, [System.UriKind]::Absolute, [ref]$expertUri) -and
+                $expertUri.Scheme -ceq 'https' -and $expertUri.Host -ceq 'www.nfl.com' -and $expertUri.AbsolutePath.StartsWith('/news/')) {
+                $expertLink = "<a href=`"$(ConvertTo-HtmlText $pick.source)`" target=`"_blank`" rel=`"noopener noreferrer`">NFL.com weekly column</a>"
+            }
+            $expertHtml += "<section><h4>$(ConvertTo-HtmlText $pick.player): $(ConvertTo-HtmlText $pick.selection)</h4><p>$(ConvertTo-HtmlText $pick.coverage)</p>"
+            if ([string]$pick.selection -in @('START', 'SIT')) {
+                $expertHtml += "<p class=`"meta`">Author: $(ConvertTo-HtmlText $pick.author); published $(ConvertTo-HtmlText $pick.publishedAt); updated $(ConvertTo-HtmlText $pick.modifiedAt).</p>"
+            }
+            $expertHtml += "<p class=`"meta`">Checked $(ConvertTo-HtmlText $pick.checkedAt). $expertLink</p></section>"
+        }
+        $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Attributed expert selections and coverage</summary>$expertHtml</details>"
     }
     foreach ($hold in @($AutoFill.ProjectionHolds)) {
         if ($null -ne $hold.PSObject.Properties['Reason']) {

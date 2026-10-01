@@ -30,6 +30,27 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     Path tempDir;
 
     @Test
+    void attributedStartPickDoesNotLiftAvailabilityHoldOrChangePoints() throws Exception {
+        Database database = initializedDatabase("league-expert-hold");
+        var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var pick = new SleeperLiveAutoFillLineupRecommendation.ExpertPick("s-wr-b", "Bench WR", "WR", "START",
+            "Test Author", "2026-09-30T17:00:00Z", "2026-09-30T18:00:00Z", "2026-10-01T07:00:00Z",
+            "https://www.nfl.com/news/test", "One author; review required");
+        var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
+            ids -> Map.of("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-b", "Active", "Questionable")),
+            players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
+            (season, week, players) -> Map.of(), (season, week, players) -> List.of(pick))
+            .recommend(rosterReport("league-expert-hold"));
+        assertTrue(report.ready());
+        assertEquals(List.of(pick), report.expertPicks());
+        assertEquals(new BigDecimal("30"), report.currentProjectedTotal());
+        assertEquals(new BigDecimal("30"), report.recommendation().projectedTotal());
+        assertEquals(BigDecimal.ZERO, report.projectedGain());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertTrue(report.projectionHolds().stream().anyMatch(h -> "s-wr-b".equals(h.sleeperPlayerId())));
+    }
+
+    @Test
     void benchExplicitlyUnavailableWithoutProjectionDoesNotBlockRecommendation() throws Exception {
         Database database = initializedDatabase("league-bench-out");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10")));

@@ -87,3 +87,25 @@ publisher. Missing coverage is never represented as zero. A checked timestamp
 records the fetch/parse time, not the publisher's update time. Successful bodies
 are cached for 15 minutes with bounded requests. NFL matchup context does not
 change projected points, lift holds, or claim an extracted expert start/sit pick.
+
+## Attributed expert selections
+
+The roster-wide expert panel checks NFL.com's current season/week Start 'Em,
+Sit 'Em column for QB, RB, WR and TE. It validates the NewsArticle JSON-LD URL,
+exact headline frame, one named person author, publication and modification times,
+and a publication within seven days (no future dates). Only named player-card
+links under explicit Start/Sit h2 sections qualify. Body mentions, scripts and
+related-content cards do not qualify. Duplicate/conflicting cards fail validation.
+Selections require an exact, case-insensitive, unique roster display-name match;
+this is weaker than a provider ID join and is disclosed. Unsupported positions
+are outside this source's coverage.
+
+Every supported roster player gets START, SIT, or UNVERIFIED, including players
+outside proposed swaps. Failed requests or schema validation remain unverified;
+a missing selection never means the author recommends keeping or benching the
+player. The panel shows author, publication, update, check time and a source link.
+No article prose is imported or displayed. This is one author's view, not expert
+consensus or a league-specific forecast. Selections flag manual review without
+changing projected totals or lifting injury, availability, usage or identity holds.
+The source requests reuse bounded 8-second requests and 15-minute successful-body
+caching. The parser additionally rejects documents over two million characters.

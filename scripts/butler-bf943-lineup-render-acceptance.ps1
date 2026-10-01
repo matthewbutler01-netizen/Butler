@@ -35,7 +35,7 @@ try {
         throw 'Decision or injury evidence is missing or not HTML escaped.'
     }
     if ($review -notmatch 'NO PROPOSALS' -or $review -match 'ALL KEEP' -or
-        $review -notmatch 'Review holds and evidence gaps' -or $review -notmatch 'expert start/sit picks') {
+        $review -notmatch 'Review holds and evidence gaps' -or $review -notmatch 'expert selections') {
         throw 'Partial review must retain evidence gaps instead of implying a complete all-keep decision.'
     }
     $structured = [pscustomobject]@{
@@ -55,6 +55,7 @@ Projection coverage: FULL
 Current projected starter total: 10
 Recommended projected starter total: 10.25
 Projected gain: +0.25
+Expert pick: {"playerId":"1","player":"Current <unsafe>","position":"WR","selection":"SIT","author":"Test Author","publishedAt":"2026-09-30T17:00:00Z","modifiedAt":"2026-09-30T18:00:00Z","checkedAt":"2026-10-01T07:00:00Z","source":"https://www.nfl.com/news/test-column","coverage":"Single author; review required"}
 Decision review: $($structured | ConvertTo-Json -Compress -Depth 5)
 Recommended lineup:
   #0 WR | current=Current Player [1] | recommended=Candidate [2] | projected=10.25 | action=CHANGE
@@ -69,8 +70,10 @@ Projection holds:
   none
 "@
     $parsed = ConvertTo-AutoFillView -Text $fixture
+    if (@($parsed.ExpertPicks).Count -ne 1) { throw 'Expert pick parser lost attribution.' }
     if (@($parsed.SwapReviews).Count -ne 1) { throw 'Structured swap review parser lost the exact review.' }
     $rendered = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($rendered -notmatch 'Attributed expert selections and coverage' -or $rendered -notmatch 'Test Author' -or $rendered -notmatch 'Current &lt;unsafe&gt;: SIT' -or $rendered -notmatch 'NFL.com weekly column') { throw 'Expert selections, escaping or attribution missing.' }
     if ($rendered -notmatch 'NFL opponent and observed defense' -or $rendered -notmatch 'Missing &lt;coverage&gt;') { throw 'NFL matchup evidence missing or unescaped.' }
     if ($rendered -notmatch 'WITHHELD: USAGE CONFLICT' -or $rendered -notmatch '<table' -or
         $rendered -notmatch 'targets 9' -or $rendered -notmatch 'Sources and commentary' -or
