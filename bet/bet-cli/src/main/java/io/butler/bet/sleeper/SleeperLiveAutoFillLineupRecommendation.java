@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
+import io.butler.bet.data.LiveWaiverSnapshotRepository;
 import io.butler.bet.data.PlayerFantasyPositionRepository;
 import io.butler.bet.integration.SleeperWeeklyProjectionProvider;
 import io.butler.bet.intelligence.AutoFillLineupOptimizer;
@@ -133,6 +134,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         + target.sleeperPlayerId() + ".");
             }
             List<String> fantasyPositions = eligibilityRepository.findByPlayerId(target.butlerPlayerId());
+            if (fantasyPositions.isEmpty()) {
+                fantasyPositions = new LiveWaiverSnapshotRepository(database).rosterFantasyPositions(
+                    roster.waiverSnapshotId(), roster.leagueId(), roster.sleeperLeagueId(),
+                    roster.providerSeason(), target.sleeperPlayerId());
+            }
             if (fantasyPositions.isEmpty()) {
                 return RecommendationReport.unavailable(
                     roster.providerSeason(), roster.providerLeg(), scoring,
