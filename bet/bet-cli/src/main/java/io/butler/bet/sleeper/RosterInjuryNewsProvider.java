@@ -24,6 +24,8 @@ final class RosterInjuryNewsProvider {
     static final String FEED = "https://www.espn.com/espn/rss/nfl/news";
     private static final Pattern INJURY = Pattern.compile(
         "(?i)\\b(injur(?:y|ies|ed)|questionable|doubtful|ruled out|sidelined|concussion|practice|surgery)\\b");
+    private static final Pattern ANALYSIS = Pattern.compile(
+        "(?i)\\b(fantasy|start|sit|rankings?|outlook|breakout|backfield|snaps?|targets?|touches|role)\\b");
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private String cached;
     private Instant expires = Instant.EPOCH;
@@ -43,8 +45,25 @@ final class RosterInjuryNewsProvider {
         return parse(cached, players, now);
     }
 
+    synchronized Map<String, String> loadAnalysis(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+        throws IOException, InterruptedException {
+        load(players); // Uses the same bounded cached feed as injury headlines.
+        return parseAnalysis(cached, players, Instant.now());
+    }
+
+    static Map<String, String> parseAnalysis(String xml,
+        List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players, Instant now) throws IOException {
+        return parse(xml, players, now, true);
+    }
+
     static Map<String, String> parse(String xml,
         List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players, Instant now) throws IOException {
+        return parse(xml, players, now, false);
+    }
+
+    private static Map<String, String> parse(String xml,
+        List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players, Instant now, boolean analysis)
+        throws IOException {
         if (xml == null || xml.length() > 1_000_000) throw new IOException("Invalid news feed size");
         try {
             var factory = DocumentBuilderFactory.newInstance();
@@ -70,7 +89,7 @@ final class RosterInjuryNewsProvider {
                 try { uri = URI.create(link); } catch (RuntimeException e) { continue; }
                 if (!"https".equals(uri.getScheme()) || uri.getHost() == null
                     || !(uri.getHost().equals("espn.com") || uri.getHost().endsWith(".espn.com"))) continue;
-                if (!INJURY.matcher(title).find()) continue;
+                if (!(analysis ? ANALYSIS : INJURY).matcher(title).find()) continue;
                 for (var player : players) {
                     String name = player.displayName();
                     if (name == null || name.isBlank() || !name.contains(" ")) continue;
@@ -80,9 +99,16 @@ final class RosterInjuryNewsProvider {
                     // Display only a short headline; article text is never imported.
                     String[] words = title.split("\\s+");
                     String shortTitle = String.join(" ", java.util.Arrays.copyOf(words, Math.min(words.length, 20)));
-                    result.putIfAbsent(player.sleeperPlayerId(), "Recent ESPN injury/practice headline: "
+                    String author = text(item, "dc:creator");
+                    if (author.isBlank()) author = text(item, "author");
+                    author = author.replaceAll("\\s+", " ");
+                    if (author.length() > 100) author = author.substring(0, 100);
+                    result.putIfAbsent(player.sleeperPlayerId(),
+                        (analysis ? "Public ESPN analysis headline: " : "Recent ESPN injury/practice headline: ")
                         + shortTitle + "; published=" + published + "; source=" + link
-                        + ". Headline requires review; it does not establish an official Out designation.");
+                        + (analysis ? "; author=" + (author.isBlank() ? "not supplied" : author)
+                            + ". Source-linked context only; no expert start/sit pick has been extracted."
+                            : ". Headline requires review; it does not establish an official Out designation."));
                 }
             }
             return Map.copyOf(result);
