@@ -196,11 +196,51 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
                     return Map.of("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
                         "s-wr-b", "Active", injury));
                 }).recommend(rosterReport("league-projected-injury"));
-            assertFalse(report.ready());
-            assertTrue(report.reason().contains("Receiver B"));
-            assertTrue(report.reason().contains(injury));
-            assertTrue(report.reason().contains("does not override"));
+            assertTrue(report.ready());
+            assertTrue(report.recommendation().promotions().isEmpty());
+            assertEquals(new BigDecimal("30"), report.recommendation().projectedTotal());
+            if (injury.equals("Questionable") || injury.equals("Doubtful")) {
+                assertEquals(injury, report.projectionHolds().getFirst().injuryStatus());
+                assertTrue(report.projectionHolds().getFirst().reason().contains("Pending clearance"));
+            } else {
+                assertEquals(injury, report.availabilityExclusions().getFirst().injuryStatus());
+            }
         }
+    }
+
+    @Test
+    void questionableStarterIsHeldWhileHealthySlotsStillImprove() throws Exception {
+        Database database = initializedDatabase("league-starter-injury-hold");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections,
+            ids -> Map.of("s-qb", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                "s-qb", "Active", "Questionable", "Chest", "Limited", PROJECTION_OBSERVED_AT)))
+            .recommend(rosterReport("league-starter-injury-hold"));
+        assertTrue(report.ready());
+        assertEquals(new BigDecimal("10"), report.currentProjectedTotal());
+        assertEquals(new BigDecimal("15"), report.recommendation().projectedTotal());
+        assertEquals("s-wr-b", report.recommendation().promotions().getFirst().playerId());
+        assertEquals("s-qb", report.projectionHolds().getFirst().sleeperPlayerId());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("Limited"));
+        assertTrue(report.projectionHolds().getFirst().reason().contains("checked="));
+    }
+
+    @Test
+    void sourcedNewsTriggersReviewWithoutInventingAnOutDesignation() throws Exception {
+        Database database = initializedDatabase("league-news-hold");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(),
+            players -> Map.of("s-wr-b", "Recent injury headline; source=https://www.espn.com/example"))
+            .recommend(rosterReport("league-news-hold"));
+        assertTrue(report.ready());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertEquals(1, report.projectionHolds().size());
+        assertTrue(report.availabilityExclusions().isEmpty());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("https://www.espn.com/example"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {
