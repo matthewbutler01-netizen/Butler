@@ -80,7 +80,10 @@ Projection holds:
         $rendered.IndexOf('Current &lt;unsafe&gt;: SIT') -gt $rendered.IndexOf('Gap &lt;unsafe&gt;: UNVERIFIED')) {
         throw 'Explicit expert selections must precede collapsed, escaped coverage gaps.'
     }
-    if ($rendered -notmatch 'Review queue' -or $rendered -notmatch 'Current Player</strong>: current starter with an attributed SIT selection') { throw 'Review queue must join expert selections to starters by exact ID, even when names differ.' }
+    if ($rendered -notmatch 'Review queue' -or
+        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Expert signal: attributed SIT selection from Test Author.*href="#lineup-expert-1">Review expert source</a>') {
+        throw 'Review queue must join expert selections to changed starters by exact ID, even when names differ.'
+    }
     $savedChanged = $parsed.Assignments[0].Changed
     $parsed.Assignments[0].Changed = $false
     $noProposal = ConvertTo-AutoFillHtml -AutoFill $parsed
@@ -89,7 +92,10 @@ Projection holds:
     $originalPicks = $parsed.ExpertPicks
     $parsed.ExpertPicks = @($originalPicks) + @($originalPicks | Where-Object { $_.playerId -ceq '1' })
     $ambiguous = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($ambiguous -match 'current starter with an attributed SIT selection') { throw 'Duplicate expert IDs must not establish a starter conflict.' }
+    if ($ambiguous -match 'current starter with an attributed SIT selection' -or
+        $ambiguous -match 'Expert signal: attributed SIT selection') {
+        throw 'Duplicate expert IDs must not establish a starter conflict.'
+    }
     $parsed.ExpertPicks = $originalPicks
     $savedReviewStatus = $parsed.SwapReviews[0].status
     $parsed.SwapReviews[0].status = 'MANUAL_REVIEW_REPLACEMENT'
@@ -160,7 +166,7 @@ Projection holds:
     }
     if ($rendered -match 'Review WR comparisons:' -or
         $rendered -match 'current starter with an attributed SIT selection' -or
-        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Review expert source.*href="#lineup-expert-1".*Comparison evidence:.*href="#lineup-comparison-0"') {
+        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Expert signal: attributed SIT selection from Test Author.*href="#lineup-expert-1">Review expert source</a>.*Comparison evidence:.*href="#lineup-comparison-0"') {
         throw 'BF-950 must keep expert and comparison evidence inside the single projection-proposal queue item.'
     }
     $parsed.Assignments[0].Changed = $false
