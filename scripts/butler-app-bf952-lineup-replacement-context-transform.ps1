@@ -90,3 +90,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-952 Lineup Review replacement context de-count applied.'
+
+$bf953Transform = Join-Path $PSScriptRoot 'butler-app-bf953-lineup-hold-expert-merge-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf953Transform -PathType Leaf)) {
+    throw "BF-953 BLOCKED: Lineup Review hold/expert merge transform not found at $bf953Transform"
+}
+& $bf953Transform -CorePath $CorePath
