@@ -152,6 +152,16 @@ Projection holds:
     if ($replacementHtml -notmatch 'lineup-evidence-section' -or $replacementHtml -notmatch 'Back to review queue') {
         throw 'BF-947 must preserve compact evidence and review-queue return navigation together.'
     }
+    if ($review -notmatch 'Review 1 unresolved item' -or $review -notmatch '>1 ITEM</span>') {
+        throw 'BF-948 single unresolved hold must drive the first-scan decision title and queue badge.'
+    }
+    if ($rendered -notmatch 'Review 2 unresolved items' -or $rendered -notmatch '>2 ITEMS</span>') {
+        throw 'BF-949 must count manager decisions rather than a separate comparison-link task.'
+    }
+    if ($rendered -match 'Review WR comparisons:' -or
+        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Comparison evidence:.*href="#lineup-comparison-0"') {
+        throw 'BF-949 must keep the comparison link inside the projection-proposal queue item.'
+    }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {
