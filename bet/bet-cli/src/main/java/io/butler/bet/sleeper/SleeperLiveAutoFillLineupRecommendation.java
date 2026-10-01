@@ -331,6 +331,36 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 projectionsBySleeperId,
                 Set.copyOf(explicitlyUnavailablePlayerIds),
                 Set.copyOf(projectionHoldPlayerIds));
+        List<AutoFillLineupOptimizer.SlotRecommendation> withheldSwaps = new ArrayList<>();
+        // Re-evaluate after each batch of held bench candidates so replacement alternatives are checked too.
+        while (recommendation.ready()) {
+            boolean changed = false;
+            for (var assignment : recommendation.assignments()) {
+                if (!assignment.changed() || !LineupSwapReviewPolicy.conflictingUsage(assignment.projectedGain(),
+                    usage.get(assignment.currentPlayerId()), usage.get(assignment.recommendedPlayerId()))) continue;
+                var proposed = roster.targetPlayers().stream()
+                    .filter(p -> p.sleeperPlayerId().equals(assignment.recommendedPlayerId())).findFirst().orElse(null);
+                var current = roster.targetPlayers().stream()
+                    .filter(p -> p.sleeperPlayerId().equals(assignment.currentPlayerId())).findFirst().orElse(null);
+                if (proposed == null || !"BENCH".equals(proposed.rosterSlot())
+                    || current == null || !proposed.position().equals(current.position())
+                    || !Set.of("RB", "WR", "TE").contains(proposed.position())
+                    || !projectionHoldPlayerIds.add(proposed.sleeperPlayerId())) continue;
+                projectionsBySleeperId.remove(proposed.sleeperPlayerId());
+                withheldSwaps.add(assignment);
+                projectionHolds.add(new ProjectionHold(proposed.sleeperPlayerId(), display(proposed), proposed.rosterSlot(),
+                    proposed.lineupSlot(), null, null,
+                    "Close-call usage conflict: projected slot gain " + assignment.projectedGain()
+                        + " is at most 1 point, while current player's carries plus targets rose at least 25%"
+                        + " and proposed player's fell at least 50%, from baselines of at least four opportunities."
+                        + " Manual review required; candidate withheld from promotion. This conservative heuristic"
+                        + " does not prove future performance or a changed role."));
+                changed = true;
+            }
+            if (!changed) break;
+            recommendation = new AutoFillLineupOptimizer().optimize(roster.startingSlots(), optimizerRoster,
+                projectionsBySleeperId, Set.copyOf(explicitlyUnavailablePlayerIds), Set.copyOf(projectionHoldPlayerIds));
+        }
         if (!recommendation.ready()) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
@@ -382,12 +412,50 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 + (proposedAnalysis == null ? "Proposed player: no matched commentary. " : proposedAnalysis + " ")
                 + (currentAnalysis == null && proposedAnalysis == null ? analysisCoverage : ""));
         }
+        List<SwapReview> reviews = new ArrayList<>();
+        for (var assignment : withheldSwaps) {
+            reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason()));
+        }
+        for (var assignment : recommendation.assignments()) {
+            if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason()));
+        }
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
-            .withDecisionEvidence(decisionEvidence);
+            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews);
+    }
+
+    private static SwapReview swapReview(AutoFillLineupOptimizer.SlotRecommendation assignment,
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> usage, Map<String, String> analysis,
+        String analysisCoverage, boolean withheld, int season) {
+        var current = usage.get(assignment.currentPlayerId());
+        var proposed = usage.get(assignment.recommendedPlayerId());
+        boolean missing = current == null || proposed == null || !current.complete() || !proposed.complete();
+        boolean conflict = LineupSwapReviewPolicy.conflictingUsage(assignment.projectedGain(), current, proposed);
+        String reason = conflict
+            ? "Small projection edge conflicts with observed workload: current opportunities rose at least 25%; proposed opportunities fell at least 50%."
+            : missing ? "Usage coverage is incomplete; missing observations do not establish zero workload."
+            : "Usage is available, but it does not establish a better future role or a complete start/sit decision.";
+        return new SwapReview(assignment.starterOrdinal(), assignment.slot(), assignment.currentPlayerName(),
+            assignment.recommendedPlayerName(), assignment.projectedGain() == null ? "Unavailable" : assignment.projectedGain().toPlainString(),
+            withheld ? "WITHHELD_USAGE_CONFLICT" : conflict ? "MANUAL_REVIEW_USAGE_CONFLICT"
+                : missing ? "MANUAL_REVIEW_USAGE_GAP" : "MANUAL_REVIEW_PROJECTION_PROPOSAL",
+            reason + " NFL defensive matchup and expert start/sit picks remain unverified.",
+            current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
+            analysis.getOrDefault(assignment.currentPlayerId(), "No matched public commentary")
+                + " | " + analysis.getOrDefault(assignment.recommendedPlayerId(), "No matched public commentary")
+                + (analysis.isEmpty() ? ". " + analysisCoverage : "")
+                + ". Headlines are context, not extracted expert picks.",
+            List.of(io.butler.bet.intelligence.NflversePlayerWeekProductionImporter.statsUri(season).toString(),
+                NflverseRosterUsageProvider.snapsUri(season).toString(),
+                io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI.toString()));
+    }
+
+    public record SwapReview(int ordinal, String slot, String current, String proposed, String projectedGain,
+        String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources) {
+        public SwapReview { sources = List.copyOf(sources); }
     }
 
     private static ProjectionSource productionProjectionSource() {
@@ -542,9 +610,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         List<UnavailablePlayerExclusion> availabilityExclusions,
         List<ProjectionHold> projectionHolds,
         String projectionProvenance,
-        List<String> decisionEvidence) {
+        List<String> decisionEvidence,
+        List<SwapReview> swapReviews) {
         public RecommendationReport {
             decisionEvidence = List.copyOf(Objects.requireNonNull(decisionEvidence));
+            swapReviews = List.copyOf(Objects.requireNonNull(swapReviews));
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
             availabilityExclusions = List.copyOf(Objects.requireNonNull(
@@ -569,7 +639,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
                     || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null
-                    || !decisionEvidence.isEmpty()) {
+                    || !decisionEvidence.isEmpty() || !swapReviews.isEmpty()) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
             }
@@ -582,7 +652,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of());
+                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of());
         }
 
         public static RecommendationReport ready(
@@ -603,13 +673,19 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 POLICY_ID, true, null, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-                projectionHolds, projectionProvenance, List.of());
+                projectionHolds, projectionProvenance, List.of(), List.of());
         }
 
         RecommendationReport withDecisionEvidence(List<String> evidence) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
-                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence);
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence, swapReviews);
+        }
+
+        RecommendationReport withSwapReviews(List<SwapReview> reviews) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, decisionEvidence, reviews);
         }
     }
 

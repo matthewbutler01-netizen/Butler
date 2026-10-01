@@ -315,6 +315,46 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertEquals(new BigDecimal("5"), report.projectedGain());
         assertTrue(report.decisionEvidence().get(1).contains("Manual review required"));
         assertTrue(report.decisionEvidence().get(1).contains("role evidence unverified"));
+        assertEquals("MANUAL_REVIEW_USAGE_GAP", report.swapReviews().getFirst().status());
+    }
+
+    @Test
+    void closeProjectionEdgeCannotPromoteBenchPlayerAgainstOpposingUsageTrends() throws Exception {
+        Database database = initializedDatabase("league-close-usage-conflict");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "10.25")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, ids) -> Map.of("s-wr-a", workload(6, 9), "s-wr-b", workload(7, 2)))
+            .recommend(rosterReport("league-close-usage-conflict"));
+        assertTrue(report.ready());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertEquals(BigDecimal.ZERO, report.projectedGain());
+        assertEquals("s-wr-b", report.projectionHolds().getFirst().sleeperPlayerId());
+        assertEquals("WITHHELD_USAGE_CONFLICT", report.swapReviews().getFirst().status());
+        assertEquals("0.25", report.swapReviews().getFirst().projectedGain());
+        assertTrue(report.swapReviews().getFirst().currentUsage().contains("targets 9"));
+        assertTrue(report.swapReviews().getFirst().proposedUsage().contains("targets 2"));
+    }
+
+    @Test
+    void largerProjectionEdgeRetainsManualProposalWithoutSyntheticPointAdjustment() throws Exception {
+        Database database = initializedDatabase("league-large-usage-conflict");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, ids) -> Map.of("s-wr-a", workload(6, 9), "s-wr-b", workload(7, 2)))
+            .recommend(rosterReport("league-large-usage-conflict"));
+        assertEquals(new BigDecimal("5"), report.projectedGain());
+        assertTrue(report.projectionHolds().isEmpty());
+        assertEquals("MANUAL_REVIEW_PROJECTION_PROPOSAL", report.swapReviews().getFirst().status());
+    }
+
+    private static NflverseRosterUsageProvider.UsageEvidence workload(int beforeTargets, int afterTargets) {
+        return new NflverseRosterUsageProvider.UsageEvidence(false, "Observed workload", List.of(
+            new NflverseRosterUsageProvider.WeekUsage(2, 0, beforeTargets, 50, .8),
+            new NflverseRosterUsageProvider.WeekUsage(3, 0, afterTargets, 50, .8)), "2026-10-01T06:00:00Z");
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {

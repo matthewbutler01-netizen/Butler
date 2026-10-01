@@ -17,7 +17,7 @@ $evidenceAnchor = '        SourceSurface = $sourceSurface.Groups[''value''].Valu
 if (-not $core.Contains($evidenceAnchor)) {
     throw 'BF-943 BLOCKED: lineup decision evidence parser anchor is missing.'
 }
-$core = $core.Replace($evidenceAnchor, $evidenceAnchor + "`n" + '        DecisionEvidence = @([regex]::Matches($Text, ''(?m)^Decision evidence: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() })')
+$core = $core.Replace($evidenceAnchor, $evidenceAnchor + "`n" + '        DecisionEvidence = @([regex]::Matches($Text, ''(?m)^Decision evidence: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() })' + "`n" + '        SwapReviews = @([regex]::Matches($Text, ''(?m)^Decision review: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() | ConvertFrom-Json })')
 
 $functionStart = $core.IndexOf('function ConvertTo-AutoFillHtml {', [System.StringComparison]::Ordinal)
 $functionEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $functionStart, [System.StringComparison]::Ordinal)
@@ -46,21 +46,51 @@ if ($returnPos -lt 0) {
 }
 
 $disclosureSetup = @'
-    $holdEvidenceHtml = '<p class="meta">Projection-based proposals after availability and usage review holds. Sharp verified drops in snaps and workload prevent automatic promotion. Review the sources and gaps below before changing your lineup; expert start/sit picks and NFL defensive matchup evidence remain unverified.</p>'
-    if ($null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
-        foreach ($evidence in @($AutoFill.DecisionEvidence)) {
-            $holdEvidenceHtml += "<details><summary>Why this projected change needs review</summary><p>$(ConvertTo-HtmlText $evidence)</p></details>"
+    $decisionTitle = if ($changedCount -gt 0) { "Review $changedCount projection proposal(s)" } else { 'No projection proposals after review holds' }
+    $decisionCopy = 'Manual review required. Projections do not establish a complete start/sit decision when role, matchup, or expert evidence is incomplete.'
+    $decisionStatus = 'MANUAL REVIEW'
+    $decisionStatusClass = 'warn'
+    $recommendedMetricLabel = if ($partialCoverage) { 'Comparable proposed' } else { 'Proposed projection' }
+    $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals. Review holds and evidence gaps before changing your lineup."
+    $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review; expert start/sit picks and NFL defensive matchup evidence remain unverified.</p>'
+    $structuredReviews = @()
+    if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
+    foreach ($review in $structuredReviews) {
+        $reviewLabel = if ([string]$review.status -ceq 'WITHHELD_USAGE_CONFLICT') { 'WITHHELD: USAGE CONFLICT' } else { 'MANUAL REVIEW' }
+        $sourcesHtml = ''
+        $sourceLabels = @('Weekly usage data', 'Offensive snaps', 'Player identity crosswalk')
+        $sourceIndex = 0
+        foreach ($source in @($review.sources)) {
+            $uri = $null
+            if ([uri]::TryCreate([string]$source, [System.UriKind]::Absolute, [ref]$uri) -and
+                $uri.Scheme -ceq 'https' -and $uri.Host -in @('github.com', 'raw.githubusercontent.com')) {
+                $label = if ($sourceIndex -lt $sourceLabels.Count) { $sourceLabels[$sourceIndex] } else { 'Source' }
+                $sourcesHtml += "<a href=`"$(ConvertTo-HtmlText $source)`" target=`"_blank`" rel=`"noopener noreferrer`">$(ConvertTo-HtmlText $label)</a> "
+            }
+            $sourceIndex++
         }
+        $holdEvidenceHtml += "<section class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p><p>$(ConvertTo-HtmlText $review.reason)</p><table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table><details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
+    }
+    if ($structuredReviews.Count -eq 0 -and $null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
+        $extraEvidence = ''
+        foreach ($evidence in @($AutoFill.DecisionEvidence)) {
+            $extraEvidence += "<p>$(ConvertTo-HtmlText $evidence)</p>"
+        }
+        if ($extraEvidence.Length -gt 0) { $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Additional evidence and gaps</summary>$extraEvidence</details>" }
     }
     foreach ($hold in @($AutoFill.ProjectionHolds)) {
         if ($null -ne $hold.PSObject.Properties['Reason']) {
-            $holdEvidenceHtml += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $hold.Name): review before starting</strong><p>$(ConvertTo-HtmlText $hold.Reason)</p></div>"
+            $holdSummary = if ([string]$hold.Reason -like 'Close-call usage conflict:*') { 'Close projection edge conflicts with recent workload.' }
+                elseif ([string]$hold.Reason -like 'Usage review hold:*') { 'Observed snaps and workload declined sharply.' }
+                elseif ([string]$hold.Reason -like 'Availability hold:*') { 'Availability needs clearance before promotion.' }
+                else { 'Usable weekly projection evidence is incomplete.' }
+            $holdEvidenceHtml += "<details class=`"callout swap-review-card`"><summary>$(ConvertTo-HtmlText $hold.Name): review hold</summary><p>$holdSummary</p><p>$(ConvertTo-HtmlText $hold.Reason)</p></details>"
         }
     }
     $unchangedCount = @($AutoFill.Assignments | Where-Object { -not $_.Changed }).Count
     $lineupFocusHtml = if ($changedCount -gt 0) {
         $changeWord = if ($changedCount -eq 1) { 'change' } else { 'changes' }
-        "<div class=`"lineup-focus`"><div class=`"lineup-focus-head`"><div><span class=`"eyebrow`">Actionable lineup</span><h3>$changedCount $changeWord to review</h3></div><span class=`"status good`">CHANGES FIRST</span></div><div class=`"lineup-board`">$rows</div></div>"
+        "<div class=`"lineup-focus`"><div class=`"lineup-focus-head`"><div><span class=`"eyebrow`">Projection proposals</span><h3>$changedCount $changeWord to review</h3></div><span class=`"status warn`">CHANGES FIRST</span></div><div class=`"lineup-board`">$rows</div></div>"
     }
     else {
         '<div class="lineup-focus lineup-clear"><div class="lineup-focus-head"><div><span class="eyebrow">Lineup proposals</span><h3>No projected changes after holds</h3></div><span class="status done">NO PROPOSALS</span></div><p class="meta">No higher projected lineup was found among the evaluated players. Review holds and evidence gaps before treating this as a complete lineup assessment. The unchanged lineup remains available below.</p></div>'
@@ -83,6 +113,10 @@ if ($boardCount -ne 1) {
 }
 $function = $function.Replace($oldBoard, '$holdEvidenceHtml$lineupFocusHtml$unchangedDisclosure')
 $function = $function.Substring(0, $returnPos) + $disclosureSetup + $function.Substring($returnPos)
+$function = $function.Replace('<h3>Start</h3>', '<h3>Proposed promotion</h3>').Replace('<h3>Sit</h3>', '<h3>Proposed bench move</h3>')
+$function = $function.Replace('<small>Recommended</small>', '<small>Candidate</small>')
+$function = $function.Replace("'CHANGE'", "'REVIEW'")
+$function = $function.Replace('<strong>Promote to lineup</strong>', '<strong>Proposed promotion</strong>').Replace('<strong>Move to bench</strong>', '<strong>Proposed bench move</strong>')
 
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
 
@@ -98,6 +132,7 @@ if ($cssTerminator -lt 0) {
 }
 $css = @'
 /* BF-943 changes-first lineup progressive disclosure. */
+.swap-review-card{margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.swap-review-card h3{margin-top:0}.swap-usage-table{width:100%;table-layout:fixed;border-collapse:collapse;margin:12px 0}.swap-usage-table caption{text-align:left;font-weight:700;margin-bottom:6px}.swap-usage-table th,.swap-usage-table td{padding:10px;vertical-align:top;text-align:left;border:1px solid var(--line);overflow-wrap:anywhere}.swap-review-sources{display:flex;flex-wrap:wrap;gap:12px}.swap-review-card summary{cursor:pointer;font-weight:700}
 .lineup-focus{margin-top:18px}.lineup-focus-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:10px}.lineup-focus-head h3{margin:2px 0 0}.lineup-focus .lineup-row:not(.changed){display:none}.lineup-clear{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft)}.lineup-unchanged{margin-top:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft);overflow:hidden}.lineup-unchanged>summary{cursor:pointer;padding:14px 16px;font-weight:800;list-style-position:inside}.lineup-unchanged[open]>summary{border-bottom:1px solid var(--line)}.lineup-unchanged .lineup-row.changed{display:none}.lineup-unchanged .lineup-board{padding:10px 12px 12px}@media(max-width:900px){.lineup-focus-head{flex-direction:column;align-items:flex-start}.lineup-unchanged .lineup-board{padding:8px}}
 /* Respond to the advisor panel width, including narrow desktop sidebars. */
 .lineup-board{container-type:inline-size;container-name:lineup-board}.lineup-row>*{min-width:0}.lineup-choice strong{overflow-wrap:anywhere}.lineup-row .lineup-swap-action{grid-column:1/-1;justify-content:flex-start;min-width:0}.lineup-row .lineup-swap-compare{max-width:100%;white-space:normal}

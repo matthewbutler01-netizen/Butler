@@ -30,6 +30,13 @@ public final class ButlerAutoFillLineupRecommendationCli {
         System.out.println("Current projected starter total: " + points(report.currentProjectedTotal()));
         System.out.println("Recommended projected starter total: " + points(recommendation.projectedTotal()));
         System.out.println("Projected gain: " + signedPoints(report.projectedGain()));
+        for (var review : report.swapReviews()) {
+            try {
+                System.out.println("Decision review: " + new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(review));
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                throw new IllegalStateException("Unable to render structured swap review", e);
+            }
+        }
         for (String evidence : report.decisionEvidence()) {
             System.out.println("Decision evidence: " + evidence);
         }

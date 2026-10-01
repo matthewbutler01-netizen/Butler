@@ -11,7 +11,7 @@ try {
     $errors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'butler-app-shell-core-single.ps1'), [ref]$tokens, [ref]$errors)
     if (@($errors).Count -ne 0) { throw 'Staged core has parse errors.' }
-    foreach ($name in @('ConvertTo-HtmlText', 'ConvertTo-AutoFillHtml')) {
+    foreach ($name in @('ConvertTo-HtmlText', 'ConvertTo-AutoFillView', 'Get-LineupSwapCompareHref', 'Get-MatchupLineupDecisionView', 'ConvertTo-AutoFillHtml')) {
         $function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }.GetNewClosure(), $true)
         if ($null -eq $function) { throw "Missing staged function: $name" }
         . ([scriptblock]::Create($function.Extent.Text))
@@ -38,6 +38,46 @@ try {
         $review -notmatch 'Review holds and evidence gaps' -or $review -notmatch 'expert start/sit picks') {
         throw 'Partial review must retain evidence gaps instead of implying a complete all-keep decision.'
     }
+    $structured = [pscustomobject]@{
+        ordinal = 0; slot = 'WR'; current = 'Current Player'; proposed = 'Candidate <unsafe>'
+        projectedGain = '0.25'; status = 'WITHHELD_USAGE_CONFLICT'; reason = 'Conflicting workload needs review'
+        currentUsage = 'Week 2: targets 6; Week 3: targets 9'; proposedUsage = 'Week 2: targets 7; Week 3: targets 2'
+        commentary = 'Expert picks unverified'; sources = @('https://github.com/nflverse/nflverse-data', 'javascript:alert(1)')
+    }
+    $fixture = @"
+State: READY
+Season/week: 2026/4
+Scoring basis: PPR
+Projection source: Sleeper
+Projection source surface: https://api.sleeper.app
+Projection coverage: FULL
+Current projected starter total: 10
+Recommended projected starter total: 10.25
+Projected gain: +0.25
+Decision review: $($structured | ConvertTo-Json -Compress -Depth 5)
+Recommended lineup:
+  #0 WR | current=Current Player [1] | recommended=Candidate [2] | projected=10.25 | action=CHANGE
+  #0 projection_delta | current=10 | recommended=10.25 | gain=+0.25
+Moves to bench:
+  Current Player [1]
+Promotions to starting lineup:
+  Candidate [2]
+Availability exclusions:
+  none
+Projection holds:
+  none
+"@
+    $parsed = ConvertTo-AutoFillView -Text $fixture
+    if (@($parsed.SwapReviews).Count -ne 1) { throw 'Structured swap review parser lost the exact review.' }
+    $rendered = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($rendered -notmatch 'WITHHELD: USAGE CONFLICT' -or $rendered -notmatch '<table' -or
+        $rendered -notmatch 'targets 9' -or $rendered -notmatch 'Sources and commentary' -or
+        $rendered -notmatch '&lt;unsafe&gt;' -or $rendered -match '<unsafe>|javascript:|Make 1 lineup|<h3>Start</h3>|<h3>Sit</h3>') {
+        throw 'Structured comparison, manual-review wording, escaping, or source-link safety failed.'
+    }
+    $matchup = Get-MatchupLineupDecisionView -AutoFill $parsed
+    if ($matchup.Status -cne 'MANUAL REVIEW' -or $matchup.Title -match '^Make ' -or
+        $matchup.ActionHref -cne '/team/autofill') { throw 'Matchup decision qualification or review navigation failed.' }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {

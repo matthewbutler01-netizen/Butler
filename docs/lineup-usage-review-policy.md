@@ -40,6 +40,24 @@ manual-review gap, rather than claiming evidence support. Public ESPN headline c
 is attributed but no expert start/sit pick or consensus is extracted. NFL defensive
 matchup evidence and the broader multi-factor ranking remain unimplemented.
 
+## Close projection conflicts
+
+A same-position RB/WR/TE bench promotion is withheld when its projected slot gain
+is positive but at most one point, the current player's observed carries plus targets
+rose at least 25%, and the candidate's fell at least 50%. Both earlier-week baselines
+must contain at least four opportunities. This is a conservative review heuristic,
+not a statistically calibrated tie-breaker. Missing usage cannot trigger this rule.
+QB passing workload and cross-position comparisons are excluded.
+
+The optimizer runs again after withholding candidates; it checks replacement proposals
+until no additional candidate meets this rule. Withheld candidates stay visible as
+review comparisons, with the rejected projection edge clearly identified.
+
+All remaining swaps are projection proposals requiring manual review, even with complete
+usage, because defensive matchup and expert start/sit picks are unverified. My Team and
+Matchup use qualified wording rather than directing a user to make changes. Each swap
+has one structured comparison with compact usage, check times, and source links.
+
 ## Validation
 
 Focused tests cover concurrent drops, stable participation, missing weeks, wrong seasons,

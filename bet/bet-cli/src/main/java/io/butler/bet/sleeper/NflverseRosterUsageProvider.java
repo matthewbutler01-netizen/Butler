@@ -78,7 +78,7 @@ final class NflverseRosterUsageProvider {
             if (id == null || !requested.contains(id)) continue;
             int rowWeek = integer(row, "week");
             double pct = Double.parseDouble(value(row, "offense_pct"));
-        int count = integer(row, "offense_snaps");
+            int count = integer(row, "offense_snaps");
             if (!Double.isFinite(pct) || pct < 0 || pct > 1) throw new IllegalStateException("Invalid snap share");
             if (snaps.computeIfAbsent(id, key -> new LinkedHashMap<>())
                 .putIfAbsent(rowWeek, new Snap(count, pct)) != null)
@@ -105,7 +105,9 @@ final class NflverseRosterUsageProvider {
                 + NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI
                 + ". Two-week observations do not establish the cause or confirm a depth-chart change."
                 + " Carries plus targets is an opportunity count, not touches or QB passing workload.";
-            result.put(id, new UsageEvidence(hold, detail));
+            result.put(id, new UsageEvidence(hold, detail, List.of(
+                new WeekUsage(week - 2, previous.carries(), previous.targets(), previousSnap.count(), previousSnap.share()),
+                new WeekUsage(week - 1, recent.carries(), recent.targets(), recentSnap.count(), recentSnap.share())), checkedAt.toString()));
         }
         return Map.copyOf(result);
     }
@@ -146,7 +148,21 @@ final class NflverseRosterUsageProvider {
         } catch (NumberFormatException e) { throw new IllegalStateException("Invalid usage value for " + key, e); }
     }
     private static String percent(double fraction) { return String.format(java.util.Locale.ROOT, "%.1f%%", fraction * 100); }
-    record UsageEvidence(boolean reviewHold, String detail) {}
+    record UsageEvidence(boolean reviewHold, String detail, List<WeekUsage> weeks, String checkedAt) {
+        UsageEvidence { weeks = List.copyOf(weeks); }
+        UsageEvidence(boolean reviewHold, String detail) { this(reviewHold, detail, List.of(), "not verified"); }
+        boolean complete() { return weeks.size() == 2; }
+        String summary() {
+            if (!complete()) return "Usage not verified";
+            return weeks.stream().map(w -> "Week " + w.week() + ": carries " + w.carries()
+                + ", targets " + w.targets() + ", offensive snaps " + w.snaps()
+                + " (" + percent(w.share()) + ")").collect(java.util.stream.Collectors.joining("; "))
+                + "; checked " + checkedAt;
+        }
+    }
+    record WeekUsage(int week, int carries, int targets, int snaps, double share) {
+        int opportunities() { return carries + targets; }
+    }
     private record Workload(int carries, int targets) { int opportunities() { return carries + targets; } }
     private record Snap(int count, double share) {}
     private record Cached(String body, Instant expires) {}
