@@ -82,3 +82,9 @@ if (@($parseErrors).Count -gt 0) {
     throw "BF-948 BLOCKED: generated staged core failed PowerShell parse: $summary"
 }
 Write-Host 'BF-948 Lineup Review unresolved-item count applied.'
+
+$bf949Transform = Join-Path $PSScriptRoot 'butler-app-bf949-lineup-review-dedup-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf949Transform -PathType Leaf)) {
+    throw "BF-949 BLOCKED: Lineup Review queue de-duplication transform not found at $bf949Transform"
+}
+& $bf949Transform -CorePath $CorePath
