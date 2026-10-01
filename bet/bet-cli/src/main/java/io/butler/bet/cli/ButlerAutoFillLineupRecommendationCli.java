@@ -30,6 +30,9 @@ public final class ButlerAutoFillLineupRecommendationCli {
         System.out.println("Current projected starter total: " + points(report.currentProjectedTotal()));
         System.out.println("Recommended projected starter total: " + points(recommendation.projectedTotal()));
         System.out.println("Projected gain: " + signedPoints(report.projectedGain()));
+        for (String evidence : report.decisionEvidence()) {
+            System.out.println("Decision evidence: " + evidence);
+        }
         System.out.println("Recommended lineup:");
         for (var assignment : recommendation.assignments()) {
             System.out.println("  #" + assignment.starterOrdinal() + " " + assignment.slot()
