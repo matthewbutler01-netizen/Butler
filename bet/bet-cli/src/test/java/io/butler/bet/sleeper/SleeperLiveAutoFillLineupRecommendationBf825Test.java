@@ -252,18 +252,21 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             "butler-wr-b", 2026, 1, 0, 0, 0, 20, 0, 3, 30, 0, 0, "nflverse", date));
         repository.save(io.butler.bet.domain.PlayerWeekProduction.create(
             "butler-wr-b", 2026, 2, 0, 0, 0, 999, 0, 99, 999, 0, 0, "nflverse", date));
+        repository.save(io.butler.bet.domain.PlayerWeekProduction.create(
+            "butler-wr-b", 2026, 1, 0, 0, 0, 888, 0, 88, 888, 0, 0, "nflverse", date.plusDays(2)));
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
             (season, week, scoring) -> projections).recommend(rosterReport("league-decision-evidence"));
         assertTrue(report.ready());
-        assertEquals(2, report.decisionEvidence().size());
+        assertEquals(3, report.decisionEvidence().size());
         String evidence = report.decisionEvidence().getFirst();
         assertTrue(evidence.contains("receptions=3"));
         assertTrue(evidence.contains("carries=unavailable in this schema"));
         assertTrue(evidence.contains("missing data is not zero usage"));
         assertTrue(evidence.contains("expert start/sit advice: not verified"));
         assertFalse(evidence.contains("999"));
+        assertFalse(evidence.contains("888"));
     }
 
     @Test
@@ -277,9 +280,41 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             .recommend(rosterReport("league-public-analysis"));
         assertTrue(report.ready());
         assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
-        assertTrue(report.decisionEvidence().get(1).contains("Example Writer"));
-        assertTrue(report.decisionEvidence().get(1).contains("https://www.espn.com/example"));
-        assertTrue(report.decisionEvidence().get(1).contains("Current player: no matched commentary"));
+        assertTrue(report.decisionEvidence().get(2).contains("Example Writer"));
+        assertTrue(report.decisionEvidence().get(2).contains("https://www.espn.com/example"));
+        assertTrue(report.decisionEvidence().get(2).contains("Current player: no matched commentary"));
+    }
+
+    @Test
+    void verifiedUsageRiskPreventsHigherProjectedBenchPromotion() throws Exception {
+        Database database = initializedDatabase("league-usage-risk");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, ids) -> Map.of("s-wr-b",
+                new NflverseRosterUsageProvider.UsageEvidence(true, "Verified snap/workload decline; source=example")))
+            .recommend(rosterReport("league-usage-risk"));
+        assertTrue(report.ready());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertEquals(BigDecimal.ZERO, report.projectedGain());
+        assertEquals(1, report.projectionHolds().size());
+        assertTrue(report.projectionHolds().getFirst().reason().contains("Usage review hold"));
+    }
+
+    @Test
+    void unavailableUsageLeavesProposalExplicitlyPendingManualReview() throws Exception {
+        Database database = initializedDatabase("league-usage-failure");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, ids) -> { throw new IOException("source down"); })
+            .recommend(rosterReport("league-usage-failure"));
+        assertTrue(report.ready());
+        assertEquals(new BigDecimal("5"), report.projectedGain());
+        assertTrue(report.decisionEvidence().get(1).contains("Manual review required"));
+        assertTrue(report.decisionEvidence().get(1).contains("role evidence unverified"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {

@@ -46,7 +46,7 @@ if ($returnPos -lt 0) {
 }
 
 $disclosureSetup = @'
-    $holdEvidenceHtml = '<p class="meta">Projection baseline with current availability and recent ESPN headline review signals. News coverage may be incomplete; expert analysis is not yet included.</p>'
+    $holdEvidenceHtml = '<p class="meta">Projection-based proposals after availability and usage review holds. Sharp verified drops in snaps and workload prevent automatic promotion. Review the sources and gaps below before changing your lineup; expert start/sit picks and NFL defensive matchup evidence remain unverified.</p>'
     if ($null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
         foreach ($evidence in @($AutoFill.DecisionEvidence)) {
             $holdEvidenceHtml += "<details><summary>Why this projected change needs review</summary><p>$(ConvertTo-HtmlText $evidence)</p></details>"
@@ -63,7 +63,7 @@ $disclosureSetup = @'
         "<div class=`"lineup-focus`"><div class=`"lineup-focus-head`"><div><span class=`"eyebrow`">Actionable lineup</span><h3>$changedCount $changeWord to review</h3></div><span class=`"status good`">CHANGES FIRST</span></div><div class=`"lineup-board`">$rows</div></div>"
     }
     else {
-        '<div class="lineup-focus lineup-clear"><div class="lineup-focus-head"><div><span class="eyebrow">Actionable lineup</span><h3>No lineup changes to review</h3></div><span class="status done">ALL KEEP</span></div><p class="meta">Butler found no proven START/SIT change in the scoreable weekly frame. The full unchanged lineup remains available below.</p></div>'
+        '<div class="lineup-focus lineup-clear"><div class="lineup-focus-head"><div><span class="eyebrow">Lineup proposals</span><h3>No projected changes after holds</h3></div><span class="status done">NO PROPOSALS</span></div><p class="meta">No higher projected lineup was found among the evaluated players. Review holds and evidence gaps before treating this as a complete lineup assessment. The unchanged lineup remains available below.</p></div>'
     }
 
     $unchangedDisclosure = if ($unchangedCount -gt 0) {
@@ -110,7 +110,7 @@ $core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
 foreach ($required in @(
     'View $unchangedCount unchanged lineup $slotWord',
     'CHANGES FIRST',
-    'ALL KEEP',
+    'NO PROPOSALS',
     '$lineupFocusHtml',
     '$unchangedDisclosure',
     'Compare this swap',

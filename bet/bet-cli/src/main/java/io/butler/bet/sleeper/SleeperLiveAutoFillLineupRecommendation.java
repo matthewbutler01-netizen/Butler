@@ -31,10 +31,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final AvailabilitySource availabilitySource;
     private final NewsSource newsSource;
     private final NewsSource analysisSource;
+    private final UsageSource usageSource;
     private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
+    private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
-        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load, SHARED_NEWS_PROVIDER::loadAnalysis);
+        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
+            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -55,6 +58,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, (season, week, ids) -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource) {
+        this.usageSource = Objects.requireNonNull(usageSource, "usageSource must not be null");
         this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
         this.newsSource = Objects.requireNonNull(newsSource, "newsSource must not be null");
         this.database = Objects.requireNonNull(database, "database must not be null");
@@ -291,6 +300,30 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
 
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> usage = Map.of();
+        String usageCoverage = "Recent snap/target usage unavailable; missing observations are not zero usage. Manual review required.";
+        try {
+            usage = Objects.requireNonNull(usageSource.load(roster.providerSeason(), roster.providerLeg(), Set.copyOf(activeIds)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            usageCoverage = "Usage source check interrupted; role evidence unverified. Manual review required.";
+        } catch (IOException | IllegalStateException | NullPointerException e) {
+            usageCoverage = "Usage source unavailable or inconsistent; role evidence unverified. Manual review required.";
+        }
+        for (var target : roster.targetPlayers()) {
+            var observation = usage.get(target.sleeperPlayerId());
+            if (observation == null || !observation.reviewHold()
+                || !Set.of("RB", "WR", "TE").contains(target.position())
+                || !projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
+            projectionsBySleeperId.remove(target.sleeperPlayerId());
+            projectionHoldPlayerIds.add(target.sleeperPlayerId());
+            projectionHolds.add(new ProjectionHold(target.sleeperPlayerId(), display(target), target.rosterSlot(),
+                target.lineupSlot(), null, null, "Usage review hold: " + observation.detail()
+                    + " Conservative policy: at least 50% fewer carries plus targets and at least 20 percentage points"
+                    + " lower snap share, from a prior baseline of at least four opportunities and 40% snaps."
+                    + " Preserved current lineup state; excluded from promotions. This is not an injury designation."));
+        }
+
         AutoFillLineupOptimizer.Recommendation recommendation = new AutoFillLineupOptimizer()
             .optimize(
                 roster.startingSlots(),
@@ -319,6 +352,16 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
+        for (var assignment : recommendation.assignments()) {
+            if (!assignment.changed()) continue;
+            var currentUsage = usage.get(assignment.currentPlayerId());
+            var proposedUsage = usage.get(assignment.recommendedPlayerId());
+            decisionEvidence.add("Usage review for " + assignment.currentPlayerName() + " -> "
+                + assignment.recommendedPlayerName() + ": Current player: "
+                + (currentUsage == null ? usageCoverage : currentUsage.detail()) + " Proposed player: "
+                + (proposedUsage == null ? usageCoverage : proposedUsage.detail())
+                + " Ranking remains projection-based after availability and usage holds; matchup and expert start/sit picks remain unverified.");
+        }
         Map<String, String> analysis = Map.of();
         String analysisCoverage = "No matching recent public analysis was found; this is not expert consensus.";
         try {
@@ -432,6 +475,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     }
 
     @FunctionalInterface
+    interface UsageSource {
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> load(int season, int week, Set<String> ids)
+            throws IOException, InterruptedException;
+    }
+
     interface NewsSource {
         Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
             throws IOException, InterruptedException;

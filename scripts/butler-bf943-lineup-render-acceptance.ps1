@@ -34,6 +34,10 @@ try {
         $review -notmatch '&lt;unsafe&gt;' -or $review -match '<unsafe>') {
         throw 'Decision or injury evidence is missing or not HTML escaped.'
     }
+    if ($review -notmatch 'NO PROPOSALS' -or $review -match 'ALL KEEP' -or
+        $review -notmatch 'Review holds and evidence gaps' -or $review -notmatch 'expert start/sit picks') {
+        throw 'Partial review must retain evidence gaps instead of implying a complete all-keep decision.'
+    }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {
