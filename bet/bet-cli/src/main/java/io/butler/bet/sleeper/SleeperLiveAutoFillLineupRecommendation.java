@@ -432,8 +432,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 + (proposedAnalysis == null ? "Proposed player: no matched commentary. " : proposedAnalysis + " ")
                 + (currentAnalysis == null && proposedAnalysis == null ? analysisCoverage : ""));
         }
+        List<ExpertPick> expertPicks = List.of();
+        try { expertPicks = expertSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Map<String, String> matchups = Map.of();
-        if (!withheldSwaps.isEmpty() || recommendation.assignments().stream().anyMatch(a -> a.changed())) {
+        if (!withheldSwaps.isEmpty() || recommendation.assignments().stream().anyMatch(a -> a.changed())
+            || !projectionHolds.isEmpty() || expertPicks.stream().anyMatch(p -> "SIT".equals(p.selection()))) {
             try {
                 matchups = matchupSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers());
             } catch (InterruptedException e) {
@@ -442,15 +446,48 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 // Optional evidence failure leaves the proposal qualified for manual review.
             }
         }
-        List<ExpertPick> expertPicks = List.of();
-        try { expertPicks = expertSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()); }
-        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         List<SwapReview> reviews = new ArrayList<>();
         for (var assignment : withheldSwaps) {
             reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason(), matchups));
         }
         for (var assignment : recommendation.assignments()) {
             if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups));
+        }
+        var eligibility = new io.butler.bet.intelligence.LineupSlotEligibilityPolicy();
+        for (var starter : optimizerRoster) {
+            if (starter.rosterSlot() != AutoFillLineupOptimizer.RosterSlot.STARTER) continue;
+            var starterPicks = expertPicks.stream().filter(p -> starter.playerId().equals(p.playerId())).toList();
+            boolean expertSit = starterPicks.size() == 1 && "SIT".equals(starterPicks.get(0).selection());
+            if (!expertSit && !projectionHoldPlayerIds.contains(starter.playerId())) continue;
+            List<AutoFillLineupOptimizer.RosterPlayer> alternatives = new ArrayList<>();
+            for (var bench : optimizerRoster) {
+                if (bench.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.BENCH
+                    && !explicitlyUnavailablePlayerIds.contains(bench.playerId())
+                    && !projectionHoldPlayerIds.contains(bench.playerId())
+                    && projectionsBySleeperId.containsKey(bench.playerId())
+                    && eligibility.isPlayerEligible(starter.currentLineupSlot(), bench.providerFantasyPositions())) alternatives.add(bench);
+            }
+            alternatives.sort(java.util.Comparator.<AutoFillLineupOptimizer.RosterPlayer, BigDecimal>comparing(
+                p -> projectionsBySleeperId.get(p.playerId())).reversed().thenComparing(p -> p.playerId()));
+            if (alternatives.isEmpty()) decisionEvidence.add("Replacement review for " + starter.displayName()
+                + ": no eligible, scoreable bench alternative remains after availability and review holds. This does not establish that the starter should play.");
+            for (var bench : alternatives.stream().limit(3).toList()) {
+                BigDecimal currentPoints = projectionsBySleeperId.get(starter.playerId());
+                BigDecimal benchPoints = projectionsBySleeperId.get(bench.playerId());
+                var comparison = new AutoFillLineupOptimizer.SlotRecommendation(starter.starterOrdinal(), starter.currentLineupSlot(),
+                    starter.playerId(), starter.displayName(), bench.playerId(), bench.displayName(), currentPoints, benchPoints,
+                    currentPoints == null ? null : benchPoints.subtract(currentPoints), true);
+                var evidence = swapReview(comparison, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups);
+                var benchPicks = expertPicks.stream().filter(p -> bench.playerId().equals(p.playerId())).toList();
+                String expertContext = " Current expert: " + (expertSit ? "SIT by " + starterPicks.get(0).author() : "unverified")
+                    + "; candidate expert: " + (benchPicks.size() == 1 && Set.of("START", "SIT").contains(benchPicks.get(0).selection())
+                        ? benchPicks.get(0).selection() + " by " + benchPicks.get(0).author() : "unverified") + ".";
+                reviews.add(new SwapReview(evidence.ordinal(), evidence.slot(), evidence.current(), evidence.proposed(), evidence.projectedGain(),
+                    "MANUAL_REVIEW_REPLACEMENT", "Bench alternative for a flagged starter; comparison only, not a proposed lineup move."
+                        + " Up to three alternatives ordered by available projection; alternatives across slots are independent and cannot be combined without checking lineup legality."
+                        + expertContext + " Existing holds remain. " + evidence.reason(), evidence.currentUsage(), evidence.proposedUsage(),
+                    evidence.commentary(), evidence.sources(), evidence.currentMatchup(), evidence.proposedMatchup()));
+            }
         }
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,

@@ -91,6 +91,11 @@ Projection holds:
     $ambiguous = ConvertTo-AutoFillHtml -AutoFill $parsed
     if ($ambiguous -match 'current starter with an attributed SIT selection') { throw 'Duplicate expert IDs must not establish a starter conflict.' }
     $parsed.ExpertPicks = $originalPicks
+    $savedReviewStatus = $parsed.SwapReviews[0].status
+    $parsed.SwapReviews[0].status = 'MANUAL_REVIEW_REPLACEMENT'
+    $replacementHtml = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($replacementHtml -notmatch '<summary>Bench comparison:' -or $replacementHtml -notmatch 'BENCH ALTERNATIVE: REVIEW ONLY') { throw 'Replacement comparisons must be collapsed and labeled review-only.' }
+    $parsed.SwapReviews[0].status = $savedReviewStatus
     $savedPicks = $parsed.ExpertPicks
     $parsed.ExpertPicks = @($savedPicks | Where-Object { $_.selection -ceq 'UNVERIFIED' })
     $gapsOnly = ConvertTo-AutoFillHtml -AutoFill $parsed

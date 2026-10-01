@@ -30,6 +30,60 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     Path tempDir;
 
     @Test
+    void expertSitStarterGetsLowerProjectedBenchComparisonWithoutChangingLineup() throws Exception {
+        Database database = initializedDatabase("league-replacement");
+        var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "8")));
+        var pick = new SleeperLiveAutoFillLineupRecommendation.ExpertPick("s-wr-a", "Different source name", "WR", "SIT",
+            "Test Author", "2026-09-30T17:00:00Z", "2026-09-30T18:00:00Z", "2026-10-01T07:00:00Z",
+            "https://www.nfl.com/news/test", "One author");
+        var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
+            ids -> Map.of(), players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
+            (season, week, players) -> Map.of("s-wr-b", "Candidate matchup"), (season, week, players) -> List.of(pick))
+            .recommend(rosterReport("league-replacement"));
+        assertTrue(report.ready());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertEquals(BigDecimal.ZERO, report.projectedGain());
+        var comparisons = report.swapReviews().stream().filter(r -> "MANUAL_REVIEW_REPLACEMENT".equals(r.status())).toList();
+        assertEquals(1, comparisons.size());
+        assertEquals("-2", comparisons.get(0).projectedGain());
+        assertEquals("Candidate matchup", comparisons.get(0).proposedMatchup());
+        assertTrue(comparisons.get(0).reason().contains("SIT by Test Author"));
+        assertTrue(comparisons.get(0).reason().contains("candidate expert: unverified"));
+    }
+
+    @Test
+    void heldStarterComparisonDoesNotInventProjectionDelta() throws Exception {
+        Database database = initializedDatabase("league-held-starter-review");
+        var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "8")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
+            ids -> Map.of("s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Questionable")),
+            players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
+            (season, week, players) -> Map.of(), (season, week, players) -> List.of())
+            .recommend(rosterReport("league-held-starter-review"));
+        assertTrue(report.ready());
+        var comparison = report.swapReviews().stream().filter(r -> "MANUAL_REVIEW_REPLACEMENT".equals(r.status())).findFirst().orElseThrow();
+        assertEquals("Unavailable", comparison.projectedGain());
+        assertEquals("WR", comparison.slot());
+        assertTrue(report.recommendation().promotions().isEmpty());
+        assertEquals(new BigDecimal("20"), report.currentProjectedTotal());
+    }
+
+    @Test
+    void heldBenchCandidateCannotBecomeExpertReplacement() throws Exception {
+        Database database = initializedDatabase("league-replacement-held");
+        var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var pick = new SleeperLiveAutoFillLineupRecommendation.ExpertPick("s-wr-a", "Starter WR", "WR", "SIT",
+            "Test Author", "", "", "", "https://www.nfl.com/news/test", "One author");
+        var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
+            ids -> Map.of("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-b", "Active", "Questionable")),
+            players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
+            (season, week, players) -> Map.of(), (season, week, players) -> List.of(pick))
+            .recommend(rosterReport("league-replacement-held"));
+        assertTrue(report.swapReviews().isEmpty());
+        assertTrue(report.decisionEvidence().stream().anyMatch(e -> e.contains("no eligible, scoreable bench alternative")));
+    }
+
+    @Test
     void attributedStartPickDoesNotLiftAvailabilityHoldOrChangePoints() throws Exception {
         Database database = initializedDatabase("league-expert-hold");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));

@@ -70,13 +70,18 @@ $disclosureSetup = @'
             $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.</li>"
         }
     }
+    if ($null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
+        foreach ($evidence in @($AutoFill.DecisionEvidence)) {
+            if ([string]$evidence -cmatch '^Replacement review for ') { $queueItems += "<li>$(ConvertTo-HtmlText $evidence)</li>" }
+        }
+    }
     if ($queueItems.Length -gt 0) {
         $holdEvidenceHtml = "<section class=`"swap-review-card review-queue`"><h3>Review queue</h3><p class=`"meta`">Unresolved signals may overlap. Projection totals do not settle these decisions.</p><ul>$queueItems</ul></section>$holdEvidenceHtml"
     }
     $structuredReviews = @()
     if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
     foreach ($review in $structuredReviews) {
-        $reviewLabel = if ([string]$review.status -ceq 'WITHHELD_USAGE_CONFLICT') { 'WITHHELD: USAGE CONFLICT' } else { 'MANUAL REVIEW' }
+        $reviewLabel = if ([string]$review.status -ceq 'WITHHELD_USAGE_CONFLICT') { 'WITHHELD: USAGE CONFLICT' } elseif ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') { 'BENCH ALTERNATIVE: REVIEW ONLY' } else { 'MANUAL REVIEW' }
         $sourcesHtml = ''
         $sourceLabels = @('Weekly usage data', 'Offensive snaps', 'Player identity crosswalk', 'NFL schedule')
         $sourceIndex = 0
@@ -93,7 +98,10 @@ $disclosureSetup = @'
         if ($null -ne $review.PSObject.Properties['currentMatchup']) {
             $matchupHtml = "<details><summary>NFL opponent and observed defense</summary><p><strong>Current:</strong> $(ConvertTo-HtmlText $review.currentMatchup)</p><p><strong>Candidate:</strong> $(ConvertTo-HtmlText $review.proposedMatchup)</p></details>"
         }
-        $holdEvidenceHtml += "<section class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p><p>$(ConvertTo-HtmlText $review.reason)</p><table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
+        $comparisonHtml = "<section class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p><p>$(ConvertTo-HtmlText $review.reason)</p><table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
+        if ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') {
+            $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Bench comparison: $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
+        } else { $holdEvidenceHtml += $comparisonHtml }
     }
     if ($structuredReviews.Count -eq 0 -and $null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
         $extraEvidence = ''
