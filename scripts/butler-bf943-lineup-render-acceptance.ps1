@@ -185,6 +185,16 @@ Projection holds:
         $expertWithoutComparison -match 'Comparison evidence:') {
         throw 'BF-951 must preserve the standalone expert review task when no comparison evidence exists.'
     }
+    $savedDecisionEvidence = $parsed.DecisionEvidence
+    $parsed.DecisionEvidence = @('Replacement review for Current Player: no eligible <bench> alternative remains after review holds.')
+    $replacementContext = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($replacementContext -notmatch 'Review 1 unresolved item' -or
+        $replacementContext -notmatch '<summary>Replacement search context</summary>' -or
+        $replacementContext -notmatch 'no eligible &lt;bench&gt; alternative remains' -or
+        $replacementContext -match '>2 ITEMS</span>') {
+        throw 'BF-952 replacement-search context must remain visible without inflating the unresolved decision count.'
+    }
+    $parsed.DecisionEvidence = $savedDecisionEvidence
     $parsed.SwapReviews = $savedReviews
     $parsed.Assignments[0].Changed = $savedChanged
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
