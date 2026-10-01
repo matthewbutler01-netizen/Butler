@@ -243,6 +243,29 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertTrue(report.projectionHolds().getFirst().reason().contains("https://www.espn.com/example"));
     }
 
+    @Test
+    void swapEvidenceUsesCompletedWeeksAndPreservesLegacyUsageGaps() throws Exception {
+        Database database = initializedDatabase("league-decision-evidence");
+        var repository = new io.butler.bet.data.PlayerWeekProductionRepository(database);
+        var date = java.time.LocalDate.now(java.time.ZoneOffset.UTC).minusDays(1);
+        repository.save(io.butler.bet.domain.PlayerWeekProduction.create(
+            "butler-wr-b", 2026, 1, 0, 0, 0, 20, 0, 3, 30, 0, 0, "nflverse", date));
+        repository.save(io.butler.bet.domain.PlayerWeekProduction.create(
+            "butler-wr-b", 2026, 2, 0, 0, 0, 999, 0, 99, 999, 0, 0, "nflverse", date));
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections).recommend(rosterReport("league-decision-evidence"));
+        assertTrue(report.ready());
+        assertEquals(1, report.decisionEvidence().size());
+        String evidence = report.decisionEvidence().getFirst();
+        assertTrue(evidence.contains("receptions=3"));
+        assertTrue(evidence.contains("carries=unavailable in this schema"));
+        assertTrue(evidence.contains("missing data is not zero usage"));
+        assertTrue(evidence.contains("expert start/sit advice: not verified"));
+        assertFalse(evidence.contains("999"));
+    }
+
     private Database initializedDatabase(String leagueId) throws Exception {
         Database database = new Database(tempDir.resolve(leagueId + ".db"));
         database.initialize();
