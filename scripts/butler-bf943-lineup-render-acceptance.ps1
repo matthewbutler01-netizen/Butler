@@ -195,6 +195,35 @@ Projection holds:
         throw 'BF-952 replacement-search context must remain visible without inflating the unresolved decision count.'
     }
     $parsed.DecisionEvidence = $savedDecisionEvidence
+    $savedHolds = $parsed.ProjectionHolds
+    $parsed.DecisionEvidence = @()
+    $parsed.SwapReviews = @()
+    $parsed.Assignments[0].Changed = $false
+    $parsed.ProjectionHolds = @([pscustomobject]@{
+        Name = 'Current Player'
+        Id = '1'
+        Reason = 'Questionable; checked=2026-10-01; practice=Limited'
+    })
+    $holdExpert = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($holdExpert -notmatch 'Review 1 unresolved item' -or
+        $holdExpert -notmatch 'review hold' -or
+        $holdExpert -notmatch 'Expert signal: attributed SIT selection from Test Author' -or
+        $holdExpert -notmatch 'href="#lineup-expert-1">Review expert source</a>' -or
+        $holdExpert -match 'current starter with an attributed SIT selection') {
+        throw 'BF-953 must merge an exact-ID starter expert signal into the existing hold task.'
+    }
+    $parsed.ProjectionHolds = @([pscustomobject]@{
+        Name = 'Other Held Player'
+        Id = '999'
+        Reason = 'Questionable; checked=2026-10-01; practice=Limited'
+    })
+    $differentHold = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($differentHold -notmatch 'Review 2 unresolved items' -or
+        $differentHold -notmatch 'current starter with an attributed SIT selection') {
+        throw 'BF-953 must not merge expert evidence into a hold with a different player ID.'
+    }
+    $parsed.ProjectionHolds = $savedHolds
+    $parsed.DecisionEvidence = $savedDecisionEvidence
     $parsed.SwapReviews = $savedReviews
     $parsed.Assignments[0].Changed = $savedChanged
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
