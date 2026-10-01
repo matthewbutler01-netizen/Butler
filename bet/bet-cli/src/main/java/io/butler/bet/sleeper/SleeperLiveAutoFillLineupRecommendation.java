@@ -29,9 +29,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final Database database;
     private final ProjectionSource projectionSource;
     private final AvailabilitySource availabilitySource;
+    private final NewsSource newsSource;
+    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
-        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load);
+        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -42,6 +44,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Database database,
         ProjectionSource projectionSource,
         AvailabilitySource availabilitySource) {
+        this(database, projectionSource, availabilitySource, players -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource) {
+        this.newsSource = Objects.requireNonNull(newsSource, "newsSource must not be null");
         this.database = Objects.requireNonNull(database, "database must not be null");
         this.projectionSource = Objects.requireNonNull(projectionSource, "projectionSource must not be null");
         this.availabilitySource = Objects.requireNonNull(availabilitySource, "availabilitySource must not be null");
@@ -186,16 +194,39 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         } catch (IOException | IllegalStateException | NullPointerException e) {
             availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
         }
+        Map<String, String> injuryNews = Map.of();
+        try {
+            injuryNews = newsSource.load(roster.targetPlayers());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | IllegalStateException e) {
+            // News failure never fabricates clearance or overwrites Sleeper availability.
+        }
         for (var target : roster.targetPlayers()) {
             if (!projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
             var availability = availabilityBySleeperId.get(target.sleeperPlayerId());
-            if (availability != null && target.sleeperPlayerId().equals(availability.sleeperPlayerId())
-                && availability.requiresInjuryReview()) {
-                return RecommendationReport.unavailable(
-                    roster.providerSeason(), roster.providerLeg(), scoring,
-                    "Lineup review requires an availability check for " + display(target) + ": "
-                        + availability.evidenceDescription()
-                        + ". A weekly projection does not override current injury or inactive status.");
+            String news = injuryNews.get(target.sleeperPlayerId());
+            boolean exactAvailability = availability != null
+                && target.sleeperPlayerId().equals(availability.sleeperPlayerId());
+            if ((exactAvailability && availability.requiresInjuryReview()) || news != null) {
+                projectionsBySleeperId.remove(target.sleeperPlayerId());
+                if (exactAvailability && availability.confirmedUnavailable()) {
+                    explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
+                    availabilityExclusions.add(new UnavailablePlayerExclusion(
+                        target.sleeperPlayerId(), display(target), availability.status(), availability.injuryStatus(),
+                        "Excluded from startable candidates: " + availability.evidenceDescription()
+                            + ". A projection does not override confirmed unavailable status."));
+                } else {
+                    projectionHoldPlayerIds.add(target.sleeperPlayerId());
+                    projectionHolds.add(new ProjectionHold(
+                        target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
+                        exactAvailability ? availability.status() : null,
+                        exactAvailability ? availability.injuryStatus() : null,
+                        "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
+                            + (news == null ? "" : "; " + news)
+                            + ". Pending clearance, Butler preserved this player's current lineup state and excluded "
+                            + "the player from promotions and comparable projected totals. Questionable is not confirmed Out."));
+                }
             }
         }
         if (!missingProjectionTargets.isEmpty()) {
@@ -369,6 +400,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             throws IOException, InterruptedException {
             return load(season, week, scoring);
         }
+    }
+
+    @FunctionalInterface
+    interface NewsSource {
+        Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException;
     }
 
     @FunctionalInterface
