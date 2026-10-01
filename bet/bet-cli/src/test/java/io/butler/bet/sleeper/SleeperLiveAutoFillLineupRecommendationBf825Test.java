@@ -257,13 +257,29 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
             (season, week, scoring) -> projections).recommend(rosterReport("league-decision-evidence"));
         assertTrue(report.ready());
-        assertEquals(1, report.decisionEvidence().size());
+        assertEquals(2, report.decisionEvidence().size());
         String evidence = report.decisionEvidence().getFirst();
         assertTrue(evidence.contains("receptions=3"));
         assertTrue(evidence.contains("carries=unavailable in this schema"));
         assertTrue(evidence.contains("missing data is not zero usage"));
         assertTrue(evidence.contains("expert start/sit advice: not verified"));
         assertFalse(evidence.contains("999"));
+    }
+
+    @Test
+    void publicCommentaryAppearsAsContextWithoutFabricatingConsensusOrPoints() throws Exception {
+        Database database = initializedDatabase("league-public-analysis");
+        var projections = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(database,
+            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(),
+            players -> Map.of("s-wr-b", "ESPN public analysis; source=https://www.espn.com/example; author=Example Writer"))
+            .recommend(rosterReport("league-public-analysis"));
+        assertTrue(report.ready());
+        assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
+        assertTrue(report.decisionEvidence().get(1).contains("Example Writer"));
+        assertTrue(report.decisionEvidence().get(1).contains("https://www.espn.com/example"));
+        assertTrue(report.decisionEvidence().get(1).contains("Current player: no matched commentary"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {
