@@ -88,3 +88,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-950 Lineup Review expert/proposal merge applied.'
+
+$bf951Transform = Join-Path $PSScriptRoot 'butler-app-bf951-lineup-expert-comparison-merge-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf951Transform -PathType Leaf)) {
+    throw "BF-951 BLOCKED: Lineup Review expert/comparison merge transform not found at $bf951Transform"
+}
+& $bf951Transform -CorePath $CorePath
