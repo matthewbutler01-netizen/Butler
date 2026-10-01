@@ -139,6 +139,19 @@ Projection holds:
         throw 'Missing comparison delta must explain the evidence gap without presenting a point value.'
     }
     $parsed.SwapReviews[0].projectedGain = $savedGain
+    foreach ($compactHtml in @($rendered, $replacementHtml)) {
+        if ($compactHtml -notmatch '<details class="lineup-evidence-section"><summary>Recent observed usage</summary>' -or
+            $compactHtml -notmatch '<table class="swap-usage-table"><caption>Recent observed usage</caption>') {
+            throw 'BF-947 compact usage evidence disclosure is missing.'
+        }
+        if ($compactHtml.IndexOf('Projected slot change', [System.StringComparison]::Ordinal) -gt
+            $compactHtml.IndexOf('<summary>Recent observed usage</summary>', [System.StringComparison]::Ordinal)) {
+            throw 'BF-947 must keep the decision summary ahead of dense usage evidence.'
+        }
+    }
+    if ($replacementHtml -notmatch 'lineup-evidence-section' -or $replacementHtml -notmatch 'Back to review queue') {
+        throw 'BF-947 must preserve compact evidence and review-queue return navigation together.'
+    }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {

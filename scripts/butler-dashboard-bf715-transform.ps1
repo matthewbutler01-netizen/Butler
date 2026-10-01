@@ -654,6 +654,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf946Transform -CorePath $stagedCore
 
+    # BF-947: reduce opened comparison-card scan cost after all decision and return
+    # navigation is final. Presentation only; existing evidence and read-only routes remain authoritative.
+    $bf947Transform = Join-Path $PSScriptRoot 'butler-app-bf947-compact-lineup-evidence-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf947Transform -PathType Leaf)) {
+        throw "BF-947 BLOCKED: compact lineup comparison evidence transform not found at $bf947Transform"
+    }
+    & $bf947Transform -CorePath $stagedCore
+
     # The final My Team pass changes layout and navigation only.
     $teamWorkspaceTransform = Join-Path $PSScriptRoot 'butler-app-team-workspace-transform.ps1'
     if (-not (Test-Path -LiteralPath $teamWorkspaceTransform -PathType Leaf)) {
