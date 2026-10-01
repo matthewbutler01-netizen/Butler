@@ -172,23 +172,33 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
         List<ProjectionHold> projectionHolds = new ArrayList<>();
-        if (!missingProjectionTargets.isEmpty()) {
-            Set<String> missingIds = new LinkedHashSet<>();
-            for (var target : missingProjectionTargets) missingIds.add(target.sleeperPlayerId());
-
-            Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
-            String availabilityFailure = null;
-            try {
-                availabilityBySleeperId = Objects.requireNonNull(
-                    availabilitySource.load(Set.copyOf(missingIds)),
-                    "availabilitySource returned null");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                availabilityFailure = "Current Sleeper player availability evidence request was interrupted.";
-            } catch (IOException | IllegalStateException | NullPointerException e) {
-                availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
+        // A projection is not proof that a player is healthy enough to start.
+        Set<String> activeIds = new LinkedHashSet<>();
+        for (var player : optimizerRoster) activeIds.add(player.playerId());
+        Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
+        String availabilityFailure = null;
+        try {
+            availabilityBySleeperId = Objects.requireNonNull(
+                availabilitySource.load(Set.copyOf(activeIds)), "availabilitySource returned null");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            availabilityFailure = "Current Sleeper player availability evidence request was interrupted.";
+        } catch (IOException | IllegalStateException | NullPointerException e) {
+            availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
+        }
+        for (var target : roster.targetPlayers()) {
+            if (!projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
+            var availability = availabilityBySleeperId.get(target.sleeperPlayerId());
+            if (availability != null && target.sleeperPlayerId().equals(availability.sleeperPlayerId())
+                && availability.requiresInjuryReview()) {
+                return RecommendationReport.unavailable(
+                    roster.providerSeason(), roster.providerLeg(), scoring,
+                    "Lineup review requires an availability check for " + display(target) + ": "
+                        + availability.evidenceDescription()
+                        + ". A weekly projection does not override current injury or inactive status.");
             }
-
+        }
+        if (!missingProjectionTargets.isEmpty()) {
             for (var target : missingProjectionTargets) {
                 SleeperWeeklyProjectionProvider.ProjectionGap gap = gapBySleeperId.get(target.sleeperPlayerId());
                 String coverageDescription = gap == null
