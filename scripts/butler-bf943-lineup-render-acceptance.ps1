@@ -155,13 +155,22 @@ Projection holds:
     if ($review -notmatch 'Review 1 unresolved item' -or $review -notmatch '>1 ITEM</span>') {
         throw 'BF-948 single unresolved hold must drive the first-scan decision title and queue badge.'
     }
-    if ($rendered -notmatch 'Review 2 unresolved items' -or $rendered -notmatch '>2 ITEMS</span>') {
-        throw 'BF-949 must count manager decisions rather than a separate comparison-link task.'
+    if ($rendered -notmatch 'Review 1 unresolved item' -or $rendered -notmatch '>1 ITEM</span>') {
+        throw 'BF-950 must count the changed-starter expert signal as evidence for the proposal, not a second decision.'
     }
     if ($rendered -match 'Review WR comparisons:' -or
-        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Comparison evidence:.*href="#lineup-comparison-0"') {
-        throw 'BF-949 must keep the comparison link inside the projection-proposal queue item.'
+        $rendered -match 'current starter with an attributed SIT selection' -or
+        $rendered -notmatch 'review the projection proposal Current Player &rarr; Candidate.*Review expert source.*href="#lineup-expert-1".*Comparison evidence:.*href="#lineup-comparison-0"') {
+        throw 'BF-950 must keep expert and comparison evidence inside the single projection-proposal queue item.'
     }
+    $parsed.Assignments[0].Changed = $false
+    $expertOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($expertOnly -notmatch 'Review 2 unresolved items' -or
+        $expertOnly -notmatch 'current starter with an attributed SIT selection' -or
+        $expertOnly -notmatch 'review comparison evidence') {
+        throw 'BF-950 must preserve separate expert and comparison review tasks when no projection proposal exists.'
+    }
+    $parsed.Assignments[0].Changed = $savedChanged
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {
