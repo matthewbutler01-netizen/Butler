@@ -67,7 +67,7 @@ final class NflverseRosterUsageProvider {
             String id = sleeperByGsis.get(value(row, "player_id"));
             if (id == null || !requested.contains(id)) continue;
             int rowWeek = integer(row, "week");
-            Workload workload = new Workload(integer(row, "carries"), integer(row, "targets"));
+            Workload workload = new Workload(integer(row, "carries"), integer(row, "targets"), optionalInteger(row, "attempts"));
             if (workloads.computeIfAbsent(id, key -> new LinkedHashMap<>()).putIfAbsent(rowWeek, workload) != null)
                 throw new IllegalStateException("Duplicate player/week usage row");
         }
@@ -96,9 +96,9 @@ final class NflverseRosterUsageProvider {
                 && recent.opportunities() * 2 <= previous.opportunities()
                 && previousSnap.share() - recentSnap.share() >= 0.20 - 0.000001;
             String detail = "nflverse completed-week usage: week " + (week - 2) + " carries=" + previous.carries()
-                + ", targets=" + previous.targets() + ", offensive snaps=" + previousSnap.count()
+                + ", targets=" + previous.targets() + ", passing attempts=" + passing(previous.attempts()) + ", offensive snaps=" + previousSnap.count()
                 + ", snap share=" + percent(previousSnap.share()) + "; week " + (week - 1)
-                + " carries=" + recent.carries() + ", targets=" + recent.targets()
+                + " carries=" + recent.carries() + ", targets=" + recent.targets() + ", passing attempts=" + passing(recent.attempts())
                 + ", offensive snaps=" + recentSnap.count() + ", snap share=" + percent(recentSnap.share())
                 + "; checked=" + checkedAt + "; stats source=" + NflversePlayerWeekProductionImporter.statsUri(season)
                 + "; snaps source=" + snapsUri(season) + "; identity source="
@@ -106,8 +106,8 @@ final class NflverseRosterUsageProvider {
                 + ". Two-week observations do not establish the cause or confirm a depth-chart change."
                 + " Carries plus targets is an opportunity count, not touches or QB passing workload.";
             result.put(id, new UsageEvidence(hold, detail, List.of(
-                new WeekUsage(week - 2, previous.carries(), previous.targets(), previousSnap.count(), previousSnap.share()),
-                new WeekUsage(week - 1, recent.carries(), recent.targets(), recentSnap.count(), recentSnap.share())), checkedAt.toString()));
+                new WeekUsage(week - 2, previous.carries(), previous.targets(), previousSnap.count(), previousSnap.share(), previous.attempts()),
+                new WeekUsage(week - 1, recent.carries(), recent.targets(), recentSnap.count(), recentSnap.share(), recent.attempts())), checkedAt.toString()));
         }
         return Map.copyOf(result);
     }
@@ -147,6 +147,12 @@ final class NflverseRosterUsageProvider {
             return number;
         } catch (NumberFormatException e) { throw new IllegalStateException("Invalid usage value for " + key, e); }
     }
+    private static Integer optionalInteger(Map<String, String> row, String key) {
+        String raw = row.get(key);
+        if (raw == null || raw.isBlank() || Set.of("NA", "N/A", "null").contains(raw.trim())) return null;
+        return integer(row, key);
+    }
+    private static String passing(Integer attempts) { return attempts == null ? "unavailable" : attempts.toString(); }
     private static String percent(double fraction) { return String.format(java.util.Locale.ROOT, "%.1f%%", fraction * 100); }
     record UsageEvidence(boolean reviewHold, String detail, List<WeekUsage> weeks, String checkedAt) {
         UsageEvidence { weeks = List.copyOf(weeks); }
@@ -155,15 +161,18 @@ final class NflverseRosterUsageProvider {
         String summary() {
             if (!complete()) return "Usage not verified";
             return weeks.stream().map(w -> "Week " + w.week() + ": carries " + w.carries()
-                + ", targets " + w.targets() + ", offensive snaps " + w.snaps()
+                + ", targets " + w.targets() + ", passing attempts " + passing(w.attempts()) + ", offensive snaps " + w.snaps()
                 + " (" + percent(w.share()) + ")").collect(java.util.stream.Collectors.joining("; "))
                 + "; checked " + checkedAt;
         }
     }
-    record WeekUsage(int week, int carries, int targets, int snaps, double share) {
+    record WeekUsage(int week, int carries, int targets, int snaps, double share, Integer attempts) {
+        WeekUsage(int week, int carries, int targets, int snaps, double share) {
+            this(week, carries, targets, snaps, share, null);
+        }
         int opportunities() { return carries + targets; }
     }
-    private record Workload(int carries, int targets) { int opportunities() { return carries + targets; } }
+    private record Workload(int carries, int targets, Integer attempts) { int opportunities() { return carries + targets; } }
     private record Snap(int count, double share) {}
     private record Cached(String body, Instant expires) {}
 }

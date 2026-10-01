@@ -55,6 +55,28 @@ class NflverseRosterUsageProviderTest {
             SNAPS + "p1,2026,REG,2,50,NaN\n"));
     }
 
+    @Test void passingAttemptsAreSeparateFromRushingReceivingHoldPolicy() {
+        var result = parse(STATS.stripTrailing() + ",attempts\n"
+            + "g1,2026,REG,2,4,0,32\ng1,2026,REG,3,4,0,41\n",
+            SNAPS + "p1,2026,REG,2,55,1.0\np1,2026,REG,3,51,0.81\n");
+        var evidence = result.get("s1");
+        assertEquals(32, evidence.weeks().get(0).attempts());
+        assertEquals(4, evidence.weeks().get(0).opportunities());
+        assertTrue(evidence.summary().contains("passing attempts 41"));
+        assertFalse(evidence.reviewHold());
+    }
+
+    @Test void missingPassingAttemptsRemainUnavailableAndExplicitZeroRemainsZero() {
+        var result = parse(STATS.stripTrailing() + ",attempts\n"
+            + "g1,2026,REG,2,4,0,\ng1,2026,REG,3,4,0,0\n",
+            SNAPS + "p1,2026,REG,2,55,1.0\np1,2026,REG,3,51,0.81\n");
+        assertNull(result.get("s1").weeks().get(0).attempts());
+        assertTrue(result.get("s1").summary().contains("passing attempts unavailable"));
+        assertEquals(0, result.get("s1").weeks().get(1).attempts());
+        assertThrows(IllegalStateException.class, () -> parse(STATS.stripTrailing() + ",attempts\n"
+            + "g1,2026,REG,2,4,0,-1\n", SNAPS));
+    }
+
     private static java.util.Map<String, NflverseRosterUsageProvider.UsageEvidence> parse(String stats, String snaps) {
         return NflverseRosterUsageProvider.parse(IDS, stats, snaps, 2026, 4, Set.of("s1"), NOW);
     }

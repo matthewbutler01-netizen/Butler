@@ -41,7 +41,7 @@ try {
     $structured = [pscustomobject]@{
         ordinal = 0; slot = 'WR'; current = 'Current Player'; proposed = 'Candidate <unsafe>'
         projectedGain = '0.25'; status = 'WITHHELD_USAGE_CONFLICT'; reason = 'Conflicting workload needs review'
-        currentUsage = 'Week 2: targets 6; Week 3: targets 9'; proposedUsage = 'Week 2: targets 7; Week 3: targets 2'
+        currentUsage = 'Week 2: targets 6, passing attempts 32; Week 3: targets 9, passing attempts 41'; proposedUsage = 'Week 2: targets 7, passing attempts unavailable; Week 3: targets 2, passing attempts 0'
         currentMatchup = 'Saved team KC; week 4 vs LV'; proposedMatchup = 'Missing <coverage>'
         commentary = 'Expert picks unverified'; sources = @('https://github.com/nflverse/nflverse-data', 'javascript:alert(1)')
     }
@@ -97,7 +97,8 @@ Projection holds:
     $parsed.SwapReviews[0] | Add-Member -NotePropertyName proposedExpert -NotePropertyValue 'unverified' -Force
     $replacementHtml = ConvertTo-AutoFillHtml -AutoFill $parsed
     if ($replacementHtml -notmatch '<summary>Bench comparison:' -or $replacementHtml -notmatch 'BENCH ALTERNATIVE: REVIEW ONLY') { throw 'Replacement comparisons must be collapsed and labeled review-only.' }
-    if ($replacementHtml -notmatch 'Comparison limits and evidence gaps' -or $replacementHtml -notmatch 'SIT by Author &lt;unsafe&gt;' -or $replacementHtml -notmatch 'exclude QB passing workload') { throw 'Compact comparison must preserve escaped expert signals and explain usage limits.' }
+    if ($replacementHtml -notmatch 'Comparison limits and evidence gaps' -or $replacementHtml -notmatch 'SIT by Author &lt;unsafe&gt;' -or $replacementHtml -notmatch 'passing attempts are shown separately when available') { throw 'Compact comparison must preserve escaped expert signals and explain usage limits.' }
+    if ($replacementHtml -notmatch 'passing attempts 41' -or $replacementHtml -notmatch 'passing attempts unavailable' -or $replacementHtml -notmatch 'passing attempts 0') { throw 'Passing workload must preserve observed values, explicit zero and missing coverage.' }
     $parsed.SwapReviews[0].status = $savedReviewStatus
     $savedPicks = $parsed.ExpertPicks
     $parsed.ExpertPicks = @($savedPicks | Where-Object { $_.selection -ceq 'UNVERIFIED' })
