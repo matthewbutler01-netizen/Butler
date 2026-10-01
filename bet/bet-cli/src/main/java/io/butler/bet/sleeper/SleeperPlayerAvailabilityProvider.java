@@ -131,6 +131,13 @@ final class SleeperPlayerAvailabilityProvider {
                 || (normalizedInjury != null && EXPLICITLY_UNAVAILABLE.contains(normalizedInjury));
         }
 
+        boolean requiresInjuryReview() {
+            String normalizedStatus = normalize(status);
+            String normalizedInjury = normalize(injuryStatus);
+            return (normalizedStatus != null && EXPLICITLY_UNAVAILABLE.contains(normalizedStatus))
+                || (normalizedInjury != null && !normalizedInjury.equals("healthy"));
+        }
+
         String evidenceDescription() {
             return "status=" + value(status) + ", injury_status=" + value(injuryStatus);
         }
