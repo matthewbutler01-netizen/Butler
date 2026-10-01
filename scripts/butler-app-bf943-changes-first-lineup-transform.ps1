@@ -32,7 +32,9 @@ foreach ($requiredPrior in @(
 }
 
 $returnMarker = '    return "<section class=`"panel recommendation-panel`">'
-$returnPos = $function.IndexOf($returnMarker, [System.StringComparison]::Ordinal)
+# Earlier returns render blocked and incomplete-evidence states, before counts exist.
+# Only the final ready-state return may receive assignment disclosure setup.
+$returnPos = $function.LastIndexOf($returnMarker, [System.StringComparison]::Ordinal)
 if ($returnPos -lt 0) {
     throw 'BF-943 BLOCKED: final Lineup Advisor ready-state return is missing.'
 }
