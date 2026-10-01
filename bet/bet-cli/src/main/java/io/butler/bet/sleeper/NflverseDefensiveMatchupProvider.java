@@ -72,7 +72,7 @@ final class NflverseDefensiveMatchupProvider {
             String detail = prefix + "week " + week + " vs " + opponent + "; "
                 + (incomplete || covered == 0 ? "positional production coverage incomplete; no defensive total reported."
                     : "against opposing " + position + " players across " + covered + " completed games in weeks "
-                    + Math.max(1, week - 3) + "–" + (week - 1) + ": " + passYards + " passing yards, "
+                    + Math.max(1, week - 3) + " to " + (week - 1) + ": " + passYards + " passing yards, "
                     + rushYards + " rushing yards, " + receivingYards + " receiving yards, " + touchdowns + " offensive TDs (totals).")
                 + " Checked " + checked + ". Small, unadjusted sample; opponent strength and game script are not controlled."
                 + " Saved team metadata may lag a transaction. No projection bonus or expert pick inferred.";
