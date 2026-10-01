@@ -170,12 +170,22 @@ Projection holds:
         throw 'BF-950 must keep expert and comparison evidence inside the single projection-proposal queue item.'
     }
     $parsed.Assignments[0].Changed = $false
-    $expertOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($expertOnly -notmatch 'Review 2 unresolved items' -or
-        $expertOnly -notmatch 'current starter with an attributed SIT selection' -or
-        $expertOnly -notmatch 'review comparison evidence') {
-        throw 'BF-950 must preserve separate expert and comparison review tasks when no projection proposal exists.'
+    $expertAndComparison = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($expertAndComparison -notmatch 'Review 1 unresolved item' -or
+        $expertAndComparison -notmatch 'current starter with an attributed SIT selection' -or
+        $expertAndComparison -notmatch 'Comparison evidence:.*href="#lineup-comparison-0"' -or
+        $expertAndComparison -match 'review comparison evidence') {
+        throw 'BF-951 must merge unchanged-starter expert and comparison evidence into one review task.'
     }
+    $savedReviews = $parsed.SwapReviews
+    $parsed.SwapReviews = @()
+    $expertWithoutComparison = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($expertWithoutComparison -notmatch 'Review 1 unresolved item' -or
+        $expertWithoutComparison -notmatch 'current starter with an attributed SIT selection' -or
+        $expertWithoutComparison -match 'Comparison evidence:') {
+        throw 'BF-951 must preserve the standalone expert review task when no comparison evidence exists.'
+    }
+    $parsed.SwapReviews = $savedReviews
     $parsed.Assignments[0].Changed = $savedChanged
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
