@@ -120,6 +120,15 @@ Projection holds:
     $emptyParsed = ConvertTo-AutoFillView -Text $emptyFixture
     $emptyHtml = ConvertTo-AutoFillHtml -AutoFill $emptyParsed
     if ($emptyParsed.Assignments[0].CurrentId -cne '0' -or $emptyParsed.Assignments[0].CurrentPoints -cne 'UNAVAILABLE' -or $emptyHtml -notmatch 'Empty slot') { throw 'Explicit empty slot must render without inventing current points.' }
+    foreach ($html in @($review, $rendered, $replacementHtml, $ambiguous, $emptyHtml)) {
+        $ids = @([regex]::Matches($html, 'id="(lineup-(?:hold|expert|comparison)-[0-9]+)"') | ForEach-Object { $_.Groups[1].Value })
+        if (@($ids | Select-Object -Unique).Count -ne $ids.Count) { throw 'Review evidence anchors must be unique, including duplicate expert objects.' }
+        foreach ($link in [regex]::Matches($html, 'href="#(lineup-(?:hold|expert|comparison)-[0-9]+)"')) {
+            if ($link.Groups[1].Value -cnotin $ids) { throw 'Review queue link has no evidence target.' }
+        }
+    }
+    if ($review -notmatch 'href="#lineup-hold-0"' -or $replacementHtml -notmatch 'href="#lineup-comparison-0"' -or
+        $replacementHtml -notmatch 'href="#lineup-expert-1"') { throw 'Review queue must link hold, comparison and exact-player expert evidence.' }
     Write-Host 'BF-943 LINEUP RENDER ACCEPTANCE: PASS'
 }
 finally {

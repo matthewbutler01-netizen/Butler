@@ -53,9 +53,14 @@ $disclosureSetup = @'
     $recommendedMetricLabel = if ($partialCoverage) { 'Comparable proposed' } else { 'Proposed projection' }
     $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals. Review holds and evidence gaps before changing your lineup."
     $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review. Review attributed expert selections and coverage below, plus NFL matchup coverage in each comparison.</p>'
+    $structuredReviews = @()
+    if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
     $queueItems = ''
+    $holdIndex = 0
     foreach ($hold in @($AutoFill.ProjectionHolds)) {
-        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review; see the hold evidence below.</li>"
+        $holdLink = if ($null -ne $hold.PSObject.Properties['Reason']) { " <a href=`"#lineup-hold-$holdIndex`">Review hold evidence</a>" } else { '' }
+        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink</li>"
+        $holdIndex++
     }
     $queuePicks = @()
     if ($null -ne $AutoFill.PSObject.Properties['ExpertPicks']) { $queuePicks = @($AutoFill.ExpertPicks) }
@@ -64,11 +69,20 @@ $disclosureSetup = @'
         if ([string]::IsNullOrWhiteSpace($starterId)) { continue }
         $matchingPicks = @($queuePicks | Where-Object { [string]$_.playerId -ceq $starterId })
         if ($matchingPicks.Count -eq 1 -and [string]$matchingPicks[0].selection -ceq 'SIT') {
-            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Current)</strong>: current starter with an attributed SIT selection from $(ConvertTo-HtmlText $matchingPicks[0].author). Review scoring, roster fit and the source below; this opinion does not establish consensus.</li>"
+            $pickIndex = [array]::IndexOf($queuePicks, $matchingPicks[0])
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Current)</strong>: current starter with an attributed SIT selection from $(ConvertTo-HtmlText $matchingPicks[0].author). Review scoring, roster fit and the source below; this opinion does not establish consensus. <a href=`"#lineup-expert-$pickIndex`">Review expert source</a></li>"
         }
         if ($assignment.Changed) {
             $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.</li>"
         }
+        $comparisonLinks = ''
+        for ($reviewIndex = 0; $reviewIndex -lt $structuredReviews.Count; $reviewIndex++) {
+            $queueReview = $structuredReviews[$reviewIndex]
+            if ([string]$queueReview.ordinal -ceq [string]$assignment.Ordinal) {
+                $comparisonLinks += " <a href=`"#lineup-comparison-$reviewIndex`">$(ConvertTo-HtmlText $queueReview.current) &rarr; $(ConvertTo-HtmlText $queueReview.proposed)</a>"
+            }
+        }
+        if ($comparisonLinks.Length -gt 0) { $queueItems += "<li>Review $(ConvertTo-HtmlText $assignment.Slot) comparisons:$comparisonLinks</li>" }
     }
     if ($null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
         foreach ($evidence in @($AutoFill.DecisionEvidence)) {
@@ -78,8 +92,7 @@ $disclosureSetup = @'
     if ($queueItems.Length -gt 0) {
         $holdEvidenceHtml = "<section class=`"swap-review-card review-queue`"><h3>Review queue</h3><p class=`"meta`">Unresolved signals may overlap. Projection totals do not settle these decisions.</p><ul>$queueItems</ul></section>$holdEvidenceHtml"
     }
-    $structuredReviews = @()
-    if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
+    $reviewIndex = 0
     foreach ($review in $structuredReviews) {
         $reviewLabel = if ([string]$review.status -ceq 'WITHHELD_USAGE_CONFLICT') { 'WITHHELD: USAGE CONFLICT' } elseif ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') { 'BENCH ALTERNATIVE: REVIEW ONLY' } else { 'MANUAL REVIEW' }
         $sourcesHtml = ''
@@ -106,10 +119,11 @@ $disclosureSetup = @'
                 $expertSignalsHtml = "<p><strong>Current expert:</strong> $(ConvertTo-HtmlText $review.currentExpert)<br><strong>Candidate expert:</strong> $(ConvertTo-HtmlText $review.proposedExpert)</p><p class=`"meta`">Attributed opinion; no consensus. Source and dates are in expert coverage below.</p>"
             }
         }
-        $comparisonHtml = "<section class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p>$expertSignalsHtml$reasonHtml<table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table><p class=`"meta`">Carries and targets describe rushing and receiving opportunities; passing attempts are shown separately when available.</p>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
+        $comparisonHtml = "<section id=`"lineup-comparison-$reviewIndex`" tabindex=`"-1`" class=`"swap-review-card`"><h3>$(ConvertTo-HtmlText $review.slot): $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</h3><span class=`"status warn`">$reviewLabel</span><p>Projected slot change: $(ConvertTo-HtmlText $review.projectedGain) points</p>$expertSignalsHtml$reasonHtml<table class=`"swap-usage-table`"><caption>Recent observed usage</caption><thead><tr><th scope=`"col`">Current: $(ConvertTo-HtmlText $review.current)</th><th scope=`"col`">Candidate: $(ConvertTo-HtmlText $review.proposed)</th></tr></thead><tbody><tr><td>$(ConvertTo-HtmlText $review.currentUsage)</td><td>$(ConvertTo-HtmlText $review.proposedUsage)</td></tr></tbody></table><p class=`"meta`">Carries and targets describe rushing and receiving opportunities; passing attempts are shown separately when available.</p>$matchupHtml<details><summary>Sources and commentary</summary><p>$(ConvertTo-HtmlText $review.commentary)</p><div class=`"swap-review-sources`">$sourcesHtml</div></details></section>"
         if ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') {
             $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Bench comparison: $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
         } else { $holdEvidenceHtml += $comparisonHtml }
+        $reviewIndex++
     }
     if ($structuredReviews.Count -eq 0 -and $null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
         $extraEvidence = ''
@@ -123,14 +137,15 @@ $disclosureSetup = @'
         $coverageGaps = @($AutoFill.ExpertPicks | Where-Object { [string]$_.selection -cnotin @('START', 'SIT') })
         $expertHtml = '<p class="meta">Attributed weekly opinions. Check scoring and roster fit; existing holds remain. No consensus or point adjustment inferred.</p>'
         $gapHtml = ''
-        foreach ($pick in @($explicitPicks) + @($coverageGaps)) {
+        $pickIndex = 0
+        foreach ($pick in $queuePicks) {
             $expertLink = ''
             $expertUri = $null
             if ([uri]::TryCreate([string]$pick.source, [System.UriKind]::Absolute, [ref]$expertUri) -and
                 $expertUri.Scheme -ceq 'https' -and $expertUri.Host -ceq 'www.nfl.com' -and $expertUri.AbsolutePath.StartsWith('/news/')) {
                 $expertLink = "<a href=`"$(ConvertTo-HtmlText $pick.source)`" target=`"_blank`" rel=`"noopener noreferrer`">NFL.com weekly column</a>"
             }
-            $pickDetails = "<p>$(ConvertTo-HtmlText $pick.coverage)</p>"
+            $pickDetails = "<p id=`"lineup-expert-$pickIndex`" tabindex=`"-1`">$(ConvertTo-HtmlText $pick.coverage)</p>"
             if ([string]$pick.selection -cin @('START', 'SIT')) {
                 $pickDetails += "<p class=`"meta`">Published $(ConvertTo-HtmlText $pick.publishedAt); updated $(ConvertTo-HtmlText $pick.modifiedAt).</p>"
             }
@@ -140,6 +155,7 @@ $disclosureSetup = @'
             } else {
                 $gapHtml += "<details class=`"expert-gap`"><summary>$(ConvertTo-HtmlText $pick.player): UNVERIFIED</summary>$pickDetails</details>"
             }
+            $pickIndex++
         }
         if ($explicitPicks.Count -eq 0) { $expertHtml += '<p>No verified expert selections available.</p>' }
         if ($coverageGaps.Count -gt 0) {
@@ -148,14 +164,16 @@ $disclosureSetup = @'
         }
         $holdEvidenceHtml += "<section class=`"swap-review-card`"><h3>Attributed expert selections and coverage</h3>$expertHtml</section>"
     }
+    $holdIndex = 0
     foreach ($hold in @($AutoFill.ProjectionHolds)) {
         if ($null -ne $hold.PSObject.Properties['Reason']) {
             $holdSummary = if ([string]$hold.Reason -like 'Close-call usage conflict:*') { 'Close projection edge conflicts with recent workload.' }
                 elseif ([string]$hold.Reason -like 'Usage review hold:*') { 'Observed snaps and workload declined sharply.' }
                 elseif ([string]$hold.Reason -like 'Availability hold:*') { 'Availability needs clearance before promotion.' }
                 else { 'Usable weekly projection evidence is incomplete.' }
-            $holdEvidenceHtml += "<details class=`"callout swap-review-card`"><summary>$(ConvertTo-HtmlText $hold.Name): review hold</summary><p>$holdSummary</p><p>$(ConvertTo-HtmlText $hold.Reason)</p></details>"
+            $holdEvidenceHtml += "<details class=`"callout swap-review-card`"><summary>$(ConvertTo-HtmlText $hold.Name): review hold</summary><p id=`"lineup-hold-$holdIndex`" tabindex=`"-1`">$holdSummary</p><p>$(ConvertTo-HtmlText $hold.Reason)</p></details>"
         }
+        $holdIndex++
     }
     $unchangedCount = @($AutoFill.Assignments | Where-Object { -not $_.Changed }).Count
     $lineupFocusHtml = if ($changedCount -gt 0) {
@@ -202,6 +220,7 @@ if ($cssTerminator -lt 0) {
 }
 $css = @'
 /* BF-943 changes-first lineup progressive disclosure. */
+[id^="lineup-hold-"],[id^="lineup-expert-"],[id^="lineup-comparison-"]{scroll-margin-top:24px}[id^="lineup-"]:target{outline:2px solid var(--accent);outline-offset:4px}.review-queue a{display:inline-block;margin:4px 8px 4px 0}
 .swap-review-card{margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}.swap-review-card h3{margin-top:0}.swap-usage-table{width:100%;table-layout:fixed;border-collapse:collapse;margin:12px 0}.swap-usage-table caption{text-align:left;font-weight:700;margin-bottom:6px}.swap-usage-table th,.swap-usage-table td{padding:10px;vertical-align:top;text-align:left;border:1px solid var(--line);overflow-wrap:anywhere}.swap-review-sources{display:flex;flex-wrap:wrap;gap:12px}.swap-review-card summary{cursor:pointer;font-weight:700}.expert-selection{display:grid;gap:4px;padding:10px 0;border-top:1px solid var(--line)}.expert-selection details,.expert-coverage,.expert-gap{margin-top:6px}.expert-coverage{padding-top:10px;border-top:1px solid var(--line)}
 .lineup-focus{margin-top:18px}.lineup-focus-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:10px}.lineup-focus-head h3{margin:2px 0 0}.lineup-focus .lineup-row:not(.changed){display:none}.lineup-clear{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft)}.lineup-unchanged{margin-top:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-soft);overflow:hidden}.lineup-unchanged>summary{cursor:pointer;padding:14px 16px;font-weight:800;list-style-position:inside}.lineup-unchanged[open]>summary{border-bottom:1px solid var(--line)}.lineup-unchanged .lineup-row.changed{display:none}.lineup-unchanged .lineup-board{padding:10px 12px 12px}@media(max-width:900px){.lineup-focus-head{flex-direction:column;align-items:flex-start}.lineup-unchanged .lineup-board{padding:8px}}
 /* Respond to the advisor panel width, including narrow desktop sidebars. */
