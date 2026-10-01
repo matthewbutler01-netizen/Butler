@@ -13,6 +13,12 @@ if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
 
 $core = [System.IO.File]::ReadAllText($CorePath)
 
+$evidenceAnchor = '        SourceSurface = $sourceSurface.Groups[''value''].Value.Trim()'
+if (-not $core.Contains($evidenceAnchor)) {
+    throw 'BF-943 BLOCKED: lineup decision evidence parser anchor is missing.'
+}
+$core = $core.Replace($evidenceAnchor, $evidenceAnchor + "`n" + '        DecisionEvidence = @([regex]::Matches($Text, ''(?m)^Decision evidence: (?<value>.+)$'') | ForEach-Object { $_.Groups[''value''].Value.Trim() })')
+
 $functionStart = $core.IndexOf('function ConvertTo-AutoFillHtml {', [System.StringComparison]::Ordinal)
 $functionEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $functionStart, [System.StringComparison]::Ordinal)
 if ($functionStart -lt 0 -or $functionEnd -le $functionStart) {
@@ -41,6 +47,11 @@ if ($returnPos -lt 0) {
 
 $disclosureSetup = @'
     $holdEvidenceHtml = '<p class="meta">Projection baseline with current availability and recent ESPN headline review signals. News coverage may be incomplete; expert analysis is not yet included.</p>'
+    if ($null -ne $AutoFill.PSObject.Properties['DecisionEvidence']) {
+        foreach ($evidence in @($AutoFill.DecisionEvidence)) {
+            $holdEvidenceHtml += "<details><summary>Why this projected change needs review</summary><p>$(ConvertTo-HtmlText $evidence)</p></details>"
+        }
+    }
     foreach ($hold in @($AutoFill.ProjectionHolds)) {
         if ($null -ne $hold.PSObject.Properties['Reason']) {
             $holdEvidenceHtml += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $hold.Name): review before starting</strong><p>$(ConvertTo-HtmlText $hold.Reason)</p></div>"
