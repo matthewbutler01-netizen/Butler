@@ -93,8 +93,11 @@ Projection holds:
     $parsed.ExpertPicks = $originalPicks
     $savedReviewStatus = $parsed.SwapReviews[0].status
     $parsed.SwapReviews[0].status = 'MANUAL_REVIEW_REPLACEMENT'
+    $parsed.SwapReviews[0] | Add-Member -NotePropertyName currentExpert -NotePropertyValue 'SIT by Author <unsafe>' -Force
+    $parsed.SwapReviews[0] | Add-Member -NotePropertyName proposedExpert -NotePropertyValue 'unverified' -Force
     $replacementHtml = ConvertTo-AutoFillHtml -AutoFill $parsed
     if ($replacementHtml -notmatch '<summary>Bench comparison:' -or $replacementHtml -notmatch 'BENCH ALTERNATIVE: REVIEW ONLY') { throw 'Replacement comparisons must be collapsed and labeled review-only.' }
+    if ($replacementHtml -notmatch 'Comparison limits and evidence gaps' -or $replacementHtml -notmatch 'SIT by Author &lt;unsafe&gt;' -or $replacementHtml -notmatch 'exclude QB passing workload') { throw 'Compact comparison must preserve escaped expert signals and explain usage limits.' }
     $parsed.SwapReviews[0].status = $savedReviewStatus
     $savedPicks = $parsed.ExpertPicks
     $parsed.ExpertPicks = @($savedPicks | Where-Object { $_.selection -ceq 'UNVERIFIED' })

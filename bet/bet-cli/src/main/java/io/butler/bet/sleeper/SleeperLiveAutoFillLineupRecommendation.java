@@ -478,15 +478,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     starter.playerId(), starter.displayName(), bench.playerId(), bench.displayName(), currentPoints, benchPoints,
                     currentPoints == null ? null : benchPoints.subtract(currentPoints), true);
                 var evidence = swapReview(comparison, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups);
-                var benchPicks = expertPicks.stream().filter(p -> bench.playerId().equals(p.playerId())).toList();
-                String expertContext = " Current expert: " + (expertSit ? "SIT by " + starterPicks.get(0).author() : "unverified")
-                    + "; candidate expert: " + (benchPicks.size() == 1 && Set.of("START", "SIT").contains(benchPicks.get(0).selection())
-                        ? benchPicks.get(0).selection() + " by " + benchPicks.get(0).author() : "unverified") + ".";
+                String currentExpert = expertSummary(expertPicks, starter.playerId());
+                String proposedExpert = expertSummary(expertPicks, bench.playerId());
+                String expertContext = " Current expert: " + currentExpert + "; candidate expert: " + proposedExpert + ".";
                 reviews.add(new SwapReview(evidence.ordinal(), evidence.slot(), evidence.current(), evidence.proposed(), evidence.projectedGain(),
                     "MANUAL_REVIEW_REPLACEMENT", "Bench alternative for a flagged starter; comparison only, not a proposed lineup move."
                         + " Up to three alternatives ordered by available projection; alternatives across slots are independent and cannot be combined without checking lineup legality."
                         + expertContext + " Existing holds remain. " + evidence.reason(), evidence.currentUsage(), evidence.proposedUsage(),
-                    evidence.commentary(), evidence.sources(), evidence.currentMatchup(), evidence.proposedMatchup()));
+                    evidence.commentary(), evidence.sources(), evidence.currentMatchup(), evidence.proposedMatchup(), currentExpert, proposedExpert));
             }
         }
         return RecommendationReport.ready(
@@ -495,6 +494,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
             .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks);
+    }
+
+    private static String expertSummary(List<ExpertPick> picks, String playerId) {
+        var matches = picks.stream().filter(p -> playerId.equals(p.playerId())).toList();
+        return matches.size() == 1 && Set.of("START", "SIT").contains(matches.get(0).selection())
+            ? matches.get(0).selection() + " by " + matches.get(0).author() : "unverified";
     }
 
     private static SwapReview swapReview(AutoFillLineupOptimizer.SlotRecommendation assignment,
@@ -523,7 +528,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI.toString(),
                 NflverseDefensiveMatchupProvider.SCHEDULE_URI.toString()),
             matchups.getOrDefault(assignment.currentPlayerId(), "NFL matchup evidence unavailable; manual review required."),
-            matchups.getOrDefault(assignment.recommendedPlayerId(), "NFL matchup evidence unavailable; manual review required."));
+            matchups.getOrDefault(assignment.recommendedPlayerId(), "NFL matchup evidence unavailable; manual review required."), "", "");
     }
 
     public record ExpertPick(String playerId, String player, String position, String selection,
@@ -531,7 +536,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     public record SwapReview(int ordinal, String slot, String current, String proposed, String projectedGain,
         String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources,
-        String currentMatchup, String proposedMatchup) {
+        String currentMatchup, String proposedMatchup, String currentExpert, String proposedExpert) {
         public SwapReview { sources = List.copyOf(sources); }
     }
 

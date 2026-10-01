@@ -47,6 +47,8 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertEquals(1, comparisons.size());
         assertEquals("-2", comparisons.get(0).projectedGain());
         assertEquals("Candidate matchup", comparisons.get(0).proposedMatchup());
+        assertEquals("SIT by Test Author", comparisons.get(0).currentExpert());
+        assertEquals("unverified", comparisons.get(0).proposedExpert());
         assertTrue(comparisons.get(0).reason().contains("SIT by Test Author"));
         assertTrue(comparisons.get(0).reason().contains("candidate expert: unverified"));
     }
@@ -55,14 +57,17 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     void heldStarterComparisonDoesNotInventProjectionDelta() throws Exception {
         Database database = initializedDatabase("league-held-starter-review");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "8")));
+        var pick = new SleeperLiveAutoFillLineupRecommendation.ExpertPick("s-wr-a", "Starter WR", "WR", "START",
+            "Test Author", "", "", "", "https://www.nfl.com/news/test", "One author");
         var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
             ids -> Map.of("s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Questionable")),
             players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
-            (season, week, players) -> Map.of(), (season, week, players) -> List.of())
+            (season, week, players) -> Map.of(), (season, week, players) -> List.of(pick))
             .recommend(rosterReport("league-held-starter-review"));
         assertTrue(report.ready());
         var comparison = report.swapReviews().stream().filter(r -> "MANUAL_REVIEW_REPLACEMENT".equals(r.status())).findFirst().orElseThrow();
         assertEquals("Unavailable", comparison.projectedGain());
+        assertEquals("START by Test Author", comparison.currentExpert());
         assertEquals("WR", comparison.slot());
         assertTrue(report.recommendation().promotions().isEmpty());
         assertEquals(new BigDecimal("20"), report.currentProjectedTotal());
