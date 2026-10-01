@@ -40,6 +40,12 @@ if ($returnPos -lt 0) {
 }
 
 $disclosureSetup = @'
+    $holdEvidenceHtml = '<p class="meta">Projection baseline with current availability and recent ESPN headline review signals. News coverage may be incomplete; expert analysis is not yet included.</p>'
+    foreach ($hold in @($AutoFill.ProjectionHolds)) {
+        if ($null -ne $hold.PSObject.Properties['Reason']) {
+            $holdEvidenceHtml += "<div class=`"callout`"><strong>$(ConvertTo-HtmlText $hold.Name): review before starting</strong><p>$(ConvertTo-HtmlText $hold.Reason)</p></div>"
+        }
+    }
     $unchangedCount = @($AutoFill.Assignments | Where-Object { -not $_.Changed }).Count
     $lineupFocusHtml = if ($changedCount -gt 0) {
         $changeWord = if ($changedCount -eq 1) { 'change' } else { 'changes' }
@@ -64,7 +70,7 @@ $boardCount = [regex]::Matches($function, [regex]::Escape($oldBoard)).Count
 if ($boardCount -ne 1) {
     throw "BF-943 BLOCKED: expected one primary lineup-board binding, found $boardCount."
 }
-$function = $function.Replace($oldBoard, '$lineupFocusHtml$unchangedDisclosure')
+$function = $function.Replace($oldBoard, '$holdEvidenceHtml$lineupFocusHtml$unchangedDisclosure')
 $function = $function.Substring(0, $returnPos) + $disclosureSetup + $function.Substring($returnPos)
 
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
