@@ -674,6 +674,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "Dashboard matchup summary transform not found at $dashboardMatchupTransform"
     }
     & $dashboardMatchupTransform -CorePath $stagedCore
+
+    $bf969Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf969-history-shortcut-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf969Transform -PathType Leaf)) {
+        throw "BF-969 BLOCKED: Dashboard Decision History shortcut transform not found at $bf969Transform"
+    }
+    & $bf969Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
