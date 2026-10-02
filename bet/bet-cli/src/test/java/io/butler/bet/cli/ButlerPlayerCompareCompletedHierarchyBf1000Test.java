@@ -30,9 +30,13 @@ class ButlerPlayerCompareCompletedHierarchyBf1000Test {
     void exactSwapAndCardContinuationRemainAvailable() throws Exception {
         String transform = source("scripts/butler-app-bf1000-player-compare-completed-hierarchy-transform.ps1");
         String loop = source("scripts/butler-app-bf923-player-compare-loop-transform.ps1");
+        String lineupReturn = source("scripts/butler-app-bf944-lineup-compare-return-transform.ps1");
         String waivers = source("scripts/butler-app-bf964-player-compare-position-waivers-transform.ps1");
 
         assertTrue(loop.contains("$swapHref = \"/compare?left=$rightHref&right=$leftHref$swapSuffix\""));
+        assertTrue(lineupReturn.contains("$lineupContextSuffix = if ($Request.FromLineup)"));
+        assertTrue(lineupReturn.contains("$swapHref = \"/compare?left=$rightHref&right=$leftHref$lineupContextSuffix$swapSuffix\""));
+        assertTrue(lineupReturn.contains("Back to Lineup Review"));
         assertTrue(loop.contains("Compare with another $(ConvertTo-HtmlText $Player.Position)"));
         assertTrue(waivers.contains("$waiverAction"));
         assertTrue(transform.contains("Butler does not choose a winner"));
