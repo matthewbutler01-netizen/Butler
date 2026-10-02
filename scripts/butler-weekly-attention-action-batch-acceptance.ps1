@@ -197,7 +197,7 @@ try {
 
     $core = [IO.File]::ReadAllText($corePath)
     foreach ($required in @(
-        '(?:?|&)from=dashboard(?:&|$)',
+        '(?:\?|&)from=dashboard(?:&|$)',
         'Add-Bf981PlayerDetailDashboardReturn -Html $html -FromDashboard $fromDashboard',
         'function Get-Bf980StarterWaiverActionsHtml',
         'function Add-Bf981PlayerDetailDashboardReturn'
