@@ -741,6 +741,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-982 BLOCKED: Weekly Attention replacement-context transform not found at $bf982Transform"
     }
     & $bf982Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-983: when Weekly Attention opens a Waiver Board for one exact held
+    # starter, make that comparison the card-level primary action.
+    $bf983Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf983-replacement-decision-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf983Transform -PathType Leaf)) {
+        throw "BF-983 BLOCKED: replacement decision-focus transform not found at $bf983Transform"
+    }
+    & $bf983Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
