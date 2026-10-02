@@ -116,3 +116,9 @@ if ($bf955InstalledSurface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-Bu
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-955 My Team roster slot summary applied.'
+
+$bf956Transform = Join-Path $PSScriptRoot 'butler-app-bf956-my-team-roster-jump-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf956Transform -PathType Leaf)) {
+    throw "BF-956 BLOCKED: My Team roster jump transform not found at $bf956Transform"
+}
+& $bf956Transform -CorePath $CorePath
