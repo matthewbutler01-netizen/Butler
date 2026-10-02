@@ -717,6 +717,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-979 BLOCKED: Weekly Attention transform not found at $bf979Transform"
     }
     & $bf979Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-980: turn exact starter hold positions into direct focused Waiver Board
+    # filters. These are navigation aids only; no replacement is selected.
+    $bf980Transform = Join-Path $PSScriptRoot 'butler-app-bf980-weekly-attention-waiver-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf980Transform -PathType Leaf)) {
+        throw "BF-980 BLOCKED: Weekly Attention waiver-action transform not found at $bf980Transform"
+    }
+    & $bf980Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
