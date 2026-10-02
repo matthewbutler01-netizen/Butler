@@ -189,7 +189,7 @@ foreach ($required in @(
     '$replacementComparisonActive = $false',
     '[string]$replacementComparedRoster.RosterSlot -ceq ''STARTER''',
     '$replacementComparisonActions = Convert-Bf985ReplacementComparisonActions',
-    'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix">'
+    'href=`"/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix`">'
 )) {
     if ($rosterFn.Extent.Text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-985 BLOCKED: focused Roster Compare marker is missing: $required"
