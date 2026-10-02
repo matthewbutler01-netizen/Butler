@@ -73,7 +73,16 @@ try {
         }
     }
 
-    $surface = $team + [Environment]::NewLine + $coreText.Substring($coreText.IndexOf('/* BF-994 My Team roster scanability batch. */'))
+    $cssMatches = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Get-AppCss'
+    }, $true))
+    if ($cssMatches.Count -ne 1) {
+        throw "BF-994 BLOCKED: expected one Get-AppCss function, found $($cssMatches.Count)."
+    }
+
+    $surface = $team + [Environment]::NewLine + $cssMatches[0].Extent.Text
     if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|returnUrl|redirectUrl|javascript:') {
         throw 'BF-994 BLOCKED: My Team roster scanability introduced provider, optimizer, write, or open-redirect behavior.'
     }
