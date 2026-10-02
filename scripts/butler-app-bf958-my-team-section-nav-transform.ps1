@@ -33,7 +33,7 @@ foreach ($required in @(
     '<div class="eyebrow">Roster hub</div><h2>Lineup and depth at a glance</h2>',
     '<div class="eyebrow">Roster construction</div><h2>Position outlook</h2>',
     '<div class="eyebrow">Future flexibility</div><h2>Draft capital</h2>',
-    '$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill',
+    '$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill -Roster $Roster',
     'BF-957 My Team position inventory links'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
@@ -64,9 +64,9 @@ $draftOld = '<section class="panel"><div class="eyebrow">Future flexibility</div
 $draftNew = '<section id="team-draft" class="panel team-section-target" tabindex="-1"><div class="eyebrow">Future flexibility</div><h2>Draft capital</h2>'
 $team = Replace-ExactlyOnce -Text $team -Old $draftOld -New $draftNew -Contract 'draft section anchor'
 
-$autoFillOld = '    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill'
+$autoFillOld = '    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill -Roster $Roster'
 $autoFillNew = @'
-    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill
+    $autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill -Roster $Roster
     $autoFillHtml = $autoFillHtml.Replace('<section class="panel recommendation-panel"', '<section id="team-lineup" class="panel recommendation-panel team-section-target" tabindex="-1"')
 '@
 $team = Replace-ExactlyOnce -Text $team -Old $autoFillOld -New $autoFillNew.TrimEnd() -Contract 'lineup advisor section anchor'
