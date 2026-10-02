@@ -1,6 +1,15 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$transformPath = Join-Path $PSScriptRoot 'butler-dashboard-bf960-waiver-candidate-actions-transform.ps1'
+$transformTokens = $null
+$transformErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($transformPath, [ref]$transformTokens, [ref]$transformErrors)
+if (@($transformErrors).Count -ne 0) {
+    $summary = (@($transformErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-960 BLOCKED: transform script failed PowerShell parse before staging: $summary"
+}
+
 $root = Join-Path ([IO.Path]::GetTempPath()) ('Butler-bf960-waiver-candidate-' + [guid]::NewGuid().ToString('N'))
 try {
     [IO.Directory]::CreateDirectory($root) | Out-Null
