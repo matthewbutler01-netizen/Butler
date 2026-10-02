@@ -475,7 +475,7 @@ $opponentOptions = '<option value="">Choose a league opponent</option>'
         $giveSummary = ConvertTo-TradeSelectionDisplay -Inventory $Inventory -Tokens @($Give)
         $receiveSummary = ConvertTo-TradeSelectionDisplay -Inventory $Inventory -Tokens @($Receive)
         $dealSnapshotHtml = @"
-<section class="panel deal-snapshot-panel"><div class="eyebrow">Evaluated deal</div><div class="statusrow"><div><h2 class="headline">Deal snapshot</h2><p class="lede">Butler evaluated these exact currently owned assets from your bound team's perspective.</p></div><div class="status done">$(ConvertTo-HtmlText $Opponent.Name)</div></div><div class="deal-snapshot"><div class="deal-side"><strong>You give</strong><span>$(ConvertTo-HtmlText $giveSummary)</span></div><div class="deal-side"><strong>You receive</strong><span>$(ConvertTo-HtmlText $receiveSummary)</span></div></div></section>
+<section class="panel deal-snapshot-panel"><div class="eyebrow">Evaluated deal</div><div class="statusrow"><div><h2 class="headline">Deal snapshot</h2><p class="lede">Butler evaluated these exact currently owned assets from your bound team's perspective.</p></div><div class="status done">$(ConvertTo-HtmlText $Opponent.Name)</div></div><div class="deal-snapshot"><div class="deal-side"><strong>You give</strong><span>$(ConvertTo-HtmlText $giveSummary)</span></div><div class="deal-side"><strong>You receive</strong><span>$(ConvertTo-HtmlText $receiveSummary)</span></div></div><div class="button-row" style="margin-top:12px"><a class="btn btn-secondary" href="/trade?opponent=$opponentTeamHrefId">Start new deal with this opponent</a></div></section>
 "@
         $builderPresentation = @"
 <details class="edit-deal"><summary>Edit this deal</summary>$builder</details>
