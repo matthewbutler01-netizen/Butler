@@ -47,7 +47,10 @@ try {
         'Two exact rostered players are loaded side by side.',
         '<a class="btn btn-primary" href="/players">Compare different players</a>',
         '<a class="btn btn-secondary" href="$swapHref">Swap sides</a>',
+        '$returnToLineupAction',
+        'Back to Lineup Review',
         '$swapHref = "/compare?left=$rightHref&right=$leftHref$swapSuffix"',
+        'Butler does not choose a winner',
         'NOT A RANKING'
     )) {
         if ($compare.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
@@ -72,7 +75,7 @@ try {
     }
 
     Write-Host 'BF-1000 PLAYER COMPARE COMPLETED-HIERARCHY ACCEPTANCE: PASS'
-    Write-Host 'Coverage: completed-state orientation, different-pair primary action, preserved exact swap, per-player continuation tools, and no new reads or writes'
+    Write-Host 'Coverage: completed-state orientation, different-pair primary action, preserved lineup return and exact swap, per-player continuation tools, and no new reads or writes'
 }
 finally {
     if (Test-Path -LiteralPath $root) {
