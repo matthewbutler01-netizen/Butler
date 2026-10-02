@@ -116,3 +116,9 @@ if ($bf957Surface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadO
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-957 My Team position inventory links applied.'
+
+$bf958Transform = Join-Path $PSScriptRoot 'butler-app-bf958-my-team-section-nav-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf958Transform -PathType Leaf)) {
+    throw "BF-958 BLOCKED: My Team section navigation transform not found at $bf958Transform"
+}
+& $bf958Transform -CorePath $CorePath
