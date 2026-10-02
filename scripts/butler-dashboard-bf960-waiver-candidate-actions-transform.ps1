@@ -52,7 +52,7 @@ if ($returnStart -lt 0) {
 }
 
 $workflowPrelude = @'
-    $candidateWorkflowActions = '<div class="actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>'
+    $candidateWorkflowActions = '<div class="actions candidate-workflow-actions" style="margin-top:18px"><a class="button" href="/waivers">Back to Waiver Board</a></div>'
     if ([string]$Candidate.SleeperId -match '^[0-9]+$') {
         $candidateWorkflowHrefId = [System.Uri]::EscapeDataString([string]$Candidate.SleeperId)
         $candidateWorkflowActions = '<div class="actions candidate-workflow-actions" style="margin-top:18px"><a class="button" href="/waivers/compare?left=' + (ConvertTo-HtmlText $candidateWorkflowHrefId) + '">Compare candidate</a><a class="button" href="/waivers/roster-compare?candidate=' + (ConvertTo-HtmlText $candidateWorkflowHrefId) + '">Compare to roster</a><a class="button" href="/waivers">Back to Waiver Board</a></div>'
