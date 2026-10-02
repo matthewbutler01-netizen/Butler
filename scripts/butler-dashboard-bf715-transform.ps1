@@ -868,6 +868,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1000 BLOCKED: Player Compare completed-hierarchy transform not found at $bf1000Transform"
     }
     & $bf1000Transform -CorePath $stagedCore
+
+    # BF-1001: make the exact player's Compare workflow primary on Player Hub
+    # while preserving matchup, discovery, waiver, scout, and trade shortcuts.
+    $bf1001Transform = Join-Path $PSScriptRoot 'butler-app-bf1001-player-hub-action-hierarchy-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1001Transform -PathType Leaf)) {
+        throw "BF-1001 BLOCKED: Player Hub action-hierarchy transform not found at $bf1001Transform"
+    }
+    & $bf1001Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
