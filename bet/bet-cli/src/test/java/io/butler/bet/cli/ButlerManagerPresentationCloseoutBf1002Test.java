@@ -56,6 +56,20 @@ class ButlerManagerPresentationCloseoutBf1002Test {
     }
 
     @Test
+    void mvpCompletionEnforcesPresentationCloseoutBeforeRelease() throws Exception {
+        String mvp = source("scripts/butler-mvp-completion-acceptance.ps1");
+
+        assertTrue(mvp.contains("butler-presentation-closeout-acceptance.ps1"));
+        assertTrue(mvp.contains("manager presentation closeout missing"));
+        assertTrue(mvp.contains("Running final manager presentation closeout..."));
+
+        int closeout = mvp.indexOf("& $presentationCloseout");
+        int release = mvp.indexOf("& $releaseAcceptance");
+        assertTrue(closeout >= 0, "MVP completion must invoke presentation closeout");
+        assertTrue(release > closeout, "Presentation closeout must run before release acceptance");
+    }
+
+    @Test
     void closeoutRemainsAcceptanceOnly() throws Exception {
         String script = source("scripts/butler-presentation-closeout-acceptance.ps1");
 
