@@ -38,6 +38,7 @@ try {
         'id="team-roster" class="panel team-section-target" tabindex="-1"',
         'id="team-positions" class="panel team-section-target" tabindex="-1"',
         'id="team-draft" class="panel team-section-target" tabindex="-1"',
+        '$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill -Roster $Roster',
         '$autoFillHtml.Replace(',
         'id="team-lineup" class="panel recommendation-panel team-section-target" tabindex="-1"'
     )) {
