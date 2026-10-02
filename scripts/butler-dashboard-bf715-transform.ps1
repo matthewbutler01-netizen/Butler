@@ -781,6 +781,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-987 BLOCKED: Weekly Attention return-loop transform not found at $bf987Transform"
     }
     & $bf987Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-988: orient exact replacement mode as a simple three-step workflow
+    # without changing normal waiver traffic or adding any write behavior.
+    $bf988Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf988-replacement-workflow-orientation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf988Transform -PathType Leaf)) {
+        throw "BF-988 BLOCKED: replacement workflow orientation transform not found at $bf988Transform"
+    }
+    & $bf988Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
