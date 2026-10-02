@@ -38,7 +38,10 @@ function Replace-ExactlyOnce {
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
-$coreTeamAnchor = 'function ConvertTo-TeamHtml {'
+# Install snapshot helpers ahead of the first stable core helper. Later AutoFill and
+# My Team transforms replace the region ending at ConvertTo-TeamHtml and previously
+# swallowed BF-808 when it was inserted immediately before that function.
+$corePreludeAnchor = 'function ConvertTo-HtmlText {'
 $coreSnapshotHelpers = @'
 function Get-Bf808AutoFillSnapshotPath {
     param([Parameter(Mandatory = $true)][string]$LeagueKey)
@@ -114,9 +117,9 @@ function Save-Bf808AutoFillSnapshot {
     }
 }
 
-function ConvertTo-TeamHtml {
+function ConvertTo-HtmlText {
 '@
-$core = Replace-ExactlyOnce -Text $core -Old $coreTeamAnchor -New $coreSnapshotHelpers -Contract 'core AutoFill snapshot helper insertion'
+$core = Replace-ExactlyOnce -Text $core -Old $corePreludeAnchor -New $coreSnapshotHelpers -Contract 'core AutoFill snapshot helper insertion'
 
 $autoFillRouteAnchor = @'
                     $autoFill = ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
