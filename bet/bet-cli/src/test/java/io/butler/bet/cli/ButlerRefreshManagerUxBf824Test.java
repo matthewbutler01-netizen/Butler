@@ -50,7 +50,7 @@ class ButlerRefreshManagerUxBf824Test {
         int noSleeper = success.indexOf("No changes were submitted to Sleeper.");
         int dashboard = success.indexOf("href=\"/\">Return to Dashboard</a>");
         int team = success.indexOf("href=\"/team\">Review My Team</a>");
-        int history = success.indexOf("href=\"/history\">View History</a>");
+        int history = success.indexOf("href=\"/history?load=1\">View History</a>");
         int details = success.indexOf("<summary>Technical details</summary>");
         int result = success.indexOf("$safeResult", details);
 

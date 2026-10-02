@@ -91,6 +91,34 @@ public final class LiveWaiverSnapshotRepository {
         }
     }
 
+    /** Eligibility from the exact BF-602 frame already verified by the target-roster audit. */
+    public List<String> rosterFantasyPositions(
+        String snapshotId, String leagueId, String sleeperLeagueId, int season, String sleeperPlayerId)
+        throws SQLException {
+        try (Connection connection = database.openConnection()) {
+            ensureTables(connection);
+            try (var statement = connection.prepareStatement("""
+                SELECT e.fantasy_positions
+                FROM live_waiver_snapshot_entries e
+                JOIN live_waiver_snapshots s ON s.id=e.snapshot_id
+                WHERE s.id=? AND s.league_id=? AND s.sleeper_league_id=? AND s.season=?
+                  AND e.sleeper_player_id=? AND e.rostered=1 AND e.free_agent=0
+                """)) {
+                statement.setString(1, snapshotId);
+                statement.setString(2, leagueId);
+                statement.setString(3, sleeperLeagueId);
+                statement.setInt(4, season);
+                statement.setString(5, sleeperPlayerId);
+                try (ResultSet rs = statement.executeQuery()) {
+                    if (!rs.next()) return List.of();
+                    String positions = rs.getString(1);
+                    if (rs.next()) throw new SQLException("Duplicate roster eligibility evidence");
+                    return fantasyPositions(positions);
+                }
+            }
+        }
+    }
+
     public Counts counts(String snapshotId) throws SQLException {
         String normalized = requireText(snapshotId, "snapshotId");
         try (Connection connection = database.openConnection()) {

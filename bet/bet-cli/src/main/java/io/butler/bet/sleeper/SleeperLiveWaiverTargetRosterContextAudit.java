@@ -199,7 +199,9 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
             partition.taxiCount(),
             mapped,
             unmapped,
-            List.copyOf(targetPlayers));
+            List.copyOf(targetPlayers),
+            java.util.stream.IntStream.range(0, target.starterIds().size())
+                .filter(i -> "0".equals(target.starterIds().get(i))).boxed().toList());
     }
 
     private Map<String, CanonicalPlayer> exactCanonicalPlayers(List<String> sleeperPlayerIds) throws SQLException {
@@ -250,18 +252,19 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
                 throw new IllegalStateException("BF-610 BLOCKED: missing, invalid, or duplicate provider roster_id");
             }
             List<String> players = stringArray(node.get("players"), "players", true);
-            List<String> starters = stringArray(node.get("starters"), "starters", true);
+            List<String> starters = stringArray(node.get("starters"), "starters", false);
+            List<String> occupiedStarters = starters.stream().filter(id -> !"0".equals(id)).toList();
             List<String> reserve = stringArray(node.get("reserve"), "reserve", true);
             List<String> taxi = stringArray(node.get("taxi"), "taxi", true);
             ensureUnique(players, "players", rosterId);
-            ensureUnique(starters, "starters", rosterId);
+            ensureUnique(occupiedStarters, "starters", rosterId);
             ensureUnique(reserve, "reserve", rosterId);
             ensureUnique(taxi, "taxi", rosterId);
-            ensureSubset(starters, players, "starters", rosterId);
+            ensureSubset(occupiedStarters, players, "starters", rosterId);
             ensureSubset(reserve, players, "reserve", rosterId);
             ensureSubset(taxi, players, "taxi", rosterId);
-            ensureDisjoint(starters, reserve, "starters/reserve", rosterId);
-            ensureDisjoint(starters, taxi, "starters/taxi", rosterId);
+            ensureDisjoint(occupiedStarters, reserve, "starters/reserve", rosterId);
+            ensureDisjoint(occupiedStarters, taxi, "starters/taxi", rosterId);
             ensureDisjoint(reserve, taxi, "reserve/taxi", rosterId);
             result.add(new ProviderRoster(
                 rosterId,
@@ -308,13 +311,16 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
     }
 
     private static TargetPartition targetPartition(ProviderRoster roster, List<String> startingSlots) {
-        Set<String> starters = Set.copyOf(roster.starterIds());
+        Set<String> starters = new LinkedHashSet<>(roster.starterIds());
+        starters.remove("0");
         Set<String> reserve = Set.copyOf(roster.reserveIds());
         Set<String> taxi = Set.copyOf(roster.taxiIds());
         List<TargetSlot> ordered = new ArrayList<>();
 
         for (int i = 0; i < roster.starterIds().size(); i++) {
-            ordered.add(new TargetSlot(roster.starterIds().get(i), "STARTER", i, startingSlots.get(i)));
+            if (!"0".equals(roster.starterIds().get(i))) {
+                ordered.add(new TargetSlot(roster.starterIds().get(i), "STARTER", i, startingSlots.get(i)));
+            }
         }
         roster.playerIds().stream()
             .filter(id -> !starters.contains(id) && !reserve.contains(id) && !taxi.contains(id))
@@ -360,6 +366,9 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
         List<String> result = new ArrayList<>();
         for (JsonNode value : node) {
             String text = trimToNull(value == null || value.isNull() ? null : value.asText(null));
+            if (!filterZero && (text == null || !value.isValueNode() || value.isBoolean())) {
+                throw new IllegalStateException("BF-610 BLOCKED: malformed provider starter entry; only explicit 0 denotes an empty slot");
+            }
             if (text != null && (!filterZero || !"0".equals(text))) result.add(text);
         }
         return List.copyOf(result);
@@ -567,12 +576,61 @@ public final class SleeperLiveWaiverTargetRosterContextAudit {
         int taxiCount,
         int exactMappedTargetPlayers,
         int unmappedTargetPlayers,
-        List<TargetPlayer> targetPlayers) {
+        List<TargetPlayer> targetPlayers,
+        List<Integer> emptyStartingOrdinals) {
+        /** Compatibility constructor: a missing starter is not inferred to be an empty slot. */
+        public AuditReport(
+            String policyId,
+            String leagueId,
+            String marketSnapshotId,
+            String waiverSnapshotId,
+            String sleeperLeagueId,
+            int providerSeason,
+            String providerStatus,
+            Integer providerLeg,
+            String sleeperOwnerId,
+            String ownerDisplayName,
+            String ownerTeamName,
+            int rosterId,
+            String butlerTeamId,
+            String butlerTeamName,
+            List<String> lineupSlots,
+            List<String> startingSlots,
+            int candidateCount,
+            int reviewableCandidateCount,
+            int targetPlayerCount,
+            int starterCount,
+            int benchCount,
+            int reserveCount,
+            int taxiCount,
+            int exactMappedTargetPlayers,
+            int unmappedTargetPlayers,
+            List<TargetPlayer> targetPlayers) {
+            this(policyId, leagueId, marketSnapshotId, waiverSnapshotId,
+                sleeperLeagueId, providerSeason, providerStatus, providerLeg,
+                sleeperOwnerId, ownerDisplayName, ownerTeamName, rosterId,
+                butlerTeamId, butlerTeamName, lineupSlots, startingSlots,
+                candidateCount, reviewableCandidateCount, targetPlayerCount, starterCount,
+                benchCount, reserveCount, taxiCount, exactMappedTargetPlayers,
+                unmappedTargetPlayers, targetPlayers, List.of());
+        }
+
         public AuditReport {
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected BF-610 policyId");
             lineupSlots = List.copyOf(Objects.requireNonNull(lineupSlots));
             startingSlots = List.copyOf(Objects.requireNonNull(startingSlots));
             targetPlayers = List.copyOf(Objects.requireNonNull(targetPlayers));
+            emptyStartingOrdinals = List.copyOf(Objects.requireNonNull(emptyStartingOrdinals));
+            int startingSlotCount = startingSlots.size();
+            Set<Integer> empty = new LinkedHashSet<>(emptyStartingOrdinals);
+            if (empty.size() != emptyStartingOrdinals.size() || empty.stream().anyMatch(i -> i < 0 || i >= startingSlotCount)) {
+                throw new IllegalArgumentException("empty starter ordinals must be unique and within starting slots");
+            }
+            for (TargetPlayer player : targetPlayers) {
+                if ("STARTER".equals(player.rosterSlot()) && empty.contains(player.starterOrdinal())) {
+                    throw new IllegalArgumentException("empty starter ordinal cannot contain a player");
+                }
+            }
             if (targetPlayerCount != targetPlayers.size()) throw new IllegalArgumentException("target player count must reconcile");
             if (starterCount + benchCount + reserveCount + taxiCount != targetPlayerCount) {
                 throw new IllegalArgumentException("target roster slot counts must reconcile");

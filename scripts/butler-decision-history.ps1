@@ -7,10 +7,12 @@ function Get-AppNav {
     $teamClass = if ($Active -ceq 'team') { ' class="active"' } else { '' }
     $matchupClass = if ($Active -ceq 'matchup') { ' class="active"' } else { '' }
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
+    $playersClass = if ($Active -ceq 'players') { ' class="active"' } else { '' }
+    $compareClass = if ($Active -ceq 'compare') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
     $historyClass = if ($Active -ceq 'history') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history`">History</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$playersClass href=`"/players`">Player Search</a><a$compareClass href=`"/compare`">Player Compare</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history?load=1`">History</a></nav>"
 }
 
 function Add-AppNavigation {
@@ -28,10 +30,17 @@ function Add-AppNavigation {
         if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: League navigation anchor is missing.' }
         $Html = $anchor.Replace($Html, '$1<a href="/trade">Trade Analyzer</a>', 1)
     }
-    if ($Html -notmatch 'href="/history"') {
+    if ($Html -match 'href="/history\?load=1"') {
+        $oldHistory = [regex]'<a[^>]*href="/history"[^>]*>History</a>'
+        $Html = $oldHistory.Replace($Html, '')
+    }
+    elseif ($Html -match 'href="/history"') {
+        $Html = $Html.Replace('href="/history"', 'href="/history?load=1"')
+    }
+    else {
         $anchor = [regex]'(<a[^>]*href="/trade"[^>]*>Trade Analyzer</a>)'
         if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: Trade Analyzer navigation anchor is missing.' }
-        $Html = $anchor.Replace($Html, '$1<a href="/history">History</a>', 1)
+        $Html = $anchor.Replace($Html, '$1<a href="/history?load=1">History</a>', 1)
     }
     return $Html
 }
@@ -50,7 +59,9 @@ function Get-DecisionHistoryLoadingHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="1;url=/history?load=1">
 <title>Butler Decision History</title>
-<style>$css</style>
+<style>$css
+.loading-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.loading-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:11px 16px;text-decoration:none;font-weight:700}.loading-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}
+</style>
 </head>
 <body>
 <main class="shell">
@@ -63,6 +74,7 @@ $nav
 <span class="status done">READ ONLY</span>
 </div>
 <div class="empty">This view reads existing decision history only. It does not capture, refresh, rerank, or submit anything.</div>
+<div class="loading-actions"><a href="/history?load=1">Open Decision History now</a><a href="/">Dashboard</a></div>
 </section>
 </main>
 </body>
@@ -168,6 +180,9 @@ function ConvertTo-DecisionHistoryHtml {
     $olderCards = ''
     $latestOutcome = 'No recorded decisions'
     $latestCaptured = 'None yet'
+    $moveCount = 0
+    $noMoveCount = 0
+    $otherDecisionCount = 0
     for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
         $entry = $presentationEntries[$entryIndex]
         $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $entry.Captured
@@ -199,6 +214,12 @@ function ConvertTo-DecisionHistoryHtml {
             'RECORDED'
         }
         $decisionClass = if ($entry.RecommendationState -ceq 'RECOMMEND_ADD_DROP') { 'good' } else { 'done' }
+
+        switch ([string]$entry.RecommendationState) {
+            'RECOMMEND_ADD_DROP' { $moveCount++ }
+            'NO_GOVERNED_TRANSACTION' { $noMoveCount++ }
+            default { $otherDecisionCount++ }
+        }
 
         $isNewest = $entryIndex -eq ($presentationEntries.Count - 1)
         if ($isNewest) {
@@ -245,7 +266,7 @@ function ConvertTo-DecisionHistoryHtml {
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision History</title><style>$css$historyCss</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History &middot; $(ConvertTo-HtmlText $History.RecordCount) recorded</div></header>
 $nav
-<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div>$olderHistoryHtml</section>
+<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Moves recorded</strong><span>$(ConvertTo-HtmlText $moveCount)</span></div><div class="stat"><strong>No-move records</strong><span>$(ConvertTo-HtmlText $noMoveCount)</span></div><div class="stat"><strong>Other states</strong><span>$(ConvertTo-HtmlText $otherDecisionCount)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div>$olderHistoryHtml</section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> Decision History reads recorded governed waiver history only. It cannot capture or rewrite a decision record, refresh evidence, rerank a waiver decision, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@

@@ -70,6 +70,20 @@ foreach ($forbidden in @(
     }
 }
 
+# Qualify final decision wording after the existing navigation contracts have been verified.
+# Matchup must qualify the same projection preview as My Team.
+$matchupStart = $core.IndexOf('function Get-MatchupLineupDecisionView {', [System.StringComparison]::Ordinal)
+$matchupEnd = $core.IndexOf('function ConvertTo-MatchupHtml {', $matchupStart, [System.StringComparison]::Ordinal)
+if ($matchupStart -lt 0 -or $matchupEnd -le $matchupStart) { throw 'BF-943 BLOCKED: matchup decision boundary missing.' }
+$matchup = $core.Substring($matchupStart, $matchupEnd - $matchupStart)
+$matchup = $matchup.Replace('Title = "Make $($changedAssignments.Count) lineup $changeWord"', 'Title = "Review $($changedAssignments.Count) projection proposal(s)"')
+$matchup = $matchup.Replace("Status = 'CHANGES FOUND'", "Status = 'MANUAL REVIEW'").Replace("StatusClass = 'good'", "StatusClass = 'warn'")
+$matchup = $matchup.Replace("Title = 'Keep the current lineup'", "Title = 'No projected changes after holds'")
+$matchup = $matchup.Replace('Start: $startText | Sit: $sitText', 'Proposed promotion: $startText | Proposed bench move: $sitText')
+$matchup = $matchup.Replace('The existing governed Lineup Advisor found a stronger legal projected lineup for this weekly frame. Review the exact START/SIT moves before deciding.', 'Manual review required: projections are a baseline; usage, matchup, and expert evidence may be incomplete.')
+$matchup = $matchup.Replace('The existing governed Lineup Advisor found no proven projected improvement over the current legal starters for this weekly frame.', 'No higher projected lineup was found among evaluated players. Review holds and missing evidence before deciding.')
+$core = $core.Substring(0, $matchupStart) + $matchup + $core.Substring($matchupEnd)
+
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 
 $tokens = $null

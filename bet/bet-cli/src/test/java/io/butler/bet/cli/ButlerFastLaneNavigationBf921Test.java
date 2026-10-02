@@ -57,7 +57,9 @@ class ButlerFastLaneNavigationBf921Test {
                 "$opponentTeamHrefId = [System.Uri]::EscapeDataString([string]$Opponent.TeamId)"));
         assertTrue(trade.contains("/franchise?id=$opponentTeamHrefId"));
         assertTrue(trade.contains("Scout franchise"));
-        assertTrue(trade.contains("$opponentScoutAction</section>"));
+        assertTrue(trade.contains("$workflowHtml$partnerControlsHtml</section>"));
+        assertTrue(trade.contains("$partnerControlsHtml ="));
+        assertTrue(trade.contains("Evaluated partner"));
 
         assertTrue(journey.contains(
                 "BF-921 FAILED: loaded Trade Analyzer did not link back to the exact Franchise Scout."));

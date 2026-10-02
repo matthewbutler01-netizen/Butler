@@ -100,7 +100,9 @@ final class SleeperPlayerAvailabilityProvider {
             parsed.put(id, new PlayerAvailability(
                 id,
                 optionalText(node, "status"),
-                optionalText(node, "injury_status")));
+                optionalText(node, "injury_status"),
+                optionalText(node, "injury_body_part"),
+                optionalText(node, "practice_participation"), clock.instant()));
         });
         return Map.copyOf(parsed);
     }
@@ -112,11 +114,17 @@ final class SleeperPlayerAvailabilityProvider {
         return text == null || text.isBlank() ? null : text.trim();
     }
 
-    record PlayerAvailability(String sleeperPlayerId, String status, String injuryStatus) {
+    record PlayerAvailability(String sleeperPlayerId, String status, String injuryStatus,
+                              String injuryBodyPart, String practiceParticipation, Instant observedAt) {
+        PlayerAvailability(String sleeperPlayerId, String status, String injuryStatus) {
+            this(sleeperPlayerId, status, injuryStatus, null, null, null);
+        }
         PlayerAvailability {
             sleeperPlayerId = requireText(sleeperPlayerId, "sleeperPlayerId");
             status = clean(status);
             injuryStatus = clean(injuryStatus);
+            injuryBodyPart = clean(injuryBodyPart);
+            practiceParticipation = clean(practiceParticipation);
         }
 
         boolean explicitlyUnavailable() {
@@ -131,8 +139,23 @@ final class SleeperPlayerAvailabilityProvider {
                 || (normalizedInjury != null && EXPLICITLY_UNAVAILABLE.contains(normalizedInjury));
         }
 
+        boolean confirmedUnavailable() {
+            return EXPLICITLY_UNAVAILABLE.contains(normalize(status) == null ? "" : normalize(status))
+                || EXPLICITLY_UNAVAILABLE.contains(normalize(injuryStatus) == null ? "" : normalize(injuryStatus));
+        }
+
+        boolean requiresInjuryReview() {
+            String normalizedStatus = normalize(status);
+            String normalizedInjury = normalize(injuryStatus);
+            return (normalizedStatus != null && EXPLICITLY_UNAVAILABLE.contains(normalizedStatus))
+                || (normalizedInjury != null && !normalizedInjury.equals("healthy"));
+        }
+
         String evidenceDescription() {
-            return "status=" + value(status) + ", injury_status=" + value(injuryStatus);
+            return "status=" + value(status) + ", injury_status=" + value(injuryStatus)
+                + (injuryBodyPart == null ? "" : ", injury=" + value(injuryBodyPart))
+                + (practiceParticipation == null ? "" : ", practice=" + value(practiceParticipation))
+                + (observedAt == null ? "" : "; source=https://api.sleeper.app/v1/players/nfl; checked=" + observedAt);
         }
 
         private static String value(String value) {

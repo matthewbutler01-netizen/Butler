@@ -57,3 +57,9 @@ $tokens = $null; $errors = $null
 if (@($errors).Count -gt 0) { throw "Dashboard matchup: generated core has $(@($errors).Count) parse error(s)." }
 [IO.File]::WriteAllText($CorePath, $core, [Text.UTF8Encoding]::new($false))
 Write-Host 'Dashboard weekly matchup summary applied.'
+
+$bf954Transform = Join-Path $PSScriptRoot 'butler-app-bf954-dashboard-matchup-actions-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf954Transform -PathType Leaf)) {
+    throw "BF-954 BLOCKED: Dashboard matchup opponent actions transform not found at $bf954Transform"
+}
+& $bf954Transform -CorePath $CorePath

@@ -118,6 +118,7 @@ public final class ButlerSleeperLiveWaiverTargetRosterContextAuditCli {
         System.out.println("Butler team id/name: " + report.butlerTeamId() + " / " + report.butlerTeamName());
         System.out.println("Persisted lineup slots: " + report.lineupSlots());
         System.out.println("Live starting slots: " + report.startingSlots());
+        System.out.println("Explicit empty starting ordinals: " + report.emptyStartingOrdinals());
         System.out.println("BF-609 candidates / evidence-reviewable: "
             + report.candidateCount() + "/" + report.reviewableCandidateCount());
         System.out.println("Target roster players starter/bench/reserve/taxi: "

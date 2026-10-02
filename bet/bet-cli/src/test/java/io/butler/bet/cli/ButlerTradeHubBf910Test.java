@@ -19,7 +19,7 @@ class ButlerTradeHubBf910Test {
         assertTrue(trade.contains("Deal snapshot"));
         assertTrue(trade.contains("$dealSnapshotHtml"));
         assertTrue(trade.contains("$builderPresentation"));
-        assertTrue(trade.contains("<details class=\"edit-deal\"><summary>Edit this deal</summary>$builder</details>"));
+        assertTrue(trade.contains("<details id=\"edit-trade\" class=\"edit-deal\"><summary>Edit this deal</summary>$builder</details>"));
 
         String order = "$dealSnapshotHtml\n$resultHtml\n$counterHtml\n$builderPresentation";
         assertTrue(trade.contains(order),
@@ -85,7 +85,8 @@ class ButlerTradeHubBf910Test {
         String trade = source("scripts/butler-trade-lab.ps1");
 
         assertTrue(trade.contains(".deal-snapshot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))"));
-        assertTrue(trade.contains(".trade-setup,.trade-columns,.counter-packages,.deal-snapshot{grid-template-columns:1fr}"));
+        assertTrue(trade.contains(".trade-setup,.trade-columns,.counter-packages,.deal-snapshot,.trade-workflow{grid-template-columns:1fr}"));
+        assertTrue(trade.contains(".trade-partner-lock{align-items:flex-start;flex-direction:column}"));
     }
 
     private static String source(String relativePath) throws IOException {

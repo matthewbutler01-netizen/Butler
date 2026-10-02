@@ -20,7 +20,7 @@ class ButlerUnifiedManagerNavigationBf870Test {
         "href=\"/waivers\"",
         "href=\"/league\"",
         "href=\"/trade\"",
-        "href=\"/history\""
+        "href=\"/history"
     );
 
     @Test
@@ -71,7 +71,7 @@ class ButlerUnifiedManagerNavigationBf870Test {
             assertTrue(source.contains("href=\"/league\"[^>]*>League</a>)"));
             assertTrue(source.contains("'$1<a href=\"/trade\">Trade Analyzer</a>'"));
             assertTrue(source.contains("href=\"/trade\"[^>]*>Trade Analyzer</a>)"));
-            assertTrue(source.contains("'$1<a href=\"/history\">History</a>'"));
+            assertTrue(source.contains("'$1<a href=\"/history?load=1\">History</a>'"));
         }
     }
 

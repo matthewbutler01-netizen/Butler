@@ -73,7 +73,9 @@ BF-897 adds a separate private runtime-data backup/restore path for moving an ex
 
 ### Fresh Sleeper league setup
 
-For a brand-new profile, run `scripts\butler-onboard.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"` from an extracted runtime package. Keep the matching `.sha256` file beside the ZIP. A local browser page at `http://127.0.0.1:8765/` looks up the public Sleeper username, shows its 2026 leagues, and starts the verified import after an explicit league choice. Keep the setup window open until Butler opens Dashboard. This path refuses to overwrite an existing profile. `scripts\butler-onboard-acceptance.cmd` smoke-checks the landing page and request guard without importing data.
+From an extracted runtime package, double-click `scripts\butler-start.cmd` and select the matching Butler runtime ZIP. Keep its `.sha256` file beside the ZIP. A fresh profile opens the local Sleeper league finder; an existing profile runs the verified seven-page launch and opens Dashboard. The setup window shows any prerequisite or launch failure. The ZIP and extracted package must match exactly. This entry point does not sign in to Sleeper: its username lookup uses Sleeper's public read-only API.
+
+For a brand-new profile, the underlying command is `scripts\butler-onboard.cmd -RuntimeZip "C:\Downloads\Butler-runtime-<shortsha>.zip"` from an extracted runtime package. A local browser page at `http://127.0.0.1:8765/` looks up the public Sleeper username, shows its 2026 leagues, and starts the verified import after an explicit league choice. Keep the setup window open until Butler opens Dashboard. This path refuses to overwrite an existing profile. `scripts\butler-onboard-acceptance.cmd` smoke-checks the landing page and request guard without importing data.
 
 After building the exact-HEAD runtime with `scripts\butler-release-acceptance.cmd`, run `scripts\butler-onboard-live-acceptance.cmd` to test the whole browser lookup and import against live Sleeper data in a disposable profile. It prompts for a username and league ID, verifies all seven manager pages, stops the verification runtime, and removes the temporary profile on success.
 

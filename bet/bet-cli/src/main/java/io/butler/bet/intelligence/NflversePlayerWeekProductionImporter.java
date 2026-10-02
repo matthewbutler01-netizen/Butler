@@ -288,6 +288,11 @@ public final class NflversePlayerWeekProductionImporter {
                 + season + ".csv");
     }
 
+    /** Shared CSV decoding for read-only usage evidence, without importing or writing production. */
+    public static List<Map<String, String>> parseEvidenceCsv(String csv) {
+        return Csv.parse(requireText(csv, "csv"));
+    }
+
     private Map<String, String> buildLocalPlayerIndex() throws SQLException {
         Map<String, String> result = new LinkedHashMap<>();
         for (var player : players.findAll()) {

@@ -463,6 +463,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-884 BLOCKED: manager recovery-page transform not found at $bf884CoreTransform"
     }
     & $bf884CoreTransform -CorePath $stagedCore
+
+    # BF-976: player-specific recovery actions finalize after BF-884 has built the
+    # global recovery layer. This keeps BF-884's exact fail-closed inputs intact
+    # while giving Player Detail/Search/Compare their own final recovery routes.
+    $bf976CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf976-player-workflow-safe-stop-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf976CoreTransform -PathType Leaf)) {
+        throw "BF-976 BLOCKED: Player workflow safe-stop transform not found at $bf976CoreTransform"
+    }
+    & $bf976CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
@@ -604,7 +613,21 @@ else {
     & $bf940Transform -DashboardPath $DashboardPath
 }
 
-# BF-941: add the exact AutoFill swap -> Player Compare loop after BF-940.
+# BF-978: preserve the validated waiver position focus through Candidate Detail,
+# Candidate Compare, Roster Compare, and every return/mode-bridge action after
+# BF-959/960/961/962 have finalized those workflow surfaces.
+$bf978Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf978-waiver-position-context-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf978Transform -PathType Leaf)) {
+    throw "BF-978 BLOCKED: waiver position-context transform not found at $bf978Transform"
+}
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf978Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf978Transform -DashboardPath $DashboardPath
+}
+
+# BF-941: add the exact AutoFill swap -> Player Compare loop after BF-940/BF-978.
 # This is staged-core presentation/navigation only and reuses already-loaded My Team roster identity.
 if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     $bf941Transform = Join-Path $PSScriptRoot 'butler-app-bf941-lineup-swap-compare-transform.ps1'
@@ -654,6 +677,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     }
     & $bf946Transform -CorePath $stagedCore
 
+    # BF-947: reduce opened comparison-card scan cost after all decision and return
+    # navigation is final. Presentation only; existing evidence and read-only routes remain authoritative.
+    $bf947Transform = Join-Path $PSScriptRoot 'butler-app-bf947-compact-lineup-evidence-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf947Transform -PathType Leaf)) {
+        throw "BF-947 BLOCKED: compact lineup comparison evidence transform not found at $bf947Transform"
+    }
+    & $bf947Transform -CorePath $stagedCore
+
     # The final My Team pass changes layout and navigation only.
     $teamWorkspaceTransform = Join-Path $PSScriptRoot 'butler-app-team-workspace-transform.ps1'
     if (-not (Test-Path -LiteralPath $teamWorkspaceTransform -PathType Leaf)) {
@@ -666,6 +697,145 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "Dashboard matchup summary transform not found at $dashboardMatchupTransform"
     }
     & $dashboardMatchupTransform -CorePath $stagedCore
+
+    $bf969Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf969-history-shortcut-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf969Transform -PathType Leaf)) {
+        throw "BF-969 BLOCKED: Dashboard Decision History shortcut transform not found at $bf969Transform"
+    }
+    & $bf969Transform -DashboardPath $DashboardPath
+
+    $bf970Transform = Join-Path $PSScriptRoot 'butler-app-bf970-shared-manager-navigation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf970Transform -PathType Leaf)) {
+        throw "BF-970 BLOCKED: shared manager navigation transform not found at $bf970Transform"
+    }
+    & $bf970Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-979: final read-only Weekly Attention layer. It reuses the explicit
+    # Lineup Review evidence and saved BF-808 snapshot; no new provider read.
+    $bf979Transform = Join-Path $PSScriptRoot 'butler-app-bf979-weekly-attention-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf979Transform -PathType Leaf)) {
+        throw "BF-979 BLOCKED: Weekly Attention transform not found at $bf979Transform"
+    }
+    & $bf979Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-980: turn exact starter hold positions into direct focused Waiver Board
+    # filters. These are navigation aids only; no replacement is selected.
+    $bf980Transform = Join-Path $PSScriptRoot 'butler-app-bf980-weekly-attention-waiver-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf980Transform -PathType Leaf)) {
+        throw "BF-980 BLOCKED: Weekly Attention waiver-action transform not found at $bf980Transform"
+    }
+    & $bf980Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-981: make each Weekly Attention player drillable. Dashboard-origin
+    # drill-down uses an explicit fixed from=dashboard context and returns there.
+    $bf981Transform = Join-Path $PSScriptRoot 'butler-app-bf981-weekly-attention-player-drilldown-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf981Transform -PathType Leaf)) {
+        throw "BF-981 BLOCKED: Weekly Attention player-drilldown transform not found at $bf981Transform"
+    }
+    & $bf981Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-982: carry the exact starter that triggered Weekly Attention into the
+    # focused Waiver Board and existing roster-compare workflow.
+    $bf982Transform = Join-Path $PSScriptRoot 'butler-app-bf982-weekly-attention-replacement-context-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf982Transform -PathType Leaf)) {
+        throw "BF-982 BLOCKED: Weekly Attention replacement-context transform not found at $bf982Transform"
+    }
+    & $bf982Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-983: when Weekly Attention opens a Waiver Board for one exact held
+    # starter, make that comparison the card-level primary action.
+    $bf983Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf983-replacement-decision-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf983Transform -PathType Leaf)) {
+        throw "BF-983 BLOCKED: replacement decision-focus transform not found at $bf983Transform"
+    }
+    & $bf983Transform -DashboardPath $DashboardPath
+
+    # BF-984: keep Candidate Detail inside the same exact held-starter
+    # replacement workflow and make that comparison the primary action.
+    $bf984Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf984-candidate-replacement-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf984Transform -PathType Leaf)) {
+        throw "BF-984 BLOCKED: candidate replacement-focus transform not found at $bf984Transform"
+    }
+    & $bf984Transform -DashboardPath $DashboardPath
+
+    # BF-985: once an exact same-position held starter is being compared,
+    # collapse generic comparison branches and preserve the replacement loop.
+    $bf985Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf985-replacement-comparison-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf985Transform -PathType Leaf)) {
+        throw "BF-985 BLOCKED: replacement comparison-focus transform not found at $bf985Transform"
+    }
+    & $bf985Transform -DashboardPath $DashboardPath
+
+    # BF-986: label the completed exact-starter comparison as a held-starter
+    # replacement review while keeping neutral read-only evidence semantics.
+    $bf986Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf986-held-starter-review-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf986Transform -PathType Leaf)) {
+        throw "BF-986 BLOCKED: held-starter replacement review transform not found at $bf986Transform"
+    }
+    & $bf986Transform -DashboardPath $DashboardPath
+
+    # BF-987: carry a fixed dashboard/team Weekly Attention origin through the
+    # replacement workflow and expose a direct safe return to that exact surface.
+    $bf987Transform = Join-Path $PSScriptRoot 'butler-app-bf987-weekly-attention-return-loop-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf987Transform -PathType Leaf)) {
+        throw "BF-987 BLOCKED: Weekly Attention return-loop transform not found at $bf987Transform"
+    }
+    & $bf987Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-988: orient exact replacement mode as a simple three-step workflow
+    # without changing normal waiver traffic or adding any write behavior.
+    $bf988Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf988-replacement-workflow-orientation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf988Transform -PathType Leaf)) {
+        throw "BF-988 BLOCKED: replacement workflow orientation transform not found at $bf988Transform"
+    }
+    & $bf988Transform -DashboardPath $DashboardPath
+
+    # BF-989: make the Dashboard matchup card decision-first by promoting
+    # Review Lineup while keeping Matchup/Scout/Trade as secondary tools.
+    $bf989Transform = Join-Path $PSScriptRoot 'butler-app-bf989-dashboard-matchup-decision-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf989Transform -PathType Leaf)) {
+        throw "BF-989 BLOCKED: Dashboard matchup decision-actions transform not found at $bf989Transform"
+    }
+    & $bf989Transform -CorePath $stagedCore
+
+    # BF-990: mirror the existing Dashboard Lineup card state into the Matchup
+    # card primary action without adding another provider read.
+    $bf990Transform = Join-Path $PSScriptRoot 'butler-app-bf990-dashboard-matchup-lineup-state-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf990Transform -PathType Leaf)) {
+        throw "BF-990 BLOCKED: Dashboard matchup lineup-state transform not found at $bf990Transform"
+    }
+    & $bf990Transform -CorePath $stagedCore
+
+    # BF-991: keep completed Lineup Review connected to the three manager
+    # destinations without introducing arbitrary return URLs or extra reads.
+    $bf991Transform = Join-Path $PSScriptRoot 'butler-app-bf991-lineup-manager-return-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf991Transform -PathType Leaf)) {
+        throw "BF-991 BLOCKED: Lineup Review manager return transform not found at $bf991Transform"
+    }
+    & $bf991Transform -CorePath $stagedCore
+
+    # BF-992: keep Dashboard Matchup and Lineup cards distinct. Matchup owns
+    # opponent context; Lineup remains the single review/refresh lineup surface.
+    $bf992Transform = Join-Path $PSScriptRoot 'butler-app-bf992-dashboard-matchup-lineup-role-separation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf992Transform -PathType Leaf)) {
+        throw "BF-992 BLOCKED: Dashboard matchup-lineup role transform not found at $bf992Transform"
+    }
+    & $bf992Transform -CorePath $stagedCore
+
+    # BF-993: improve first-scan Dashboard usefulness by adding concise context
+    # to Matchup, Lineup, and Waiver glance cards without adding reads.
+    $bf993Transform = Join-Path $PSScriptRoot 'butler-app-bf993-dashboard-glance-scanability-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf993Transform -PathType Leaf)) {
+        throw "BF-993 BLOCKED: Dashboard glance scanability transform not found at $bf993Transform"
+    }
+    & $bf993Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+
+    # BF-994: batch My Team roster scanability polish after Dashboard closeout.
+    $bf994Transform = Join-Path $PSScriptRoot 'butler-app-bf994-my-team-roster-scanability-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf994Transform -PathType Leaf)) {
+        throw "BF-994 BLOCKED: My Team roster scanability transform not found at $bf994Transform"
+    }
+    & $bf994Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final

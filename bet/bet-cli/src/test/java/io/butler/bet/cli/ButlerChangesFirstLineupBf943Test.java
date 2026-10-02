@@ -17,7 +17,8 @@ class ButlerChangesFirstLineupBf943Test {
         String transform = source("scripts/butler-app-bf943-changes-first-lineup-transform.ps1");
 
         assertTrue(transform.contains("CHANGES FIRST"));
-        assertTrue(transform.contains("ALL KEEP"));
+        assertTrue(transform.contains("NO PROPOSALS"));
+        assertTrue(transform.contains("Review holds and evidence gaps"));
         assertTrue(transform.contains("View $unchangedCount unchanged lineup $slotWord"));
         assertTrue(transform.contains(".lineup-focus .lineup-row:not(.changed){display:none}"));
         assertTrue(transform.contains(".lineup-unchanged .lineup-row.changed{display:none}"));

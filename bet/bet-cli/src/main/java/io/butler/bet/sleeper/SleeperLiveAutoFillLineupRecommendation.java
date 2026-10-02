@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.data.Database;
 import io.butler.bet.data.LeagueScoringSettingsRepository;
+import io.butler.bet.data.LiveWaiverSnapshotRepository;
 import io.butler.bet.data.PlayerFantasyPositionRepository;
 import io.butler.bet.integration.SleeperWeeklyProjectionProvider;
 import io.butler.bet.intelligence.AutoFillLineupOptimizer;
@@ -28,9 +29,19 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final Database database;
     private final ProjectionSource projectionSource;
     private final AvailabilitySource availabilitySource;
+    private final NewsSource newsSource;
+    private final NewsSource analysisSource;
+    private final UsageSource usageSource;
+    private final MatchupSource matchupSource;
+    private final ExpertSource expertSource;
+    private static final NflExpertPickProvider SHARED_EXPERT_PROVIDER = new NflExpertPickProvider();
+    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
+    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
+    private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
-        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load);
+        this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
+            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load, SHARED_EXPERT_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -41,6 +52,40 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Database database,
         ProjectionSource projectionSource,
         AvailabilitySource availabilitySource) {
+        this(database, projectionSource, availabilitySource, players -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource) {
+        this(database, projectionSource, availabilitySource, newsSource, players -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, (season, week, ids) -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource,
+            (season, week, players) -> Map.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource, matchupSource,
+            (season, week, players) -> List.of());
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource, ExpertSource expertSource) {
+        this.expertSource = Objects.requireNonNull(expertSource);
+        this.matchupSource = Objects.requireNonNull(matchupSource);
+        this.usageSource = Objects.requireNonNull(usageSource, "usageSource must not be null");
+        this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
+        this.newsSource = Objects.requireNonNull(newsSource, "newsSource must not be null");
         this.database = Objects.requireNonNull(database, "database must not be null");
         this.projectionSource = Objects.requireNonNull(projectionSource, "projectionSource must not be null");
         this.availabilitySource = Objects.requireNonNull(availabilitySource, "availabilitySource must not be null");
@@ -134,6 +179,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
             List<String> fantasyPositions = eligibilityRepository.findByPlayerId(target.butlerPlayerId());
             if (fantasyPositions.isEmpty()) {
+                fantasyPositions = new LiveWaiverSnapshotRepository(database).rosterFantasyPositions(
+                    roster.waiverSnapshotId(), roster.leagueId(), roster.sleeperLeagueId(),
+                    roster.providerSeason(), target.sleeperPlayerId());
+            }
+            if (fantasyPositions.isEmpty()) {
                 return RecommendationReport.unavailable(
                     roster.providerSeason(), roster.providerLeg(), scoring,
                     "AutoFill requires current Sleeper fantasy-position eligibility for " + display(target) + ".");
@@ -166,23 +216,56 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
         List<ProjectionHold> projectionHolds = new ArrayList<>();
-        if (!missingProjectionTargets.isEmpty()) {
-            Set<String> missingIds = new LinkedHashSet<>();
-            for (var target : missingProjectionTargets) missingIds.add(target.sleeperPlayerId());
-
-            Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
-            String availabilityFailure = null;
-            try {
-                availabilityBySleeperId = Objects.requireNonNull(
-                    availabilitySource.load(Set.copyOf(missingIds)),
-                    "availabilitySource returned null");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                availabilityFailure = "Current Sleeper player availability evidence request was interrupted.";
-            } catch (IOException | IllegalStateException | NullPointerException e) {
-                availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
+        // A projection is not proof that a player is healthy enough to start.
+        Set<String> activeIds = new LinkedHashSet<>();
+        for (var player : optimizerRoster) activeIds.add(player.playerId());
+        Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
+        String availabilityFailure = null;
+        try {
+            availabilityBySleeperId = Objects.requireNonNull(
+                availabilitySource.load(Set.copyOf(activeIds)), "availabilitySource returned null");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            availabilityFailure = "Current Sleeper player availability evidence request was interrupted.";
+        } catch (IOException | IllegalStateException | NullPointerException e) {
+            availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
+        }
+        Map<String, String> injuryNews = Map.of();
+        try {
+            injuryNews = newsSource.load(roster.targetPlayers());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | IllegalStateException e) {
+            // News failure never fabricates clearance or overwrites Sleeper availability.
+        }
+        for (var target : roster.targetPlayers()) {
+            if (!projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
+            var availability = availabilityBySleeperId.get(target.sleeperPlayerId());
+            String news = injuryNews.get(target.sleeperPlayerId());
+            boolean exactAvailability = availability != null
+                && target.sleeperPlayerId().equals(availability.sleeperPlayerId());
+            if ((exactAvailability && availability.requiresInjuryReview()) || news != null) {
+                projectionsBySleeperId.remove(target.sleeperPlayerId());
+                if (exactAvailability && availability.confirmedUnavailable()) {
+                    explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
+                    availabilityExclusions.add(new UnavailablePlayerExclusion(
+                        target.sleeperPlayerId(), display(target), availability.status(), availability.injuryStatus(),
+                        "Excluded from startable candidates: " + availability.evidenceDescription()
+                            + ". A projection does not override confirmed unavailable status."));
+                } else {
+                    projectionHoldPlayerIds.add(target.sleeperPlayerId());
+                    projectionHolds.add(new ProjectionHold(
+                        target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
+                        exactAvailability ? availability.status() : null,
+                        exactAvailability ? availability.injuryStatus() : null,
+                        "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
+                            + (news == null ? "" : "; " + news)
+                            + ". Pending clearance, Butler preserved this player's current lineup state and excluded "
+                            + "the player from promotions and comparable projected totals. Questionable is not confirmed Out."));
+                }
             }
-
+        }
+        if (!missingProjectionTargets.isEmpty()) {
             for (var target : missingProjectionTargets) {
                 SleeperWeeklyProjectionProvider.ProjectionGap gap = gapBySleeperId.get(target.sleeperPlayerId());
                 String coverageDescription = gap == null
@@ -237,13 +320,67 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
 
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> usage = Map.of();
+        String usageCoverage = "Recent snap/target usage unavailable; missing observations are not zero usage. Manual review required.";
+        try {
+            usage = Objects.requireNonNull(usageSource.load(roster.providerSeason(), roster.providerLeg(), Set.copyOf(activeIds)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            usageCoverage = "Usage source check interrupted; role evidence unverified. Manual review required.";
+        } catch (IOException | IllegalStateException | NullPointerException e) {
+            usageCoverage = "Usage source unavailable or inconsistent; role evidence unverified. Manual review required.";
+        }
+        for (var target : roster.targetPlayers()) {
+            var observation = usage.get(target.sleeperPlayerId());
+            if (observation == null || !observation.reviewHold()
+                || !Set.of("RB", "WR", "TE").contains(target.position())
+                || !projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
+            projectionsBySleeperId.remove(target.sleeperPlayerId());
+            projectionHoldPlayerIds.add(target.sleeperPlayerId());
+            projectionHolds.add(new ProjectionHold(target.sleeperPlayerId(), display(target), target.rosterSlot(),
+                target.lineupSlot(), null, null, "Usage review hold: " + observation.detail()
+                    + " Conservative policy: at least 50% fewer carries plus targets and at least 20 percentage points"
+                    + " lower snap share, from a prior baseline of at least four opportunities and 40% snaps."
+                    + " Preserved current lineup state; excluded from promotions. This is not an injury designation."));
+        }
+
         AutoFillLineupOptimizer.Recommendation recommendation = new AutoFillLineupOptimizer()
             .optimize(
                 roster.startingSlots(),
                 optimizerRoster,
                 projectionsBySleeperId,
                 Set.copyOf(explicitlyUnavailablePlayerIds),
-                Set.copyOf(projectionHoldPlayerIds));
+                Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
+        List<AutoFillLineupOptimizer.SlotRecommendation> withheldSwaps = new ArrayList<>();
+        // Re-evaluate after each batch of held bench candidates so replacement alternatives are checked too.
+        while (recommendation.ready()) {
+            boolean changed = false;
+            for (var assignment : recommendation.assignments()) {
+                if (!assignment.changed() || !LineupSwapReviewPolicy.conflictingUsage(assignment.projectedGain(),
+                    usage.get(assignment.currentPlayerId()), usage.get(assignment.recommendedPlayerId()))) continue;
+                var proposed = roster.targetPlayers().stream()
+                    .filter(p -> p.sleeperPlayerId().equals(assignment.recommendedPlayerId())).findFirst().orElse(null);
+                var current = roster.targetPlayers().stream()
+                    .filter(p -> p.sleeperPlayerId().equals(assignment.currentPlayerId())).findFirst().orElse(null);
+                if (proposed == null || !"BENCH".equals(proposed.rosterSlot())
+                    || current == null || !proposed.position().equals(current.position())
+                    || !Set.of("RB", "WR", "TE").contains(proposed.position())
+                    || !projectionHoldPlayerIds.add(proposed.sleeperPlayerId())) continue;
+                projectionsBySleeperId.remove(proposed.sleeperPlayerId());
+                withheldSwaps.add(assignment);
+                projectionHolds.add(new ProjectionHold(proposed.sleeperPlayerId(), display(proposed), proposed.rosterSlot(),
+                    proposed.lineupSlot(), null, null,
+                    "Close-call usage conflict: projected slot gain " + assignment.projectedGain()
+                        + " is at most 1 point, while current player's carries plus targets rose at least 25%"
+                        + " and proposed player's fell at least 50%, from baselines of at least four opportunities."
+                        + " Manual review required; candidate withheld from promotion. This conservative heuristic"
+                        + " does not prove future performance or a changed role."));
+                changed = true;
+            }
+            if (!changed) break;
+            recommendation = new AutoFillLineupOptimizer().optimize(roster.startingSlots(), optimizerRoster,
+                projectionsBySleeperId, Set.copyOf(explicitlyUnavailablePlayerIds), Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
+        }
         if (!recommendation.ready()) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
@@ -264,11 +401,145 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
+        List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
+        for (var assignment : recommendation.assignments()) {
+            if (!assignment.changed()) continue;
+            var currentUsage = usage.get(assignment.currentPlayerId());
+            var proposedUsage = usage.get(assignment.recommendedPlayerId());
+            decisionEvidence.add("Usage review for " + assignment.currentPlayerName() + " -> "
+                + assignment.recommendedPlayerName() + ": Current player: "
+                + (currentUsage == null ? usageCoverage : currentUsage.detail()) + " Proposed player: "
+                + (proposedUsage == null ? usageCoverage : proposedUsage.detail())
+                + " Ranking remains projection-based after availability and usage holds; matchup and expert start/sit picks remain unverified.");
+        }
+        Map<String, String> analysis = Map.of();
+        String analysisCoverage = "No matching recent public analysis was found; this is not expert consensus.";
+        try {
+            analysis = analysisSource.load(roster.targetPlayers());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            analysisCoverage = "Public analysis check interrupted; expert coverage unverified.";
+        } catch (IOException | IllegalStateException e) {
+            analysisCoverage = "Public analysis feed unavailable; expert coverage unverified.";
+        }
+        for (var assignment : recommendation.assignments()) {
+            if (!assignment.changed()) continue;
+            String currentAnalysis = analysis.get(assignment.currentPlayerId());
+            String proposedAnalysis = analysis.get(assignment.recommendedPlayerId());
+            decisionEvidence.add("Public analysis for " + assignment.currentPlayerName() + " -> "
+                + assignment.recommendedPlayerName() + ": "
+                + (currentAnalysis == null ? "Current player: no matched commentary. " : currentAnalysis + " ")
+                + (proposedAnalysis == null ? "Proposed player: no matched commentary. " : proposedAnalysis + " ")
+                + (currentAnalysis == null && proposedAnalysis == null ? analysisCoverage : ""));
+        }
+        List<ExpertPick> expertPicks = List.of();
+        try { expertPicks = expertSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()); }
+        catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        Map<String, String> matchups = Map.of();
+        if (!withheldSwaps.isEmpty() || recommendation.assignments().stream().anyMatch(a -> a.changed())
+            || !projectionHolds.isEmpty() || expertPicks.stream().anyMatch(p -> "SIT".equals(p.selection()))) {
+            try {
+                matchups = matchupSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException | IllegalStateException e) {
+                // Optional evidence failure leaves the proposal qualified for manual review.
+            }
+        }
+        List<SwapReview> reviews = new ArrayList<>();
+        for (var assignment : withheldSwaps) {
+            reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason(), matchups));
+        }
+        for (var assignment : recommendation.assignments()) {
+            if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups));
+        }
+        var eligibility = new io.butler.bet.intelligence.LineupSlotEligibilityPolicy();
+        for (var starter : optimizerRoster) {
+            if (starter.rosterSlot() != AutoFillLineupOptimizer.RosterSlot.STARTER) continue;
+            var starterPicks = expertPicks.stream().filter(p -> starter.playerId().equals(p.playerId())).toList();
+            boolean expertSit = starterPicks.size() == 1 && "SIT".equals(starterPicks.get(0).selection());
+            if (!expertSit && !projectionHoldPlayerIds.contains(starter.playerId())) continue;
+            List<AutoFillLineupOptimizer.RosterPlayer> alternatives = new ArrayList<>();
+            for (var bench : optimizerRoster) {
+                if (bench.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.BENCH
+                    && !explicitlyUnavailablePlayerIds.contains(bench.playerId())
+                    && !projectionHoldPlayerIds.contains(bench.playerId())
+                    && projectionsBySleeperId.containsKey(bench.playerId())
+                    && eligibility.isPlayerEligible(starter.currentLineupSlot(), bench.providerFantasyPositions())) alternatives.add(bench);
+            }
+            alternatives.sort(java.util.Comparator.<AutoFillLineupOptimizer.RosterPlayer, BigDecimal>comparing(
+                p -> projectionsBySleeperId.get(p.playerId())).reversed().thenComparing(p -> p.playerId()));
+            if (alternatives.isEmpty()) decisionEvidence.add("Replacement review for " + starter.displayName()
+                + ": no eligible, scoreable bench alternative remains after availability and review holds. This does not establish that the starter should play.");
+            for (var bench : alternatives.stream().limit(3).toList()) {
+                BigDecimal currentPoints = projectionsBySleeperId.get(starter.playerId());
+                BigDecimal benchPoints = projectionsBySleeperId.get(bench.playerId());
+                var comparison = new AutoFillLineupOptimizer.SlotRecommendation(starter.starterOrdinal(), starter.currentLineupSlot(),
+                    starter.playerId(), starter.displayName(), bench.playerId(), bench.displayName(), currentPoints, benchPoints,
+                    currentPoints == null ? null : benchPoints.subtract(currentPoints), true);
+                var evidence = swapReview(comparison, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups);
+                String currentExpert = expertSummary(expertPicks, starter.playerId());
+                String proposedExpert = expertSummary(expertPicks, bench.playerId());
+                String expertContext = " Current expert: " + currentExpert + "; candidate expert: " + proposedExpert + ".";
+                reviews.add(new SwapReview(evidence.ordinal(), evidence.slot(), evidence.current(), evidence.proposed(), evidence.projectedGain(),
+                    "MANUAL_REVIEW_REPLACEMENT", "Bench alternative for a flagged starter; comparison only, not a proposed lineup move."
+                        + " Up to three alternatives ordered by available projection; alternatives across slots are independent and cannot be combined without checking lineup legality."
+                        + expertContext + " Existing holds remain. " + evidence.reason(), evidence.currentUsage(), evidence.proposedUsage(),
+                    evidence.commentary(), evidence.sources(), evidence.currentMatchup(), evidence.proposedMatchup(), currentExpert, proposedExpert));
+            }
+        }
         return RecommendationReport.ready(
             roster.providerSeason(), roster.providerLeg(), scoring,
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-            projectionHolds, projectionProvenance(snapshot));
+            projectionHolds, projectionProvenance(snapshot))
+            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks);
+    }
+
+    private static String expertSummary(List<ExpertPick> picks, String playerId) {
+        var matches = picks.stream().filter(p -> playerId.equals(p.playerId())).toList();
+        return matches.size() == 1 && Set.of("START", "SIT").contains(matches.get(0).selection())
+            ? matches.get(0).selection() + " by " + matches.get(0).author() : "unverified";
+    }
+
+    private static SwapReview swapReview(AutoFillLineupOptimizer.SlotRecommendation assignment,
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> usage, Map<String, String> analysis,
+        String analysisCoverage, boolean withheld, int season, Map<String, String> matchups) {
+        var current = usage.get(assignment.currentPlayerId());
+        var proposed = usage.get(assignment.recommendedPlayerId());
+        boolean missing = current == null || proposed == null || !current.complete() || !proposed.complete();
+        boolean conflict = LineupSwapReviewPolicy.conflictingUsage(assignment.projectedGain(), current, proposed);
+        String reason = "0".equals(assignment.currentPlayerId())
+            ? "Explicit empty starting slot; candidate fills a legal slot. No current-player projection or slot delta is inferred."
+            : conflict
+            ? "Small projection edge conflicts with observed workload: current opportunities rose at least 25%; proposed opportunities fell at least 50%."
+            : missing ? "Usage coverage is incomplete; missing observations do not establish zero workload."
+            : "Usage is available, but it does not establish a better future role or a complete start/sit decision.";
+        return new SwapReview(assignment.starterOrdinal(), assignment.slot(), assignment.currentPlayerName(),
+            assignment.recommendedPlayerName(), assignment.projectedGain() == null ? "Unavailable" : assignment.projectedGain().toPlainString(),
+            withheld ? "WITHHELD_USAGE_CONFLICT" : conflict ? "MANUAL_REVIEW_USAGE_CONFLICT"
+                : missing ? "MANUAL_REVIEW_USAGE_GAP" : "MANUAL_REVIEW_PROJECTION_PROPOSAL",
+            reason + " Review NFL matchup and attributed expert coverage below; no consensus is established.",
+            "0".equals(assignment.currentPlayerId()) ? "Empty slot; no current player" : current == null ? "Usage unavailable" : current.summary(), proposed == null ? "Usage unavailable" : proposed.summary(),
+            analysis.getOrDefault(assignment.currentPlayerId(), "No matched public commentary")
+                + " | " + analysis.getOrDefault(assignment.recommendedPlayerId(), "No matched public commentary")
+                + (analysis.isEmpty() ? ". " + analysisCoverage : "")
+                + ". Headlines are context, not extracted expert picks.",
+            List.of(io.butler.bet.intelligence.NflversePlayerWeekProductionImporter.statsUri(season).toString(),
+                NflverseRosterUsageProvider.snapsUri(season).toString(),
+                io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter.PLAYER_IDS_URI.toString(),
+                NflverseDefensiveMatchupProvider.SCHEDULE_URI.toString()),
+            matchups.getOrDefault(assignment.currentPlayerId(), "NFL matchup evidence unavailable; manual review required."),
+            matchups.getOrDefault(assignment.recommendedPlayerId(), "NFL matchup evidence unavailable; manual review required."), "", "");
+    }
+
+    public record ExpertPick(String playerId, String player, String position, String selection,
+        String author, String publishedAt, String modifiedAt, String checkedAt, String source, String coverage) {}
+
+    public record SwapReview(int ordinal, String slot, String current, String proposed, String projectedGain,
+        String status, String reason, String currentUsage, String proposedUsage, String commentary, List<String> sources,
+        String currentMatchup, String proposedMatchup, String currentExpert, String proposedExpert) {
+        public SwapReview { sources = List.copyOf(sources); }
     }
 
     private static ProjectionSource productionProjectionSource() {
@@ -356,6 +627,27 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     }
 
     @FunctionalInterface
+    interface ExpertSource {
+        List<ExpertPick> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws InterruptedException;
+    }
+
+    interface MatchupSource {
+        Map<String, String> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException;
+    }
+
+    interface UsageSource {
+        Map<String, NflverseRosterUsageProvider.UsageEvidence> load(int season, int week, Set<String> ids)
+            throws IOException, InterruptedException;
+    }
+
+    interface NewsSource {
+        Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException;
+    }
+
+    @FunctionalInterface
     interface AvailabilitySource {
         Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> load(Set<String> sleeperPlayerIds)
             throws IOException, InterruptedException;
@@ -411,8 +703,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         AutoFillLineupOptimizer.Recommendation recommendation,
         List<UnavailablePlayerExclusion> availabilityExclusions,
         List<ProjectionHold> projectionHolds,
-        String projectionProvenance) {
+        String projectionProvenance,
+        List<String> decisionEvidence,
+        List<SwapReview> swapReviews, List<ExpertPick> expertPicks) {
         public RecommendationReport {
+            decisionEvidence = List.copyOf(Objects.requireNonNull(decisionEvidence));
+            swapReviews = List.copyOf(Objects.requireNonNull(swapReviews));
+            expertPicks = List.copyOf(Objects.requireNonNull(expertPicks));
             if (!POLICY_ID.equals(policyId)) throw new IllegalArgumentException("unexpected policyId");
             if (season <= 0) throw new IllegalArgumentException("season must be positive");
             availabilityExclusions = List.copyOf(Objects.requireNonNull(
@@ -436,7 +733,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 reason = requireText(reason, "reason");
                 if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
-                    || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null) {
+                    || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null
+                    || !decisionEvidence.isEmpty() || !swapReviews.isEmpty() || !expertPicks.isEmpty()) {
                     throw new IllegalArgumentException("unavailable report cannot contain recommendation output");
                 }
             }
@@ -449,7 +747,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), List.of(), null);
+                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of(), List.of());
         }
 
         public static RecommendationReport ready(
@@ -470,7 +768,26 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 POLICY_ID, true, null, season, week, scoringBasis,
                 sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
-                projectionHolds, projectionProvenance);
+                projectionHolds, projectionProvenance, List.of(), List.of(), List.of());
+        }
+
+        RecommendationReport withDecisionEvidence(List<String> evidence) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence, swapReviews, expertPicks);
+        }
+
+        RecommendationReport withExpertPicks(List<ExpertPick> picks) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance,
+                decisionEvidence, swapReviews, picks);
+        }
+
+        RecommendationReport withSwapReviews(List<SwapReview> reviews) {
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, decisionEvidence, reviews, expertPicks);
         }
     }
 

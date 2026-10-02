@@ -42,7 +42,7 @@ class ButlerTradeAnalyzerNamingBf838Test {
         String record = source("scripts/butler-dashboard-bf814-priority-decision-record-transform.ps1");
 
         assertTrue(shell.contains("Trade Analyzer: http://127.0.0.1:$Port/trade"));
-        assertTrue(worker.contains("Butler Trade Analyzer blocked"));
+        assertTrue(worker.contains("Trade Analyzer blocked"));
         assertTrue(worker.contains("Return to Trade Analyzer"));
         assertTrue(priorities.contains("Open Trade Analyzer"));
         assertTrue(evidence.contains("Open Trade Analyzer with a specific deal or target"));
