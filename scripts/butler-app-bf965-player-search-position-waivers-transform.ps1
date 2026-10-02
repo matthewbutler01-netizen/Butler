@@ -120,3 +120,9 @@ if ($installedSearch -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerRe
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-965 Player Search position-aware waivers applied.'
+
+$bf966Transform = Join-Path $PSScriptRoot 'butler-app-bf966-player-search-result-waivers-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf966Transform -PathType Leaf)) {
+    throw "BF-966 BLOCKED: Player Search result-card waiver transform not found at $bf966Transform"
+}
+& $bf966Transform -CorePath $CorePath
