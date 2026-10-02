@@ -157,11 +157,11 @@ $text = Replace-FunctionText -Text $text -Name 'ConvertTo-WaiverRosterCompareHtm
         }
     }
 
-    $replacementComparisonActions = '<div class="actions" style="margin-top:14px"><a class="button" href="/waivers/roster-compare?candidate=$candidateHref$waiverPositionQuerySuffix">Compare another roster player</a><a class="button" href="/waivers/compare?left=$candidateHref$waiverPositionQuerySuffix">Compare with waiver candidate</a><a class="button" href="/waivers/candidate/$candidateHref$waiverPositionBoardSuffix">Back to candidate</a><a class="button" href="/waivers$waiverReplacementBoardSuffix">Back to Waiver Board</a></div>'
+    $replacementComparisonActions = "<div class=`"actions`" style=`"margin-top:14px`"><a class=`"button`" href=`"/waivers/roster-compare?candidate=$candidateHref$waiverPositionQuerySuffix`">Compare another roster player</a><a class=`"button`" href=`"/waivers/compare?left=$candidateHref$waiverPositionQuerySuffix`">Compare with waiver candidate</a><a class=`"button`" href=`"/waivers/candidate/$candidateHref$waiverPositionBoardSuffix`">Back to candidate</a><a class=`"button`" href=`"/waivers$waiverReplacementBoardSuffix`">Back to Waiver Board</a></div>"
     if ($replacementComparisonActive) {
         $replacementComparisonActions = $replacementComparisonActions.Replace(
-            'href="/waivers/candidate/$candidateHref$waiverPositionBoardSuffix">',
-            'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix">'
+            "href=`"/waivers/candidate/$candidateHref$waiverPositionBoardSuffix`">",
+            "href=`"/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix`">"
         )
     }
     $replacementComparisonActions = Convert-Bf985ReplacementComparisonActions -Actions $replacementComparisonActions -ReplacementContextActive $replacementComparisonActive
