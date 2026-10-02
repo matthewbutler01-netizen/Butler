@@ -62,7 +62,7 @@ class ButlerAppShellBf671DecisionHistoryTest {
         assertTrue(history.contains("href=`\"/waivers`\">Waiver Board"));
         assertTrue(history.contains("href=`\"/league`\">League"));
         assertTrue(history.contains("href=`\"/trade`\">Trade Analyzer"));
-        assertTrue(history.contains("href=`\"/history`\">History"));
+        assertTrue(history.contains("href=`\"/history?load=1`\">History"));
         assertTrue(history.contains("function Add-AppNavigation"));
         assertTrue(worker.contains("$body = Add-AppNavigation -Html $body"));
     }
