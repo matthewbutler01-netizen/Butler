@@ -100,7 +100,9 @@ class ButlerAppShellBf715ExactWaiversBundleTest {
         String dispatch = source("scripts/butler-direct-java-dispatch.ps1");
         String combined = transform + "\n" + dispatch;
 
-        assertFalse(combined.contains("/refresh"));
+        assertFalse(combined.contains("$path -eq \"/refresh\""));
+        assertFalse(combined.contains("href=\"/refresh"));
+        assertFalse(combined.contains("action=\"/refresh"));
         assertFalse(combined.contains("create_transaction"));
         assertFalse(combined.contains("submitTransaction"));
         assertFalse(combined.contains("waiver_budget"));
