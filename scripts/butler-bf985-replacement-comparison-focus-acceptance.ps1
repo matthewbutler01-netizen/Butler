@@ -79,11 +79,15 @@ try {
         '$replacementComparisonActive = $false',
         '[string]$replacementComparedRoster.RosterSlot -ceq ''STARTER''',
         '$replacementComparisonActions = Convert-Bf985ReplacementComparisonActions',
-        'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix">'
+        '$replacementComparisonActions = "<div class='
     )) {
         if ($rosterText.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-985 BLOCKED: final Roster Compare focus marker is missing: $required"
         }
+    }
+
+    if ($rosterText.IndexOf('$replacementComparisonActions = ''<div class=', [System.StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-985 BLOCKED: completed comparison actions would render literal PowerShell URL variables.'
     }
 
     $surface = $helperText + [Environment]::NewLine + $rosterText
