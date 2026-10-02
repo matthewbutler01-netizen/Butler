@@ -463,6 +463,15 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-884 BLOCKED: manager recovery-page transform not found at $bf884CoreTransform"
     }
     & $bf884CoreTransform -CorePath $stagedCore
+
+    # BF-976: player-specific recovery actions finalize after BF-884 has built the
+    # global recovery layer. This keeps BF-884's exact fail-closed inputs intact
+    # while giving Player Detail/Search/Compare their own final recovery routes.
+    $bf976CoreTransform = Join-Path $PSScriptRoot 'butler-app-bf976-player-workflow-safe-stop-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf976CoreTransform -PathType Leaf)) {
+        throw "BF-976 BLOCKED: Player workflow safe-stop transform not found at $bf976CoreTransform"
+    }
+    & $bf976CoreTransform -CorePath $stagedCore
 }
 
 $bf837DashboardTransform = Join-Path $PSScriptRoot 'butler-dashboard-bf837-manager-page-visual-transform.ps1'
