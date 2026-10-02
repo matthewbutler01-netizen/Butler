@@ -100,7 +100,7 @@ function Get-PlayerDetailSearchQueryContext {
         throw 'BF-975 BLOCKED: Player Detail search context requires at most one q query parameter.'
     }
 
-    $query = [regex]::Replace(([string]$queries[0]).Trim(), 's+', ' ')
+    $query = [regex]::Replace(([string]$queries[0]).Trim(), '\s+', ' ')
     if ([string]::IsNullOrWhiteSpace($query)) { return '' }
     if ($query.Length -gt 80) {
         throw 'BF-975 BLOCKED: Player Detail search context must be 80 characters or fewer.'
