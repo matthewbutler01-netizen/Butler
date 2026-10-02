@@ -757,6 +757,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-984 BLOCKED: candidate replacement-focus transform not found at $bf984Transform"
     }
     & $bf984Transform -DashboardPath $DashboardPath
+
+    # BF-985: once an exact same-position held starter is being compared,
+    # collapse generic comparison branches and preserve the replacement loop.
+    $bf985Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf985-replacement-comparison-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf985Transform -PathType Leaf)) {
+        throw "BF-985 BLOCKED: replacement comparison-focus transform not found at $bf985Transform"
+    }
+    & $bf985Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
