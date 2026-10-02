@@ -66,3 +66,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-932 positional waiver links and query preservation applied.'
+
+$bf963Transform = Join-Path $PSScriptRoot 'butler-app-bf963-player-hub-position-waivers-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf963Transform -PathType Leaf)) {
+    throw "BF-963 BLOCKED: Player Hub position-aware waiver transform not found at $bf963Transform"
+}
+& $bf963Transform -CorePath $CorePath
