@@ -680,6 +680,12 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-969 BLOCKED: Dashboard Decision History shortcut transform not found at $bf969Transform"
     }
     & $bf969Transform -DashboardPath $DashboardPath
+
+    $bf970Transform = Join-Path $PSScriptRoot 'butler-app-bf970-shared-manager-navigation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf970Transform -PathType Leaf)) {
+        throw "BF-970 BLOCKED: shared manager navigation transform not found at $bf970Transform"
+    }
+    & $bf970Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
