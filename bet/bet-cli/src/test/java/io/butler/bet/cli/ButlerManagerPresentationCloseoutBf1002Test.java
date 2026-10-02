@@ -77,7 +77,7 @@ class ButlerManagerPresentationCloseoutBf1002Test {
             "Invoke-RestMethod",
             "Invoke-WebRequest",
             "https://api.sleeper.app",
-            "Method = "POST"",
+            "Method = \"POST\"",
             "submitTransaction",
             "setFaab",
             "AutoFillLineupOptimizer"
