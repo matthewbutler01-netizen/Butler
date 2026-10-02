@@ -150,9 +150,14 @@ try {
         throw 'BF-978 BLOCKED: app-shell candidate-detail query preservation is missing.'
     }
 
-    $transformText = [IO.File]::ReadAllText($transformPath)
-    if ($transformText -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|returnUrl|redirectUrl|javascript:') {
-        throw 'BF-978 BLOCKED: transform introduced provider, optimizer, FAAB, write, or open-redirect behavior.'
+    $generatedWaiverSurface = $board + $candidate + $compare + $rosterCompare
+    if ($generatedWaiverSurface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|returnUrl|redirectUrl|javascript:') {
+        throw 'BF-978 BLOCKED: generated waiver presentation introduced provider, optimizer, FAAB, write, or open-redirect behavior.'
+    }
+
+    $proxyLineCount = [regex]::Matches($core, [regex]::Escape($proxyMarker)).Count
+    if ($proxyLineCount -ne 1) {
+        throw "BF-978 BLOCKED: candidate-detail query proxy must exist exactly once; found $proxyLineCount."
     }
 
     Write-Host 'BF-978 WAIVER POSITION CONTEXT CONTINUITY ACCEPTANCE: PASS'
