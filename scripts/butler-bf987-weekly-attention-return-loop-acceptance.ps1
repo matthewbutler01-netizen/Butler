@@ -95,6 +95,7 @@ try {
         @($candidate, '[string]$AttentionOrigin = ""', 'Candidate Detail origin parameter'),
         @($candidate, 'Back to Weekly Attention', 'Candidate Detail direct return'),
         @($rosterCompare, '[string]$AttentionOrigin = ""', 'Roster Compare origin parameter'),
+        @($rosterCompare, '$replacementComparisonActions = "<div class=`"actions`"', 'Rendered comparison action URLs'),
         @($rosterCompare, 'Back to Weekly Attention', 'Roster Compare direct return'),
         @($rosterCompare, '$attentionReturnHref = ''/#weekly-attention''', 'Dashboard fixed return target'),
         @($rosterCompare, '$attentionReturnHref = ''/team#weekly-attention''', 'My Team fixed return target')
@@ -102,6 +103,10 @@ try {
         if ([string]$spec[0] -notmatch [regex]::Escape([string]$spec[1])) {
             throw "BF-987 BLOCKED: $($spec[2]) is missing."
         }
+    }
+
+    if ($rosterCompare.IndexOf('$replacementComparisonActions = ''<div class=', [System.StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-987 BLOCKED: completed comparison actions would render literal PowerShell URL variables.'
     }
 
     $dashboardSource = [IO.File]::ReadAllText($dashboardPath)
