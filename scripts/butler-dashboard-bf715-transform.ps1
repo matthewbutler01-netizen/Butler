@@ -829,6 +829,13 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-993 BLOCKED: Dashboard glance scanability transform not found at $bf993Transform"
     }
     & $bf993Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+
+    # BF-994: batch My Team roster scanability polish after Dashboard closeout.
+    $bf994Transform = Join-Path $PSScriptRoot 'butler-app-bf994-my-team-roster-scanability-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf994Transform -PathType Leaf)) {
+        throw "BF-994 BLOCKED: My Team roster scanability transform not found at $bf994Transform"
+    }
+    & $bf994Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
