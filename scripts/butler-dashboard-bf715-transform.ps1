@@ -805,6 +805,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-990 BLOCKED: Dashboard matchup lineup-state transform not found at $bf990Transform"
     }
     & $bf990Transform -CorePath $stagedCore
+
+    # BF-991: keep completed Lineup Review connected to the three manager
+    # destinations without introducing arbitrary return URLs or extra reads.
+    $bf991Transform = Join-Path $PSScriptRoot 'butler-app-bf991-lineup-manager-return-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf991Transform -PathType Leaf)) {
+        throw "BF-991 BLOCKED: Lineup Review manager return transform not found at $bf991Transform"
+    }
+    & $bf991Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
