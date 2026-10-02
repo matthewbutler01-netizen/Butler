@@ -733,6 +733,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-981 BLOCKED: Weekly Attention player-drilldown transform not found at $bf981Transform"
     }
     & $bf981Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-982: carry the exact starter that triggered Weekly Attention into the
+    # focused Waiver Board and existing roster-compare workflow.
+    $bf982Transform = Join-Path $PSScriptRoot 'butler-app-bf982-weekly-attention-replacement-context-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf982Transform -PathType Leaf)) {
+        throw "BF-982 BLOCKED: Weekly Attention replacement-context transform not found at $bf982Transform"
+    }
+    & $bf982Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
