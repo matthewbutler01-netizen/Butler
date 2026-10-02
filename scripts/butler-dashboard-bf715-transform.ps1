@@ -844,6 +844,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-996 BLOCKED: League manager orientation transform not found at $bf996Transform"
     }
     & $bf996Transform -CorePath $stagedCore
+
+    # BF-997: make exact Franchise Scout identity and primary trade action
+    # first-scan while preserving the existing neutral evidence and read boundary.
+    $bf997Transform = Join-Path $PSScriptRoot 'butler-app-bf997-franchise-scout-action-hierarchy-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf997Transform -PathType Leaf)) {
+        throw "BF-997 BLOCKED: Franchise Scout action-hierarchy transform not found at $bf997Transform"
+    }
+    & $bf997Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
