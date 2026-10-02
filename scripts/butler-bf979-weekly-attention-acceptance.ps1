@@ -90,6 +90,9 @@ try {
     $dashboard = (Get-OneFunction -Ast $dashboardAst -Name 'ConvertTo-DashboardHtml').Extent.Text
     foreach ($required in @(
         'Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $lineupSnapshot',
+        '$bf979HasWeeklyAttention = -not [string]::IsNullOrWhiteSpace($bf979WeeklyAttentionHtml)',
+        '"LINEUP NEEDS ATTENTION"',
+        '$bf907AttentionClass = if ($bf979HasWeeklyAttention -or $managerAttentionCount -gt 0)',
         '$bf907WeekGlanceHtml = $bf979WeeklyAttentionHtml + $bf907WeekGlanceHtml'
     )) {
         if ($dashboard.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
