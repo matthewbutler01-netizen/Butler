@@ -114,3 +114,9 @@ if ($installedHub -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadO
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-963 Player Hub position-aware waivers applied.'
+
+$bf964Transform = Join-Path $PSScriptRoot 'butler-app-bf964-player-compare-position-waivers-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf964Transform -PathType Leaf)) {
+    throw "BF-964 BLOCKED: Player Compare position-aware waiver transform not found at $bf964Transform"
+}
+& $bf964Transform -CorePath $CorePath
