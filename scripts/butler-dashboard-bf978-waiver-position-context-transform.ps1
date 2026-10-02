@@ -90,11 +90,22 @@ foreach ($required in @(
     'function ConvertTo-WaiverCandidateDetailHtml',
     'function ConvertTo-WaiverCompareHtml',
     'function ConvertTo-WaiverRosterCompareHtml',
-    'BF-962 Waiver comparison mode bridge'
+    'href="/waivers/roster-compare?candidate=$leftHref">Compare to roster</a>',
+    'href="/waivers/roster-compare?candidate=$leftHref">Left vs roster</a>',
+    'href="/waivers/roster-compare?candidate=$rightHref">Right vs roster</a>',
+    'href="/waivers/compare?left=$candidateHref">Compare with waiver candidate</a>'
 )) {
     if ($text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
-        throw "BF-978 BLOCKED: finalized waiver workflow marker is missing: $required"
+        throw "BF-978 BLOCKED: finalized waiver workflow contract is missing: $required"
     }
+}
+
+$bf962RosterBridgeCount = [regex]::Matches(
+    $text,
+    [regex]::Escape('href="/waivers/compare?left=$candidateHref">Compare with waiver candidate</a>')
+).Count
+if ($bf962RosterBridgeCount -ne 2) {
+    throw "BF-978 BLOCKED: finalized BF-962 roster comparison bridge expected two matches, found $bf962RosterBridgeCount."
 }
 
 $positionPrelude = @'
