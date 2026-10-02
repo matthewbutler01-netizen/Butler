@@ -813,6 +813,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-991 BLOCKED: Lineup Review manager return transform not found at $bf991Transform"
     }
     & $bf991Transform -CorePath $stagedCore
+
+    # BF-992: keep Dashboard Matchup and Lineup cards distinct. Matchup owns
+    # opponent context; Lineup remains the single review/refresh lineup surface.
+    $bf992Transform = Join-Path $PSScriptRoot 'butler-app-bf992-dashboard-matchup-lineup-role-separation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf992Transform -PathType Leaf)) {
+        throw "BF-992 BLOCKED: Dashboard matchup-lineup role transform not found at $bf992Transform"
+    }
+    & $bf992Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
