@@ -59,6 +59,9 @@ foreach ($required in @(
     }
 }
 
+$genericWaiver = '<a class="btn btn-secondary" href="/waivers">Check Waiver Board</a>'
+$hub = Replace-ExactlyOnce -Text $hub -Old $genericWaiver -New '$waiverAction' -Contract 'Player Hub focused Waiver action'
+
 $positionOld = '    $positionHref = [System.Uri]::EscapeDataString([string]$View.Position)'
 $positionNew = @'
     $positionHref = [System.Uri]::EscapeDataString([string]$View.Position)
@@ -71,9 +74,6 @@ $positionNew = @'
     }
 '@
 $hub = Replace-ExactlyOnce -Text $hub -Old $positionOld -New $positionNew.TrimEnd() -Contract 'Player Hub waiver-position derivation'
-
-$genericWaiver = '<a class="btn btn-secondary" href="/waivers">Check Waiver Board</a>'
-$hub = Replace-ExactlyOnce -Text $hub -Old $genericWaiver -New '$waiverAction' -Contract 'Player Hub focused Waiver action'
 
 $core = $core.Substring(0, $start) + $hub + $core.Substring($end)
 
