@@ -59,7 +59,9 @@ function Get-DecisionHistoryLoadingHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="1;url=/history?load=1">
 <title>Butler Decision History</title>
-<style>$css</style>
+<style>$css
+.loading-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.loading-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:11px 16px;text-decoration:none;font-weight:700}.loading-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}
+</style>
 </head>
 <body>
 <main class="shell">
@@ -72,6 +74,7 @@ $nav
 <span class="status done">READ ONLY</span>
 </div>
 <div class="empty">This view reads existing decision history only. It does not capture, refresh, rerank, or submit anything.</div>
+<div class="loading-actions"><a href="/history?load=1">Open Decision History now</a><a href="/">Dashboard</a></div>
 </section>
 </main>
 </body>
