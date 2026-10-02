@@ -119,13 +119,7 @@ if ($installedCandidates.Count -ne 1) {
 $installedCandidate = $installedCandidates[0].Extent.Text
 foreach ($required in @(
     '$candidateWorkflowActions',
-    'if ([string]$Candidate.SleeperId -match ''^[0-9]+if ($bf960Surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-960 BLOCKED: candidate workflow actions introduced provider, optimizer, FAAB, or write behavior.'
-}
-
-[System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
-Write-Host 'BF-960 Waiver Candidate Detail workflow actions applied.'
-') {',
+    'if ([string]$Candidate.SleeperId -match ''^[0-9]+$'') {',
     '$candidateWorkflowHrefId = [System.Uri]::EscapeDataString([string]$Candidate.SleeperId)',
     'href="/waivers/compare?left=',
     'href="/waivers/roster-compare?candidate=',
