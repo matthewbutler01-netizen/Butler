@@ -613,7 +613,21 @@ else {
     & $bf940Transform -DashboardPath $DashboardPath
 }
 
-# BF-941: add the exact AutoFill swap -> Player Compare loop after BF-940.
+# BF-978: preserve the validated waiver position focus through Candidate Detail,
+# Candidate Compare, Roster Compare, and every return/mode-bridge action after
+# BF-959/960/961/962 have finalized those workflow surfaces.
+$bf978Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf978-waiver-position-context-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf978Transform -PathType Leaf)) {
+    throw "BF-978 BLOCKED: waiver position-context transform not found at $bf978Transform"
+}
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    & $bf978Transform -DashboardPath $DashboardPath -CorePath $stagedCore
+}
+else {
+    & $bf978Transform -DashboardPath $DashboardPath
+}
+
+# BF-941: add the exact AutoFill swap -> Player Compare loop after BF-940/BF-978.
 # This is staged-core presentation/navigation only and reuses already-loaded My Team roster identity.
 if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     $bf941Transform = Join-Path $PSScriptRoot 'butler-app-bf941-lineup-swap-compare-transform.ps1'
