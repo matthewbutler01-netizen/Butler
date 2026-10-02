@@ -107,3 +107,9 @@ if ($bf959Surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleep
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-959 Waiver decision quick actions applied.'
+
+$bf960Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf960-waiver-candidate-actions-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf960Transform -PathType Leaf)) {
+    throw "BF-960 BLOCKED: Waiver Candidate Detail workflow transform not found at $bf960Transform"
+}
+& $bf960Transform -DashboardPath $DashboardPath
