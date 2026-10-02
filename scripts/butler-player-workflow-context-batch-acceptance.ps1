@@ -116,6 +116,11 @@ try {
         throw "PLAYER WORKFLOW BATCH BLOCKED: exact Player Search return query was not preserved; got '$searchQuery'."
     }
 
+    $normalizedSearchQuery = Get-PlayerDetailSearchQueryContext -RequestTarget '/player?id=p1&from=players&q=Wide%20%20%20Receiver'
+    if ($normalizedSearchQuery -cne 'Wide Receiver') {
+        throw "PLAYER WORKFLOW BATCH BLOCKED: Player Search return query whitespace normalization failed; got '$normalizedSearchQuery'."
+    }
+
     $searchHtml = '<div class="button-row"><a class="btn btn-secondary" href="/players">Back to Player Search</a><a class="btn btn-secondary" href="/team">My Team</a><a class="btn btn-secondary" href="/compare?left=p1">Compare this player</a></div>'
     $searchReturn = Add-PlayerDetailSearchReturnQuery -Html $searchHtml -FromPlayers $true -SearchQuery 'WR'
     if ($searchReturn.IndexOf('href="/players?q=WR">Back to Player Search</a>', [System.StringComparison]::Ordinal) -lt 0) {
