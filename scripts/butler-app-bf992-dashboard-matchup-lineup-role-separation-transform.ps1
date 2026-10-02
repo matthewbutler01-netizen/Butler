@@ -97,7 +97,7 @@ $stateAwareBlock = @'
         }
         elseif ($lineupCardHtml -match 'href="/team/autofill"') {
             $matchupPrimaryHref = '/team/autofill'
-            $matchupPrimaryLabel = if ($lineupCardHtml -match '>Refresh Lineups*&rarr;</a>') { 'Refresh Lineup' } else { 'Review Lineup' }
+            $matchupPrimaryLabel = if ($lineupCardHtml -match '>Refresh Lineup\s*&rarr;</a>') { 'Refresh Lineup' } else { 'Review Lineup' }
         }
     }
 
