@@ -53,7 +53,61 @@ if ($returnStart -lt 0) {
 
 $quickActionPrelude = @'
     $waiverQuickActions = ''
-    if ($pair.Active -and -not [string]::IsNullOrWhiteSpace([string]$pair.AddSleeperId)) {
+    if ($pair.Active -and [string]$pair.AddSleeperId -match '^[0-9]+
+        $waiverAddHrefId = [System.Uri]::EscapeDataString([string]$pair.AddSleeperId)
+        $waiverQuickActions = '<div class="waiver-quick-actions"><a class="button waiver-quick-primary" href="/waivers/candidate/' + (ConvertTo-HtmlText $waiverAddHrefId) + '">Open governed ADD</a><a class="button" href="/waivers/roster-compare?candidate=' + (ConvertTo-HtmlText $waiverAddHrefId) + '">Compare ADD to roster</a></div>'
+    }
+
+'@
+$waiver = $waiver.Insert($returnStart, $quickActionPrelude)
+
+$nextOld = '<div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$waiverHistoryLink</div>'
+$nextNew = '<div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$waiverQuickActions$waiverHistoryLink</div>'
+$waiver = Replace-ExactlyOnce -Text $waiver -Old $nextOld -New $nextNew -Contract 'Waiver decision quick actions'
+
+$styleEnd = $waiver.LastIndexOf('</style>', [System.StringComparison]::Ordinal)
+if ($styleEnd -lt 0) {
+    throw 'BF-959 BLOCKED: Waiver Board style terminator is missing.'
+}
+$css = @'
+/* BF-959 Waiver decision quick actions. */
+.waiver-quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.waiver-quick-actions .button{margin:0}.waiver-quick-primary{border-color:var(--turf);color:var(--ink)}@media(max-width:760px){.waiver-quick-actions .button{flex:1 1 100%;justify-content:center}}
+'@
+$waiver = $waiver.Insert($styleEnd, $css.TrimEnd() + [Environment]::NewLine)
+
+$text = $text.Substring(0, $waiverStart) + $waiver + $text.Substring($waiverEnd)
+
+foreach ($required in @(
+    'BF-959 Waiver decision quick actions',
+    '$waiverQuickActions',
+    '$waiverAddHrefId = [System.Uri]::EscapeDataString([string]$pair.AddSleeperId)',
+    'Open governed ADD',
+    'Compare ADD to roster',
+    'href="/waivers/candidate/',
+    'href="/waivers/roster-compare?candidate=',
+    '$waiverQuickActions$waiverHistoryLink'
+)) {
+    if ($text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-959 BLOCKED: required waiver quick-action marker is missing: $required"
+    }
+}
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $summary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-959 BLOCKED: generated staged Dashboard failed PowerShell parse: $summary"
+}
+
+$bf959Surface = $quickActionPrelude + $nextNew + $css
+if ($bf959Surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+    throw 'BF-959 BLOCKED: Waiver quick actions introduced provider, optimizer, FAAB, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+Write-Host 'BF-959 Waiver decision quick actions applied.'
+) {
         $waiverAddHrefId = [System.Uri]::EscapeDataString([string]$pair.AddSleeperId)
         $waiverQuickActions = '<div class="waiver-quick-actions"><a class="button waiver-quick-primary" href="/waivers/candidate/' + (ConvertTo-HtmlText $waiverAddHrefId) + '">Open governed ADD</a><a class="button" href="/waivers/roster-compare?candidate=' + (ConvertTo-HtmlText $waiverAddHrefId) + '">Compare ADD to roster</a></div>'
     }
