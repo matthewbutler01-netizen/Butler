@@ -67,7 +67,7 @@ $team = $teamFn.Extent.Text
 
 foreach ($required in @(
     '$weeklyAttentionHtml = Get-Bf979WeeklyAttentionHtml -AutoFill $AutoFill',
-    'id="weekly-attention"',
+    'id=`"weekly-attention`"',
     '<div class="rail-label">ON THIS PAGE</div>',
     'id="roster-starters"',
     'id="roster-bench"',
