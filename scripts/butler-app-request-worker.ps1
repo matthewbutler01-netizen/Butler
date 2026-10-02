@@ -398,6 +398,57 @@ html body .history-action-primary:hover{background:#202426}
     return $result
 }
 
+function Get-ButlerBlockedPageHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$Title,
+        [Parameter(Mandatory = $true)][string]$Message,
+        [Parameter(Mandatory = $true)][string]$Active,
+        [Parameter(Mandatory = $true)][string]$PrimaryHref,
+        [Parameter(Mandatory = $true)][string]$PrimaryLabel,
+        [string]$SecondaryHref = '/',
+        [string]$SecondaryLabel = 'Dashboard'
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active $Active
+    $safeTitle = ConvertTo-HtmlText $Title
+    $safeMessage = ConvertTo-HtmlText $Message
+    $safePrimaryHref = ConvertTo-HtmlText $PrimaryHref
+    $safePrimaryLabel = ConvertTo-HtmlText $PrimaryLabel
+    $safeSecondaryHref = ConvertTo-HtmlText $SecondaryHref
+    $safeSecondaryLabel = ConvertTo-HtmlText $SecondaryLabel
+
+    return @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Butler - $safeTitle</title>
+<style>$css
+.blocked-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.blocked-actions a{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:10px 14px;text-decoration:none;font-weight:700}
+.blocked-actions a:first-child{background:var(--surface-2);color:var(--ink)}
+.blocked-detail{margin-top:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<main class="shell">
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Request stopped safely</div></div>
+$nav
+<section class="panel">
+<div class="eyebrow">Safe stop</div>
+<div class="statusrow"><div><h1 class="headline">$safeTitle</h1><p class="lede">Butler stopped this request instead of guessing or continuing with an unsafe state.</p></div><span class="status warn">STOPPED SAFELY</span></div>
+<pre class="blocked-detail">$safeMessage</pre>
+<p>No Butler or Sleeper write was executed.</p>
+<div class="blocked-actions"><a href="$safePrimaryHref">$safePrimaryLabel</a><a href="$safeSecondaryHref">$safeSecondaryLabel</a></div>
+</section>
+</main>
+</body>
+</html>
+"@
+}
+
 function Send-HttpResponse {
     param(
         [Parameter(Mandatory = $true)]$Stream,
@@ -606,7 +657,7 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         }
         catch {
-            $errorHtml = "<!doctype html><html><body><h1>Butler Decision History blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/history`">Return to Decision History</a></p></body></html>"
+            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Decision History blocked' -Message $_.Exception.Message -Active 'history' -PrimaryHref '/history?load=1' -PrimaryLabel 'Return to Decision History'
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
         return
@@ -623,7 +674,7 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         }
         catch {
-            $errorHtml = "<!doctype html><html><body><h1>Butler Trade Analyzer blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p><p><a href=`"/trade`">Return to Trade Analyzer</a></p></body></html>"
+            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Trade Analyzer blocked' -Message $_.Exception.Message -Active 'trade' -PrimaryHref '/trade' -PrimaryLabel 'Return to Trade Analyzer'
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
         return
@@ -672,7 +723,7 @@ try {
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing
     }
     catch {
-        $errorHtml = "<!doctype html><html><body><h1>Butler app blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+        $errorHtml = Get-ButlerBlockedPageHtml -Title 'Butler app blocked' -Message $_.Exception.Message -Active 'dashboard' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard' -SecondaryHref '/team' -SecondaryLabel 'Review My Team'
         Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
     }
 }
