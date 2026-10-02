@@ -25,7 +25,14 @@ function Replace-BlockedLine {
     if ($matches.Count -lt 1) {
         throw "BF-976 BLOCKED: $Title legacy error line expected at least one match, found $($matches.Count)."
     }
-    return [regex]::Replace($Text, $pattern, $Replacement)
+
+    for ($matchIndex = $matches.Count - 1; $matchIndex -ge 0; $matchIndex--) {
+        $match = $matches[$matchIndex]
+        $Text = $Text.Substring(0, $match.Index) +
+            $Replacement +
+            $Text.Substring($match.Index + $match.Length)
+    }
+    return $Text
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
@@ -129,13 +136,12 @@ if (@($parseErrors).Count -gt 0) {
     throw "BF-976 BLOCKED: generated staged core failed PowerShell parse: $summary"
 }
 
-$helpers = @($finalAst.FindAll({
-    param($node)
-    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-    $node.Name -eq 'Get-PlayerWorkflowBlockedHtml'
-}, $true))
-if ($helpers.Count -ne 1) {
-    throw "BF-976 BLOCKED: expected exactly one installed Player workflow blocked renderer, found $($helpers.Count)."
+$helperDefinitionCount = [regex]::Matches(
+    $core,
+    '(?m)^function Get-PlayerWorkflowBlockedHtml\s*\{'
+).Count
+if ($helperDefinitionCount -ne 1) {
+    throw "BF-976 BLOCKED: expected exactly one installed Player workflow blocked renderer, found $helperDefinitionCount."
 }
 
 foreach ($required in @(
