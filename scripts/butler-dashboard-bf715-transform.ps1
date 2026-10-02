@@ -749,6 +749,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-983 BLOCKED: replacement decision-focus transform not found at $bf983Transform"
     }
     & $bf983Transform -DashboardPath $DashboardPath
+
+    # BF-984: keep Candidate Detail inside the same exact held-starter
+    # replacement workflow and make that comparison the primary action.
+    $bf984Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf984-candidate-replacement-focus-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf984Transform -PathType Leaf)) {
+        throw "BF-984 BLOCKED: candidate replacement-focus transform not found at $bf984Transform"
+    }
+    & $bf984Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
