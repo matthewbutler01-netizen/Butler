@@ -56,12 +56,14 @@ try {
         }
     }
 
-    $jumpSurface = [regex]::Match($team, '(?s)<div class="roster-state-summary".*?</div>\s*<div class="roster-board">').Value
-    if ([string]::IsNullOrWhiteSpace($jumpSurface)) {
-        throw 'BF-956 BLOCKED: roster jump surface could not be isolated.'
+    $jumpStart = $team.IndexOf('$reserveTaxiCount = [int]$Roster.ReserveCount + [int]$Roster.TaxiCount', [System.StringComparison]::Ordinal)
+    $jumpEnd = $team.IndexOf('$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill', $jumpStart, [System.StringComparison]::Ordinal)
+    if ($jumpStart -lt 0 -or $jumpEnd -le $jumpStart) {
+        throw 'BF-956 BLOCKED: roster jump summary surface could not be isolated.'
     }
+    $jumpSurface = $team.Substring($jumpStart, $jumpEnd - $jumpStart)
     if ($jumpSurface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-        throw 'BF-956 BLOCKED: roster jump surface introduced backend, provider, optimizer, or write behavior.'
+        throw 'BF-956 BLOCKED: roster jump summary introduced backend, provider, optimizer, or write behavior.'
     }
 
     Write-Host 'BF-956 MY TEAM ROSTER JUMP ACCEPTANCE: PASS'
