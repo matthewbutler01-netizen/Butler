@@ -836,6 +836,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-994 BLOCKED: My Team roster scanability transform not found at $bf994Transform"
     }
     & $bf994Transform -CorePath $stagedCore
+
+    # BF-996: make the final League Hub manager roles explicit without adding
+    # a second team-identity read or changing exact franchise action context.
+    $bf996Transform = Join-Path $PSScriptRoot 'butler-app-bf996-league-manager-orientation-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf996Transform -PathType Leaf)) {
+        throw "BF-996 BLOCKED: League manager orientation transform not found at $bf996Transform"
+    }
+    & $bf996Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
