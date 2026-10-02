@@ -49,7 +49,8 @@ try {
         '<a class="btn btn-secondary" href="$swapHref">Swap sides</a>',
         '$returnToLineupAction',
         'Back to Lineup Review',
-        '$swapHref = "/compare?left=$rightHref&right=$leftHref$swapSuffix"',
+        '$lineupContextSuffix = if ($Request.FromLineup)',
+        '$swapHref = "/compare?left=$rightHref&right=$leftHref$lineupContextSuffix$swapSuffix"',
         'Butler does not choose a winner',
         'NOT A RANKING'
     )) {
