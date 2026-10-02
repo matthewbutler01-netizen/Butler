@@ -119,3 +119,9 @@ if ($installed -match 'Method = "POST"|submitTransaction|setFaab|AutoFillLineupO
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-954 Dashboard matchup opponent actions applied.'
+
+$bf955Transform = Join-Path $PSScriptRoot 'butler-app-bf955-my-team-roster-slot-summary-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf955Transform -PathType Leaf)) {
+    throw "BF-955 BLOCKED: My Team roster slot summary transform not found at $bf955Transform"
+}
+& $bf955Transform -CorePath $CorePath
