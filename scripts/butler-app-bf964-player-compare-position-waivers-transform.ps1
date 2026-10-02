@@ -116,3 +116,9 @@ if ($installedCard -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerRead
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-964 Player Compare position-aware waivers applied.'
+
+$bf965Transform = Join-Path $PSScriptRoot 'butler-app-bf965-player-search-position-waivers-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf965Transform -PathType Leaf)) {
+    throw "BF-965 BLOCKED: Player Search position-aware waiver transform not found at $bf965Transform"
+}
+& $bf965Transform -CorePath $CorePath
