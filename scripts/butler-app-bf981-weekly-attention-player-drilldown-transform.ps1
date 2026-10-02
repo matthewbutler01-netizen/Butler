@@ -117,23 +117,27 @@ $core = Replace-FunctionText -Text $core -Name 'Get-Bf979WeeklyAttentionHtml' -C
 $dashboard = Replace-FunctionText -Text $dashboard -Name 'Get-Bf979SnapshotWeeklyAttentionHtml' -Contract 'cached Weekly Attention player links' -Mutator {
     param($fn)
 
-    $availabilityOld = '$names.Add("$(ConvertTo-HtmlText $player.Name) ($(ConvertTo-HtmlText $status))")'
+    $availabilityOld = @'
+        if ([string]::IsNullOrWhiteSpace($status) -or $status -ceq 'none') { $status = 'review' }
+        $names.Add("$(ConvertTo-HtmlText $player.Name) ($(ConvertTo-HtmlText $status))")
+'@.TrimEnd()
     $availabilityNew = @'
+        if ([string]::IsNullOrWhiteSpace($status) -or $status -ceq 'none') { $status = 'review' }
         $playerHref = [System.Uri]::EscapeDataString([string]$player.Id)
         $names.Add("<a href=`"/player?id=$playerHref&amp;from=dashboard`">$(ConvertTo-HtmlText $player.Name)</a> ($(ConvertTo-HtmlText $status))")
 '@.TrimEnd()
     $fn = Replace-ExactlyOnce -Text $fn -Old $availabilityOld -New $availabilityNew -Contract 'cached unavailable player detail link'
 
-    $holdOld = '$names.Add("$(ConvertTo-HtmlText $player.Name) ($(ConvertTo-HtmlText $status))")'
-    $holdMatches = [regex]::Matches($fn, [regex]::Escape($holdOld)).Count
-    if ($holdMatches -ne 1) {
-        throw "BF-981 BLOCKED: cached hold player detail link expected one remaining name marker, found $holdMatches."
-    }
+    $holdOld = @'
+        if ([string]::IsNullOrWhiteSpace($status) -or $status -ceq 'none') { $status = 'review hold' }
+        $names.Add("$(ConvertTo-HtmlText $player.Name) ($(ConvertTo-HtmlText $status))")
+'@.TrimEnd()
     $holdNew = @'
+        if ([string]::IsNullOrWhiteSpace($status) -or $status -ceq 'none') { $status = 'review hold' }
         $playerHref = [System.Uri]::EscapeDataString([string]$player.Id)
         $names.Add("<a href=`"/player?id=$playerHref&amp;from=dashboard`">$(ConvertTo-HtmlText $player.Name)</a> ($(ConvertTo-HtmlText $status))")
 '@.TrimEnd()
-    $fn = $fn.Replace($holdOld, $holdNew)
+    $fn = Replace-ExactlyOnce -Text $fn -Old $holdOld -New $holdNew -Contract 'cached hold player detail link'
     return $fn
 }
 
