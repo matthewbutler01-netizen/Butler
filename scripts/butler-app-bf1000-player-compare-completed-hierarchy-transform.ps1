@@ -48,8 +48,8 @@ $start = $functions[0].Extent.StartOffset
 $end = $functions[0].Extent.EndOffset
 $compare = $core.Substring($start, $end - $start)
 
-$old = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">League tool</div><h1 class="headline">Player Compare</h1><p class="lede">Side-by-side neutral evidence for two exact rostered players. Butler does not choose a winner.</p></div><span class="status done">NOT A RANKING</span></div><div class="button-row"><a class="btn btn-primary" href="$swapHref">Swap sides</a><a class="btn btn-secondary" href="/players">Compare different players</a></div></section>'
-$new = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Completed comparison</div><h1 class="headline">Player Compare</h1><p class="lede">Two exact rostered players are loaded side by side. Continue from either player card, or start a different comparison.</p></div><span class="status done">NOT A RANKING</span></div><div class="button-row"><a class="btn btn-primary" href="/players">Compare different players</a><a class="btn btn-secondary" href="$swapHref">Swap sides</a></div></section>'
+$old = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">League tool</div><h1 class="headline">Player Compare</h1><p class="lede">Side-by-side neutral evidence for two exact rostered players. Butler does not choose a winner.</p></div><span class="status done">NOT A RANKING</span></div><div class="button-row"><a class="btn btn-primary" href="$swapHref">Swap sides</a>$returnToLineupAction<a class="btn btn-secondary" href="/players">Compare different players</a></div></section>'
+$new = '<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Completed comparison</div><h1 class="headline">Player Compare</h1><p class="lede">Two exact rostered players are loaded side by side. Butler does not choose a winner. Continue from either player card, or start a different comparison.</p></div><span class="status done">NOT A RANKING</span></div><div class="button-row"><a class="btn btn-primary" href="/players">Compare different players</a>$returnToLineupAction<a class="btn btn-secondary" href="$swapHref">Swap sides</a></div></section>'
 
 $compare = Replace-Bf1000ExactlyOnce -Text $compare -Old $old -New $new -Contract 'completed Player Compare hero hierarchy'
 $core = $core.Substring(0, $start) + $compare + $core.Substring($end)
@@ -67,6 +67,8 @@ foreach ($required in @(
     'Two exact rostered players are loaded side by side.',
     '<a class="btn btn-primary" href="/players">Compare different players</a>',
     '<a class="btn btn-secondary" href="$swapHref">Swap sides</a>',
+    '$returnToLineupAction',
+    'Back to Lineup Review',
     'Butler does not choose a winner',
     'NOT A RANKING'
 )) {
