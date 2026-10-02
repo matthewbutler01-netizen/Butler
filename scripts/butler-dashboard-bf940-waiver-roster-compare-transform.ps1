@@ -372,3 +372,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-940 Waiver Roster Compare applied.'
+
+$bf959Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf959-waiver-quick-actions-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf959Transform -PathType Leaf)) {
+    throw "BF-959 BLOCKED: Waiver decision quick actions transform not found at $bf959Transform"
+}
+& $bf959Transform -DashboardPath $DashboardPath
