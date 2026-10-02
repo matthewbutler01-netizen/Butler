@@ -136,21 +136,13 @@ function Add-PlayerDetailSearchReturnQuery {
 
 $core = $core.Insert($helperIndex, $helpers)
 
-$routeOld = @'
-                    $html = ConvertTo-PlayerDetailHtml -View $playerDetail
-                    $fromPlayers = [regex]::IsMatch($parts[1], '(?:?|&)from=players(?:&|$)')
-                    $html = Add-PlayerDetailContextNavigation -Html $html -FromPlayers $fromPlayers
-                    $html = Add-PlayerCompareDetailAction -Html $html -PlayerId $playerDetail.PlayerId
-'@
-$routeNew = @'
-                    $html = ConvertTo-PlayerDetailHtml -View $playerDetail
-                    $fromPlayers = [regex]::IsMatch($parts[1], '(?:?|&)from=players(?:&|$)')
+$routeAnchor = '                    $html = Add-PlayerHubPresentation -Html $html -View $playerDetail'
+$routeExpanded = @'
+                    $html = Add-PlayerHubPresentation -Html $html -View $playerDetail
                     $searchReturnQuery = Get-PlayerDetailSearchQueryContext -RequestTarget $parts[1]
-                    $html = Add-PlayerDetailContextNavigation -Html $html -FromPlayers $fromPlayers
-                    $html = Add-PlayerCompareDetailAction -Html $html -PlayerId $playerDetail.PlayerId
                     $html = Add-PlayerDetailSearchReturnQuery -Html $html -FromPlayers $fromPlayers -SearchQuery $searchReturnQuery
 '@
-$core = Replace-ExactlyOnce -Text $core -Old $routeOld.TrimEnd() -New $routeNew.TrimEnd() -Contract 'Player Detail exact search-return route'
+$core = Replace-ExactlyOnce -Text $core -Old $routeAnchor -New $routeExpanded.TrimEnd() -Contract 'Player Detail exact search-return route'
 
 $tokens = $null
 $parseErrors = $null
