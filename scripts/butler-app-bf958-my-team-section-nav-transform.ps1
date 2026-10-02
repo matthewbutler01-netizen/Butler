@@ -86,7 +86,7 @@ if ($cssTerminator -lt 0) {
 
 $bf958Css = @'
 /* BF-958 My Team workspace section navigation. */
-.team-section-target{scroll-margin-top:20px}.team-section-target:focus{outline:2px solid color-mix(in srgb,var(--turf) 50%,transparent);outline-offset:2px}.team-rail .rail-jump{padding-top:7px;padding-bottom:7px;font-size:12px;color:var(--muted-2)}.team-rail .rail-jump::before{content:"↳";margin-right:7px;color:var(--turf)}
+.team-section-target{scroll-margin-top:20px}.team-section-target:focus{outline:2px solid color-mix(in srgb,var(--turf) 50%,transparent);outline-offset:2px}.team-rail .rail-jump{padding-top:7px;padding-bottom:7px;font-size:12px;color:var(--muted-2)}.team-rail .rail-jump::before{content:"->";margin-right:7px;color:var(--turf)}
 '@
 
 $cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $bf958Css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
