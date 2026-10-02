@@ -709,6 +709,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-970 BLOCKED: shared manager navigation transform not found at $bf970Transform"
     }
     & $bf970Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-979: final read-only Weekly Attention layer. It reuses the explicit
+    # Lineup Review evidence and saved BF-808 snapshot; no new provider read.
+    $bf979Transform = Join-Path $PSScriptRoot 'butler-app-bf979-weekly-attention-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf979Transform -PathType Leaf)) {
+        throw "BF-979 BLOCKED: Weekly Attention transform not found at $bf979Transform"
+    }
+    & $bf979Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
