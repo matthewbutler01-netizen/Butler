@@ -51,11 +51,15 @@ try {
         }
     }
 
-    foreach ($label in @('Back to Dashboard', 'Back to Matchup', 'Back to My Team')) {
-        $count = [regex]::Matches($lineup, [regex]::Escape($label)).Count
-        if ($count -ne 1) {
-            throw "BF-991 BLOCKED: expected one '$label' action, found $count."
-        }
+    $completedReturnCluster = '<a class=`"btn btn-secondary`" href=`"/`">Back to Dashboard</a><a class=`"btn btn-secondary`" href=`"/matchup`">Back to Matchup</a><a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a>'
+    $clusterCount = [regex]::Matches($lineup, [regex]::Escape($completedReturnCluster)).Count
+    if ($clusterCount -ne 1) {
+        throw "BF-991 BLOCKED: expected one completed manager-return action cluster, found $clusterCount."
+    }
+
+    $dashboardReturnCount = [regex]::Matches($lineup, [regex]::Escape('Back to Dashboard')).Count
+    if ($dashboardReturnCount -ne 1) {
+        throw "BF-991 BLOCKED: expected one Back to Dashboard action, found $dashboardReturnCount."
     }
 
     if ($lineup -match 'Invoke-RestMethod|Invoke-WebRequest|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|returnUrl|redirectUrl|window\.history|javascript:') {
