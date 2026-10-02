@@ -7,10 +7,12 @@ function Get-AppNav {
     $teamClass = if ($Active -ceq 'team') { ' class="active"' } else { '' }
     $matchupClass = if ($Active -ceq 'matchup') { ' class="active"' } else { '' }
     $waiversClass = if ($Active -ceq 'waivers') { ' class="active"' } else { '' }
+    $playersClass = if ($Active -ceq 'players') { ' class="active"' } else { '' }
+    $compareClass = if ($Active -ceq 'compare') { ' class="active"' } else { '' }
     $leagueClass = if ($Active -ceq 'league') { ' class="active"' } else { '' }
     $tradeClass = if ($Active -ceq 'trade') { ' class="active"' } else { '' }
     $historyClass = if ($Active -ceq 'history') { ' class="active"' } else { '' }
-    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history`">History</a></nav>"
+    return "<nav class=`"nav`" aria-label=`"Butler sections`"><a$dashboardClass href=`"/`">Dashboard</a><a$teamClass href=`"/team`">My Team</a><a$matchupClass href=`"/matchup`">Matchup</a><a$waiversClass href=`"/waivers`">Waiver Board</a><a$playersClass href=`"/players`">Player Search</a><a$compareClass href=`"/compare`">Player Compare</a><a$leagueClass href=`"/league`">League</a><a$tradeClass href=`"/trade`">Trade Analyzer</a><a$historyClass href=`"/history?load=1`">History</a></nav>"
 }
 
 function Add-AppNavigation {
@@ -28,10 +30,17 @@ function Add-AppNavigation {
         if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: League navigation anchor is missing.' }
         $Html = $anchor.Replace($Html, '$1<a href="/trade">Trade Analyzer</a>', 1)
     }
-    if ($Html -notmatch 'href="/history"') {
+    if ($Html -match 'href="/history\?load=1"') {
+        $oldHistory = [regex]'<a[^>]*href="/history"[^>]*>History</a>'
+        $Html = $oldHistory.Replace($Html, '')
+    }
+    elseif ($Html -match 'href="/history"') {
+        $Html = $Html.Replace('href="/history"', 'href="/history?load=1"')
+    }
+    else {
         $anchor = [regex]'(<a[^>]*href="/trade"[^>]*>Trade Analyzer</a>)'
         if (-not $anchor.IsMatch($Html)) { throw 'BF-870 BLOCKED: Trade Analyzer navigation anchor is missing.' }
-        $Html = $anchor.Replace($Html, '$1<a href="/history">History</a>', 1)
+        $Html = $anchor.Replace($Html, '$1<a href="/history?load=1">History</a>', 1)
     }
     return $Html
 }
