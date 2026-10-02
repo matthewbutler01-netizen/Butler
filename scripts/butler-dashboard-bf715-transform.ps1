@@ -765,6 +765,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-985 BLOCKED: replacement comparison-focus transform not found at $bf985Transform"
     }
     & $bf985Transform -DashboardPath $DashboardPath
+
+    # BF-986: label the completed exact-starter comparison as a held-starter
+    # replacement review while keeping neutral read-only evidence semantics.
+    $bf986Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf986-held-starter-review-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf986Transform -PathType Leaf)) {
+        throw "BF-986 BLOCKED: held-starter replacement review transform not found at $bf986Transform"
+    }
+    & $bf986Transform -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
