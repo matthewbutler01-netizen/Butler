@@ -725,6 +725,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-980 BLOCKED: Weekly Attention waiver-action transform not found at $bf980Transform"
     }
     & $bf980Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-981: make each Weekly Attention player drillable. Dashboard-origin
+    # drill-down uses an explicit fixed from=dashboard context and returns there.
+    $bf981Transform = Join-Path $PSScriptRoot 'butler-app-bf981-weekly-attention-player-drilldown-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf981Transform -PathType Leaf)) {
+        throw "BF-981 BLOCKED: Weekly Attention player-drilldown transform not found at $bf981Transform"
+    }
+    & $bf981Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
