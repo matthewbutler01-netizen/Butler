@@ -132,3 +132,9 @@ if ($bf961Surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleep
 
 [System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-961 Waiver comparison return loop applied.'
+
+$bf962Transform = Join-Path $PSScriptRoot 'butler-dashboard-bf962-waiver-comparison-mode-bridge-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf962Transform -PathType Leaf)) {
+    throw "BF-962 BLOCKED: Waiver comparison mode bridge transform not found at $bf962Transform"
+}
+& $bf962Transform -DashboardPath $DashboardPath
