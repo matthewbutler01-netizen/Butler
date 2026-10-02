@@ -27,10 +27,28 @@ function Replace-ExactlyOnce {
 }
 
 $text = [System.IO.File]::ReadAllText($DashboardPath)
-$candidateStart = $text.IndexOf('function ConvertTo-WaiverCandidateDetailHtml {', [System.StringComparison]::Ordinal)
-$candidateEnd = $text.IndexOf('function Send-HttpResponse {', $candidateStart, [System.StringComparison]::Ordinal)
+
+$preTokens = $null
+$preErrors = $null
+$preAst = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$preTokens, [ref]$preErrors)
+if (@($preErrors).Count -gt 0) {
+    $summary = (@($preErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-960 BLOCKED: staged Dashboard failed pre-transform PowerShell parse: $summary"
+}
+
+$candidateFunctions = @($preAst.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'ConvertTo-WaiverCandidateDetailHtml'
+}, $true))
+if ($candidateFunctions.Count -ne 1) {
+    throw "BF-960 BLOCKED: expected exactly one Waiver Candidate Detail renderer, found $($candidateFunctions.Count)."
+}
+
+$candidateStart = $candidateFunctions[0].Extent.StartOffset
+$candidateEnd = $candidateFunctions[0].Extent.EndOffset
 if ($candidateStart -lt 0 -or $candidateEnd -le $candidateStart) {
-    throw 'BF-960 BLOCKED: Waiver Candidate Detail renderer boundary is missing.'
+    throw 'BF-960 BLOCKED: exact Waiver Candidate Detail AST extent is invalid.'
 }
 $candidate = $text.Substring($candidateStart, $candidateEnd - $candidateStart)
 
@@ -84,10 +102,38 @@ foreach ($required in @(
 
 $tokens = $null
 $parseErrors = $null
-[void][System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseErrors)
+$finalAst = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseErrors)
 if (@($parseErrors).Count -gt 0) {
     $summary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
     throw "BF-960 BLOCKED: generated staged Dashboard failed PowerShell parse: $summary"
+}
+
+$installedCandidates = @($finalAst.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'ConvertTo-WaiverCandidateDetailHtml'
+}, $true))
+if ($installedCandidates.Count -ne 1) {
+    throw "BF-960 BLOCKED: generated Dashboard must contain exactly one Waiver Candidate Detail renderer; found $($installedCandidates.Count)."
+}
+$installedCandidate = $installedCandidates[0].Extent.Text
+foreach ($required in @(
+    '$candidateWorkflowActions',
+    'if ([string]$Candidate.SleeperId -match ''^[0-9]+if ($bf960Surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+    throw 'BF-960 BLOCKED: candidate workflow actions introduced provider, optimizer, FAAB, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($DashboardPath, $text, [System.Text.UTF8Encoding]::new($false))
+Write-Host 'BF-960 Waiver Candidate Detail workflow actions applied.'
+') {',
+    '$candidateWorkflowHrefId = [System.Uri]::EscapeDataString([string]$Candidate.SleeperId)',
+    'href="/waivers/compare?left=',
+    'href="/waivers/roster-compare?candidate=',
+    '">Back to Waiver Board</a>'
+)) {
+    if ($installedCandidate.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-960 BLOCKED: candidate workflow marker escaped the exact Candidate Detail function: $required"
+    }
 }
 
 $bf960Surface = $workflowPrelude + $actionsNew
