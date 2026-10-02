@@ -106,6 +106,14 @@ try {
     }
 
     $liveRenderer = (Get-OneFunction -Ast $coreAst -Name 'Get-Bf979WeeklyAttentionHtml').Extent.Text
+    foreach ($required in @(
+        '$availability = @(if ($null -ne $AutoFill.PSObject.Properties[''AvailabilityExclusions''])',
+        '$holds = @(if ($null -ne $AutoFill.PSObject.Properties[''ProjectionHolds''])'
+    )) {
+        if ($liveRenderer.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+            throw "BF-979 BLOCKED: live renderer array-stability marker is missing: $required"
+        }
+    }
     Invoke-Expression $liveRenderer
 
     $autoFill = [pscustomobject]@{
@@ -167,7 +175,42 @@ try {
         throw 'BF-979 BLOCKED: live Weekly Attention rendered when no attention evidence exists.'
     }
 
+    $singleHoldAutoFill = [pscustomobject]@{
+        Requested = $true
+        Ready = $true
+        AvailabilityExclusions = @()
+        ProjectionHolds = @(
+            [pscustomobject]@{
+                Name = 'Only Starter Hold'
+                Id = '104'
+                RosterSlot = 'STARTER'
+                LineupSlot = 'RB'
+                Status = 'Active'
+                InjuryStatus = 'Questionable'
+                Reason = 'Singleton hold coverage.'
+            }
+        )
+    }
+    $singleHoldHtml = Get-Bf979WeeklyAttentionHtml -AutoFill $singleHoldAutoFill
+    foreach ($required in @(
+        '1 starter needs weekly review',
+        'Only Starter Hold',
+        'Questionable'
+    )) {
+        if ($singleHoldHtml.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+            throw "BF-979 BLOCKED: singleton live hold render marker is missing: $required"
+        }
+    }
+
     $cachedRenderer = (Get-OneFunction -Ast $dashboardAst -Name 'Get-Bf979SnapshotWeeklyAttentionHtml').Extent.Text
+    foreach ($required in @(
+        '$availability = @(if ($null -ne $Snapshot.PSObject.Properties[''AvailabilityExclusions''])',
+        '$holds = @(if ($null -ne $Snapshot.PSObject.Properties[''ProjectionHolds''])'
+    )) {
+        if ($cachedRenderer.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+            throw "BF-979 BLOCKED: cached renderer array-stability marker is missing: $required"
+        }
+    }
     Invoke-Expression $cachedRenderer
 
     $snapshot = [pscustomobject]@{
@@ -191,6 +234,21 @@ try {
 
     if (-not [string]::IsNullOrWhiteSpace((Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $snapshot -LineupSignalStatus 'REFRESH AUTOFILL'))) {
         throw 'BF-979 BLOCKED: Dashboard showed stale Weekly Attention when the saved lineup snapshot needs refresh.'
+    }
+
+    $singleHoldSnapshot = [pscustomobject]@{
+        Ready = $true
+        AvailabilityExclusions = @()
+        ProjectionHolds = @($singleHoldAutoFill.ProjectionHolds)
+    }
+    $singleHoldCachedHtml = Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $singleHoldSnapshot -LineupSignalStatus 'AUTOFILL READY'
+    foreach ($required in @(
+        '1 starter needs weekly review',
+        'Only Starter Hold (Questionable)'
+    )) {
+        if ($singleHoldCachedHtml.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+            throw "BF-979 BLOCKED: singleton cached hold render marker is missing: $required"
+        }
     }
 
     $surface = $liveRenderer + [Environment]::NewLine + $cachedRenderer
