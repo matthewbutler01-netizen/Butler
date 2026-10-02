@@ -79,9 +79,9 @@ try {
     }
 
     foreach ($spec in @(
-        @($teamAttention, 'id="weekly-attention"', 'My Team attention anchor'),
+        @($teamAttention, 'id=`"weekly-attention`"', 'My Team attention anchor'),
         @($teamAttention, '&amp;from=team', 'My Team origin token'),
-        @($dashboardAttention, 'id="weekly-attention"', 'Dashboard attention anchor'),
+        @($dashboardAttention, 'id=`"weekly-attention`"', 'Dashboard attention anchor'),
         @($dashboardAttention, '&amp;from=dashboard', 'Dashboard origin token')
     )) {
         if ([string]$spec[0] -notmatch [regex]::Escape([string]$spec[1])) {
