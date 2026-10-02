@@ -157,25 +157,13 @@ function Add-PlayerDetailCompareReturn {
 
 $core = $core.Insert($helperIndex, $helpers)
 
-$routeOld = @'
-                    $html = ConvertTo-PlayerDetailHtml -View $playerDetail
-                    $fromPlayers = [regex]::IsMatch($parts[1], '(?:?|&)from=players(?:&|$)')
-                    $searchReturnQuery = Get-PlayerDetailSearchQueryContext -RequestTarget $parts[1]
-                    $html = Add-PlayerDetailContextNavigation -Html $html -FromPlayers $fromPlayers
-                    $html = Add-PlayerCompareDetailAction -Html $html -PlayerId $playerDetail.PlayerId
+$routeAnchor = '                    $html = Add-PlayerDetailSearchReturnQuery -Html $html -FromPlayers $fromPlayers -SearchQuery $searchReturnQuery'
+$routeExpanded = @'
                     $html = Add-PlayerDetailSearchReturnQuery -Html $html -FromPlayers $fromPlayers -SearchQuery $searchReturnQuery
-'@
-$routeNew = @'
-                    $html = ConvertTo-PlayerDetailHtml -View $playerDetail
-                    $fromPlayers = [regex]::IsMatch($parts[1], '(?:?|&)from=players(?:&|$)')
-                    $searchReturnQuery = Get-PlayerDetailSearchQueryContext -RequestTarget $parts[1]
                     $compareReturnContext = Get-PlayerDetailCompareContext -RequestTarget $parts[1]
-                    $html = Add-PlayerDetailContextNavigation -Html $html -FromPlayers $fromPlayers
-                    $html = Add-PlayerCompareDetailAction -Html $html -PlayerId $playerDetail.PlayerId
-                    $html = Add-PlayerDetailSearchReturnQuery -Html $html -FromPlayers $fromPlayers -SearchQuery $searchReturnQuery
                     $html = Add-PlayerDetailCompareReturn -Html $html -CompareContext $compareReturnContext
 '@
-$core = Replace-ExactlyOnce -Text $core -Old $routeOld.TrimEnd() -New $routeNew.TrimEnd() -Contract 'Player Detail compare-return route'
+$core = Replace-ExactlyOnce -Text $core -Old $routeAnchor -New $routeExpanded.TrimEnd() -Contract 'Player Detail compare-return route'
 
 $tokens = $null
 $parseErrors = $null
