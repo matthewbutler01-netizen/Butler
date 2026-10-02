@@ -168,6 +168,9 @@ function ConvertTo-DecisionHistoryHtml {
     $olderCards = ''
     $latestOutcome = 'No recorded decisions'
     $latestCaptured = 'None yet'
+    $moveCount = 0
+    $noMoveCount = 0
+    $otherDecisionCount = 0
     for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
         $entry = $presentationEntries[$entryIndex]
         $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $entry.Captured
@@ -199,6 +202,12 @@ function ConvertTo-DecisionHistoryHtml {
             'RECORDED'
         }
         $decisionClass = if ($entry.RecommendationState -ceq 'RECOMMEND_ADD_DROP') { 'good' } else { 'done' }
+
+        switch ([string]$entry.RecommendationState) {
+            'RECOMMEND_ADD_DROP' { $moveCount++ }
+            'NO_GOVERNED_TRANSACTION' { $noMoveCount++ }
+            default { $otherDecisionCount++ }
+        }
 
         $isNewest = $entryIndex -eq ($presentationEntries.Count - 1)
         if ($isNewest) {
@@ -245,7 +254,7 @@ function ConvertTo-DecisionHistoryHtml {
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision History</title><style>$css$historyCss</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History &middot; $(ConvertTo-HtmlText $History.RecordCount) recorded</div></header>
 $nav
-<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div>$olderHistoryHtml</section>
+<section class="panel"><div class="eyebrow">Decision History</div><div class="statusrow"><div><h1 class="headline">Your waiver decision timeline</h1><p class="lede">Recorded waiver decisions. Butler shows the newest recorded decision first for this league and roster. This page does not rerun recommendations.</p></div><div class="status done">READ ONLY</div></div><div class="stats"><div class="stat"><strong>Latest outcome</strong><span>$(ConvertTo-HtmlText $latestOutcome)</span></div><div class="stat"><strong>Latest recorded</strong><span>$(ConvertTo-HtmlText $latestCaptured)</span></div><div class="stat"><strong>Moves recorded</strong><span>$(ConvertTo-HtmlText $moveCount)</span></div><div class="stat"><strong>No-move records</strong><span>$(ConvertTo-HtmlText $noMoveCount)</span></div><div class="stat"><strong>Other states</strong><span>$(ConvertTo-HtmlText $otherDecisionCount)</span></div><div class="stat"><strong>Recorded decisions</strong><span>$(ConvertTo-HtmlText $History.RecordCount)</span></div></div><div class="history-actions"><a class="history-action history-action-primary" href="/waivers">Review Waiver Board</a><a class="history-action" href="/">Back to Dashboard</a></div><div class="history-timeline-label">Newest first</div><div class="history-list">$cards</div>$olderHistoryHtml</section>
 <section class="panel boundary"><span class="lock">READ ONLY.</span> Decision History reads recorded governed waiver history only. It cannot capture or rewrite a decision record, refresh evidence, rerank a waiver decision, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
 </main></body></html>
 "@
