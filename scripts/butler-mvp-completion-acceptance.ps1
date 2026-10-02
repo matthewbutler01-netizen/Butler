@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent $scriptDir
+$presentationCloseout = Join-Path $scriptDir 'butler-presentation-closeout-acceptance.ps1'
 $releaseAcceptance = Join-Path $scriptDir 'butler-release-acceptance.cmd'
 $gitCommand = Get-Command git.exe -ErrorAction SilentlyContinue
 if ($null -eq $gitCommand) { $gitCommand = Get-Command git -ErrorAction SilentlyContinue }
@@ -42,9 +43,12 @@ function Require-Text {
 
 try {
     Write-Host 'Butler MVP completion acceptance'
-    Write-Host 'Boundary: authoritative exact-HEAD release gate plus isolated temporary Windows profile; real Butler profile is not used by onboarding.'
+    Write-Host 'Boundary: final manager presentation closeout plus authoritative exact-HEAD release gate and isolated temporary Windows profile; real Butler profile is not used by onboarding.'
     Write-Host 'Boundary: Butler-local setup/evidence only; no lineup, waiver, trade, FAAB, or other Sleeper transaction write.'
 
+    if (-not (Test-Path -LiteralPath $presentationCloseout -PathType Leaf)) {
+        throw "MVP ACCEPTANCE BLOCKED: manager presentation closeout missing at $presentationCloseout"
+    }
     if (-not (Test-Path -LiteralPath $releaseAcceptance -PathType Leaf)) {
         throw "MVP ACCEPTANCE BLOCKED: authoritative release acceptance missing at $releaseAcceptance"
     }
@@ -78,6 +82,9 @@ try {
     }
     $head = $head.ToLowerInvariant()
     $short = $head.Substring(0, 8)
+
+    Write-Host 'Running final manager presentation closeout...'
+    & $presentationCloseout
 
     Write-Host 'Running authoritative exact-HEAD release acceptance...'
     Push-Location $repoRoot
