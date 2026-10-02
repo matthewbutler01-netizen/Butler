@@ -155,8 +155,8 @@ function Get-Bf979WeeklyAttentionHtml {
         return ''
     }
 
-    $availability = if ($null -ne $AutoFill.PSObject.Properties['AvailabilityExclusions']) { @($AutoFill.AvailabilityExclusions) } else { @() }
-    $holds = if ($null -ne $AutoFill.PSObject.Properties['ProjectionHolds']) { @($AutoFill.ProjectionHolds) } else { @() }
+    $availability = @(if ($null -ne $AutoFill.PSObject.Properties['AvailabilityExclusions']) { @($AutoFill.AvailabilityExclusions) } else { @() })
+    $holds = @(if ($null -ne $AutoFill.PSObject.Properties['ProjectionHolds']) { @($AutoFill.ProjectionHolds) } else { @() })
     if ($availability.Count -eq 0 -and $holds.Count -eq 0) {
         return ''
     }
@@ -241,8 +241,8 @@ function Get-Bf979SnapshotWeeklyAttentionHtml {
         return ''
     }
 
-    $availability = if ($null -ne $Snapshot.PSObject.Properties['AvailabilityExclusions']) { @($Snapshot.AvailabilityExclusions) } else { @() }
-    $holds = if ($null -ne $Snapshot.PSObject.Properties['ProjectionHolds']) { @($Snapshot.ProjectionHolds) } else { @() }
+    $availability = @(if ($null -ne $Snapshot.PSObject.Properties['AvailabilityExclusions']) { @($Snapshot.AvailabilityExclusions) } else { @() })
+    $holds = @(if ($null -ne $Snapshot.PSObject.Properties['ProjectionHolds']) { @($Snapshot.ProjectionHolds) } else { @() })
     if ($availability.Count -eq 0 -and $holds.Count -eq 0) {
         return ''
     }
