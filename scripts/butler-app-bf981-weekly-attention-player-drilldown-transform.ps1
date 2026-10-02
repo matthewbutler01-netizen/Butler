@@ -179,7 +179,7 @@ $core = $core.Insert($helperIndex, $helper)
 $routeAnchor = '                    $html = Add-PlayerDetailCompareReturn -Html $html -CompareContext $compareReturnContext'
 $routeExpanded = @'
                     $html = Add-PlayerDetailCompareReturn -Html $html -CompareContext $compareReturnContext
-                    $fromDashboard = [regex]::IsMatch($parts[1], '(?:?|&)from=dashboard(?:&|$)')
+                    $fromDashboard = [regex]::IsMatch($parts[1], '(?:\?|&)from=dashboard(?:&|$)')
                     $html = Add-Bf981PlayerDetailDashboardReturn -Html $html -FromDashboard $fromDashboard
 '@
 $core = Replace-ExactlyOnce -Text $core -Old $routeAnchor -New $routeExpanded.TrimEnd() -Contract 'Player Detail dashboard return route'
@@ -198,7 +198,7 @@ foreach ($spec in @(
 foreach ($required in @(
     'href=`"/player?id=$playerHref`"',
     'Add-Bf981PlayerDetailDashboardReturn -Html $html -FromDashboard $fromDashboard',
-    '(?:?|&)from=dashboard(?:&|$)',
+    '(?:\?|&)from=dashboard(?:&|$)',
     'Back to Dashboard'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
