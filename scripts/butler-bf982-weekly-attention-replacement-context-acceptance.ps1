@@ -60,6 +60,8 @@ try {
         return [System.Net.WebUtility]::HtmlEncode([string]$Value)
     }
 
+    $liveWaiverActionsText = (Get-OneFunction -Ast $coreAst -Name 'Get-Bf980StarterWaiverActionsHtml').Extent.Text
+    $cachedWaiverActionsText = (Get-OneFunction -Ast $dashboardAst -Name 'Get-Bf980SnapshotStarterWaiverActionsHtml').Extent.Text
     $liveAttentionText = (Get-OneFunction -Ast $coreAst -Name 'Get-Bf979WeeklyAttentionHtml').Extent.Text
     $cachedAttentionText = (Get-OneFunction -Ast $dashboardAst -Name 'Get-Bf979SnapshotWeeklyAttentionHtml').Extent.Text
     $rosterFocusText = (Get-OneFunction -Ast $dashboardAst -Name 'Get-WaiverReplacementRosterFocusFromRequestTarget').Extent.Text
@@ -67,6 +69,8 @@ try {
     $candidateText = (Get-OneFunction -Ast $dashboardAst -Name 'ConvertTo-WaiverCandidateDetailHtml').Extent.Text
     $rosterCompareText = (Get-OneFunction -Ast $dashboardAst -Name 'ConvertTo-WaiverRosterCompareHtml').Extent.Text
 
+    Invoke-Expression $liveWaiverActionsText
+    Invoke-Expression $cachedWaiverActionsText
     Invoke-Expression $liveAttentionText
     Invoke-Expression $cachedAttentionText
     Invoke-Expression $rosterFocusText
