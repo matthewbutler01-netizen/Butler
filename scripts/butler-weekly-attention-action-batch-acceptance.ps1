@@ -87,35 +87,37 @@ try {
         [pscustomobject]@{ Name = 'Unavailable Player'; Id = '206'; Status = 'Inactive'; InjuryStatus = 'Out'; Reason = 'Unavailable.' }
     )
 
-    $liveActions = Get-Bf980StarterWaiverActionsHtml -Holds $holds
-    $cachedActions = Get-Bf980SnapshotStarterWaiverActionsHtml -Holds $holds
-    foreach ($pair in @(
-        @('live', $liveActions),
-        @('cached', $cachedActions)
-    )) {
-        $label = [string]$pair[0]
-        $html = [string]$pair[1]
+    function Assert-FocusedWaiverActions {
+        param(
+            [Parameter(Mandatory = $true)][string]$Label,
+            [Parameter(Mandatory = $true)][string]$Html
+        )
 
         foreach ($required in @(
             'href="/waivers?position=RB">Check RB waivers</a>',
             'href="/waivers?position=WR">Check WR waivers</a>'
         )) {
-            if ($html.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
-                throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $label focused-waiver action is missing: $required"
+            if ($Html.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+                throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $Label focused-waiver action is missing: $required"
             }
         }
 
-        $wrCount = [regex]::Matches($html, [regex]::Escape('href="/waivers?position=WR"')).Count
+        $wrCount = [regex]::Matches($Html, [regex]::Escape('href="/waivers?position=WR"')).Count
         if ($wrCount -ne 1) {
-            throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $label duplicate WR actions were not collapsed; found $wrCount."
+            throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $Label duplicate WR actions were not collapsed; found $wrCount."
         }
 
         foreach ($forbidden in @('position=TE', 'position=FLEX', 'position=QB')) {
-            if ($html.IndexOf($forbidden, [System.StringComparison]::Ordinal) -ge 0) {
-                throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $label surfaced an unsupported or bench-only waiver action: $forbidden"
+            if ($Html.IndexOf($forbidden, [System.StringComparison]::Ordinal) -ge 0) {
+                throw "WEEKLY ATTENTION ACTION BATCH BLOCKED: $Label surfaced an unsupported or bench-only waiver action: $forbidden"
             }
         }
     }
+
+    $liveActions = Get-Bf980StarterWaiverActionsHtml -Holds $holds
+    $cachedActions = Get-Bf980SnapshotStarterWaiverActionsHtml -Holds $holds
+    Assert-FocusedWaiverActions -Label 'live' -Html $liveActions
+    Assert-FocusedWaiverActions -Label 'cached' -Html $cachedActions
 
     $autoFill = [pscustomobject]@{
         Requested = $true
