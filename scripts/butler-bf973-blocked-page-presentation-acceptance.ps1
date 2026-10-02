@@ -93,11 +93,13 @@ if ($source.IndexOf('<!doctype html><html><body><h1>Butler Decision History bloc
     throw 'BF-973 BLOCKED: legacy bare blocked-page HTML remains in the request worker.'
 }
 
-$historyStatus = [regex]::Matches($source, "Send-HttpResponse -Stream \$stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body \$errorHtml").Count
+$badRequestSend = 'Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText ''Bad Request'' -ContentType ''text/html; charset=utf-8'' -Body $errorHtml'
+$historyStatus = [regex]::Matches($source, [regex]::Escape($badRequestSend)).Count
 if ($historyStatus -lt 3) {
     throw "BF-973 BLOCKED: expected existing HTML Bad Request semantics to remain; found only $historyStatus matching 400 sends."
 }
-$genericStatus = [regex]::Matches($source, "Send-HttpResponse -Stream \$stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body \$errorHtml").Count
+$internalErrorSend = 'Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText ''Internal Server Error'' -ContentType ''text/html; charset=utf-8'' -Body $errorHtml'
+$genericStatus = [regex]::Matches($source, [regex]::Escape($internalErrorSend)).Count
 if ($genericStatus -ne 1) {
     throw "BF-973 BLOCKED: generic app blocked page must remain HTTP 500; found $genericStatus matching sends."
 }
