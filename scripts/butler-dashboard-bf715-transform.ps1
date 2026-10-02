@@ -797,6 +797,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-989 BLOCKED: Dashboard matchup decision-actions transform not found at $bf989Transform"
     }
     & $bf989Transform -CorePath $stagedCore
+
+    # BF-990: mirror the existing Dashboard Lineup card state into the Matchup
+    # card primary action without adding another provider read.
+    $bf990Transform = Join-Path $PSScriptRoot 'butler-app-bf990-dashboard-matchup-lineup-state-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf990Transform -PathType Leaf)) {
+        throw "BF-990 BLOCKED: Dashboard matchup lineup-state transform not found at $bf990Transform"
+    }
+    & $bf990Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
