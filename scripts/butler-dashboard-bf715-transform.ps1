@@ -852,6 +852,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-997 BLOCKED: Franchise Scout action-hierarchy transform not found at $bf997Transform"
     }
     & $bf997Transform -CorePath $stagedCore
+
+    # BF-999: make exact Player Detail the primary result-card drill-down while
+    # preserving compare, franchise, waiver, and exact search-return context.
+    $bf999Transform = Join-Path $PSScriptRoot 'butler-app-bf999-player-search-result-hierarchy-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf999Transform -PathType Leaf)) {
+        throw "BF-999 BLOCKED: Player Search result-hierarchy transform not found at $bf999Transform"
+    }
+    & $bf999Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
