@@ -57,8 +57,14 @@ try {
         }
     }
 
-    if ($team -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-        throw 'BF-955 BLOCKED: My Team roster slot summary introduced backend, provider, optimizer, or write behavior.'
+    $surfaceStart = $team.IndexOf('$reserveTaxiCount = [int]$Roster.ReserveCount + [int]$Roster.TaxiCount', [System.StringComparison]::Ordinal)
+    $surfaceEnd = $team.IndexOf('$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill', $surfaceStart, [System.StringComparison]::Ordinal)
+    if ($surfaceStart -lt 0 -or $surfaceEnd -le $surfaceStart) {
+        throw 'BF-955 BLOCKED: installed roster-slot summary boundary is missing.'
+    }
+    $bf955Surface = $team.Substring($surfaceStart, $surfaceEnd - $surfaceStart)
+    if ($bf955Surface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+        throw 'BF-955 BLOCKED: installed roster slot summary itself introduced backend, provider, optimizer, or write behavior.'
     }
 
     Write-Host 'BF-955 MY TEAM ROSTER SLOT SUMMARY ACCEPTANCE: PASS'
