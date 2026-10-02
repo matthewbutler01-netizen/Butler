@@ -283,13 +283,27 @@ $dashboard = $dashboard.Insert($dashboardHelperIndex, $dashboardHelper)
 $dashboard = Replace-FunctionText -Text $dashboard -Name 'ConvertTo-DashboardHtml' -Contract 'Dashboard weekly attention composition' -Mutator {
     param($fn)
 
+    $attentionAnchor = '    $bf907AttentionText = if ($managerAttentionCount -eq 0) {'
+    $attentionReplacement = @'
+    $bf979WeeklyAttentionHtml = Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $lineupSnapshot -LineupSignalStatus ([string]$lineupSignalStatus)
+    $bf979HasWeeklyAttention = -not [string]::IsNullOrWhiteSpace($bf979WeeklyAttentionHtml)
+    $bf907AttentionText = if ($bf979HasWeeklyAttention) {
+        "LINEUP NEEDS ATTENTION"
+    }
+    elseif ($managerAttentionCount -eq 0) {
+'@
+    $fn = Replace-ExactlyOnce -Text $fn -Old $attentionAnchor -New $attentionReplacement.TrimEnd() -Contract 'Week at a glance attention status'
+
+    $classOld = '    $bf907AttentionClass = if ($managerAttentionCount -gt 0) { "warn" } else { "good" }'
+    $classNew = '    $bf907AttentionClass = if ($bf979HasWeeklyAttention -or $managerAttentionCount -gt 0) { "warn" } else { "good" }'
+    $fn = Replace-ExactlyOnce -Text $fn -Old $classOld -New $classNew -Contract 'Week at a glance attention class'
+
     $returnPos = $fn.LastIndexOf('    return @"', [System.StringComparison]::Ordinal)
     if ($returnPos -lt 0) {
         throw 'BF-979 BLOCKED: final Dashboard return marker is missing.'
     }
 
     $setup = @'
-    $bf979WeeklyAttentionHtml = Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $lineupSnapshot -LineupSignalStatus ([string]$lineupSignalStatus)
     $bf907WeekGlanceHtml = $bf979WeeklyAttentionHtml + $bf907WeekGlanceHtml
 
 '@
@@ -322,6 +336,9 @@ foreach ($required in @(
 
 foreach ($required in @(
     'Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $lineupSnapshot',
+    '$bf979HasWeeklyAttention = -not [string]::IsNullOrWhiteSpace($bf979WeeklyAttentionHtml)',
+    '"LINEUP NEEDS ATTENTION"',
+    '$bf907AttentionClass = if ($bf979HasWeeklyAttention -or $managerAttentionCount -gt 0)',
     '$bf907WeekGlanceHtml = $bf979WeeklyAttentionHtml + $bf907WeekGlanceHtml',
     'Dashboard does not make a new provider request for this alert.'
 )) {
