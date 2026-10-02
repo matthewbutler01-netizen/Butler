@@ -773,6 +773,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-986 BLOCKED: held-starter replacement review transform not found at $bf986Transform"
     }
     & $bf986Transform -DashboardPath $DashboardPath
+
+    # BF-987: carry a fixed dashboard/team Weekly Attention origin through the
+    # replacement workflow and expose a direct safe return to that exact surface.
+    $bf987Transform = Join-Path $PSScriptRoot 'butler-app-bf987-weekly-attention-return-loop-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf987Transform -PathType Leaf)) {
+        throw "BF-987 BLOCKED: Weekly Attention return-loop transform not found at $bf987Transform"
+    }
+    & $bf987Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
