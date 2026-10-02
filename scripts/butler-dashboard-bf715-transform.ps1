@@ -860,6 +860,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-999 BLOCKED: Player Search result-hierarchy transform not found at $bf999Transform"
     }
     & $bf999Transform -CorePath $stagedCore
+
+    # BF-1000: make a different player pair the completed Compare primary action
+    # while preserving exact swap and every per-player continuation path.
+    $bf1000Transform = Join-Path $PSScriptRoot 'butler-app-bf1000-player-compare-completed-hierarchy-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1000Transform -PathType Leaf)) {
+        throw "BF-1000 BLOCKED: Player Compare completed-hierarchy transform not found at $bf1000Transform"
+    }
+    & $bf1000Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
