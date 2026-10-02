@@ -22,6 +22,8 @@ class ButlerPlayerCompareCompletedHierarchyBf1000Test {
             "<a class=\"btn btn-primary\" href=\"/players\">Compare different players</a>"));
         assertTrue(transform.contains(
             "<a class=\"btn btn-secondary\" href=\"$swapHref\">Swap sides</a>"));
+        assertTrue(transform.contains("$returnToLineupAction"));
+        assertTrue(transform.contains("Back to Lineup Review"));
     }
 
     @Test
@@ -34,6 +36,7 @@ class ButlerPlayerCompareCompletedHierarchyBf1000Test {
         assertTrue(loop.contains("Compare with another $(ConvertTo-HtmlText $Player.Position)"));
         assertTrue(waivers.contains("$waiverAction"));
         assertTrue(transform.contains("Butler does not choose a winner"));
+        assertTrue(transform.contains("$returnToLineupAction"));
     }
 
     @Test
