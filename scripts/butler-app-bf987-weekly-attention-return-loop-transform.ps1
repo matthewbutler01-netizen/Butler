@@ -280,12 +280,12 @@ $dashboard = Replace-FunctionText -Text $dashboard -Name 'ConvertTo-WaiverRoster
     $preserve = @'
     if ($replacementComparisonActive -and -not [string]::IsNullOrWhiteSpace($attentionReturnHref)) {
         $replacementComparisonActions = $replacementComparisonActions.Replace(
-            'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix">',
-            'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix$attentionOriginQuerySuffix">'
+            'href="/waivers/candidate/' + $candidateHref + $waiverReplacementBoardSuffix + '">',
+            'href="/waivers/candidate/' + $candidateHref + $waiverReplacementBoardSuffix + $attentionOriginQuerySuffix + '">'
         )
         $replacementComparisonActions = $replacementComparisonActions.Replace(
-            'href="/waivers$waiverReplacementBoardSuffix">',
-            'href="/waivers$waiverReplacementBoardSuffix$attentionOriginQuerySuffix">'
+            'href="/waivers' + $waiverReplacementBoardSuffix + '">',
+            'href="/waivers' + $waiverReplacementBoardSuffix + $attentionOriginQuerySuffix + '">'
         )
         $replacementComparisonActions = $replacementComparisonActions.Replace(
             '</div>',
