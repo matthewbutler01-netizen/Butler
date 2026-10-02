@@ -789,6 +789,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-988 BLOCKED: replacement workflow orientation transform not found at $bf988Transform"
     }
     & $bf988Transform -DashboardPath $DashboardPath
+
+    # BF-989: make the Dashboard matchup card decision-first by promoting
+    # Review Lineup while keeping Matchup/Scout/Trade as secondary tools.
+    $bf989Transform = Join-Path $PSScriptRoot 'butler-app-bf989-dashboard-matchup-decision-actions-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf989Transform -PathType Leaf)) {
+        throw "BF-989 BLOCKED: Dashboard matchup decision-actions transform not found at $bf989Transform"
+    }
+    & $bf989Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
