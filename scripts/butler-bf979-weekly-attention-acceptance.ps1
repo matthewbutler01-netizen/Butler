@@ -58,9 +58,9 @@ try {
         "Schema = 'BF-808-1'",
         'AvailabilityExclusions = @($availabilitySnapshot)',
         'ProjectionHolds = @($holdSnapshot)',
-        "RosterSlot = [string]$_.RosterSlot",
-        "LineupSlot = [string]$_.LineupSlot",
-        "InjuryStatus = [string]$_.InjuryStatus"
+        'RosterSlot = [string]$_.RosterSlot',
+        'LineupSlot = [string]$_.LineupSlot',
+        'InjuryStatus = [string]$_.InjuryStatus'
     )) {
         if ($save.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-979 BLOCKED: snapshot attention marker is missing: $required"
