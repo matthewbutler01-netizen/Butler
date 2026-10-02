@@ -76,6 +76,15 @@ try {
     }
 
     $core = [IO.File]::ReadAllText($corePath)
+
+    $playerSearchRouteCount = [regex]::Matches(
+        $core,
+        [regex]::Escape('            if ($path -eq "/players") {')
+    ).Count
+    if ($playerSearchRouteCount -ne 1) {
+        throw "PLAYER WORKFLOW BATCH BLOCKED: expected exactly one staged Player Search route, found $playerSearchRouteCount."
+    }
+
     foreach ($required in @(
         'Get-PlayerDetailSearchQueryContext -RequestTarget $parts[1]',
         'Add-PlayerDetailSearchReturnQuery -Html $html -FromPlayers $fromPlayers -SearchQuery $searchReturnQuery',
