@@ -821,6 +821,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-992 BLOCKED: Dashboard matchup-lineup role transform not found at $bf992Transform"
     }
     & $bf992Transform -CorePath $stagedCore
+
+    # BF-993: improve first-scan Dashboard usefulness by adding concise context
+    # to Matchup, Lineup, and Waiver glance cards without adding reads.
+    $bf993Transform = Join-Path $PSScriptRoot 'butler-app-bf993-dashboard-glance-scanability-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf993Transform -PathType Leaf)) {
+        throw "BF-993 BLOCKED: Dashboard glance scanability transform not found at $bf993Transform"
+    }
+    & $bf993Transform -DashboardPath $DashboardPath -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
