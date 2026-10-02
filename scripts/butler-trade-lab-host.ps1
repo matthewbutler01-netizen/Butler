@@ -120,7 +120,9 @@ function Get-TradeLabLoadingHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="1;url=/trade?load=1">
 <title>Butler Trade Analyzer</title>
-<style>$css</style>
+<style>$css
+.loading-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.loading-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:11px 16px;text-decoration:none;font-weight:700}.loading-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}
+</style>
 </head>
 <body>
 <main class="shell">
@@ -133,6 +135,7 @@ $nav
 <span class="status done">READ ONLY</span>
 </div>
 <div class="empty">Butler is preparing the governed trade workspace. No proposal, transaction, or Sleeper write is being executed.</div>
+<div class="loading-actions"><a href="/trade?load=1">Open Trade Analyzer now</a><a href="/league">League</a></div>
 </section>
 </main>
 </body>
