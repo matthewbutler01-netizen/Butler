@@ -158,3 +158,9 @@ if ($helper -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|In
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-976 Player workflow safe-stop pages applied.'
+
+$bf977Transform = Join-Path $PSScriptRoot 'butler-app-bf977-player-compare-return-context-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf977Transform -PathType Leaf)) {
+    throw "BF-977 BLOCKED: Player Compare return-context transform not found at $bf977Transform"
+}
+& $bf977Transform -CorePath $CorePath
