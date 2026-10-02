@@ -120,3 +120,9 @@ if ($bf966Surface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadO
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'BF-966 Player Search result-card waivers applied.'
+
+$bf975Transform = Join-Path $PSScriptRoot 'butler-app-bf975-player-search-return-context-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf975Transform -PathType Leaf)) {
+    throw "BF-975 BLOCKED: Player Search return-context transform not found at $bf975Transform"
+}
+& $bf975Transform -CorePath $CorePath
