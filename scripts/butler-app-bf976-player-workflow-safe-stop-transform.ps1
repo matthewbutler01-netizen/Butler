@@ -11,28 +11,19 @@ if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
     throw "BF-976 BLOCKED: staged Butler core not found at $CorePath"
 }
 
-function Replace-BlockedLine {
+function Replace-ExactlyOnce {
     param(
         [Parameter(Mandatory = $true)][string]$Text,
-        [Parameter(Mandatory = $true)][string]$Title,
-        [Parameter(Mandatory = $true)][string]$Replacement
+        [Parameter(Mandatory = $true)][string]$Old,
+        [Parameter(Mandatory = $true)][string]$New,
+        [Parameter(Mandatory = $true)][string]$Contract
     )
 
-    $pattern = '(?m)^\s*\$errorHtml = "<!doctype html><html><body><h1>Butler ' +
-        [regex]::Escape($Title) +
-        '</h1>.*$'
-    $matches = [regex]::Matches($Text, $pattern)
-    if ($matches.Count -lt 1) {
-        throw "BF-976 BLOCKED: $Title legacy error line expected at least one match, found $($matches.Count)."
+    $matches = [regex]::Matches($Text, [regex]::Escape($Old)).Count
+    if ($matches -ne 1) {
+        throw "BF-976 BLOCKED: $Contract expected one match, found $matches."
     }
-
-    for ($matchIndex = $matches.Count - 1; $matchIndex -ge 0; $matchIndex--) {
-        $match = $matches[$matchIndex]
-        $Text = $Text.Substring(0, $match.Index) +
-            $Replacement +
-            $Text.Substring($match.Index + $match.Length)
-    }
-    return $Text
+    return $Text.Replace($Old, $New)
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
@@ -42,7 +33,18 @@ $playerSearchRouteCount = [regex]::Matches(
     [regex]::Escape('            if ($path -eq "/players") {')
 ).Count
 if ($playerSearchRouteCount -ne 1) {
-    throw "BF-976 BLOCKED: expected exactly one Player Search route before safe-stop normalization, found $playerSearchRouteCount."
+    throw "BF-976 BLOCKED: expected exactly one Player Search route before final safe-stop override, found $playerSearchRouteCount."
+}
+
+foreach ($required in @(
+    'function New-ManagerRecoveryPageHtml',
+    'New-ManagerRecoveryPageHtml -Title "Player Detail unavailable"',
+    'New-ManagerRecoveryPageHtml -Title "Player Search unavailable"',
+    'New-ManagerRecoveryPageHtml -Title "Player Compare unavailable"'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-976 BLOCKED: BF-884 finalized recovery marker is missing: $required"
+    }
 }
 
 $tokens = $null
@@ -113,24 +115,25 @@ $nav
 
 $core = $core.Insert($helperIndex, $helper)
 
-$detailReplacement = @'
-                    $errorHtml = Get-PlayerWorkflowBlockedHtml -Title 'Player Detail blocked' -Message $_.Exception.Message -Active 'players' -PrimaryHref '/players' -PrimaryLabel 'Back to Player Search' -SecondaryHref '/team' -SecondaryLabel 'My Team'
-'@.TrimEnd()
-$core = Replace-BlockedLine -Text $core -Title 'Player Detail blocked' -Replacement $detailReplacement
+$detailOld = @'
+$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail $playerDetailFailure -Active "team"
+'@.Trim()
+$detailNew = @'
+$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = Get-PlayerWorkflowBlockedHtml -Title 'Player Detail blocked' -Message $playerDetailFailure -Active 'players' -PrimaryHref '/players' -PrimaryLabel 'Back to Player Search' -SecondaryHref '/team' -SecondaryLabel 'My Team'
+'@.Trim()
+$core = Replace-ExactlyOnce -Text $core -Old $detailOld -New $detailNew -Contract 'BF-884 Player Detail recovery override'
 
-$searchReplacement = @'
-                    $errorHtml = Get-PlayerWorkflowBlockedHtml -Title 'Player Search blocked' -Message $_.Exception.Message -Active 'players' -PrimaryHref '/players' -PrimaryLabel 'Back to Player Search'
-'@.TrimEnd()
-$core = Replace-BlockedLine -Text $core -Title 'Player Search blocked' -Replacement $searchReplacement
+$searchOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail $_.Exception.Message -Active "league"'
+$searchNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Search blocked'' -Message $_.Exception.Message -Active ''players'' -PrimaryHref ''/players'' -PrimaryLabel ''Back to Player Search'''
+$core = Replace-ExactlyOnce -Text $core -Old $searchOld -New $searchNew -Contract 'BF-884 Player Search recovery override'
 
-$compareReplacement = @'
-                    $errorHtml = Get-PlayerWorkflowBlockedHtml -Title 'Player Compare blocked' -Message $_.Exception.Message -Active 'compare' -PrimaryHref '/compare' -PrimaryLabel 'Back to Player Compare' -SecondaryHref '/players' -SecondaryLabel 'Player Search'
-'@.TrimEnd()
-$core = Replace-BlockedLine -Text $core -Title 'Player Compare blocked' -Replacement $compareReplacement
+$compareOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "league"'
+$compareNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Compare blocked'' -Message $_.Exception.Message -Active ''compare'' -PrimaryHref ''/compare'' -PrimaryLabel ''Back to Player Compare'' -SecondaryHref ''/players'' -SecondaryLabel ''Player Search'''
+$core = Replace-ExactlyOnce -Text $core -Old $compareOld -New $compareNew -Contract 'BF-884 Player Compare recovery override'
 
 $tokens = $null
 $parseErrors = $null
-$finalAst = [System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$parseErrors)
+[void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$parseErrors)
 if (@($parseErrors).Count -gt 0) {
     $summary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
     throw "BF-976 BLOCKED: generated staged core failed PowerShell parse: $summary"
@@ -156,13 +159,13 @@ foreach ($required in @(
     }
 }
 
-foreach ($legacy in @(
-    '<!doctype html><html><body><h1>Butler Player Detail blocked</h1>',
-    '<!doctype html><html><body><h1>Butler Player Search blocked</h1>',
-    '<!doctype html><html><body><h1>Butler Player Compare blocked</h1>'
+foreach ($superseded in @(
+    'New-ManagerRecoveryPageHtml -Title "Player Detail unavailable"',
+    'New-ManagerRecoveryPageHtml -Title "Player Search unavailable"',
+    'New-ManagerRecoveryPageHtml -Title "Player Compare unavailable"'
 )) {
-    if ($core.IndexOf($legacy, [System.StringComparison]::Ordinal) -ge 0) {
-        throw "BF-976 BLOCKED: legacy bare player-workflow error page remains: $legacy"
+    if ($core.IndexOf($superseded, [System.StringComparison]::Ordinal) -ge 0) {
+        throw "BF-976 BLOCKED: superseded BF-884 player recovery call remains: $superseded"
     }
 }
 
@@ -171,7 +174,7 @@ $finalPlayerSearchRouteCount = [regex]::Matches(
     [regex]::Escape('            if ($path -eq "/players") {')
 ).Count
 if ($finalPlayerSearchRouteCount -ne 1) {
-    throw "BF-976 BLOCKED: Player Search route count changed during safe-stop normalization; found $finalPlayerSearchRouteCount."
+    throw "BF-976 BLOCKED: Player Search route count changed during final safe-stop override; found $finalPlayerSearchRouteCount."
 }
 
 if ($helper -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|Invoke-Bf742DashboardWorkerRead|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
@@ -179,10 +182,4 @@ if ($helper -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|In
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
-Write-Host 'BF-976 Player workflow safe-stop pages applied.'
-
-$bf977Transform = Join-Path $PSScriptRoot 'butler-app-bf977-player-compare-return-context-transform.ps1'
-if (-not (Test-Path -LiteralPath $bf977Transform -PathType Leaf)) {
-    throw "BF-977 BLOCKED: Player Compare return-context transform not found at $bf977Transform"
-}
-& $bf977Transform -CorePath $CorePath
+Write-Host 'BF-976 Player workflow safe-stop pages applied after BF-884.'
