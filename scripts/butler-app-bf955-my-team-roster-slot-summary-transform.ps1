@@ -109,10 +109,9 @@ if (@($parseErrors).Count -gt 0) {
     throw "BF-955 BLOCKED: generated staged core failed PowerShell parse: $summary"
 }
 
-$installedTeamEnd = $core.IndexOf('function Add-LeagueNavigation {', $teamStart, [System.StringComparison]::Ordinal)
-$installedTeam = $core.Substring($teamStart, $installedTeamEnd - $teamStart)
-if ($installedTeam -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-955 BLOCKED: roster slot summary introduced provider, backend-read, optimizer, or write behavior.'
+$bf955InstalledSurface = $slotPrelude + [Environment]::NewLine + $inventoryUsageNew + [Environment]::NewLine + $bf955Css
+if ($bf955InstalledSurface -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+    throw 'BF-955 BLOCKED: roster slot summary itself introduced provider, backend-read, optimizer, or write behavior.'
 }
 
 [System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
