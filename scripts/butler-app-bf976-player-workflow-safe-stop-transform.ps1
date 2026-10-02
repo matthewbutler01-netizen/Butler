@@ -22,13 +22,21 @@ function Replace-BlockedLine {
         [regex]::Escape($Title) +
         '</h1>.*$'
     $matches = [regex]::Matches($Text, $pattern)
-    if ($matches.Count -ne 1) {
-        throw "BF-976 BLOCKED: $Title legacy error line expected one match, found $($matches.Count)."
+    if ($matches.Count -lt 1) {
+        throw "BF-976 BLOCKED: $Title legacy error line expected at least one match, found $($matches.Count)."
     }
-    return [regex]::Replace($Text, $pattern, $Replacement, 1)
+    return [regex]::Replace($Text, $pattern, $Replacement)
 }
 
 $core = [System.IO.File]::ReadAllText($CorePath)
+
+$playerSearchRouteCount = [regex]::Matches(
+    $core,
+    [regex]::Escape('            if ($path -eq "/players") {')
+).Count
+if ($playerSearchRouteCount -ne 1) {
+    throw "BF-976 BLOCKED: expected exactly one Player Search route before safe-stop normalization, found $playerSearchRouteCount."
+}
 
 $tokens = $null
 $parseErrors = $null
@@ -150,6 +158,14 @@ foreach ($legacy in @(
     if ($core.IndexOf($legacy, [System.StringComparison]::Ordinal) -ge 0) {
         throw "BF-976 BLOCKED: legacy bare player-workflow error page remains: $legacy"
     }
+}
+
+$finalPlayerSearchRouteCount = [regex]::Matches(
+    $core,
+    [regex]::Escape('            if ($path -eq "/players") {')
+).Count
+if ($finalPlayerSearchRouteCount -ne 1) {
+    throw "BF-976 BLOCKED: Player Search route count changed during safe-stop normalization; found $finalPlayerSearchRouteCount."
 }
 
 if ($helper -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|Invoke-Bf742DashboardWorkerRead|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
