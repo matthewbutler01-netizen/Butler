@@ -137,6 +137,8 @@ $text = Replace-FunctionText -Text $text -Name 'ConvertTo-WaiverRosterCompareHtm
         throw 'BF-985 BLOCKED: completed Roster Compare action contract is missing.'
     }
 
+    $fn = Replace-ExactlyOnce -Text $fn -Old $actionsOld -New '$replacementComparisonActions' -Contract 'completed replacement comparison actions'
+
     $returnPos = $fn.LastIndexOf('    return @"', [System.StringComparison]::Ordinal)
     if ($returnPos -lt 0) {
         throw 'BF-985 BLOCKED: completed Roster Compare return anchor is missing.'
@@ -145,7 +147,41 @@ $text = Replace-FunctionText -Text $text -Name 'ConvertTo-WaiverRosterCompareHtm
     $focus = @'
     $replacementComparisonActive = $false
     if (-not [string]::IsNullOrWhiteSpace([string]$Request.RosterId) -and
-        [string]$Request.RosterId -match '^[0-9]+$' -and
+        [string]$Request.RosterId -match '^[0-9]+
+
+$finalAst = Get-ParsedAst -Text $text -Contract 'generated staged Dashboard'
+$helperFn = Get-OneFunction -Ast $finalAst -Name 'Convert-Bf985ReplacementComparisonActions' -Contract 'replacement comparison action helper'
+$rosterFn = Get-OneFunction -Ast $finalAst -Name 'ConvertTo-WaiverRosterCompareHtml' -Contract 'focused Roster Compare'
+
+foreach ($required in @(
+    'Compare another roster player</a>',
+    'Compare with waiver candidate</a>',
+    'Back to replacement candidates'
+)) {
+    if ($helperFn.Extent.Text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-985 BLOCKED: replacement comparison helper marker is missing: $required"
+    }
+}
+
+foreach ($required in @(
+    '$replacementComparisonActive = $false',
+    '[string]$replacementComparedRoster.RosterSlot -ceq ''STARTER''',
+    '$replacementComparisonActions = Convert-Bf985ReplacementComparisonActions',
+    'href="/waivers/candidate/$candidateHref$waiverReplacementBoardSuffix">'
+)) {
+    if ($rosterFn.Extent.Text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-985 BLOCKED: focused Roster Compare marker is missing: $required"
+    }
+}
+
+$surface = $helper + $rosterFn.Extent.Text
+if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|returnUrl|redirectUrl|javascript:') {
+    throw 'BF-985 BLOCKED: replacement comparison focus introduced provider, optimizer, FAAB, write, or open-redirect behavior.'
+}
+
+[IO.File]::WriteAllText($DashboardPath, $text, [Text.UTF8Encoding]::new($false))
+Write-Host 'BF-985 completed replacement comparison focus applied.'
+ -and
         -not [string]::IsNullOrWhiteSpace($normalizedPositionFocus)) {
         $replacementComparedRoster = Resolve-WaiverRosterPlayerById -RosterContext $RosterContext -SleeperId ([string]$Request.RosterId)
         if ($null -ne $replacementComparedRoster -and
@@ -166,8 +202,7 @@ $text = Replace-FunctionText -Text $text -Name 'ConvertTo-WaiverRosterCompareHtm
 
 '@
 
-    $fn = $fn.Insert($returnPos, $focus)
-    return Replace-ExactlyOnce -Text $fn -Old $actionsOld -New '$replacementComparisonActions' -Contract 'completed replacement comparison actions'
+    return $fn.Insert($returnPos, $focus)
 }
 
 $finalAst = Get-ParsedAst -Text $text -Contract 'generated staged Dashboard'
