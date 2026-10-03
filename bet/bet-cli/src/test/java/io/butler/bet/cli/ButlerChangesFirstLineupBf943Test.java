@@ -16,7 +16,8 @@ class ButlerChangesFirstLineupBf943Test {
     void changesStayVisibleAndUnchangedSlotsUseProgressiveDisclosure() throws Exception {
         String transform = source("scripts/butler-app-bf943-changes-first-lineup-transform.ps1");
 
-        assertTrue(transform.contains("CHANGES FIRST"));
+        assertTrue(transform.contains("MOVES FIRST"));
+        assertTrue(transform.contains("optimizer slot placement"));
         assertTrue(transform.contains("NO PROPOSALS"));
         assertTrue(transform.contains("Review holds and evidence gaps"));
         assertTrue(transform.contains("View $unchangedCount unchanged lineup $slotWord"));

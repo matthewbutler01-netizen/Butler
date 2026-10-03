@@ -191,7 +191,7 @@ foreach ($required in @(
     'function Get-MatchupLineupDecisionView {',
     "Review this week's lineup",
     'Lineup review needs evidence',
-    'Make $($changedAssignments.Count) lineup $changeWord',
+    'Make $managerMoveCount lineup $moveWord',
     'Keep the current lineup',
     'Partial lineup review',
     'PARTIAL REVIEW',

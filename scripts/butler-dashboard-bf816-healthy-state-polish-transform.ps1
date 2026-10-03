@@ -62,7 +62,7 @@ $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
 
 # A no-change AutoFill result is a successful completed review.
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
-    -Old '$lineupSignalTitle = "Latest AutoFill found no lineup changes"' `
+    -Old '$lineupSignalTitle = "Latest AutoFill found no lineup moves"' `
     -New '$lineupSignalTitle = "Lineup review complete; no change proven"' `
     -Contract 'no-change lineup title'
 

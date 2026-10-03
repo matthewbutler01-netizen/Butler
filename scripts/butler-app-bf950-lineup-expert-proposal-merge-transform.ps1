@@ -64,8 +64,8 @@ $expertNew = @'
         }
 '@
 
-$proposalOld = '$queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.$comparisonTail</li>"'
-$proposalNew = '$queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.$expertConflictTail$comparisonTail</li>"'
+$proposalOld = '$queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: optimizer slot placement $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). This may be part of the same manager move; check the promotion/bench summary and comparison evidence.$comparisonTail</li>"'
+$proposalNew = '$queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: optimizer slot placement $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). This may be part of the same manager move; check the promotion/bench summary and comparison evidence.$expertConflictTail$comparisonTail</li>"'
 
 $function = Replace-ExactlyOnce -Text $function -Old $expertOld.TrimEnd() -New $expertNew.TrimEnd() -Contract 'changed-starter expert conflict merge'
 $function = Replace-ExactlyOnce -Text $function -Old $proposalOld -New $proposalNew -Contract 'proposal expert evidence attachment'

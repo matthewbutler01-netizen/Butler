@@ -54,6 +54,7 @@ function Start-GovernedDashboard {
     $start.FileName = $powershell
     $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$dashboard`" -LeagueId `"$LeagueId`" -Port $InnerPort -NoBrowser"
     $start.UseShellExecute = $false
+    $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
     $process = [System.Diagnostics.Process]::Start($start)
     if ($null -eq $process) {
@@ -70,7 +71,9 @@ function Wait-ForGovernedDashboard {
 
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
         if ($Process.HasExited) {
-            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup."
+            $stderr = $Process.StandardError.ReadToEnd().Trim()
+            $detail = if ([string]::IsNullOrWhiteSpace($stderr)) { 'No child stderr was captured.' } else { $stderr }
+            throw "BF-667 BLOCKED: governed Butler dashboard exited during app-shell startup.`n$detail"
         }
         try {
             $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$InnerPort/health")

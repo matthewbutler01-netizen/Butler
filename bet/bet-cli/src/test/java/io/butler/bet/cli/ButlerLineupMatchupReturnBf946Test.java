@@ -44,7 +44,7 @@ class ButlerLineupMatchupReturnBf946Test {
         assertTrue(transform.contains("ActionHref = '/team/autofill'"));
         assertTrue(transform.contains("Back to Lineup Review"));
         assertTrue(transform.contains("Compare this swap"));
-        assertTrue(transform.contains("CHANGES FIRST"));
+        assertTrue(transform.contains("MOVES FIRST"));
     }
 
     @Test

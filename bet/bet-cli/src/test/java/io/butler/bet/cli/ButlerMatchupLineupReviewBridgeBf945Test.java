@@ -64,7 +64,7 @@ class ButlerMatchupLineupReviewBridgeBf945Test {
         assertTrue(transform.contains("Trade with opponent"));
         assertTrue(transform.contains("Compare this swap"));
         assertTrue(transform.contains("CurrentPoints"));
-        assertTrue(transform.contains("CHANGES FIRST"));
+        assertTrue(transform.contains("MOVES FIRST"));
         assertTrue(transform.contains("Back to Lineup Review"));
     }
 
