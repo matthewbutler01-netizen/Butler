@@ -78,7 +78,7 @@ $dashboard = $dashboard.Substring(0,$dashboardFn.Extent.StartOffset) + $dashboar
 $dashboardAst = Get-Bf1004Ast -Text $dashboard -Contract 'snapshot-framed Dashboard'
 $attentionFn = Get-Bf1004Function -Ast $dashboardAst -Name 'Get-Bf979SnapshotWeeklyAttentionHtml' -Contract 'cached Weekly Attention renderer'
 $attentionFunction = $attentionFn.Extent.Text
-$attentionFunction = Replace-Bf1004ExactlyOnce -Text $attentionFunction -Old 'return "<section class=`"panel`">' -New 'return "<section class=`"panel dashboard-weekly-attention`">' -Contract 'Dashboard Weekly Attention marker'
+$attentionFunction = Replace-Bf1004ExactlyOnce -Text $attentionFunction -Old 'return "<section id=`"weekly-attention`" class=`"panel`">' -New 'return "<section id=`"weekly-attention`" class=`"panel dashboard-weekly-attention`">' -Contract 'Dashboard Weekly Attention marker'
 $dashboard = $dashboard.Substring(0,$attentionFn.Extent.StartOffset) + $attentionFunction + $dashboard.Substring($attentionFn.Extent.EndOffset)
 
 $core = [IO.File]::ReadAllText($CorePath)
@@ -141,9 +141,9 @@ $reconcile = @'
             )
 
             $attentionPattern = [regex]::new(
-                '(?is)<section class="panel dashboard-weekly-attention">.*?</section>'
+                '(?is)<section id="weekly-attention" class="panel dashboard-weekly-attention">.*?</section>'
             )
-            $freshAttention = '<section class="panel dashboard-weekly-attention"><div class="statusrow"><div><div class="eyebrow">Weekly attention</div><h2>Review Week ' +
+            $freshAttention = '<section id="weekly-attention" class="panel dashboard-weekly-attention"><div class="statusrow"><div><div class="eyebrow">Weekly attention</div><h2>Review Week ' +
                 (ConvertTo-HtmlText $currentMatchupWeek) +
                 ' lineup</h2><p class="lede">The saved Lineup Review is from Week ' +
                 (ConvertTo-HtmlText $savedLineupWeek) +
