@@ -55,11 +55,13 @@ if (-not (Test-Path -LiteralPath $dashboard)) {
 
 $coreLaunchOriginal = @'
     $start.UseShellExecute = $false
+    $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
     $process = [System.Diagnostics.Process]::Start($start)
 '@
 $coreLaunchReplacement = @'
     $start.UseShellExecute = $false
+    $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
     if ([string]::IsNullOrWhiteSpace([string]$script:Bf742DashboardToken)) {
         throw "BF-742 BLOCKED: internal dashboard token was not initialized."
