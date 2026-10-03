@@ -258,7 +258,7 @@ $core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
 
 foreach ($required in @(
     'View $unchangedCount unchanged lineup $slotWord',
-    'CHANGES FIRST',
+    'MOVES FIRST',
     'NO PROPOSALS',
     '$lineupFocusHtml',
     '$unchangedDisclosure',
