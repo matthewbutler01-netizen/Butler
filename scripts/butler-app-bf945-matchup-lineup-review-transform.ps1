@@ -47,14 +47,14 @@ $core = Replace-ExactlyOnce -Text $core -Old $partialOld.TrimEnd() -New $partial
 $changesOld = @'
             Status = 'CHANGES FOUND'
             StatusClass = 'good'
-            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)"
+            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)$slotAssignmentNote"
             ActionLabel = ''
             ActionHref = ''
 '@
 $changesNew = @'
             Status = 'CHANGES FOUND'
             StatusClass = 'good'
-            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)"
+            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)$slotAssignmentNote"
             ActionLabel = 'Open Lineup Review'
             ActionHref = '/team/autofill'
 '@
@@ -73,7 +73,7 @@ foreach ($required in @(
     'href="/trade?opponent=$opponentHrefId">Trade with opponent</a>',
     'Compare this swap',
     'CurrentPoints',
-    'CHANGES FIRST',
+    'MOVES FIRST',
     'Back to Lineup Review'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
