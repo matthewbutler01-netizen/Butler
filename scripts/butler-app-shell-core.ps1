@@ -151,6 +151,7 @@ function Start-PreservedCore {
     $start.FileName = $powershell
     $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$runtimeCoreSingle`" -LeagueId `"$LeagueId`" -Port $BackendPort -NoBrowser"
     $start.UseShellExecute = $false
+    $start.RedirectStandardError = $true
     $start.CreateNoWindow = $true
     $process = [System.Diagnostics.Process]::Start($start)
     if ($null -eq $process) {
@@ -167,7 +168,9 @@ function Wait-PreservedCore {
 
     for ($attempt = 0; $attempt -lt 160; $attempt++) {
         if ($Process.HasExited) {
-            throw "BF-690 BLOCKED: preserved inner core on port $BackendPort exited during startup."
+            $stderr = $Process.StandardError.ReadToEnd().Trim()
+            $detail = if ([string]::IsNullOrWhiteSpace($stderr)) { 'No child stderr was captured.' } else { $stderr }
+            throw "BF-690 BLOCKED: preserved inner core on port $BackendPort exited during startup.`n$detail"
         }
         try {
             $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$BackendPort/health")
