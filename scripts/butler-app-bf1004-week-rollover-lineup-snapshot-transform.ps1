@@ -88,12 +88,14 @@ $matchupFunction = $matchupFn.Extent.Text
 
 $stateOld = @'
     $title = 'Opponent unavailable'
+    $copy = 'Matchup evidence is unavailable or stale; open the matchup to review the current frame.'
     $status = 'MATCHUP DATA NEEDED'
     $statusClass = 'warn'
     $opponentHrefId = ''
 '@.TrimEnd()
 $stateNew = @'
     $title = 'Opponent unavailable'
+    $copy = 'Matchup evidence is unavailable or stale; open the matchup to review the current frame.'
     $status = 'MATCHUP DATA NEEDED'
     $statusClass = 'warn'
     $opponentHrefId = ''
@@ -102,11 +104,13 @@ $stateNew = @'
 $matchupFunction = Replace-Bf1004ExactlyOnce -Text $matchupFunction -Old $stateOld -New $stateNew -Contract 'current matchup week state'
 
 $confirmedOld = @'
+        $copy = 'Opponent and week are verified for this roster; open the matchup for full context.'
         $status = 'OPPONENT CONFIRMED'
         $statusClass = 'good'
         $opponentHrefId = [System.Uri]::EscapeDataString([string]$matchup.OpponentTeamId)
 '@.TrimEnd()
 $confirmedNew = @'
+        $copy = 'Opponent and week are verified for this roster; open the matchup for full context.'
         $status = 'OPPONENT CONFIRMED'
         $statusClass = 'good'
         $currentMatchupWeek = [int]$matchup.Week
