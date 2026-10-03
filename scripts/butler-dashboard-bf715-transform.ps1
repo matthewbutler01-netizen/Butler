@@ -892,6 +892,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1004 BLOCKED: week-rollover lineup snapshot transform not found at $bf1004Transform"
     }
     & $bf1004Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-1005: ordinary Matchup consumes a fresh saved Lineup Review for the
+    # exact roster/week instead of falling back to an idle NOT REVIEWED state.
+    $bf1005Transform = Join-Path $PSScriptRoot 'butler-app-bf1005-matchup-saved-lineup-review-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1005Transform -PathType Leaf)) {
+        throw "BF-1005 BLOCKED: Matchup saved-review transform not found at $bf1005Transform"
+    }
+    & $bf1005Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
