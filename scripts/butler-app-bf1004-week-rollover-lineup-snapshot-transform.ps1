@@ -118,10 +118,10 @@ $confirmedNew = @'
 '@.TrimEnd()
 $matchupFunction = Replace-Bf1004ExactlyOnce -Text $matchupFunction -Old $confirmedOld -New $confirmedNew -Contract 'confirmed current matchup week'
 
-$reconcileAnchor = '    $matchupTool = if ($matchupPrimaryHref -ceq ''/matchup'') {'
+$reconcileAnchor = '    $opponentTools = if (-not [string]::IsNullOrWhiteSpace($opponentHrefId)) {'
 $reconcileAt = $matchupFunction.IndexOf($reconcileAnchor,[System.StringComparison]::Ordinal)
 if ($reconcileAt -lt 0) {
-    throw 'BF-1004 BLOCKED: finalized matchup-tool reconciliation anchor is missing.'
+    throw 'BF-1004 BLOCKED: finalized BF-992 opponent-tools reconciliation anchor is missing.'
 }
 
 $reconcile = @'
@@ -131,7 +131,7 @@ $reconcile = @'
     # must never carry into a new week as current advice.
     $snapshotFrame = [regex]::Match(
         $Html,
-        '<div class="butler-lineup-snapshot-frame" data-lineup-week="(?<week>d+)" hidden></div>'
+        '<div class="butler-lineup-snapshot-frame" data-lineup-week="(?<week>\d+)" hidden></div>'
     )
     if ($currentMatchupWeek -gt 0 -and $snapshotFrame.Success) {
         $savedLineupWeek = 0
@@ -225,8 +225,6 @@ $reconcile = @'
                 }
             }
 
-            $matchupPrimaryHref = '/team/autofill'
-            $matchupPrimaryLabel = "Review Week $currentMatchupWeek lineup"
         }
     }
 
@@ -257,7 +255,7 @@ foreach ($required in @(
     'Butler will not carry those player holds or lineup recommendations into Week ',
     'Old week expired',
     'Old lineup advice expired',
-    '$matchupPrimaryLabel = "Review Week $currentMatchupWeek lineup"'
+    'href="/matchup">Open Weekly Matchup &rarr;</a>'
 )) {
     if ($core.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1004 BLOCKED: week-rollover reconciliation marker is missing: $required"
