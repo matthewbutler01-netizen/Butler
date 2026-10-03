@@ -215,7 +215,7 @@ if ($ProbeOnly) {
 Write-Output 'Butler governed lineup evidence recovery (BF-823)'
 Write-Output "League: $LeagueId"
 Write-Output "Data: $dataDir"
-Write-Output 'Boundary: this action may refresh Butler local roster/player and lineup-supporting evidence only.'
+Write-Output 'Boundary: this action may refresh Butler local roster/player, lineup-supporting evidence, and the exact BF-840 current matchup frame only.'
 Write-Output 'Boundary: it does not submit, cancel, or replace a Sleeper transaction; it does not mutate a Sleeper lineup, roster, FAAB, waiver, or trade.'
 
 if ($audit.UnmappedCount -gt 0) {
@@ -262,6 +262,8 @@ if ($rebuildEvidence) {
         [void](Invoke-RequiredSuccess -MainClass $stage.MainClass -Label $stage.Label -Arguments @($LeagueId))
     }
 }
+
+[void](Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' -Label 'BF-840 current weekly matchup sync' -Arguments @($LeagueId))
 
 [void](Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -Arguments @($LeagueId))
 [void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -Arguments @($LeagueId))
