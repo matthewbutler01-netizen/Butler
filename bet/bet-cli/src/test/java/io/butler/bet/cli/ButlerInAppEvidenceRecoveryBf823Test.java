@@ -72,12 +72,13 @@ class ButlerInAppEvidenceRecoveryBf823Test {
         assertTrue(recovery.contains("unmapped canonical candidate\\(s\\)\\s*$'"));
         assertTrue(recovery.contains("BF-600 current-season roster/player bootstrap"));
         assertTrue(recovery.contains("Bootstrap state: HYDRATED_VERIFIED"));
+        assertTrue(recovery.contains("BF-840 current weekly matchup sync"));
         assertTrue(recovery.contains("BF-610 post-recovery target-roster verification"));
         assertTrue(recovery.contains("BF-615/BF-617 post-recovery waiver comparison verification"));
     }
 
     @Test
-    void governedRecoveryUsesFixedSixDownstreamStagesAndNoSleeperMutationPath() throws Exception {
+    void governedRecoveryUsesFixedRosterStagesThenSynchronizesCurrentMatchup() throws Exception {
         String recovery = source("scripts/butler-lineup-evidence-recovery.ps1");
         String[] stages = {
             "io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli",
@@ -95,6 +96,11 @@ class ButlerInAppEvidenceRecoveryBf823Test {
             assertTrue(at > previous, "BF-823 downstream recovery order must remain deterministic");
             previous = at;
         }
+
+        int matchupSync = recovery.indexOf("io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli");
+        assertEquals(1, occurrences(recovery, "io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli"));
+        assertTrue(matchupSync > previous, "BF-840 current matchup sync must run after governed roster evidence stages");
+        assertTrue(recovery.contains("BF-840 current weekly matchup sync"));
 
         assertFalse(recovery.contains("ButlerSleeperLiveWaiverFinalRecommendationBundleCli"));
         assertFalse(recovery.contains("ButlerSleeperLiveWaiverRecommendationAuditCaptureCli"));
