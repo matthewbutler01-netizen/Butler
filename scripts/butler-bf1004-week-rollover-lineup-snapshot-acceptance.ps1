@@ -30,7 +30,8 @@ try {
         'Butler will not carry those player holds or lineup recommendations into Week ',
         'Old week expired',
         'Old lineup advice expired',
-        '$matchupPrimaryLabel = "Review Week $currentMatchupWeek lineup"'
+        'href="/matchup">Open Weekly Matchup &rarr;</a>',
+        '(?<week>\d+)'
     )) {
         if ($core.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1004 BLOCKED: staged week-rollover marker is missing: $required"
