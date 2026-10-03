@@ -40,7 +40,7 @@ foreach ($required in @(
     "ActionHref = '/team/autofill'",
     'Back to Lineup Review',
     'Compare this swap',
-    'CHANGES FIRST'
+    'MOVES FIRST'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-946 BLOCKED: required weekly decision-loop marker is missing: $required"
@@ -76,7 +76,7 @@ $matchupStart = $core.IndexOf('function Get-MatchupLineupDecisionView {', [Syste
 $matchupEnd = $core.IndexOf('function ConvertTo-MatchupHtml {', $matchupStart, [System.StringComparison]::Ordinal)
 if ($matchupStart -lt 0 -or $matchupEnd -le $matchupStart) { throw 'BF-943 BLOCKED: matchup decision boundary missing.' }
 $matchup = $core.Substring($matchupStart, $matchupEnd - $matchupStart)
-$matchup = $matchup.Replace('Title = "Make $($changedAssignments.Count) lineup $changeWord"', 'Title = "Review $($changedAssignments.Count) projection proposal(s)"')
+$matchup = $matchup.Replace('Title = "Make $managerMoveCount lineup $moveWord"', 'Title = "Review $managerMoveCount lineup $moveWord"')
 $matchup = $matchup.Replace("Status = 'CHANGES FOUND'", "Status = 'MANUAL REVIEW'").Replace("StatusClass = 'good'", "StatusClass = 'warn'")
 $matchup = $matchup.Replace("Title = 'Keep the current lineup'", "Title = 'No projected changes after holds'")
 $matchup = $matchup.Replace('Start: $startText | Sit: $sitText', 'Proposed promotion: $startText | Proposed bench move: $sitText')
