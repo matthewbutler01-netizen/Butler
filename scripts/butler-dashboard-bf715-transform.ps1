@@ -884,6 +884,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1003 BLOCKED: current-week dark-contrast transform not found at $bf1003Transform"
     }
     & $bf1003Transform -CorePath $stagedCore -DashboardPath $DashboardPath
+
+    # BF-1004: reconcile saved Lineup Review snapshots against the exact current
+    # matchup week already resolved for Dashboard, without adding another read.
+    $bf1004Transform = Join-Path $PSScriptRoot 'butler-app-bf1004-week-rollover-lineup-snapshot-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1004Transform -PathType Leaf)) {
+        throw "BF-1004 BLOCKED: week-rollover lineup snapshot transform not found at $bf1004Transform"
+    }
+    & $bf1004Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
