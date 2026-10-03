@@ -23,7 +23,8 @@ $checks = @(
     [pscustomobject]@{ Id = 'BF-999'; Script = 'butler-bf999-player-search-result-hierarchy-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1000'; Script = 'butler-bf1000-player-compare-completed-hierarchy-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1001'; Script = 'butler-bf1001-player-hub-action-hierarchy-acceptance.ps1' },
-    [pscustomobject]@{ Id = 'BF-1003'; Script = 'butler-bf1003-current-week-dark-contrast-acceptance.ps1' }
+    [pscustomobject]@{ Id = 'BF-1003'; Script = 'butler-bf1003-current-week-dark-contrast-acceptance.ps1' },
+    [pscustomobject]@{ Id = 'BF-1004'; Script = 'butler-bf1004-week-rollover-lineup-snapshot-acceptance.ps1' }
 )
 
 Write-Host ''
