@@ -27,6 +27,8 @@ class ButlerCommandCenterHealthyStatesBf816Test {
     void lineupHealthyAndUnevaluatedStatesAreExplicit() throws Exception {
         String transform = source("scripts/butler-dashboard-bf816-healthy-state-polish-transform.ps1");
 
+        assertTrue(transform.contains("Latest AutoFill found no lineup moves"));
+        assertFalse(transform.contains("Latest AutoFill found no lineup changes"));
         assertTrue(transform.contains("Lineup review complete; no change proven"));
         assertTrue(transform.contains("This is a valid no-change result"));
         assertTrue(transform.contains("No lineup action is needed from this evidence frame"));
@@ -39,6 +41,16 @@ class ButlerCommandCenterHealthyStatesBf816Test {
         assertTrue(transform.contains("Projection coverage has not been evaluated because no AutoFill review was requested"));
         assertTrue(transform.contains("Lineup not evaluated yet"));
         assertTrue(transform.contains("No lineup review requested"));
+    }
+
+    @Test
+    void bf808OutputMatchesBf816HealthyStateInputContract() throws Exception {
+        String bf808 = source("scripts/butler-bf808-autofill-command-center-transform.ps1");
+        String bf816 = source("scripts/butler-dashboard-bf816-healthy-state-polish-transform.ps1");
+
+        assertTrue(bf808.contains("Latest AutoFill found no lineup moves"));
+        assertTrue(bf816.contains("Latest AutoFill found no lineup moves"));
+        assertFalse(bf816.contains("Latest AutoFill found no lineup changes"));
     }
 
     @Test
