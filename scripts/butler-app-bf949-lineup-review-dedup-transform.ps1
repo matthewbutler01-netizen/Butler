@@ -27,7 +27,7 @@ $core = [System.IO.File]::ReadAllText($CorePath)
 foreach ($required in @(
     'Review $reviewQueueCount unresolved $reviewQueueNoun',
     'lineup-review-queue-head',
-    'review the projection proposal',
+    'optimizer slot placement',
     'Review $(ConvertTo-HtmlText $assignment.Slot) comparisons:'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
@@ -44,7 +44,7 @@ $function = $core.Substring($functionStart, $functionEnd - $functionStart)
 
 $old = @'
         if ($assignment.Changed) {
-            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.</li>"
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: optimizer slot placement $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). This may be part of the same manager move; check the promotion/bench summary and comparison evidence.</li>"
         }
         $comparisonLinks = ''
         for ($reviewIndex = 0; $reviewIndex -lt $structuredReviews.Count; $reviewIndex++) {
@@ -66,7 +66,7 @@ $new = @'
         }
         if ($assignment.Changed) {
             $comparisonTail = if ($comparisonLinks.Length -gt 0) { " Comparison evidence:$comparisonLinks" } else { '' }
-            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.$comparisonTail</li>"
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: optimizer slot placement $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). This may be part of the same manager move; check the promotion/bench summary and comparison evidence.$comparisonTail</li>"
         }
         elseif ($comparisonLinks.Length -gt 0) {
             $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review comparison evidence:$comparisonLinks</li>"
