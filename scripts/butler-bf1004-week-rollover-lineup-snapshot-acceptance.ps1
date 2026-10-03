@@ -28,7 +28,6 @@ try {
         '$currentMatchupWeek = [int]$matchup.Week',
         'The saved Lineup Review is from Week ',
         'Butler will not carry those player holds or lineup recommendations into Week ',
-        'Week '' +',
         'Old week expired',
         'Old lineup advice expired',
         '$matchupPrimaryLabel = "Review Week $currentMatchupWeek lineup"'
