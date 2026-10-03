@@ -461,6 +461,46 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
+        List<AutoFillLineupOptimizer.SlotRecommendation> withheldSmallEdgeSwaps = new ArrayList<>();
+        boolean hardLegalityNeed = !roster.emptyStartingOrdinals().isEmpty()
+            || optimizerRoster.stream().anyMatch(player ->
+                player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
+                    && explicitlyUnavailablePlayerIds.contains(player.playerId()));
+
+        while (LineupSwapReviewPolicy.belowActionableEdge(projectedGain, hardLegalityNeed)
+            && recommendation.assignments().stream().anyMatch(AutoFillLineupOptimizer.SlotRecommendation::changed)) {
+            var promotions = recommendation.promotions();
+            if (promotions.isEmpty()) break;
+
+            var changedAssignments = recommendation.assignments().stream()
+                .filter(AutoFillLineupOptimizer.SlotRecommendation::changed)
+                .toList();
+            boolean heldAny = false;
+            for (var promotion : promotions) {
+                if (!projectionHoldPlayerIds.add(promotion.playerId())) continue;
+                projectionsBySleeperId.remove(promotion.playerId());
+                projectionHolds.add(new ProjectionHold(
+                    promotion.playerId(), promotion.displayName(), "BENCH", null, null, null,
+                    "Small-edge review hold: Butler's total comparable lineup improvement was "
+                        + projectedGain + " points, below the 1.0-point action threshold."
+                        + " No hard legality problem required this promotion, so Butler preserved"
+                        + " the current lineup and withheld the candidate from an actionable swap."));
+                heldAny = true;
+            }
+            if (!heldAny) break;
+
+            withheldSmallEdgeSwaps.addAll(changedAssignments);
+            recommendation = new AutoFillLineupOptimizer().optimize(
+                roster.startingSlots(), optimizerRoster, projectionsBySleeperId,
+                Set.copyOf(explicitlyUnavailablePlayerIds), Set.copyOf(projectionHoldPlayerIds),
+                Set.copyOf(roster.emptyStartingOrdinals()));
+            if (!recommendation.ready()) {
+                return RecommendationReport.unavailable(
+                    roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
+            }
+            projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
+        }
+
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
         for (var assignment : recommendation.assignments()) {
             if (!assignment.changed()) continue;
@@ -496,7 +536,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         try { expertPicks = expertSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()); }
         catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         Map<String, String> matchups = Map.of();
-        if (!withheldSwaps.isEmpty() || recommendation.assignments().stream().anyMatch(a -> a.changed())
+        if (!withheldSwaps.isEmpty() || !withheldSmallEdgeSwaps.isEmpty()
+            || recommendation.assignments().stream().anyMatch(a -> a.changed())
             || !projectionHolds.isEmpty() || expertPicks.stream().anyMatch(p -> "SIT".equals(p.selection()))) {
             try {
                 matchups = matchupSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers());
@@ -509,6 +550,17 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         List<SwapReview> reviews = new ArrayList<>();
         for (var assignment : withheldSwaps) {
             reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, true, roster.providerSeason(), matchups));
+        }
+        for (var assignment : withheldSmallEdgeSwaps) {
+            var evidence = swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups);
+            reviews.add(new SwapReview(
+                evidence.ordinal(), evidence.slot(), evidence.current(), evidence.proposed(), evidence.projectedGain(),
+                "WITHHELD_SMALL_EDGE",
+                "The total comparable lineup improvement was below Butler's 1.0-point action threshold"
+                    + " and no hard legality problem required the move. Butler preserved the current lineup."
+                    + " " + evidence.reason(),
+                evidence.currentUsage(), evidence.proposedUsage(), evidence.commentary(), evidence.sources(),
+                evidence.currentMatchup(), evidence.proposedMatchup(), evidence.currentExpert(), evidence.proposedExpert()));
         }
         for (var assignment : recommendation.assignments()) {
             if (assignment.changed()) reviews.add(swapReview(assignment, usage, analysis, analysisCoverage, false, roster.providerSeason(), matchups));
