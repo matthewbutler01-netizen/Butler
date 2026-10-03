@@ -66,12 +66,19 @@ function Get-MatchupLineupDecisionView {
     }
 
     $changedAssignments = @($AutoFill.Assignments | Where-Object { $_.Changed })
+    $managerMoveCount = [Math]::Max(@($AutoFill.Promotions).Count, @($AutoFill.BenchMoves).Count)
+    $slotAssignmentNote = if ($changedAssignments.Count -gt 0 -and $changedAssignments.Count -ne $managerMoveCount) {
+        " | Optimizer adjusted $($changedAssignments.Count) scoreable slot assignments to build the legal lineup; these are not separate manager moves."
+    }
+    else {
+        ''
+    }
     $projectionHolds = @($AutoFill.ProjectionHolds)
     if ($projectionHolds.Count -gt 0 -or [string]$AutoFill.ProjectionCoverage -ceq 'PARTIAL') {
         $holdNames = @($projectionHolds | ForEach-Object { [string]$_.Name })
         $holdText = if ($holdNames.Count -eq 0) { 'one or more active roster players' } else { $holdNames -join ', ' }
         $changeText = if ($changedAssignments.Count -gt 0) {
-            "$($changedAssignments.Count) scoreable-slot change(s) found"
+            "$managerMoveCount lineup move(s) found$slotAssignmentNote"
         } else {
             'No proven changes in scoreable slots'
         }
@@ -87,19 +94,19 @@ function Get-MatchupLineupDecisionView {
         }
     }
 
-    if ($changedAssignments.Count -gt 0) {
-        $changeWord = if ($changedAssignments.Count -eq 1) { 'change' } else { 'changes' }
+    if ($managerMoveCount -gt 0) {
+        $moveWord = if ($managerMoveCount -eq 1) { 'move' } else { 'moves' }
         $startNames = @($AutoFill.Promotions | ForEach-Object { [string]$_.Name })
         $sitNames = @($AutoFill.BenchMoves | ForEach-Object { [string]$_.Name })
         $startText = if ($startNames.Count -eq 0) { 'See exact lineup rows below' } else { $startNames -join ', ' }
         $sitText = if ($sitNames.Count -eq 0) { 'See exact lineup rows below' } else { $sitNames -join ', ' }
 
         return [pscustomobject]@{
-            Title = "Make $($changedAssignments.Count) lineup $changeWord"
+            Title = "Make $managerMoveCount lineup $moveWord"
             Copy = 'The existing governed Lineup Advisor found a stronger legal projected lineup for this weekly frame. Review the exact START/SIT moves before deciding.'
             Status = 'CHANGES FOUND'
             StatusClass = 'good'
-            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)"
+            Detail = "Start: $startText | Sit: $sitText | Projected change: $($AutoFill.Gain)$slotAssignmentNote"
             ActionLabel = ''
             ActionHref = ''
         }
