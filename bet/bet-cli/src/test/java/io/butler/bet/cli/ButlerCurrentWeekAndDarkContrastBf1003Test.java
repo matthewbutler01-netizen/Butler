@@ -51,6 +51,13 @@ class ButlerCurrentWeekAndDarkContrastBf1003Test {
     }
 
     @Test
+    void presentationCloseoutIncludesBf1003() throws Exception {
+        String closeout = source("scripts/butler-presentation-closeout-acceptance.ps1");
+        assertTrue(closeout.contains("Id = 'BF-1003'"));
+        assertTrue(closeout.contains("butler-bf1003-current-week-dark-contrast-acceptance.ps1"));
+    }
+
+    @Test
     void contrastTransformAddsNoOperationalBehavior() throws Exception {
         String transform = source("scripts/butler-app-bf1003-current-week-dark-contrast-transform.ps1");
         for (String forbidden : new String[] {
