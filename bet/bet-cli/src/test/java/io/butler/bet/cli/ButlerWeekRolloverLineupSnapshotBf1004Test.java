@@ -20,6 +20,7 @@ class ButlerWeekRolloverLineupSnapshotBf1004Test {
         assertTrue(transform.contains("data-lineup-week="));
         assertTrue(transform.contains("$bf1004SnapshotWeek = if ($null -ne $lineupSnapshot)"));
         assertTrue(transform.contains("dashboard-weekly-attention"));
+        assertTrue(transform.contains("id=\`\"weekly-attention\`\""), "BF-987 Weekly Attention return anchor must be preserved");
     }
 
     @Test
