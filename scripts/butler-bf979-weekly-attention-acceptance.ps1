@@ -105,6 +105,9 @@ try {
         return [System.Net.WebUtility]::HtmlEncode([string]$Value)
     }
 
+    $liveWaiverHelper = (Get-OneFunction -Ast $coreAst -Name 'Get-Bf980StarterWaiverActionsHtml').Extent.Text
+    Invoke-Expression $liveWaiverHelper
+
     $liveRenderer = (Get-OneFunction -Ast $coreAst -Name 'Get-Bf979WeeklyAttentionHtml').Extent.Text
     foreach ($required in @(
         '$availability = @(if ($null -ne $AutoFill.PSObject.Properties[''AvailabilityExclusions''])',
@@ -201,6 +204,9 @@ try {
             throw "BF-979 BLOCKED: singleton live hold render marker is missing: $required"
         }
     }
+
+    $cachedWaiverHelper = (Get-OneFunction -Ast $dashboardAst -Name 'Get-Bf980SnapshotStarterWaiverActionsHtml').Extent.Text
+    Invoke-Expression $cachedWaiverHelper
 
     $cachedRenderer = (Get-OneFunction -Ast $dashboardAst -Name 'Get-Bf979SnapshotWeeklyAttentionHtml').Extent.Text
     foreach ($required in @(
