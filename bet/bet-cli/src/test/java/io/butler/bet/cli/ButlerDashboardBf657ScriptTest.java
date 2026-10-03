@@ -34,61 +34,7 @@ class ButlerDashboardBf657ScriptTest {
         assertTrue(script.contains("Bf = $match.Groups['bf'].Value.Trim()"));
         assertTrue(script.contains("Command = $match.Groups['command'].Value.Trim()"));
         assertTrue(script.contains("Purpose = $match.Groups['purpose'].Value.Trim()"));
-        assertTrue(script.contains("Purpose: (?<purpose>[^\\r\\n]+)\\r?
-    }
-
-    @Test
-    void dashboardRendersNoScriptCopySafeNextDecisionPlan() throws Exception {
-        String script = script();
-        assertTrue(script.contains("$nextDecisionPlan = Get-GovernedNextDecisionPlanView -Summary $Summary"));
-        assertTrue(script.contains("Governed manual next-decision plan"));
-        assertTrue(script.contains("Start Butler's next decision safely"));
-        assertTrue(script.contains("BF-640 executes none of these commands"));
-        assertTrue(script.contains("class=\"refresh-command-copy\""));
-        assertTrue(script.contains("Ctrl+A"));
-        assertTrue(script.contains("Ctrl+C"));
-        assertFalse(script.contains("navigator.clipboard"));
-        assertFalse(script.contains("<script"));
-    }
-
-    @Test
-    void staleRefreshAndCompletedNextDecisionPlansRemainSeparate() throws Exception {
-        String script = script();
-        assertTrue(script.contains("if ($decisionState -cne \"CURRENT_REFRESH_RECOMMENDED\")"));
-        assertTrue(script.contains("if ($decisionState -cne \"TRANSACTION_ALREADY_COMPLETE\")"));
-        assertTrue(script.contains("$refreshPlanSection = \"\""));
-        assertTrue(script.contains("$nextDecisionPlanSection = \"\""));
-        assertTrue(script.contains("$refreshPlanSection"));
-        assertTrue(script.contains("$nextDecisionPlanSection"));
-        assertFalse(script.contains("BF657_NEXT_DECISION_TASKS"));
-        assertFalse(script.contains("Get-HardCodedNextDecisionPlan"));
-    }
-
-    @Test
-    void bf657AddsNoExecutionOrBatchControls() throws Exception {
-        String script = script();
-        assertFalse(script.contains("/next-decision/run"));
-        assertFalse(script.contains("Invoke-GovernedNextDecisionStep"));
-        assertFalse(script.contains("Start-GovernedNextDecision"));
-        assertFalse(script.contains(">Run command<"));
-        assertFalse(script.contains(">Run next<"));
-        assertFalse(script.contains(">Run all<"));
-        assertFalse(script.contains(">Copy all<"));
-    }
-
-    private static String script() throws IOException {
-        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
-        for (int depth = 0; depth < 7 && current != null; depth++) {
-            Path candidate = current.resolve("scripts/butler-dashboard.ps1");
-            if (Files.isRegularFile(candidate)) {
-                return Files.readString(candidate, StandardCharsets.US_ASCII);
-            }
-            current = current.getParent();
-        }
-        throw new IOException("BF-657 test could not locate scripts/butler-dashboard.ps1");
-    }
-}
-"));
+        assertTrue(script.contains("Purpose: (?<purpose>[^\\r\\n]+)\\r?$'"));
     }
 
     @Test
