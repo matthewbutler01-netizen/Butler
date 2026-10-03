@@ -33,6 +33,11 @@ class ButlerWeekRolloverLineupSnapshotBf1004Test {
         assertTrue(transform.contains("Old week expired"));
         assertTrue(transform.contains("Old lineup advice expired"));
         assertTrue(transform.contains("Review Week $currentMatchupWeek lineup"));
+        assertTrue(transform.contains("(?<week>\\d+)"), "saved lineup week regex must parse numeric weeks");
+        assertTrue(transform.contains("href=\"/matchup\">Open Weekly Matchup &rarr;</a>"),
+            "BF-992 must retain Matchup as a neutral matchup action");
+        assertFalse(transform.contains("$matchupPrimaryLabel = \"Review Week $currentMatchupWeek lineup\""),
+            "BF-1004 must not re-couple Matchup and Lineup roles");
     }
 
     @Test
