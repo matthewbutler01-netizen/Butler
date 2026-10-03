@@ -46,12 +46,26 @@ if ($returnPos -lt 0) {
 }
 
 $disclosureSetup = @'
-    $decisionTitle = if ($changedCount -gt 0) { "Review $changedCount projection proposal(s)" } else { 'No projection proposals after review holds' }
+    $managerMoveCount = [Math]::Max(@($AutoFill.Promotions).Count, @($AutoFill.BenchMoves).Count)
+    $slotChangeCount = [int]$changedCount
+    $slotAssignmentNote = if ($slotChangeCount -gt 0 -and $slotChangeCount -ne $managerMoveCount) {
+        " Optimizer slot evidence: $slotChangeCount scoreable slot assignments differ in the legal optimized arrangement; these are not separate manager moves."
+    }
+    else {
+        ''
+    }
+    $decisionTitle = if ($managerMoveCount -gt 0) {
+        $moveNoun = if ($managerMoveCount -eq 1) { 'move' } else { 'moves' }
+        "Review $managerMoveCount lineup $moveNoun"
+    }
+    else {
+        'No lineup moves after review holds'
+    }
     $decisionCopy = 'Manual review required. Projections do not establish a complete start/sit decision when role, matchup, or expert evidence is incomplete.'
     $decisionStatus = 'MANUAL REVIEW'
     $decisionStatusClass = 'warn'
     $recommendedMetricLabel = if ($partialCoverage) { 'Comparable proposed' } else { 'Proposed projection' }
-    $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals. Review holds and evidence gaps before changing your lineup."
+    $whyCopy = "Evaluated-slot projection: $($AutoFill.CurrentTotal) current versus $($AutoFill.RecommendedTotal) proposed, a change of $($AutoFill.Gain). Held players are excluded from these totals.$slotAssignmentNote Review holds and evidence gaps before changing your lineup."
     $holdEvidenceHtml = '<p class="meta">Availability, usage decline, and close-call conflicts can withhold a promotion. Remaining proposals still need review. Review attributed expert selections and coverage below, plus NFL matchup coverage in each comparison.</p>'
     $structuredReviews = @()
     if ($null -ne $AutoFill.PSObject.Properties['SwapReviews']) { $structuredReviews = @($AutoFill.SwapReviews) }
@@ -73,7 +87,7 @@ $disclosureSetup = @'
             $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Current)</strong>: current starter with an attributed SIT selection from $(ConvertTo-HtmlText $matchingPicks[0].author). Review scoring, roster fit and the source below; this opinion does not establish consensus. <a href=`"#lineup-expert-$pickIndex`">Review expert source</a></li>"
         }
         if ($assignment.Changed) {
-            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: review the projection proposal $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). Check holds and the comparison evidence before making a move.</li>"
+            $queueItems += "<li><strong>$(ConvertTo-HtmlText $assignment.Slot)</strong>: optimizer slot placement $(ConvertTo-HtmlText $assignment.Current) &rarr; $(ConvertTo-HtmlText $assignment.Recommended). This may be part of the same manager move; check the promotion/bench summary and comparison evidence.</li>"
         }
         $comparisonLinks = ''
         for ($reviewIndex = 0; $reviewIndex -lt $structuredReviews.Count; $reviewIndex++) {
@@ -181,9 +195,15 @@ $disclosureSetup = @'
         $holdIndex++
     }
     $unchangedCount = @($AutoFill.Assignments | Where-Object { -not $_.Changed }).Count
-    $lineupFocusHtml = if ($changedCount -gt 0) {
-        $changeWord = if ($changedCount -eq 1) { 'change' } else { 'changes' }
-        "<div class=`"lineup-focus`"><div class=`"lineup-focus-head`"><div><span class=`"eyebrow`">Projection proposals</span><h3>$changedCount $changeWord to review</h3></div><span class=`"status warn`">CHANGES FIRST</span></div><div class=`"lineup-board`">$rows</div></div>"
+    $lineupFocusHtml = if ($managerMoveCount -gt 0) {
+        $moveWord = if ($managerMoveCount -eq 1) { 'move' } else { 'moves' }
+        $slotNoteHtml = if ($slotChangeCount -gt 0 -and $slotChangeCount -ne $managerMoveCount) {
+            "<p class=`"meta`">$slotChangeCount internal scoreable slot assignments differ in the optimized legal arrangement; these are placement details for $managerMoveCount manager $moveWord.</p>"
+        }
+        else {
+            ''
+        }
+        "<div class=`"lineup-focus`"><div class=`"lineup-focus-head`"><div><span class=`"eyebrow`">Manager moves</span><h3>$managerMoveCount lineup $moveWord to review</h3></div><span class=`"status warn`">MOVES FIRST</span></div>$slotNoteHtml<div class=`"lineup-board`">$rows</div></div>"
     }
     else {
         '<div class="lineup-focus lineup-clear"><div class="lineup-focus-head"><div><span class="eyebrow">Lineup proposals</span><h3>No projected changes after holds</h3></div><span class="status done">NO PROPOSALS</span></div><p class="meta">No higher projected lineup was found among the evaluated players. Review holds and evidence gaps before treating this as a complete lineup assessment. The unchanged lineup remains available below.</p></div>'

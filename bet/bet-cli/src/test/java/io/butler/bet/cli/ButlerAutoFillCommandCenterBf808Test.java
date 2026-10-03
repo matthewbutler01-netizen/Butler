@@ -19,6 +19,9 @@ class ButlerAutoFillCommandCenterBf808Test {
         assertTrue(transform.contains("Save-Bf808AutoFillSnapshot -AutoFill $autoFill -RosterView $rosterView"));
         assertTrue(transform.contains("Schema = 'BF-808-1'"));
         assertTrue(transform.contains("ChangedCount = [int]$changedCount"));
+        assertTrue(transform.contains("ManagerMoveCount = [int]$managerMoveCount"));
+        assertTrue(transform.contains("PromotionCount = [int]$promotionCount"));
+        assertTrue(transform.contains("BenchMoveCount = [int]$benchMoveCount"));
         assertTrue(transform.contains("GeneratedUtc = [DateTimeOffset]::UtcNow.ToString('o')"));
         assertTrue(transform.contains("$reason = $reason.Replace($providerKey, '[REDACTED]')"));
         assertTrue(transform.contains("provider credential detected in AutoFill snapshot payload"));
@@ -33,8 +36,9 @@ class ButlerAutoFillCommandCenterBf808Test {
 
         assertTrue(transform.contains("Get-Bf808AutoFillSnapshot -LeagueKey ([string]$LeagueId)"));
         assertTrue(transform.contains("Latest AutoFill hit an evidence gap"));
-        assertTrue(transform.contains("Latest AutoFill recommends $($lineupSnapshot.ChangedCount) lineup $changeWord"));
-        assertTrue(transform.contains("Latest AutoFill found no lineup changes"));
+        assertTrue(transform.contains("Latest AutoFill recommends $managerMoveCount lineup $moveWord"));
+        assertTrue(transform.contains("Latest AutoFill found no lineup moves"));
+        assertTrue(transform.contains("these are not separate manager moves"));
         assertTrue(transform.contains("REFRESH AUTOFILL"));
         assertTrue(transform.contains("EVIDENCE GAP"));
         assertTrue(transform.contains("AUTOFILL READY"));

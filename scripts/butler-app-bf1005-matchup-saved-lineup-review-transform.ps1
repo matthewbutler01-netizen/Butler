@@ -98,6 +98,14 @@ function ConvertTo-Bf1005SavedLineupReviewHtml {
     $holds = @(if ($null -ne $Snapshot.PSObject.Properties['ProjectionHolds']) { @($Snapshot.ProjectionHolds) } else { @() })
     $availability = @(if ($null -ne $Snapshot.PSObject.Properties['AvailabilityExclusions']) { @($Snapshot.AvailabilityExclusions) } else { @() })
     $attentionCount = $holds.Count + $availability.Count
+    $slotChangeCount = [int]$Snapshot.ChangedCount
+    $managerMoveCount = if ($null -ne $Snapshot.PSObject.Properties['ManagerMoveCount']) { [int]$Snapshot.ManagerMoveCount } else { $slotChangeCount }
+    $slotAssignmentCopy = if ($slotChangeCount -gt 0 -and $slotChangeCount -ne $managerMoveCount) {
+        " Optimizer adjusted $slotChangeCount scoreable slot assignments to build the legal lineup; these are not separate manager moves."
+    }
+    else {
+        ''
+    }
 
     $title = if (-not [bool]$Snapshot.Ready) {
         "Week $week review hit an evidence gap"
@@ -105,8 +113,9 @@ function ConvertTo-Bf1005SavedLineupReviewHtml {
     elseif ($attentionCount -gt 0) {
         "Week $week lineup review needs attention"
     }
-    elseif ([int]$Snapshot.ChangedCount -gt 0) {
-        "Week $week lineup review recommends $($Snapshot.ChangedCount) changes"
+    elseif ($managerMoveCount -gt 0) {
+        $moveNoun = if ($managerMoveCount -eq 1) { 'move' } else { 'moves' }
+        "Week $week lineup review recommends $managerMoveCount $moveNoun"
     }
     else {
         "Week $week lineup review found no changes"
@@ -155,15 +164,15 @@ function ConvertTo-Bf1005SavedLineupReviewHtml {
         (ConvertTo-HtmlText ([string]$Snapshot.RecommendedTotal)) +
         '</span></div><div class="stat"><strong>Projected change</strong><span>' +
         (ConvertTo-HtmlText ([string]$Snapshot.Gain)) +
-        '</span></div><div class="stat"><strong>Proposed changes</strong><span>' +
-        (ConvertTo-HtmlText ([string]$Snapshot.ChangedCount)) +
+        '</span></div><div class="stat"><strong>Manager moves</strong><span>' +
+        (ConvertTo-HtmlText ([string]$managerMoveCount)) +
         '</span></div></div>' +
         $reasonHtml + $attentionHtml +
         '<div class="button-row"><a class="btn btn-primary" href="/matchup/autofill">Refresh full Lineup Review</a><a class="btn btn-secondary" href="/team">Open My Team</a></div><p class="meta">Saved ' +
         (ConvertTo-HtmlText ([string]$Snapshot.GeneratedUtc)) +
         ' - projection source: ' +
         (ConvertTo-HtmlText ([string]$Snapshot.Source)) +
-        '. The compact saved snapshot does not invent or reconstruct exact move rows that were not persisted.</p></section>'
+        '.' + $slotAssignmentCopy + ' The compact saved snapshot does not invent or reconstruct exact move rows that were not persisted.</p></section>'
 }
 
 '@
@@ -186,6 +195,14 @@ $idleAnchor = @'
 $savedDecision = @'
     if (-not $AutoFill.Requested -and $null -ne $SavedReview) {
         $week = [string]$SavedReview.Week
+        $savedSlotChangeCount = [int]$SavedReview.ChangedCount
+        $savedManagerMoveCount = if ($null -ne $SavedReview.PSObject.Properties['ManagerMoveCount']) { [int]$SavedReview.ManagerMoveCount } else { $savedSlotChangeCount }
+        $savedSlotAssignmentNote = if ($savedSlotChangeCount -gt 0 -and $savedSlotChangeCount -ne $savedManagerMoveCount) {
+            " Optimizer adjusted $savedSlotChangeCount scoreable slot assignments to build the legal lineup; these are not separate manager moves."
+        }
+        else {
+            ''
+        }
         $holds = @(if ($null -ne $SavedReview.PSObject.Properties['ProjectionHolds']) { @($SavedReview.ProjectionHolds) } else { @() })
         $availability = @(if ($null -ne $SavedReview.PSObject.Properties['AvailabilityExclusions']) { @($SavedReview.AvailabilityExclusions) } else { @() })
         $attention = @($availability + $holds)
@@ -216,13 +233,13 @@ $savedDecision = @'
             }
         }
 
-        if ([int]$SavedReview.ChangedCount -gt 0) {
+        if ($savedManagerMoveCount -gt 0) {
             return [pscustomobject]@{
                 Title = 'Lineup changes are ready to review'
                 Copy = "Butler loaded the saved Week $week Lineup Review for this exact roster."
                 Status = 'REVIEW'
                 StatusClass = 'good'
-                Detail = "Saved review: $($SavedReview.ChangedCount) proposed changes; projected change $($SavedReview.Gain) points."
+                Detail = "Saved review: $savedManagerMoveCount manager move(s); projected change $($SavedReview.Gain) points.$savedSlotAssignmentNote"
                 ActionLabel = 'Refresh Lineup Review'
                 ActionHref = '/matchup/autofill'
             }
