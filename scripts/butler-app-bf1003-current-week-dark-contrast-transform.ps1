@@ -78,11 +78,6 @@ foreach ($pair in @(
             throw "BF-1003 BLOCKED: $($pair.Label) readability marker is missing: $required"
         }
     }
-    if ($pair.Text -match 'Invoke-RestMethod|Invoke-WebRequest|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-        # These may legitimately exist elsewhere in staged sources. Only the inserted
-        # CSS is presentation-only; source-wide operational scanning is intentionally
-        # not used here.
-    }
 }
 
 [IO.File]::WriteAllText($CorePath, $core, [Text.UTF8Encoding]::new($false))
