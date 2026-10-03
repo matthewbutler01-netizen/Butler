@@ -228,8 +228,8 @@ try {
     foreach ($required in @(
         'Weekly attention',
         '1 starter needs weekly review',
-        'Unavailable &lt;One&gt; (Out)',
-        'Starter Hold (Questionable)',
+        'href="/player?id=101&amp;from=dashboard">Unavailable &lt;One&gt;</a> (Out)',
+        'href="/player?id=102&amp;from=dashboard">Starter Hold</a> (Questionable)',
         'Dashboard does not make a new provider request for this alert.',
         'href="/team/autofill">Review Lineup</a>'
     )) {
@@ -250,7 +250,7 @@ try {
     $singleHoldCachedHtml = Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $singleHoldSnapshot -LineupSignalStatus 'AUTOFILL READY'
     foreach ($required in @(
         '1 starter needs weekly review',
-        'Only Starter Hold (Questionable)'
+        'href="/player?id=104&amp;from=dashboard">Only Starter Hold</a> (Questionable)'
     )) {
         if ($singleHoldCachedHtml.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-979 BLOCKED: singleton cached hold render marker is missing: $required"
