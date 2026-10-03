@@ -19,7 +19,8 @@ class ButlerWeeklyMatchupDecisionFirstBf881Test {
         assertTrue(transform.contains("function Get-MatchupLineupDecisionView {"));
         assertTrue(transform.contains("Review this week's lineup"));
         assertTrue(transform.contains("Lineup review needs evidence"));
-        assertTrue(transform.contains("Make $($changedAssignments.Count) lineup $changeWord"));
+        assertTrue(transform.contains("Make $managerMoveCount lineup $moveWord"));
+        assertTrue(transform.contains("these are not separate manager moves"));
         assertTrue(transform.contains("Keep the current lineup"));
         assertTrue(transform.contains("What to do now"));
     }
