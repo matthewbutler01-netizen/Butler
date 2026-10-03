@@ -157,7 +157,7 @@ $comparisonClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli
 Write-Host 'Butler governed roster-drift evidence recovery (BF-723)'
 Write-Host "League: $leagueId"
 Write-Host "Data: $dataDir"
-Write-Host 'Boundary: this command may write fresh Butler evidence for BF-602/BF-603/BF-605/BF-606/BF-607/BF-612.'
+Write-Host 'Boundary: this command may write fresh Butler evidence for BF-602/BF-603/BF-605/BF-606/BF-607/BF-612 plus the exact BF-840 current matchup frame.'
 Write-Host 'Boundary: it does not submit, cancel, or replace a Sleeper transaction; it does not mutate a Sleeper roster, FAAB, or trade.'
 
 & $acceptancePreflight
@@ -192,6 +192,8 @@ if ($recoveryNeeded) {
         [void](Invoke-RequiredSuccess -MainClass $stage.MainClass -Label $stage.Label -LeagueId $leagueId)
     }
 }
+
+[void](Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' -Label 'BF-840 current weekly matchup sync' -LeagueId $leagueId)
 
 [void](Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -LeagueId $leagueId)
 [void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -LeagueId $leagueId)

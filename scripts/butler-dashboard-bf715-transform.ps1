@@ -876,6 +876,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1001 BLOCKED: Player Hub action-hierarchy transform not found at $bf1001Transform"
     }
     & $bf1001Transform -CorePath $stagedCore
+
+    # BF-1003: final real-use dark-theme readability layer. Keep ordinary manager
+    # links and actions legible without changing any route or decision behavior.
+    $bf1003Transform = Join-Path $PSScriptRoot 'butler-app-bf1003-current-week-dark-contrast-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1003Transform -PathType Leaf)) {
+        throw "BF-1003 BLOCKED: current-week dark-contrast transform not found at $bf1003Transform"
+    }
+    & $bf1003Transform -CorePath $stagedCore -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final

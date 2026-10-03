@@ -49,7 +49,7 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
     }
 
     @Test
-    void recoveryUsesOnlyTheFixedSixEvidenceStagesInGovernedOrder() throws Exception {
+    void recoveryUsesFixedRosterStagesThenSynchronizesCurrentMatchup() throws Exception {
         String script = source("scripts/butler-recover-roster-drift.ps1");
 
         String[] classes = {
@@ -69,6 +69,11 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
             previous = at;
         }
 
+        int matchupSync = script.indexOf("io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli");
+        assertEquals(1, occurrences(script, "io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli"));
+        assertTrue(matchupSync > previous, "BF-840 current matchup sync must run after governed roster evidence stages");
+        assertTrue(script.contains("BF-840 current weekly matchup sync"));
+
         assertFalse(script.contains("ButlerSleeperLiveWaiverFinalRecommendationBundleCli"));
         assertFalse(script.contains("ButlerSleeperLiveWaiverRecommendationAuditCaptureCli"));
         assertFalse(script.contains("Invoke-Expression"));
@@ -82,11 +87,12 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
         String script = source("scripts/butler-recover-roster-drift.ps1");
         String wrapper = source("scripts/butler-recover-roster-drift.cmd");
 
-        int postRoster = script.indexOf("BF-610 post-recovery target-roster verification");
+        int matchupSync = script.indexOf("BF-840 current weekly matchup sync");
+        int postRoster = script.indexOf("BF-610 post-recovery target-roster verification", matchupSync);
         int postWaiver = script.indexOf("BF-615/BF-617 post-recovery waiver comparison verification", postRoster);
         int acceptance = script.indexOf("& $acceptanceCmd", postWaiver);
 
-        assertTrue(postRoster >= 0 && postWaiver > postRoster && acceptance > postWaiver);
+        assertTrue(matchupSync >= 0 && postRoster > matchupSync && postWaiver > postRoster && acceptance > postWaiver);
         assertTrue(script.contains("BF-723: starting unchanged BF-698 GET-only acceptance."));
         assertTrue(script.contains("app-league.txt"));
         assertTrue(script.contains("butler-acceptance-preflight.ps1"));
