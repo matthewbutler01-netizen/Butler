@@ -22,6 +22,15 @@ class ButlerRuntimeChildStartupDiagnosticsBf1008Test {
     }
 
     @Test
+    void bf742SharedWorkerStagingPreservesDashboardStderrCapture() throws Exception {
+        String bf742 = source("scripts/butler-core-bf742-transform.ps1");
+
+        assertTrue(bf742.contains("$coreLaunchOriginal = @'"));
+        assertTrue(bf742.contains("$start.RedirectStandardError = $true"));
+        assertTrue(bf742.contains("$start.EnvironmentVariables[\"BUTLER_APP_INTERNAL_DASHBOARD_TOKEN\"]"));
+    }
+
+    @Test
     void governedDashboardStartupSurfacesChildStderr() throws Exception {
         String coreSingle = source("scripts/butler-app-shell-core-single.ps1");
 
