@@ -25,7 +25,8 @@ $checks = @(
     [pscustomobject]@{ Id = 'BF-1001'; Script = 'butler-bf1001-player-hub-action-hierarchy-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1003'; Script = 'butler-bf1003-current-week-dark-contrast-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1004'; Script = 'butler-bf1004-week-rollover-lineup-snapshot-acceptance.ps1' },
-    [pscustomobject]@{ Id = 'BF-1005'; Script = 'butler-bf1005-matchup-saved-lineup-review-acceptance.ps1' }
+    [pscustomobject]@{ Id = 'BF-1005'; Script = 'butler-bf1005-matchup-saved-lineup-review-acceptance.ps1' },
+    [pscustomobject]@{ Id = 'BF-1007'; Script = 'butler-bf1007-manager-action-counting-acceptance.ps1' }
 )
 
 Write-Host ''
