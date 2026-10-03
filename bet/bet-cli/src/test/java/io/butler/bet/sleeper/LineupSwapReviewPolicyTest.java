@@ -20,6 +20,14 @@ class LineupSwapReviewPolicyTest {
         assertFalse(LineupSwapReviewPolicy.conflictingUsage(BigDecimal.ONE, usage(1,3), usage(4,2)));
         assertFalse(LineupSwapReviewPolicy.conflictingUsage(BigDecimal.ONE, usage(4,5), usage(2,0)));
     }
+    @Test void subOnePointTotalEdgeIsNotActionableUnlessLegalityRequiresIt() {
+        assertTrue(LineupSwapReviewPolicy.belowActionableEdge(new BigDecimal("0.99"), false));
+        assertFalse(LineupSwapReviewPolicy.belowActionableEdge(BigDecimal.ONE, false));
+        assertFalse(LineupSwapReviewPolicy.belowActionableEdge(new BigDecimal("1.01"), false));
+        assertFalse(LineupSwapReviewPolicy.belowActionableEdge(new BigDecimal("0.49"), true));
+        assertFalse(LineupSwapReviewPolicy.belowActionableEdge(BigDecimal.ZERO, false));
+    }
+
     private static NflverseRosterUsageProvider.UsageEvidence usage(int before, int after) {
         return new NflverseRosterUsageProvider.UsageEvidence(false, "observed", List.of(
             new NflverseRosterUsageProvider.WeekUsage(2, 0, before, 50, .8),

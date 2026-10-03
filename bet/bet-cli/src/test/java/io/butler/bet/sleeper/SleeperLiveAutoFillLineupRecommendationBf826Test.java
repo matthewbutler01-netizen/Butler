@@ -95,7 +95,7 @@ class SleeperLiveAutoFillLineupRecommendationBf826Test {
         assertTrue(reason.contains("not scoreable"));
         assertTrue(reason.contains("raw projected stats are incomplete"));
         assertFalse(reason.contains("no exact Sleeper player-id row"));
-        assertTrue(reason.contains("does not explicitly prove unavailable"));
+        assertTrue(reason.contains("does not confirm unavailable status"));
     }
 
     private Database initializedDatabase(String leagueId) throws Exception {

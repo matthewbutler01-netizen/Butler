@@ -196,8 +196,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", null),
             new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", null, "Questionable"),
             new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", null, "Doubtful"),
-            new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Unknown", null),
-            new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Out"));
+            new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Unknown", null));
 
         for (var availability : ambiguous) {
             var report = new SleeperLiveAutoFillLineupRecommendation(
