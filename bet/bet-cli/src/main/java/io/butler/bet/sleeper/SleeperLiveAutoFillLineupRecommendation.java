@@ -34,14 +34,17 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final UsageSource usageSource;
     private final MatchupSource matchupSource;
     private final ExpertSource expertSource;
+    private final GameLockSource gameLockSource;
     private static final NflExpertPickProvider SHARED_EXPERT_PROVIDER = new NflExpertPickProvider();
     private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
+    private static final NflverseGameLockProvider SHARED_GAME_LOCK_PROVIDER = new NflverseGameLockProvider();
     private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
     private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
         this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
-            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load, SHARED_EXPERT_PROVIDER::load);
+            SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load,
+            SHARED_EXPERT_PROVIDER::load, SHARED_GAME_LOCK_PROVIDER::load);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -81,7 +84,22 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
         MatchupSource matchupSource, ExpertSource expertSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource, matchupSource,
+            expertSource, (season, week, players) -> {
+                Map<String, NflverseGameLockProvider.GameLockEvidence> unlocked = new LinkedHashMap<>();
+                for (var player : players) {
+                    unlocked.put(player.sleeperPlayerId(), new NflverseGameLockProvider.GameLockEvidence(
+                        true, false, Instant.MAX, "Test composition: kickoff is not locked."));
+                }
+                return Map.copyOf(unlocked);
+            });
+    }
+
+    SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource, ExpertSource expertSource, GameLockSource gameLockSource) {
         this.expertSource = Objects.requireNonNull(expertSource);
+        this.gameLockSource = Objects.requireNonNull(gameLockSource, "gameLockSource must not be null");
         this.matchupSource = Objects.requireNonNull(matchupSource);
         this.usageSource = Objects.requireNonNull(usageSource, "usageSource must not be null");
         this.analysisSource = Objects.requireNonNull(analysisSource, "analysisSource must not be null");
@@ -219,6 +237,46 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         // A projection is not proof that a player is healthy enough to start.
         Set<String> activeIds = new LinkedHashSet<>();
         for (var player : optimizerRoster) activeIds.add(player.playerId());
+
+        Set<String> gameStateHeldPlayerIds = new LinkedHashSet<>();
+        Map<String, NflverseGameLockProvider.GameLockEvidence> gameLocks;
+        try {
+            gameLocks = Objects.requireNonNull(
+                gameLockSource.load(roster.providerSeason(), roster.providerLeg(), roster.targetPlayers()),
+                "gameLockSource returned null");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return RecommendationReport.unavailable(
+                roster.providerSeason(), roster.providerLeg(), scoring,
+                "NFL kickoff lock evidence request was interrupted; Butler will not propose a lineup change without verified game-lock state.");
+        } catch (IOException | IllegalStateException | NullPointerException e) {
+            return RecommendationReport.unavailable(
+                roster.providerSeason(), roster.providerLeg(), scoring,
+                "NFL kickoff lock evidence is unavailable: " + safeMessage(e)
+                    + ". Butler will not propose a lineup change without verified game-lock state.");
+        }
+
+        for (var target : roster.targetPlayers()) {
+            if (!activeIds.contains(target.sleeperPlayerId())) continue;
+            var lock = gameLocks.get(target.sleeperPlayerId());
+            if (lock != null && lock.verified() && !lock.locked()) continue;
+
+            gameStateHeldPlayerIds.add(target.sleeperPlayerId());
+            projectionsBySleeperId.remove(target.sleeperPlayerId());
+            projectionHoldPlayerIds.add(target.sleeperPlayerId());
+            String detail = lock == null
+                ? "NFL kickoff lock unverified: no exact game-lock evidence returned for this active roster player."
+                : lock.detail();
+            projectionHolds.add(new ProjectionHold(
+                target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
+                null, null,
+                (lock != null && lock.verified() && lock.locked()
+                    ? "Game locked: "
+                    : "Game-lock review hold: ")
+                    + detail
+                    + " Butler preserved this player's current starter/bench state and excluded the player from lineup moves."));
+        }
+
         Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> availabilityBySleeperId = Map.of();
         String availabilityFailure = null;
         try {
@@ -239,6 +297,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             // News failure never fabricates clearance or overwrites Sleeper availability.
         }
         for (var target : roster.targetPlayers()) {
+            if (gameStateHeldPlayerIds.contains(target.sleeperPlayerId())) continue;
             if (!projectionsBySleeperId.containsKey(target.sleeperPlayerId())) continue;
             var availability = availabilityBySleeperId.get(target.sleeperPlayerId());
             String news = injuryNews.get(target.sleeperPlayerId());
@@ -267,6 +326,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
         if (!missingProjectionTargets.isEmpty()) {
             for (var target : missingProjectionTargets) {
+                if (gameStateHeldPlayerIds.contains(target.sleeperPlayerId())) continue;
                 SleeperWeeklyProjectionProvider.ProjectionGap gap = gapBySleeperId.get(target.sleeperPlayerId());
                 String coverageDescription = gap == null
                     ? "Current weekly projection evidence has no exact Sleeper player-id row for " + display(target)
@@ -279,14 +339,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 if (availabilityFailure == null
                     && availability != null
                     && target.sleeperPlayerId().equals(availability.sleeperPlayerId())
-                    && availability.explicitlyUnavailable()) {
+                    && availability.confirmedUnavailable()) {
                     explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
                     availabilityExclusions.add(new UnavailablePlayerExclusion(
                         target.sleeperPlayerId(),
                         display(target),
                         availability.status(),
                         availability.injuryStatus(),
-                        "Excluded from startable candidates because exact current Sleeper availability explicitly proves unavailable; "
+                        "Excluded from startable candidates because exact current Sleeper availability confirms unavailable status; "
                             + "Butler did not synthesize a zero projection."));
                     continue;
                 }
@@ -305,7 +365,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         + "; current availability evidence returned a mismatched Sleeper player id. Butler preserved the player's current lineup state instead of guessing.";
                 } else {
                     holdReason = coverageDescription + "; exact current availability (" + availability.evidenceDescription()
-                        + ") does not explicitly prove unavailable. Butler preserved the player's current lineup state and did not synthesize a zero projection.";
+                        + ") does not confirm unavailable status. Butler preserved the player's current lineup state and did not synthesize a zero projection.";
                 }
 
                 projectionHoldPlayerIds.add(target.sleeperPlayerId());
@@ -456,6 +516,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         var eligibility = new io.butler.bet.intelligence.LineupSlotEligibilityPolicy();
         for (var starter : optimizerRoster) {
             if (starter.rosterSlot() != AutoFillLineupOptimizer.RosterSlot.STARTER) continue;
+            if (gameStateHeldPlayerIds.contains(starter.playerId())) {
+                decisionEvidence.add("Game-lock review for " + starter.displayName()
+                    + ": current starter state is frozen because kickoff is locked or could not be verified; Butler did not generate replacement candidates.");
+                continue;
+            }
             var starterPicks = expertPicks.stream().filter(p -> starter.playerId().equals(p.playerId())).toList();
             boolean expertSit = starterPicks.size() == 1 && "SIT".equals(starterPicks.get(0).selection());
             if (!expertSit && !projectionHoldPlayerIds.contains(starter.playerId())) continue;
@@ -634,6 +699,14 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
     interface MatchupSource {
         Map<String, String> load(int season, int week, List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException;
+    }
+
+    interface GameLockSource {
+        Map<String, NflverseGameLockProvider.GameLockEvidence> load(
+            int season,
+            int week,
+            List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
             throws IOException, InterruptedException;
     }
 
