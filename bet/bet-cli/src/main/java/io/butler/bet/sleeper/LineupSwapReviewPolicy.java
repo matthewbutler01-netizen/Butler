@@ -4,7 +4,15 @@ import java.math.BigDecimal;
 
 /** Conservative close-call qualification; does not add synthetic forecast points. */
 final class LineupSwapReviewPolicy {
-    static final BigDecimal CLOSE_GAIN = BigDecimal.ONE;
+    static final BigDecimal MIN_ACTIONABLE_GAIN = BigDecimal.ONE;
+    static final BigDecimal CLOSE_GAIN = MIN_ACTIONABLE_GAIN;
+
+    static boolean belowActionableEdge(BigDecimal totalGain, boolean hardLegalityNeed) {
+        return !hardLegalityNeed
+            && totalGain != null
+            && totalGain.signum() > 0
+            && totalGain.compareTo(MIN_ACTIONABLE_GAIN) < 0;
+    }
 
     static boolean conflictingUsage(BigDecimal gain, NflverseRosterUsageProvider.UsageEvidence current,
         NflverseRosterUsageProvider.UsageEvidence proposed) {
