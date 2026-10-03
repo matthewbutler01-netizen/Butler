@@ -75,9 +75,6 @@ function Save-Bf808AutoFillSnapshot {
     }
 
     $changedCount = @($AutoFill.Assignments | Where-Object { $_.Changed }).Count
-    $promotionCount = @($AutoFill.Promotions).Count
-    $benchMoveCount = @($AutoFill.BenchMoves).Count
-    $managerMoveCount = [Math]::Max($promotionCount, $benchMoveCount)
     $targetHuman = "$($RosterView.LeagueName) | $($RosterView.TeamName) | roster $($RosterView.RosterId)"
     $snapshot = [ordered]@{
         Schema = 'BF-808-1'
@@ -96,9 +93,6 @@ function Save-Bf808AutoFillSnapshot {
         RecommendedTotal = [string]$AutoFill.RecommendedTotal
         Gain = [string]$AutoFill.Gain
         ChangedCount = [int]$changedCount
-        ManagerMoveCount = [int]$managerMoveCount
-        PromotionCount = [int]$promotionCount
-        BenchMoveCount = [int]$benchMoveCount
         AssignmentCount = [int](@($AutoFill.Assignments).Count)
         GeneratedUtc = [DateTimeOffset]::UtcNow.ToString('o')
     }
@@ -213,13 +207,6 @@ $lineupSnapshotOverride = @'
         $snapshotAgeHours = if ($generatedOk) { ([DateTimeOffset]::UtcNow - $snapshotGenerated).TotalHours } else { [double]::PositiveInfinity }
         $snapshotFresh = $generatedOk -and $snapshotAgeHours -ge -0.1 -and $snapshotAgeHours -le 6.0
         $snapshotTargetMatches = ([string]$lineupSnapshot.LeagueId -ceq [string]$LeagueId) -and ([string]$lineupSnapshot.TargetHuman -ceq [string]$target)
-        $slotChangeCount = [int]$lineupSnapshot.ChangedCount
-        $managerMoveCount = if ($null -ne $lineupSnapshot.PSObject.Properties['ManagerMoveCount']) {
-            [int]$lineupSnapshot.ManagerMoveCount
-        }
-        else {
-            $slotChangeCount
-        }
 
         if (-not $snapshotFresh -or -not $snapshotTargetMatches -or -not $verification.RosterOk) {
             $lineupSignalTitle = "Refresh this week's AutoFill"
@@ -239,29 +226,17 @@ $lineupSnapshotOverride = @'
             $lineupSignalClass = "warn"
             $lineupSnapshotAttentionGroup = "attention"
         }
-        elseif ($managerMoveCount -gt 0) {
-            $moveWord = if ($managerMoveCount -eq 1) { "move" } else { "moves" }
-            $slotCopy = if ($slotChangeCount -ne $managerMoveCount) {
-                " The optimizer adjusted $slotChangeCount scoreable slot assignments to build that legal lineup; those are not separate manager moves."
-            }
-            else {
-                ""
-            }
-            $lineupSignalTitle = "Latest AutoFill recommends $managerMoveCount lineup $moveWord"
-            $lineupSignalCopy = "Week $($lineupSnapshot.Week), $($lineupSnapshot.Scoring): current projection $($lineupSnapshot.CurrentTotal) pts -> AutoFill $($lineupSnapshot.RecommendedTotal) pts; projected change $($lineupSnapshot.Gain) pts.$slotCopy Projection source: $($lineupSnapshot.Source)."
+        elseif ([int]$lineupSnapshot.ChangedCount -gt 0) {
+            $changeWord = if ([int]$lineupSnapshot.ChangedCount -eq 1) { "change" } else { "changes" }
+            $lineupSignalTitle = "Latest AutoFill recommends $($lineupSnapshot.ChangedCount) lineup $changeWord"
+            $lineupSignalCopy = "Week $($lineupSnapshot.Week), $($lineupSnapshot.Scoring): current projection $($lineupSnapshot.CurrentTotal) pts -> AutoFill $($lineupSnapshot.RecommendedTotal) pts; projected change $($lineupSnapshot.Gain) pts. Projection source: $($lineupSnapshot.Source)."
             $lineupSignalStatus = "AUTOFILL READY"
             $lineupSignalClass = "good"
             $lineupSnapshotAttentionGroup = "attention"
         }
         else {
-            $lineupSignalTitle = "Latest AutoFill found no lineup moves"
-            $slotCopy = if ($slotChangeCount -gt 0) {
-                " The optimizer adjusted $slotChangeCount internal scoreable slot assignments without changing the starter set."
-            }
-            else {
-                ""
-            }
-            $lineupSignalCopy = "Week $($lineupSnapshot.Week), $($lineupSnapshot.Scoring): the latest proven AutoFill keeps the current starters.$slotCopy Projection source: $($lineupSnapshot.Source)."
+            $lineupSignalTitle = "Latest AutoFill found no lineup changes"
+            $lineupSignalCopy = "Week $($lineupSnapshot.Week), $($lineupSnapshot.Scoring): the latest proven AutoFill keeps the current starters. Projection source: $($lineupSnapshot.Source)."
             $lineupSignalStatus = "NO CHANGES"
             $lineupSignalClass = "done"
             $lineupSnapshotAttentionGroup = "neutral"
