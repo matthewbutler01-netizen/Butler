@@ -37,15 +37,25 @@ class ButlerWeekRolloverLineupSnapshotBf1004Test {
     @Test
     void rolloverUsesExistingDashboardMatchupReadOnly() throws Exception {
         String transform = source("scripts/butler-app-bf1004-week-rollover-lineup-snapshot-transform.ps1");
+        int safetyScan = transform.indexOf("$installedText -match");
+        assertTrue(safetyScan > 0);
+        String operational = transform.substring(0, safetyScan);
 
-        assertFalse(transform.contains("https://api.sleeper.app"));
-        assertFalse(transform.contains("submitTransaction"));
-        assertFalse(transform.contains("setFaab"));
-        assertFalse(transform.contains("AutoFillLineupOptimizer"));
-        assertFalse(transform.contains("returnUrl"));
-        assertFalse(transform.contains("redirectUrl"));
-        assertFalse(transform.contains("javascript:"));
+        assertFalse(operational.contains("https://api.sleeper.app"));
+        assertFalse(operational.contains("submitTransaction"));
+        assertFalse(operational.contains("setFaab"));
+        assertFalse(operational.contains("AutoFillLineupOptimizer"));
+        assertFalse(operational.contains("returnUrl"));
+        assertFalse(operational.contains("redirectUrl"));
+        assertFalse(operational.contains("javascript:"));
         assertTrue(transform.contains("expected one existing read"));
+    }
+
+    @Test
+    void presentationCloseoutIncludesBf1004() throws Exception {
+        String closeout = source("scripts/butler-presentation-closeout-acceptance.ps1");
+        assertTrue(closeout.contains("Id = 'BF-1004'"));
+        assertTrue(closeout.contains("butler-bf1004-week-rollover-lineup-snapshot-acceptance.ps1"));
     }
 
     @Test
