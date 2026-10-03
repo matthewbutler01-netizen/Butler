@@ -684,7 +684,7 @@ function Get-GovernedManualRefreshPlanView {
         throw "BF-655 BLOCKED: BF-636 operator instruction is missing"
     }
 
-    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)$'
+    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)\r?$'
     $stepMatches = [regex]::Matches($planText, $stepPattern)
     if ($stepMatches.Count -ne 9) {
         throw "BF-655 BLOCKED: BF-636 ready plan must contain exactly nine rendered steps"
@@ -771,7 +771,7 @@ function Get-GovernedNextDecisionPlanView {
         throw "BF-657 BLOCKED: BF-640 operator instruction is missing"
     }
 
-    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)$'
+    $stepPattern = '(?m)^ {2}(?<order>\d+)\. (?<bf>[^|\r\n]+?) \| (?<mode>[^|\r\n]+?) \| (?<task>[^\r\n]+)\r?\n {5}(?<command>[^\r\n]+)\r?\n {5}Purpose: (?<purpose>[^\r\n]+)\r?$'
     $stepMatches = [regex]::Matches($planText, $stepPattern)
     if ($stepMatches.Count -ne 9) {
         throw "BF-657 BLOCKED: BF-640 ready plan must contain exactly nine rendered steps"

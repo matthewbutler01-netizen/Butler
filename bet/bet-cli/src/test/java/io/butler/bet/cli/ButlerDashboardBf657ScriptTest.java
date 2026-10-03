@@ -34,6 +34,7 @@ class ButlerDashboardBf657ScriptTest {
         assertTrue(script.contains("Bf = $match.Groups['bf'].Value.Trim()"));
         assertTrue(script.contains("Command = $match.Groups['command'].Value.Trim()"));
         assertTrue(script.contains("Purpose = $match.Groups['purpose'].Value.Trim()"));
+        assertTrue(script.contains("Purpose: (?<purpose>[^\\r\\n]+)\\r?$'"));
     }
 
     @Test
