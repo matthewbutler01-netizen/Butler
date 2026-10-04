@@ -104,3 +104,9 @@ if (@($parseErrors).Count -gt 0) {
 }
 
 Write-Host 'BF-953 Lineup Review hold/expert merge applied.'
+
+$bf1010Transform = Join-Path $PSScriptRoot 'butler-app-bf1010-lineup-slot-placement-decision-count-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf1010Transform -PathType Leaf)) {
+    throw "BF-1010 BLOCKED: lineup slot-placement decision-count transform not found at $bf1010Transform"
+}
+& $bf1010Transform -CorePath $CorePath
