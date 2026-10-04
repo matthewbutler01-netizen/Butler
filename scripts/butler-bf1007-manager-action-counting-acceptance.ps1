@@ -15,7 +15,7 @@ try {
 
     foreach ($required in @(
         'ManagerMoveCount = [int]$managerMoveCount',
-        'Title = "Make $managerMoveCount lineup $moveWord"',
+        'Title = "Review $managerMoveCount lineup $moveWord"',
         'these are not separate manager moves',
         'Review $managerMoveCount lineup $moveNoun',
         'Manager moves</strong>'
@@ -27,7 +27,7 @@ try {
 
     foreach ($required in @(
         'Latest AutoFill recommends $managerMoveCount lineup $moveWord',
-        'Latest AutoFill found no lineup moves',
+        'Lineup review complete; no change proven',
         'these are not separate manager moves'
     )) {
         if ($dashboard.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
@@ -73,7 +73,7 @@ try {
     }
 
     $decision = Get-MatchupLineupDecisionView -AutoFill $full -SavedReview $null
-    if ([string]$decision.Title -cne 'Make 1 lineup move') {
+    if ([string]$decision.Title -cne 'Review 1 lineup move') {
         throw "BF-1007 BLOCKED: expected one manager move, got title: $($decision.Title)"
     }
     if ([string]$decision.Detail -notmatch 'Tank Bigsby' -or

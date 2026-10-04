@@ -33,6 +33,20 @@ class ButlerManagerActionCountingBf1007Test {
     }
 
     @Test
+    void finalQualificationAndAcceptanceUseReviewWording() throws Exception {
+        String qualifier = source("scripts/butler-app-bf946-lineup-matchup-return-transform.ps1");
+        String acceptance = source("scripts/butler-bf1007-manager-action-counting-acceptance.ps1");
+
+        assertTrue(qualifier.contains("Title = \"Review $managerMoveCount lineup $moveWord\""));
+        assertTrue(acceptance.contains("Title = \"Review $managerMoveCount lineup $moveWord\""));
+        assertTrue(acceptance.contains("Review 1 lineup move"));
+
+        String healthy = source("scripts/butler-dashboard-bf816-healthy-state-polish-transform.ps1");
+        assertTrue(healthy.contains("Lineup review complete; no change proven"));
+        assertTrue(acceptance.contains("Lineup review complete; no change proven"));
+    }
+
+    @Test
     void savedReviewUsesManagerMoveMetric() throws Exception {
         String saved = source("scripts/butler-app-bf1005-matchup-saved-lineup-review-transform.ps1");
         assertTrue(saved.contains("Manager moves</strong>"));
