@@ -27,7 +27,8 @@ $checks = @(
     [pscustomobject]@{ Id = 'BF-1004'; Script = 'butler-bf1004-week-rollover-lineup-snapshot-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1005'; Script = 'butler-bf1005-matchup-saved-lineup-review-acceptance.ps1' },
     [pscustomobject]@{ Id = 'BF-1007'; Script = 'butler-bf1007-manager-action-counting-acceptance.ps1' },
-    [pscustomobject]@{ Id = 'BF-1010'; Script = 'butler-bf1010-lineup-slot-placement-decision-count-acceptance.ps1' }
+    [pscustomobject]@{ Id = 'BF-1010'; Script = 'butler-bf1010-lineup-slot-placement-decision-count-acceptance.ps1' },
+    [pscustomobject]@{ Id = 'BF-1011'; Script = 'butler-bf1011-lineup-footer-return-dedup-acceptance.ps1' }
 )
 
 Write-Host ''
