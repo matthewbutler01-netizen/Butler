@@ -19,6 +19,9 @@ class ButlerLineupSlotPlacementDecisionCountBf1010Test {
         assertTrue(transform.contains("Optimizer slot placement evidence"));
         assertTrue(transform.contains("not separate decisions"));
         assertTrue(transform.contains("Supporting lineup evidence"));
+        assertTrue(transform.contains("slot-placement comparison collapse"));
+        assertTrue(transform.contains("slot-placement-review"));
+        assertTrue(transform.contains("Slot placement evidence:"));
     }
 
     @Test
