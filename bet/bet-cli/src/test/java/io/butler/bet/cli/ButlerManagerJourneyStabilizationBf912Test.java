@@ -97,6 +97,18 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void playerCompareJourneyUsesFinalCompletedHierarchyCopy() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("'Side-by-side neutral evidence','Swap sides'"));
+        assertTrue(script.contains("Completed comparison"));
+        assertTrue(script.contains("Two exact rostered players are loaded side by side."));
+        assertTrue(script.contains("Compare different players"));
+        assertTrue(script.contains("Player Compare result"));
+        assertTrue(script.contains("Player Compare swapped"));
+    }
+
+    @Test
     void hiddenTechnicalProofDoesNotCountAsFirstScanLeakage() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
