@@ -27,7 +27,7 @@ try {
 
     foreach ($required in @(
         'Latest AutoFill recommends $managerMoveCount lineup $moveWord',
-        'Latest AutoFill found no lineup moves',
+        'Lineup review complete; no change proven',
         'these are not separate manager moves'
     )) {
         if ($dashboard.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
