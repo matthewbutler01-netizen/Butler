@@ -900,6 +900,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1005 BLOCKED: Matchup saved-review transform not found at $bf1005Transform"
     }
     & $bf1005Transform -CorePath $stagedCore
+
+    # BF-1011: final Lineup Review footer normalization runs after every
+    # manager-return transform so duplicate Matchup actions cannot survive.
+    $bf1011Transform = Join-Path $PSScriptRoot 'butler-app-bf1011-lineup-footer-return-dedup-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1011Transform -PathType Leaf)) {
+        throw "BF-1011 BLOCKED: Lineup Review footer normalization transform not found at $bf1011Transform"
+    }
+    & $bf1011Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
