@@ -84,6 +84,19 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void playerDetailJourneyUsesPositionAwareWaiverAction() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("'Open Trade Analyzer','Check Waiver Board','Back to My Team'"));
+        assertTrue(script.contains("$playerPositionMatch = [regex]::Match($morePositionHref"));
+        assertTrue(script.contains("@('QB','RB','WR','TE') -ccontains $playerPosition"));
+        assertTrue(script.contains("Player Detail did not expose the exact $playerPosition-focused Waiver Board action."));
+        assertTrue(script.contains("Player Detail position Waiver Board"));
+        assertTrue(script.contains("Position focus: $playerPosition"));
+        assertTrue(script.contains("Player Detail did not expose the generic Waiver Board fallback action."));
+    }
+
+    @Test
     void hiddenTechnicalProofDoesNotCountAsFirstScanLeakage() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
