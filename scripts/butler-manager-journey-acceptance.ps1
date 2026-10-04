@@ -290,7 +290,7 @@ function Assert-PrimaryNavigation {
         'href="/waivers">Waiver Board</a>',
         'href="/league">League</a>',
         'href="/trade">Trade Analyzer</a>',
-        'href="/history">History</a>'
+        'href="/history?load=1">History</a>'
     )) {
         if ($Html.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
             throw "BF-912 FAILED: $Stage is missing primary navigation marker: $marker"
