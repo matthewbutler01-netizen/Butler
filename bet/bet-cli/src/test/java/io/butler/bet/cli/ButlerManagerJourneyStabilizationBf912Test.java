@@ -45,10 +45,13 @@ class ButlerManagerJourneyStabilizationBf912Test {
                 "href=\"/waivers\">Waiver Board</a>",
                 "href=\"/league\">League</a>",
                 "href=\"/trade\">Trade Analyzer</a>",
-                "href=\"/history\">History</a>"
+                "href=\"/history?load=1\">History</a>"
         }) {
             assertTrue(script.contains(marker), "BF-912 nav contract missing " + marker);
         }
+
+        assertFalse(script.contains("href=\"/history\">History</a>"));
+        assertTrue(script.contains("href=\"/history?load=1\">History</a>"));
 
         for (String stage : new String[]{
                 "Dashboard",
@@ -62,6 +65,47 @@ class ButlerManagerJourneyStabilizationBf912Test {
             assertTrue(script.contains("Assert-PrimaryNavigation -Html"), "BF-912 primary nav assertion missing");
             assertTrue(script.contains("-Stage '" + stage + "'"), "BF-912 nav stage missing " + stage);
         }
+    }
+
+    @Test
+    void matchupConsistencyUsesFinalGovernedPairingStates() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("$matchup.Body.IndexOf('Your opponent is confirmed.'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Matchup evidence'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('View opponent context'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Scout opponent'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Trade with opponent'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Opponent not confirmed'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('MATCHUP DATA NEEDED'"));
+        assertTrue(script.contains("$dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED'"));
+        assertTrue(script.contains("$dashboardMatchupCard.Value.IndexOf('MATCHUP DATA NEEDED'"));
+        assertTrue(script.contains("Dashboard matchup confirmation disagrees with Weekly Matchup."));
+    }
+
+    @Test
+    void playerDetailJourneyUsesPositionAwareWaiverAction() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("'Open Trade Analyzer','Check Waiver Board','Back to My Team'"));
+        assertTrue(script.contains("$playerPositionMatch = [regex]::Match($morePositionHref"));
+        assertTrue(script.contains("@('QB','RB','WR','TE') -ccontains $playerPosition"));
+        assertTrue(script.contains("Player Detail did not expose the exact $playerPosition-focused Waiver Board action."));
+        assertTrue(script.contains("Player Detail position Waiver Board"));
+        assertTrue(script.contains("Position focus: $playerPosition"));
+        assertTrue(script.contains("Player Detail did not expose the generic Waiver Board fallback action."));
+    }
+
+    @Test
+    void playerCompareJourneyUsesFinalCompletedHierarchyCopy() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("'Side-by-side neutral evidence','Swap sides'"));
+        assertTrue(script.contains("Completed comparison"));
+        assertTrue(script.contains("Two exact rostered players are loaded side by side."));
+        assertTrue(script.contains("Compare different players"));
+        assertTrue(script.contains("Player Compare result"));
+        assertTrue(script.contains("Player Compare swapped"));
     }
 
     @Test

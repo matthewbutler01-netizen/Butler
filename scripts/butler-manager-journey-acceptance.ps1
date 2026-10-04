@@ -290,7 +290,7 @@ function Assert-PrimaryNavigation {
         'href="/waivers">Waiver Board</a>',
         'href="/league">League</a>',
         'href="/trade">Trade Analyzer</a>',
-        'href="/history">History</a>'
+        'href="/history?load=1">History</a>'
     )) {
         if ($Html.IndexOf($marker, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
             throw "BF-912 FAILED: $Stage is missing primary navigation marker: $marker"
@@ -610,14 +610,32 @@ try {
     if (-not $dashboardMatchupCard.Success) {
         throw 'BF-912 FAILED: Dashboard weekly matchup card is missing.'
     }
-    $matchupConfirmed = $matchup.Body.IndexOf('Your opponent is confirmed.', [System.StringComparison]::Ordinal) -ge 0
-    $dashboardConfirmed = $dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::Ordinal) -ge 0
-    if ($matchupConfirmed -ne $dashboardConfirmed) {
+    # BF-1015: final Weekly Matchup confirmation is decision-first. BF-881
+    # removed the older sentence-based confirmation marker, so compare the
+    # governed confirmed/fail-closed surfaces that the manager actually sees.
+    $matchupConfirmed =
+        $matchup.Body.IndexOf('Matchup evidence', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('View opponent context', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Scout opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Trade with opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $matchupUnavailable =
+        $matchup.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('MATCHUP DATA NEEDED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $dashboardConfirmed = $dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $dashboardUnavailable = $dashboardMatchupCard.Value.IndexOf('MATCHUP DATA NEEDED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+
+    if ($matchupConfirmed -eq $matchupUnavailable) {
+        throw 'BF-912 FAILED: Weekly Matchup did not expose exactly one governed pairing state.'
+    }
+    if ($dashboardConfirmed -eq $dashboardUnavailable) {
+        throw 'BF-912 FAILED: Dashboard matchup card did not expose exactly one governed pairing state.'
+    }
+    if (($matchupConfirmed -and -not $dashboardConfirmed) -or ($matchupUnavailable -and -not $dashboardUnavailable)) {
         throw 'BF-912 FAILED: Dashboard matchup confirmation disagrees with Weekly Matchup.'
     }
     Write-Pass -Label 'Dashboard weekly matchup consistency'
 
-    $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
+    $matchupOpponentUnavailable = $matchupUnavailable
     if (-not $matchupOpponentUnavailable) {
         Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')
         Assert-Markers -Html $matchup.Body -Stage 'Matchup first-scan disclosure' -Markers @('View opponent context')
@@ -686,12 +704,36 @@ try {
             $directDiagnostic = Invoke-PlayerDetailDirectDiagnostic -PlayerHref $playerHref
             throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
         }
-        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Back to My Team','Player Search','READ ONLY')
         Assert-Markers -Html $player.Body -Stage 'Player Detail first-scan disclosure' -Markers @('View player evidence')
         $morePositionHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/players\?q=[^"]+)">Find more [^<]+</a>'
         if ([string]::IsNullOrWhiteSpace([string]$morePositionHref)) {
             throw 'BF-922 FAILED: Player Detail did not render an exact same-position Player Search shortcut.'
         }
+
+        $playerPositionMatch = [regex]::Match($morePositionHref, '(?:\?|&)q=(?<position>[^&]+)')
+        if (-not $playerPositionMatch.Success) {
+            throw 'BF-963 FAILED: Player Detail same-position shortcut did not expose a parseable position.'
+        }
+        $playerPosition = [System.Uri]::UnescapeDataString($playerPositionMatch.Groups['position'].Value).Trim().ToUpperInvariant()
+        if (@('QB','RB','WR','TE') -ccontains $playerPosition) {
+            $playerWaiverHref = Get-FirstSafeHref -Html $player.Body -Pattern ('href="(?<href>/waivers\?position=' + [regex]::Escape($playerPosition) + ')">Check ' + [regex]::Escape($playerPosition) + ' waivers</a>')
+            if ([string]::IsNullOrWhiteSpace([string]$playerWaiverHref)) {
+                throw "BF-963 FAILED: Player Detail did not expose the exact $playerPosition-focused Waiver Board action."
+            }
+            $playerWaivers = Invoke-Get -Url ($root + $playerWaiverHref) -TimeoutMs $timeoutMs
+            Assert-Status -Response $playerWaivers -Expected 200 -Stage 'Player Detail position Waiver Board'
+            Assert-Markers -Html $playerWaivers.Body -Stage 'Player Detail position Waiver Board' -Markers @('Butler waiver decision','Position focus',("Position focus: $playerPosition"),'NOT A RANKING.','READ ONLY')
+            Assert-NoRawDeveloperFailure -Html $playerWaivers.Body -Stage 'Player Detail position Waiver Board'
+            Write-Pass -Label 'Player Detail position Waiver Board'
+        }
+        else {
+            $playerWaiverHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/waivers)">Check Waiver Board</a>'
+            if ([string]::IsNullOrWhiteSpace([string]$playerWaiverHref)) {
+                throw 'BF-963 FAILED: Player Detail did not expose the generic Waiver Board fallback action.'
+            }
+        }
+
         $positionSearch = Invoke-Get -Url ($root + $morePositionHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $positionSearch -Expected 200 -Stage 'Player position discovery'
         Assert-Markers -Html $positionSearch.Body -Stage 'Player position discovery' -Markers @('Find a rostered player','Search results','Rostered players','Compare this player','Scout franchise','READ ONLY')
@@ -726,7 +768,7 @@ try {
         }
         $compareResult = Invoke-Get -Url ($root + $compareResultHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $compareResult -Expected 200 -Stage 'Player Compare result'
-        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Completed comparison','Two exact rostered players are loaded side by side.','Compare different players','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $compareResult.Body -Stage 'Player Compare result'
 
         $swapHref = Get-FirstSafeHref -Html $compareResult.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&right=[^"]+)">Swap sides</a>'
@@ -735,7 +777,7 @@ try {
         }
         $swappedCompare = Invoke-Get -Url ($root + $swapHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $swappedCompare -Expected 200 -Stage 'Player Compare swapped'
-        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Completed comparison','Two exact rostered players are loaded side by side.','Compare different players','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $swappedCompare.Body -Stage 'Player Compare swapped'
         Write-Pass -Label 'Player Compare workflow'
 
