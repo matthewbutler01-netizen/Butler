@@ -610,14 +610,32 @@ try {
     if (-not $dashboardMatchupCard.Success) {
         throw 'BF-912 FAILED: Dashboard weekly matchup card is missing.'
     }
-    $matchupConfirmed = $matchup.Body.IndexOf('Your opponent is confirmed.', [System.StringComparison]::Ordinal) -ge 0
-    $dashboardConfirmed = $dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::Ordinal) -ge 0
-    if ($matchupConfirmed -ne $dashboardConfirmed) {
+    # BF-1015: final Weekly Matchup confirmation is decision-first. BF-881
+    # removed the older sentence-based confirmation marker, so compare the
+    # governed confirmed/fail-closed surfaces that the manager actually sees.
+    $matchupConfirmed =
+        $matchup.Body.IndexOf('Matchup evidence', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('View opponent context', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Scout opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Trade with opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $matchupUnavailable =
+        $matchup.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('MATCHUP DATA NEEDED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $dashboardConfirmed = $dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    $dashboardUnavailable = $dashboardMatchupCard.Value.IndexOf('MATCHUP DATA NEEDED', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+
+    if ($matchupConfirmed -eq $matchupUnavailable) {
+        throw 'BF-912 FAILED: Weekly Matchup did not expose exactly one governed pairing state.'
+    }
+    if ($dashboardConfirmed -eq $dashboardUnavailable) {
+        throw 'BF-912 FAILED: Dashboard matchup card did not expose exactly one governed pairing state.'
+    }
+    if (($matchupConfirmed -and -not $dashboardConfirmed) -or ($matchupUnavailable -and -not $dashboardUnavailable)) {
         throw 'BF-912 FAILED: Dashboard matchup confirmation disagrees with Weekly Matchup.'
     }
     Write-Pass -Label 'Dashboard weekly matchup consistency'
 
-    $matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete', [System.StringComparison]::Ordinal) -ge 0
+    $matchupOpponentUnavailable = $matchupUnavailable
     if (-not $matchupOpponentUnavailable) {
         Assert-Markers -Html $matchup.Body -Stage 'Matchup opponent actions' -Markers @('Scout opponent','Trade with opponent')
         Assert-Markers -Html $matchup.Body -Stage 'Matchup first-scan disclosure' -Markers @('View opponent context')
