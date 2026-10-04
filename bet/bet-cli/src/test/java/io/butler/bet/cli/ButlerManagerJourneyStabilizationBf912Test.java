@@ -45,10 +45,13 @@ class ButlerManagerJourneyStabilizationBf912Test {
                 "href=\"/waivers\">Waiver Board</a>",
                 "href=\"/league\">League</a>",
                 "href=\"/trade\">Trade Analyzer</a>",
-                "href=\"/history\">History</a>"
+                "href=\"/history?load=1\">History</a>"
         }) {
             assertTrue(script.contains(marker), "BF-912 nav contract missing " + marker);
         }
+
+        assertFalse(script.contains("href=\"/history\">History</a>"));
+        assertTrue(script.contains("href=\"/history?load=1\">History</a>"));
 
         for (String stage : new String[]{
                 "Dashboard",
