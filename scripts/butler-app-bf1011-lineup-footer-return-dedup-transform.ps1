@@ -19,40 +19,48 @@ if ($functionStart -lt 0 -or $functionEnd -le $functionStart) {
 }
 
 $function = $core.Substring($functionStart, $functionEnd - $functionStart)
+$refreshAnchor = '<a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a>'
+$dashboardAnchor = '<a class=`"btn btn-secondary`" href=`"/`">Back to Dashboard</a>'
 $matchupAnchor = '<a class=`"btn btn-secondary`" href=`"/matchup`">Back to Matchup</a>'
 $teamAnchor = '<a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a>'
-$dashboardAnchor = '<a class=`"btn btn-secondary`" href=`"/`">Back to Dashboard</a>'
-$refreshAnchor = '<a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a>'
+$buttonRowStart = '<div class=`"button-row`">'
+$buttonRowEnd = '</div>'
 
-$matchupCount = [regex]::Matches($function, [regex]::Escape($matchupAnchor)).Count
-$teamCount = [regex]::Matches($function, [regex]::Escape($teamAnchor)).Count
-$dashboardCount = [regex]::Matches($function, [regex]::Escape($dashboardAnchor)).Count
 $refreshCount = [regex]::Matches($function, [regex]::Escape($refreshAnchor)).Count
-
-if ($dashboardCount -ne 1 -or $refreshCount -ne 1) {
-    throw "BF-1011 BLOCKED: expected one Dashboard and one Refresh projection return action; found dashboard=$dashboardCount refresh=$refreshCount."
+if ($refreshCount -ne 1) {
+    throw "BF-1011 BLOCKED: expected one completed Lineup Review Refresh projection action, found $refreshCount."
 }
 
-if ($matchupCount -eq 2 -and $teamCount -eq 0) {
-    $lastMatchup = $function.LastIndexOf($matchupAnchor, [System.StringComparison]::Ordinal)
-    if ($lastMatchup -lt 0) {
-        throw 'BF-1011 BLOCKED: duplicate Matchup return could not be located.'
+$refreshIndex = $function.IndexOf($refreshAnchor, [System.StringComparison]::Ordinal)
+$footerStart = $function.LastIndexOf($buttonRowStart, $refreshIndex, [System.StringComparison]::Ordinal)
+if ($footerStart -lt 0) {
+    throw 'BF-1011 BLOCKED: completed Lineup Review footer start was not found.'
+}
+$footerEnd = $function.IndexOf($buttonRowEnd, $refreshIndex, [System.StringComparison]::Ordinal)
+if ($footerEnd -lt 0 -or $footerEnd -le $footerStart) {
+    throw 'BF-1011 BLOCKED: completed Lineup Review footer end was not found.'
+}
+$footerEnd += $buttonRowEnd.Length
+
+$existingFooter = $function.Substring($footerStart, $footerEnd - $footerStart)
+$canonicalFooter = $buttonRowStart + $refreshAnchor + $dashboardAnchor + $matchupAnchor + $teamAnchor + $buttonRowEnd
+$function = $function.Substring(0, $footerStart) + $canonicalFooter + $function.Substring($footerEnd)
+
+$installedFooter = $function.Substring($footerStart, $canonicalFooter.Length)
+foreach ($expected in @(
+    [pscustomobject]@{ Label = 'Refresh projection'; Marker = $refreshAnchor },
+    [pscustomobject]@{ Label = 'Back to Dashboard'; Marker = $dashboardAnchor },
+    [pscustomobject]@{ Label = 'Back to Matchup'; Marker = $matchupAnchor },
+    [pscustomobject]@{ Label = 'Back to My Team'; Marker = $teamAnchor }
+)) {
+    $count = [regex]::Matches($installedFooter, [regex]::Escape($expected.Marker)).Count
+    if ($count -ne 1) {
+        throw "BF-1011 BLOCKED: canonical footer expected one $($expected.Label) action, found $count."
     }
-    $function = $function.Substring(0, $lastMatchup) + $teamAnchor + $function.Substring($lastMatchup + $matchupAnchor.Length)
-}
-elseif ($matchupCount -eq 1 -and $teamCount -eq 1) {
-    # Canonical return set already present.
-}
-else {
-    throw "BF-1011 BLOCKED: unexpected Lineup Review return set; matchup=$matchupCount team=$teamCount."
 }
 
-$finalMatchupCount = [regex]::Matches($function, [regex]::Escape($matchupAnchor)).Count
-$finalTeamCount = [regex]::Matches($function, [regex]::Escape($teamAnchor)).Count
-$finalDashboardCount = [regex]::Matches($function, [regex]::Escape($dashboardAnchor)).Count
-$finalRefreshCount = [regex]::Matches($function, [regex]::Escape($refreshAnchor)).Count
-if ($finalMatchupCount -ne 1 -or $finalTeamCount -ne 1 -or $finalDashboardCount -ne 1 -or $finalRefreshCount -ne 1) {
-    throw "BF-1011 BLOCKED: canonical Lineup Review footer was not established."
+if ($installedFooter -cne $canonicalFooter) {
+    throw 'BF-1011 BLOCKED: canonical Lineup Review footer order was not established.'
 }
 
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
