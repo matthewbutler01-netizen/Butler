@@ -704,12 +704,36 @@ try {
             $directDiagnostic = Invoke-PlayerDetailDirectDiagnostic -PlayerHref $playerHref
             throw "BF-885 FAILED: Player Detail returned HTTP $($player.StatusCode), expected 200. $directDiagnostic"
         }
-        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')
+        Assert-Markers -Html $player.Body -Stage 'Player Detail' -Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Back to My Team','Player Search','READ ONLY')
         Assert-Markers -Html $player.Body -Stage 'Player Detail first-scan disclosure' -Markers @('View player evidence')
         $morePositionHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/players\?q=[^"]+)">Find more [^<]+</a>'
         if ([string]::IsNullOrWhiteSpace([string]$morePositionHref)) {
             throw 'BF-922 FAILED: Player Detail did not render an exact same-position Player Search shortcut.'
         }
+
+        $playerPositionMatch = [regex]::Match($morePositionHref, '(?:\?|&)q=(?<position>[^&]+)')
+        if (-not $playerPositionMatch.Success) {
+            throw 'BF-963 FAILED: Player Detail same-position shortcut did not expose a parseable position.'
+        }
+        $playerPosition = [System.Uri]::UnescapeDataString($playerPositionMatch.Groups['position'].Value).Trim().ToUpperInvariant()
+        if (@('QB','RB','WR','TE') -ccontains $playerPosition) {
+            $playerWaiverHref = Get-FirstSafeHref -Html $player.Body -Pattern ('href="(?<href>/waivers\?position=' + [regex]::Escape($playerPosition) + ')">Check ' + [regex]::Escape($playerPosition) + ' waivers</a>')
+            if ([string]::IsNullOrWhiteSpace([string]$playerWaiverHref)) {
+                throw "BF-963 FAILED: Player Detail did not expose the exact $playerPosition-focused Waiver Board action."
+            }
+            $playerWaivers = Invoke-Get -Url ($root + $playerWaiverHref) -TimeoutMs $timeoutMs
+            Assert-Status -Response $playerWaivers -Expected 200 -Stage 'Player Detail position Waiver Board'
+            Assert-Markers -Html $playerWaivers.Body -Stage 'Player Detail position Waiver Board' -Markers @('Butler waiver decision','Position focus',("Position focus: $playerPosition"),'NOT A RANKING.','READ ONLY')
+            Assert-NoRawDeveloperFailure -Html $playerWaivers.Body -Stage 'Player Detail position Waiver Board'
+            Write-Pass -Label 'Player Detail position Waiver Board'
+        }
+        else {
+            $playerWaiverHref = Get-FirstSafeHref -Html $player.Body -Pattern 'href="(?<href>/waivers)">Check Waiver Board</a>'
+            if ([string]::IsNullOrWhiteSpace([string]$playerWaiverHref)) {
+                throw 'BF-963 FAILED: Player Detail did not expose the generic Waiver Board fallback action.'
+            }
+        }
+
         $positionSearch = Invoke-Get -Url ($root + $morePositionHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $positionSearch -Expected 200 -Stage 'Player position discovery'
         Assert-Markers -Html $positionSearch.Body -Stage 'Player position discovery' -Markers @('Find a rostered player','Search results','Rostered players','Compare this player','Scout franchise','READ ONLY')
