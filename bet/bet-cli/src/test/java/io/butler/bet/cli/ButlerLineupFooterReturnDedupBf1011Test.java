@@ -23,16 +23,27 @@ class ButlerLineupFooterReturnDedupBf1011Test {
     }
 
     @Test
-    void transformCanonicalizesExactlyOneManagerReturnPerDestination() throws Exception {
+    void transformScopesCanonicalizationToCompletedFooter() throws Exception {
         String transform = source("scripts/butler-app-bf1011-lineup-footer-return-dedup-transform.ps1");
 
-        assertTrue(transform.contains("$matchupCount -eq 2 -and $teamCount -eq 0"));
+        assertTrue(transform.contains("$refreshCount -ne 1"));
+        assertTrue(transform.contains("$function.LastIndexOf($buttonRowStart, $refreshIndex"));
+        assertTrue(transform.contains("$function.IndexOf($buttonRowEnd, $refreshIndex"));
+        assertTrue(transform.contains("$canonicalFooter = $buttonRowStart + $refreshAnchor + $dashboardAnchor + $matchupAnchor + $teamAnchor + $buttonRowEnd"));
         assertTrue(transform.contains("Back to Dashboard"));
         assertTrue(transform.contains("Back to Matchup"));
         assertTrue(transform.contains("Back to My Team"));
         assertTrue(transform.contains("Refresh projection"));
-        assertTrue(transform.contains("$finalMatchupCount -ne 1"));
-        assertTrue(transform.contains("$finalTeamCount -ne 1"));
+        assertTrue(transform.contains("$installedFooter -cne $canonicalFooter"));
+    }
+
+    @Test
+    void acceptanceChecksOnlyTheCompletedFooterRow() throws Exception {
+        String acceptance = source("scripts/butler-bf1011-lineup-footer-return-dedup-acceptance.ps1");
+
+        assertTrue(acceptance.contains("$footer = $function.Substring($footerStart, $footerEnd - $footerStart)"));
+        assertTrue(acceptance.contains("$canonical = $buttonRowStart + $refresh + $dashboard + $matchup + $team + $buttonRowEnd"));
+        assertTrue(acceptance.contains("$footer -cne $canonical"));
     }
 
     @Test
