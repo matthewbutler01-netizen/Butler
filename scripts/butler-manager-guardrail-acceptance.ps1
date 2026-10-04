@@ -326,8 +326,8 @@ try {
         'Lineup advisor',
         'READ ONLY.'
     )
-    # Final confirmed-pairing presentation is decision-first: the old
-    # "Your opponent is confirmed." sentence was removed by BF-881.
+    # Final confirmed-pairing presentation is decision-first; BF-881 removed
+    # the earlier sentence-based confirmation marker.
     # Detect the current governed confirmed state through the exact evidence
     # and opponent-action surface that is only rendered for a proven pairing.
     $verifiedPairing =
