@@ -46,7 +46,10 @@ class ButlerManagerGuardrailBf844Test {
                 "href=\"/matchup/autofill\"",
                 "Weekly matchup",
                 "Lineup advisor",
-                "Your opponent is confirmed.",
+                "Matchup evidence",
+                "View opponent context",
+                "Scout opponent",
+                "Trade with opponent",
                 "Opponent not confirmed",
                 "Butler waiver decision",
                 "Next step",
@@ -67,6 +70,20 @@ class ButlerManagerGuardrailBf844Test {
         }
 
         assertTrue(cmd.contains("butler-manager-guardrail-acceptance.ps1"));
+    }
+
+    @Test
+    void matchupGuardrailUsesFinalConfirmedPairingSurface() throws Exception {
+        String script = source("scripts/butler-manager-guardrail-acceptance.ps1");
+
+        assertFalse(script.contains("$matchup.Body.IndexOf('Your opponent is confirmed.'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Matchup evidence'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('View opponent context'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Scout opponent'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Trade with opponent'"));
+        assertTrue(script.contains("Weekly Matchup fail-closed pairing"));
+        assertTrue(script.contains("Opponent not confirmed"));
+        assertTrue(script.contains("MATCHUP DATA NEEDED"));
     }
 
     @Test

@@ -326,16 +326,24 @@ try {
         'Lineup advisor',
         'READ ONLY.'
     )
-    $verifiedPairing = $matchup.Body.IndexOf('Your opponent is confirmed.', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    # Final confirmed-pairing presentation is decision-first; BF-881 removed
+    # the earlier sentence-based confirmation marker.
+    # Detect the current governed confirmed state through the exact evidence
+    # and opponent-action surface that is only rendered for a proven pairing.
+    $verifiedPairing =
+        $matchup.Body.IndexOf('Matchup evidence', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('View opponent context', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Scout opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $matchup.Body.IndexOf('Trade with opponent', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     $unavailablePairing = $matchup.Body.IndexOf('Opponent not confirmed', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $verifiedPairing -and -not $unavailablePairing) {
         throw 'BF-844 BLOCKED: Weekly Matchup exposed neither verified pairing nor the governed fail-closed pairing state.'
     }
     if ($verifiedPairing) {
-        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Matchup evidence','View opponent context','<details')
+        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup verified pairing' -Markers @('Matchup evidence','View opponent context','Scout opponent','Trade with opponent','<details')
     }
     else {
-        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup fail-closed pairing' -Markers @('MATCHUP DATA NEEDED')
+        Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup fail-closed pairing' -Markers @('Opponent not confirmed','MATCHUP DATA NEEDED')
     }
     Assert-NoBettingPressure -Html $matchup.Body -Stage 'Weekly Matchup'
     Assert-DesktopSurface -Html $matchup.Body -Stage 'Weekly Matchup desktop surface'
