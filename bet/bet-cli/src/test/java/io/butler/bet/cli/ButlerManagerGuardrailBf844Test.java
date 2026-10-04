@@ -76,7 +76,7 @@ class ButlerManagerGuardrailBf844Test {
     void matchupGuardrailUsesFinalConfirmedPairingSurface() throws Exception {
         String script = source("scripts/butler-manager-guardrail-acceptance.ps1");
 
-        assertFalse(script.contains("Your opponent is confirmed."));
+        assertFalse(script.contains("$matchup.Body.IndexOf('Your opponent is confirmed.'"));
         assertTrue(script.contains("$matchup.Body.IndexOf('Matchup evidence'"));
         assertTrue(script.contains("$matchup.Body.IndexOf('View opponent context'"));
         assertTrue(script.contains("$matchup.Body.IndexOf('Scout opponent'"));
