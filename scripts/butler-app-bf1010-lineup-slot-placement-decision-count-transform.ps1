@@ -164,6 +164,38 @@ $queueNew = @'
 
 $function = Replace-ExactlyOnce -Text $function -Old $queueOld.TrimEnd() -New $queueNew.TrimEnd() -Contract 'context-only lineup evidence disclosure'
 
+$comparisonRenderOld = @'
+        if ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') {
+            $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Bench comparison: $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
+        } else { $holdEvidenceHtml += $comparisonHtml }
+'@
+
+$comparisonRenderNew = @'
+        $slotPlacementReview = $false
+        if ($aggregateSlotPlacements) {
+            $matchingSlotAssignments = @($AutoFill.Assignments | Where-Object {
+                $_.Changed -and [string]$_.Ordinal -ceq [string]$review.ordinal
+            })
+            $slotPlacementReview = $matchingSlotAssignments.Count -eq 1
+        }
+        if ($slotPlacementReview) {
+            $comparisonId = "lineup-comparison-$reviewIndex"
+            $comparisonHtml = $comparisonHtml.Replace(
+                "id=`"$comparisonId`" tabindex=`"-1`" class=`"swap-review-card`"",
+                "class=`"swap-review-card slot-placement-review-body`""
+            )
+            $holdEvidenceHtml += "<details id=`"$comparisonId`" tabindex=`"-1`" class=`"swap-review-card slot-placement-review`"><summary>Slot placement evidence: $(ConvertTo-HtmlText $review.slot) - $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
+        }
+        elseif ([string]$review.status -ceq 'MANUAL_REVIEW_REPLACEMENT') {
+            $holdEvidenceHtml += "<details class=`"swap-review-card`"><summary>Bench comparison: $(ConvertTo-HtmlText $review.current) &rarr; $(ConvertTo-HtmlText $review.proposed)</summary>$comparisonHtml</details>"
+        }
+        else {
+            $holdEvidenceHtml += $comparisonHtml
+        }
+'@
+
+$function = Replace-ExactlyOnce -Text $function -Old $comparisonRenderOld.TrimEnd() -New $comparisonRenderNew.TrimEnd() -Contract 'internal slot-placement comparison collapse'
+
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
 
 foreach ($required in @(

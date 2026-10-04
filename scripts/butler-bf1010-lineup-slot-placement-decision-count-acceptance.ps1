@@ -100,6 +100,13 @@ Projection holds:
     if ($slotOnly -match '<strong>Manager move 1</strong>') {
         throw 'BF-1010 must not invent a manager move when promotion/bench summaries are empty.'
     }
+    if ($slotOnly -notmatch '<details id="lineup-comparison-0"[^>]*class="swap-review-card slot-placement-review">.*Slot placement evidence: WR - Emeka Egbuka &rarr; Jauan Jennings' -or
+        $slotOnly -notmatch '<details id="lineup-comparison-1"[^>]*class="swap-review-card slot-placement-review">.*Slot placement evidence: FLEX - Jauan Jennings &rarr; Emeka Egbuka') {
+        throw 'BF-1012 must collapse both internal WR/FLEX comparison cards behind slot-placement evidence summaries.'
+    }
+    if ($slotOnly -match '<section id="lineup-comparison-(0|1)"') {
+        throw 'BF-1012 internal slot-placement comparisons must not remain expanded standalone sections.'
+    }
 
     $parsed.Promotions = @([pscustomobject]@{ Name = 'Jauan Jennings' })
     $parsed.BenchMoves = @([pscustomobject]@{ Name = 'Emeka Egbuka' })
