@@ -68,6 +68,22 @@ class ButlerManagerJourneyStabilizationBf912Test {
     }
 
     @Test
+    void matchupConsistencyUsesFinalGovernedPairingStates() throws Exception {
+        String script = source("scripts/butler-manager-journey-acceptance.ps1");
+
+        assertFalse(script.contains("$matchup.Body.IndexOf('Your opponent is confirmed.'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Matchup evidence'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('View opponent context'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Scout opponent'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Trade with opponent'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('Opponent not confirmed'"));
+        assertTrue(script.contains("$matchup.Body.IndexOf('MATCHUP DATA NEEDED'"));
+        assertTrue(script.contains("$dashboardMatchupCard.Value.IndexOf('OPPONENT CONFIRMED'"));
+        assertTrue(script.contains("$dashboardMatchupCard.Value.IndexOf('MATCHUP DATA NEEDED'"));
+        assertTrue(script.contains("Dashboard matchup confirmation disagrees with Weekly Matchup."));
+    }
+
+    @Test
     void hiddenTechnicalProofDoesNotCountAsFirstScanLeakage() throws Exception {
         String script = source("scripts/butler-manager-journey-acceptance.ps1");
 
