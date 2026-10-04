@@ -768,7 +768,7 @@ try {
         }
         $compareResult = Invoke-Get -Url ($root + $compareResultHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $compareResult -Expected 200 -Stage 'Player Compare result'
-        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $compareResult.Body -Stage 'Player Compare result' -Markers @('Completed comparison','Two exact rostered players are loaded side by side.','Compare different players','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $compareResult.Body -Stage 'Player Compare result'
 
         $swapHref = Get-FirstSafeHref -Html $compareResult.Body -Pattern 'href="(?<href>/compare\?left=[^"]+&right=[^"]+)">Swap sides</a>'
@@ -777,7 +777,7 @@ try {
         }
         $swappedCompare = Invoke-Get -Url ($root + $swapHref) -TimeoutMs $timeoutMs
         Assert-Status -Response $swappedCompare -Expected 200 -Stage 'Player Compare swapped'
-        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Side-by-side neutral evidence','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
+        Assert-Markers -Html $swappedCompare.Body -Stage 'Player Compare swapped' -Markers @('Completed comparison','Two exact rostered players are loaded side by side.','Compare different players','Swap sides','Compare with another ','View player evidence','Comparison evidence','READ ONLY')
         Assert-NoRawDeveloperFailure -Html $swappedCompare.Body -Stage 'Player Compare swapped'
         Write-Pass -Label 'Player Compare workflow'
 
