@@ -29,30 +29,35 @@ try {
     }
 
     $function = $functions[0].Extent.Text
-    $expected = @(
-        [pscustomobject]@{ Label = 'Refresh projection'; Marker = 'href=`"/team/autofill`">Refresh projection</a>' },
-        [pscustomobject]@{ Label = 'Back to Dashboard'; Marker = 'href=`"/`">Back to Dashboard</a>' },
-        [pscustomobject]@{ Label = 'Back to Matchup'; Marker = 'href=`"/matchup`">Back to Matchup</a>' },
-        [pscustomobject]@{ Label = 'Back to My Team'; Marker = 'href=`"/team`">Back to My Team</a>' }
-    )
+    $buttonRowStart = '<div class=`"button-row`">'
+    $buttonRowEnd = '</div>'
+    $refresh = '<a class=`"btn btn-secondary`" href=`"/team/autofill`">Refresh projection</a>'
+    $dashboard = '<a class=`"btn btn-secondary`" href=`"/`">Back to Dashboard</a>'
+    $matchup = '<a class=`"btn btn-secondary`" href=`"/matchup`">Back to Matchup</a>'
+    $team = '<a class=`"btn btn-secondary`" href=`"/team`">Back to My Team</a>'
 
-    $positions = @()
-    foreach ($item in $expected) {
-        $count = [regex]::Matches($function, [regex]::Escape($item.Marker)).Count
-        if ($count -ne 1) {
-            throw "BF-1011 expected exactly one $($item.Label) footer action, found $count."
-        }
-        $positions += $function.IndexOf($item.Marker, [System.StringComparison]::Ordinal)
+    $refreshCount = [regex]::Matches($function, [regex]::Escape($refresh)).Count
+    if ($refreshCount -ne 1) {
+        throw "BF-1011 expected one completed Refresh projection action, found $refreshCount."
     }
 
-    for ($i = 1; $i -lt $positions.Count; $i++) {
-        if ($positions[$i] -le $positions[$i - 1]) {
-            throw 'BF-1011 canonical footer action order was not preserved.'
-        }
+    $refreshIndex = $function.IndexOf($refresh, [System.StringComparison]::Ordinal)
+    $footerStart = $function.LastIndexOf($buttonRowStart, $refreshIndex, [System.StringComparison]::Ordinal)
+    $footerEnd = $function.IndexOf($buttonRowEnd, $refreshIndex, [System.StringComparison]::Ordinal)
+    if ($footerStart -lt 0 -or $footerEnd -lt 0 -or $footerEnd -le $footerStart) {
+        throw 'BF-1011 completed Lineup Review footer could not be isolated.'
+    }
+    $footerEnd += $buttonRowEnd.Length
+    $footer = $function.Substring($footerStart, $footerEnd - $footerStart)
+
+    $canonical = $buttonRowStart + $refresh + $dashboard + $matchup + $team + $buttonRowEnd
+    if ($footer -cne $canonical) {
+        throw "BF-1011 completed Lineup Review footer is not canonical.`nACTUAL:`n$footer"
     }
 
-    if ([regex]::Matches($function, [regex]::Escape('Back to Matchup')).Count -ne 1) {
-        throw 'BF-1011 duplicate Back to Matchup label remains in Lineup Review.'
+    if ([regex]::Matches($footer, [regex]::Escape('Back to Matchup')).Count -ne 1 -or
+        [regex]::Matches($footer, [regex]::Escape('Back to My Team')).Count -ne 1) {
+        throw 'BF-1011 completed footer still contains duplicate destination labels.'
     }
 
     Write-Host 'BF-1011 LINEUP FOOTER RETURN DEDUP: PASS'
