@@ -344,37 +344,119 @@ function Add-ButlerAccessibility {
 
     # Apply once at the public HTML boundary, after all page-specific styling.
     if ($Html.Contains('id="butler-accessibility-style"')) { return $Html }
-    $result = [regex]::Replace($Html, '(?i)<html(?![^>]*\blang\s*=)([^>]*)>', '<html lang="en"$1>')
-    $nav = [regex]::Match($result, '(?is)<nav\b[^>]*aria-label="Butler sections"[^>]*>.*?</nav>')
+    $result = [regex]::Replace($Html, '(?i)<html(?![^>]*\\blang\\s*=)([^>]*)>', '<html lang="en"$1>')
+    $nav = [regex]::Match($result, '(?is)<nav\\b[^>]*aria-label="Butler sections"[^>]*>.*?</nav>')
     if (-not $nav.Success) { return $result }
 
-    $navigation = [regex]::Replace($nav.Value, '<a\b[^>]*>', [System.Text.RegularExpressions.MatchEvaluator]{
+    $navigation = [regex]::Replace($nav.Value, '<a\\b[^>]*>', [System.Text.RegularExpressions.MatchEvaluator]{
         param($link)
-        if ($link.Value -match 'class="[^"]*\bactive\b[^"]*"' -and $link.Value -notmatch '\baria-current=') {
+        if ($link.Value -match 'class="[^"]*\\bactive\\b[^"]*"' -and $link.Value -notmatch '\\baria-current=') {
             return $link.Value.Insert(2, ' aria-current="page"')
         }
         return $link.Value
     })
+
+    # BF-1016: My Team already owns the original Playbook rail with its
+    # page-local section jumps. Every other manager surface receives the same
+    # Playbook navigation shell here at the final public HTML boundary.
+    $hasTeamWorkspace = $result.IndexOf('aria-label="Team workspace"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if (-not $hasTeamWorkspace) {
+        $currentMatch = [regex]::Match($navigation, '(?is)<a\\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
+        $currentLabel = if ($currentMatch.Success) {
+            [System.Net.WebUtility]::HtmlDecode($currentMatch.Groups['label'].Value).Trim()
+        }
+        else { '' }
+
+        $targetMatch = [regex]::Match($result, '(?is)<(?:div|header)\\b[^>]*class="[^"]*\\btarget\\b[^"]*"[^>]*>(?<target>.*?)</(?:div|header)>')
+        $targetText = ''
+        if ($targetMatch.Success) {
+            $targetText = [regex]::Replace($targetMatch.Groups['target'].Value, '<[^>]+>', ' ')
+            $targetText = [System.Net.WebUtility]::HtmlDecode($targetText)
+            $targetText = [regex]::Replace($targetText, '\\s+', ' ').Trim()
+        }
+
+        $playbookContext = 'Manager tools'
+        $rosterContext = [regex]::Match($targetText, '(?i)(?:^|[·|])\\s*(?<team>[^|·]+?)\\s*\\|\\s*roster\\s+\\d+\\b')
+        if ($rosterContext.Success) {
+            $playbookContext = $rosterContext.Groups['team'].Value.Trim()
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($targetText) -and
+                $targetText.Length -le 52 -and
+                $targetText -notmatch '(?i)^Request stopped safely$|[0-9a-f]{8}-[0-9a-f]{4}-') {
+            $playbookContext = $targetText
+        }
+        $safePlaybookContext = [System.Net.WebUtility]::HtmlEncode($playbookContext)
+
+        $makeLink = {
+            param([string]$Href, [string]$Label, [string]$ExtraClass)
+            $classes = New-Object System.Collections.Generic.List[string]
+            if (-not [string]::IsNullOrWhiteSpace($ExtraClass)) { $classes.Add($ExtraClass) }
+            $isCurrent = $currentLabel -ceq $Label
+            if ($isCurrent) { $classes.Add('active') }
+            $classAttr = if ($classes.Count -gt 0) { ' class="' + ($classes -join ' ') + '"' } else { '' }
+            $currentAttr = if ($isCurrent) { ' aria-current="page"' } else { '' }
+            return '<a' + $classAttr + $currentAttr + ' href="' + $Href + '">' + $Label + '</a>'
+        }
+
+        $playbook = @(
+            '<aside class="manager-playbook" aria-label="Butler sections">',
+            '<div class="playbook-title">MY PLAYBOOK</div>',
+            ('<div class="playbook-team">' + $safePlaybookContext + '</div>'),
+            (& $makeLink '/' 'Dashboard' ''),
+            (& $makeLink '/team' 'My Team' ''),
+            '<div class="playbook-label">THIS WEEK</div>',
+            (& $makeLink '/matchup' 'Matchup' ''),
+            (& $makeLink '/matchup/autofill' 'Lineup review' 'playbook-lineup'),
+            (& $makeLink '/waivers' 'Waiver Board' ''),
+            '<div class="playbook-label">EXPLORE</div>',
+            (& $makeLink '/players' 'Player Search' ''),
+            (& $makeLink '/compare' 'Player Compare' ''),
+            (& $makeLink '/league' 'League' ''),
+            (& $makeLink '/trade' 'Trade Analyzer' ''),
+            (& $makeLink '/history?load=1' 'History' ''),
+            '</aside>'
+        ) -join ''
+
+        $navigation = $playbook
+    }
+
     $result = $result.Remove($nav.Index, $nav.Length).Insert($nav.Index, $navigation)
+
+    if (-not $hasTeamWorkspace) {
+        $result = [regex]::Replace(
+            $result,
+            '(?i)<main\\b(?<before>[^>]*\\bclass=")(?<classes>[^"]*\\bshell\\b[^"]*)"',
+            [System.Text.RegularExpressions.MatchEvaluator]{
+                param($main)
+                $classes = $main.Groups['classes'].Value
+                if ($classes -notmatch '(?:^|\\s)playbook-shell(?:\\s|$)') {
+                    $classes += ' playbook-shell'
+                }
+                return '<main' + $main.Groups['before'].Value + $classes + '"'
+            },
+            1
+        )
+    }
 
     # Focus the first content panel, beyond the repeated brand and navigation.
     # Retain an existing fragment id so links into that panel keep working.
     # Dashboard inserts a hidden recovery contract immediately after nav.
     # Skip that diagnostic markup and land on the first visible content section.
-    $afterNav = $nav.Index + $navigation.Length
-    $content = [regex]::Match($result.Substring($afterNav), '(?is)<section\b(?![^>]*\bhidden\b)(?<attrs>[^>]*)>')
+    $navigationElement = [regex]::Match($result, '(?is)<(?:nav|aside)\\b[^>]*aria-label="Butler sections"[^>]*>.*?</(?:nav|aside)>')
+    $afterNav = if ($navigationElement.Success) { $navigationElement.Index + $navigationElement.Length } else { 0 }
+    $content = [regex]::Match($result.Substring($afterNav), '(?is)<section\\b(?![^>]*\\bhidden\\b)(?<attrs>[^>]*)>')
     if ($content.Success) {
         $opening = $content.Value
-        $id = [regex]::Match($content.Groups['attrs'].Value, '\bid="(?<id>[^"]+)"')
+        $id = [regex]::Match($content.Groups['attrs'].Value, '\\bid="(?<id>[^"]+)"')
         $target = 'butler-main-content'
         if ($id.Success) { $target = $id.Groups['id'].Value }
         else { $opening = $opening.Insert($opening.Length - 1, ' id="butler-main-content"') }
-        if ($content.Groups['attrs'].Value -notmatch '\btabindex=') {
+        if ($content.Groups['attrs'].Value -notmatch '\\btabindex=') {
             $opening = $opening.Insert($opening.Length - 1, ' tabindex="-1"')
         }
         $contentIndex = $afterNav + $content.Index
         $result = $result.Remove($contentIndex, $content.Length).Insert($contentIndex, $opening)
-        $body = [regex]::Match($result, '(?i)<body\b[^>]*>')
+        $body = [regex]::Match($result, '(?i)<body\\b[^>]*>')
         if ($body.Success) {
             $result = $result.Insert($body.Index + $body.Length, '<a class="butler-skip-link" href="#' + $target + '">Skip to main content</a>')
         }
@@ -384,6 +466,26 @@ function Add-ButlerAccessibility {
 .butler-skip-link{position:fixed;left:12px;top:12px;transform:translateY(-200%);z-index:10000;padding:12px 16px;background:#fff;color:#111315;font:700 16px Arial,sans-serif;border:2px solid #111315;border-radius:4px}
 .butler-skip-link:focus{transform:none}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline:3px solid #28543D;outline-offset:3px}
+@media(min-width:1200px){
+main.playbook-shell{max-width:1540px;display:grid;grid-template-columns:205px minmax(0,1fr);gap:20px;align-items:start;padding-top:18px}
+main.playbook-shell>.top{grid-column:1/-1;margin-bottom:0}
+main.playbook-shell>.manager-playbook{grid-column:1;grid-row:2/span 64;display:flex;flex-direction:column;position:sticky;top:16px;padding:17px 10px;border:1px solid var(--line);border-radius:15px;background:var(--surface);max-height:calc(100vh - 32px);overflow-y:auto}
+main.playbook-shell>.manager-playbook~*{grid-column:2;min-width:0}
+.manager-playbook a{display:block;color:var(--muted);padding:10px 12px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700}
+.manager-playbook a:hover,.manager-playbook a:focus-visible{background:var(--surface-2);color:var(--ink)}
+.manager-playbook a.active{background:rgba(105,162,125,.18);color:var(--turf-deep)}
+.playbook-title{padding:3px 12px;color:var(--turf);font-size:12px;font-weight:900;letter-spacing:.12em}
+.playbook-team{padding:8px 12px 13px;color:var(--ink);font-size:15px;font-weight:800;overflow-wrap:anywhere}
+.playbook-label{padding:18px 12px 5px;color:var(--muted);font-size:12px;font-weight:900;letter-spacing:.07em;border-top:1px solid var(--line)}
+}
+@media(max-width:1199px){
+.manager-playbook{display:flex;gap:4px;margin:0 0 24px;flex-wrap:nowrap;padding:8px 12px 9px;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;background:var(--surface);max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding-inline:8px;scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior-x:contain;touch-action:pan-x}
+.manager-playbook::-webkit-scrollbar{display:none;width:0;height:0}
+.manager-playbook .playbook-title,.manager-playbook .playbook-team,.manager-playbook .playbook-label,.manager-playbook .playbook-lineup{display:none}
+.manager-playbook a{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:44px;white-space:nowrap;scroll-snap-align:start;color:var(--muted);text-decoration:none;padding:9px 12px;font-weight:700;font-size:13px;border:1px solid transparent;border-radius:8px;background:transparent}
+.manager-playbook a:hover{color:var(--ink);background:var(--surface-2)}
+.manager-playbook a.active{color:var(--turf-deep);background:var(--surface-2);border-color:var(--line)}
+}
 @media(prefers-color-scheme:dark){
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline-color:#A8D3B5}
 html body .command-button:not(.secondary),html body .btn-primary,html body a.button,html body .trade-button{color:#111315!important}
