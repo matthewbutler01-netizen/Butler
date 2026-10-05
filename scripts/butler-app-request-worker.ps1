@@ -344,13 +344,13 @@ function Add-ButlerAccessibility {
 
     # Apply once at the public HTML boundary, after all page-specific styling.
     if ($Html.Contains('id="butler-accessibility-style"')) { return $Html }
-    $result = [regex]::Replace($Html, '(?i)<html(?![^>]*\\blang\\s*=)([^>]*)>', '<html lang="en"$1>')
-    $nav = [regex]::Match($result, '(?is)<nav\\b[^>]*aria-label="Butler sections"[^>]*>.*?</nav>')
+    $result = [regex]::Replace($Html, '(?i)<html(?![^>]*\blang\s*=)([^>]*)>', '<html lang="en"$1>')
+    $nav = [regex]::Match($result, '(?is)<nav\b[^>]*aria-label="Butler sections"[^>]*>.*?</nav>')
     if (-not $nav.Success) { return $result }
 
-    $navigation = [regex]::Replace($nav.Value, '<a\\b[^>]*>', [System.Text.RegularExpressions.MatchEvaluator]{
+    $navigation = [regex]::Replace($nav.Value, '<a\b[^>]*>', [System.Text.RegularExpressions.MatchEvaluator]{
         param($link)
-        if ($link.Value -match 'class="[^"]*\\bactive\\b[^"]*"' -and $link.Value -notmatch '\\baria-current=') {
+        if ($link.Value -match 'class="[^"]*\bactive\b[^"]*"' -and $link.Value -notmatch '\baria-current=') {
             return $link.Value.Insert(2, ' aria-current="page"')
         }
         return $link.Value
@@ -361,22 +361,22 @@ function Add-ButlerAccessibility {
     # Playbook navigation shell here at the final public HTML boundary.
     $hasTeamWorkspace = $result.IndexOf('aria-label="Team workspace"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
     if (-not $hasTeamWorkspace) {
-        $currentMatch = [regex]::Match($navigation, '(?is)<a\\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
+        $currentMatch = [regex]::Match($navigation, '(?is)<a\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
         $currentLabel = if ($currentMatch.Success) {
             [System.Net.WebUtility]::HtmlDecode($currentMatch.Groups['label'].Value).Trim()
         }
         else { '' }
 
-        $targetMatch = [regex]::Match($result, '(?is)<(?:div|header)\\b[^>]*class="[^"]*\\btarget\\b[^"]*"[^>]*>(?<target>.*?)</(?:div|header)>')
+        $targetMatch = [regex]::Match($result, '(?is)<(?:div|header)\b[^>]*class="[^"]*\btarget\b[^"]*"[^>]*>(?<target>.*?)</(?:div|header)>')
         $targetText = ''
         if ($targetMatch.Success) {
             $targetText = [regex]::Replace($targetMatch.Groups['target'].Value, '<[^>]+>', ' ')
             $targetText = [System.Net.WebUtility]::HtmlDecode($targetText)
-            $targetText = [regex]::Replace($targetText, '\\s+', ' ').Trim()
+            $targetText = [regex]::Replace($targetText, '\s+', ' ').Trim()
         }
 
         $playbookContext = 'Manager tools'
-        $rosterContext = [regex]::Match($targetText, '(?i)(?:^|[·|])\\s*(?<team>[^|·]+?)\\s*\\|\\s*roster\\s+\\d+\\b')
+        $rosterContext = [regex]::Match($targetText, '(?i)(?:^|[·|])\s*(?<team>[^|·]+?)\s*\|\s*roster\s+\d+\b')
         if ($rosterContext.Success) {
             $playbookContext = $rosterContext.Groups['team'].Value.Trim()
         }
@@ -425,11 +425,11 @@ function Add-ButlerAccessibility {
     if (-not $hasTeamWorkspace) {
         $result = [regex]::Replace(
             $result,
-            '(?i)<main\\b(?<before>[^>]*\\bclass=")(?<classes>[^"]*\\bshell\\b[^"]*)"',
+            '(?i)<main\b(?<before>[^>]*\bclass=")(?<classes>[^"]*\bshell\b[^"]*)"',
             [System.Text.RegularExpressions.MatchEvaluator]{
                 param($main)
                 $classes = $main.Groups['classes'].Value
-                if ($classes -notmatch '(?:^|\\s)playbook-shell(?:\\s|$)') {
+                if ($classes -notmatch '(?:^|\s)playbook-shell(?:\s|$)') {
                     $classes += ' playbook-shell'
                 }
                 return '<main' + $main.Groups['before'].Value + $classes + '"'
@@ -442,21 +442,21 @@ function Add-ButlerAccessibility {
     # Retain an existing fragment id so links into that panel keep working.
     # Dashboard inserts a hidden recovery contract immediately after nav.
     # Skip that diagnostic markup and land on the first visible content section.
-    $navigationElement = [regex]::Match($result, '(?is)<(?:nav|aside)\\b[^>]*aria-label="Butler sections"[^>]*>.*?</(?:nav|aside)>')
+    $navigationElement = [regex]::Match($result, '(?is)<(?:nav|aside)\b[^>]*aria-label="Butler sections"[^>]*>.*?</(?:nav|aside)>')
     $afterNav = if ($navigationElement.Success) { $navigationElement.Index + $navigationElement.Length } else { 0 }
-    $content = [regex]::Match($result.Substring($afterNav), '(?is)<section\\b(?![^>]*\\bhidden\\b)(?<attrs>[^>]*)>')
+    $content = [regex]::Match($result.Substring($afterNav), '(?is)<section\b(?![^>]*\bhidden\b)(?<attrs>[^>]*)>')
     if ($content.Success) {
         $opening = $content.Value
-        $id = [regex]::Match($content.Groups['attrs'].Value, '\\bid="(?<id>[^"]+)"')
+        $id = [regex]::Match($content.Groups['attrs'].Value, '\bid="(?<id>[^"]+)"')
         $target = 'butler-main-content'
         if ($id.Success) { $target = $id.Groups['id'].Value }
         else { $opening = $opening.Insert($opening.Length - 1, ' id="butler-main-content"') }
-        if ($content.Groups['attrs'].Value -notmatch '\\btabindex=') {
+        if ($content.Groups['attrs'].Value -notmatch '\btabindex=') {
             $opening = $opening.Insert($opening.Length - 1, ' tabindex="-1"')
         }
         $contentIndex = $afterNav + $content.Index
         $result = $result.Remove($contentIndex, $content.Length).Insert($contentIndex, $opening)
-        $body = [regex]::Match($result, '(?i)<body\\b[^>]*>')
+        $body = [regex]::Match($result, '(?i)<body\b[^>]*>')
         if ($body.Success) {
             $result = $result.Insert($body.Index + $body.Length, '<a class="butler-skip-link" href="#' + $target + '">Skip to main content</a>')
         }
