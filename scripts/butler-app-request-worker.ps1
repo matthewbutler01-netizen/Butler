@@ -403,16 +403,20 @@ function Add-ButlerAccessibility {
             '<div class="playbook-title">MY PLAYBOOK</div>',
             ('<div class="playbook-team">' + $safePlaybookContext + '</div>'),
             (& $makeLink '/' 'Dashboard' ''),
+            '<div class="playbook-label">LINEUP</div>',
             (& $makeLink '/team' 'My Team' ''),
-            '<div class="playbook-label">THIS WEEK</div>',
+            (& $makeLink '/matchup/autofill' 'Start/Sit Assistant' 'playbook-start-sit'),
             (& $makeLink '/matchup' 'Matchup' ''),
-            (& $makeLink '/matchup/autofill' 'Lineup review' 'playbook-lineup'),
+            (& $makeLink '/autopilot' 'Auto-Pilot' 'playbook-autopilot'),
+            '<div class="playbook-label">WAIVER</div>',
             (& $makeLink '/waivers' 'Waiver Board' ''),
-            '<div class="playbook-label">EXPLORE</div>',
             (& $makeLink '/players' 'Player Search' ''),
-            (& $makeLink '/compare' 'Player Compare' ''),
-            (& $makeLink '/league' 'League' ''),
+            '<div class="playbook-label">TRADE</div>',
             (& $makeLink '/trade' 'Trade Analyzer' ''),
+            '<div class="playbook-label">LEAGUE</div>',
+            (& $makeLink '/league' 'League' ''),
+            '<div class="playbook-label">TOOLS</div>',
+            (& $makeLink '/compare' 'Player Compare' ''),
             (& $makeLink '/history?load=1' 'History' ''),
             '</aside>'
         ) -join ''
@@ -467,7 +471,7 @@ function Add-ButlerAccessibility {
 .butler-skip-link:focus{transform:none}
 a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex="-1"]:focus{outline:3px solid #28543D;outline-offset:3px}
 @media(min-width:1200px){
-main.playbook-shell{max-width:1540px;display:grid;grid-template-columns:205px minmax(0,1fr);gap:20px;align-items:start;padding-top:18px}
+main.playbook-shell{max-width:1580px;display:grid;grid-template-columns:235px minmax(0,1fr);gap:20px;align-items:start;padding-top:18px}
 main.playbook-shell>.top{grid-column:1/-1;margin-bottom:0}
 main.playbook-shell>.manager-playbook{grid-column:1;grid-row:2/span 64;display:flex;flex-direction:column;position:sticky;top:16px;padding:17px 10px;border:1px solid var(--line);border-radius:15px;background:var(--surface);max-height:calc(100vh - 32px);overflow-y:auto}
 main.playbook-shell>.manager-playbook~*{grid-column:2;min-width:0}
@@ -476,12 +480,12 @@ main.playbook-shell>.manager-playbook~*{grid-column:2;min-width:0}
 .manager-playbook a.active{background:rgba(105,162,125,.18);color:var(--turf-deep)}
 .playbook-title{padding:3px 12px;color:var(--turf);font-size:12px;font-weight:900;letter-spacing:.12em}
 .playbook-team{padding:8px 12px 13px;color:var(--ink);font-size:15px;font-weight:800;overflow-wrap:anywhere}
-.playbook-label{padding:18px 12px 5px;color:var(--muted);font-size:12px;font-weight:900;letter-spacing:.07em;border-top:1px solid var(--line)}
+.playbook-label{padding:16px 12px 5px;color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.09em;border-top:1px solid var(--line)}.manager-playbook .playbook-autopilot::after{content:"BETA";margin-left:8px;padding:2px 5px;border:1px solid var(--line);border-radius:999px;font-size:8px;letter-spacing:.06em;color:var(--muted)}
 }
 @media(max-width:1199px){
 .manager-playbook{display:flex;gap:4px;margin:0 0 24px;flex-wrap:nowrap;padding:8px 12px 9px;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;background:var(--surface);max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding-inline:8px;scrollbar-width:none;-ms-overflow-style:none;overscroll-behavior-x:contain;touch-action:pan-x}
 .manager-playbook::-webkit-scrollbar{display:none;width:0;height:0}
-.manager-playbook .playbook-title,.manager-playbook .playbook-team,.manager-playbook .playbook-label,.manager-playbook .playbook-lineup{display:none}
+.manager-playbook .playbook-title,.manager-playbook .playbook-team,.manager-playbook .playbook-label{display:none}
 .manager-playbook a{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:44px;white-space:nowrap;scroll-snap-align:start;color:var(--muted);text-decoration:none;padding:9px 12px;font-weight:700;font-size:13px;border:1px solid transparent;border-radius:8px;background:transparent}
 .manager-playbook a:hover{color:var(--ink);background:var(--surface-2)}
 .manager-playbook a.active{color:var(--turf-deep);background:var(--surface-2);border-color:var(--line)}
@@ -545,6 +549,46 @@ $nav
 <p>No Butler or Sleeper write was executed.</p>
 <div class="blocked-actions"><a href="$safePrimaryHref">$safePrimaryLabel</a><a href="$safeSecondaryHref">$safeSecondaryLabel</a></div>
 </section>
+</main>
+</body>
+</html>
+"@
+}
+
+function Get-V04AutoPilotHtml {
+    $css = Get-AppCss
+    return @"
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Butler - Auto-Pilot</title>
+<style>$css
+.autopilot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.autopilot-card{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
+.autopilot-card h3{margin:0 0 7px}.autopilot-card p{margin:0;color:var(--muted);line-height:1.55}
+.autopilot-state{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.autopilot-off{display:inline-flex;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:11px;font-weight:900;letter-spacing:.08em}
+@media(max-width:900px){.autopilot-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="shell">
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">v0.4 development - manager tools</div></div>
+<nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a href="/team">My Team</a><a href="/matchup/autofill">Start/Sit Assistant</a><a href="/matchup">Matchup</a><a class="active" href="/autopilot">Auto-Pilot</a><a href="/waivers">Waiver Board</a><a href="/players">Player Search</a><a href="/trade">Trade Analyzer</a><a href="/league">League</a><a href="/compare">Player Compare</a><a href="/history?load=1">History</a></nav>
+<section class="panel">
+<div class="eyebrow">AUTO-PILOT</div>
+<div class="statusrow"><div><h1 class="headline">Let Butler watch the week for you</h1><p class="lede">This is the first Auto-Pilot control surface. It starts as a read-only preview while we build the rules, approval model, and safety checks for automated lineup management.</p></div><span class="status">PREVIEW</span></div>
+<div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="meta">No Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
+<div class="autopilot-grid">
+<div class="autopilot-card"><h3>1. Start/Sit monitoring</h3><p>Use Butler's existing weekly lineup evidence to surface starters that need attention and recommended slot changes.</p></div>
+<div class="autopilot-card"><h3>2. Availability watch</h3><p>Flag held starters, evidence gaps, and current-week changes before they become lineup mistakes.</p></div>
+<div class="autopilot-card"><h3>3. Approval boundary</h3><p>We will define exactly what Butler may prepare automatically and what still requires explicit manager approval before any write capability is considered.</p></div>
+</div>
+<div class="button-row" style="margin-top:18px"><a class="btn btn-primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="btn btn-secondary" href="/team">Review My Team</a><a class="btn btn-secondary" href="/matchup">View Matchup</a></div>
+</section>
+<section class="panel boundary"><strong>READ ONLY DEVELOPMENT SURFACE.</strong> Auto-Pilot currently monitors and explains only. It does not submit a Sleeper transaction or lineup change.</section>
 </main>
 </body>
 </html>
@@ -745,6 +789,17 @@ try {
             $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
+        return
+    }
+
+    if ($path -eq '/autopilot') {
+        if ($requestTarget -cne '/autopilot') {
+            Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'Auto-Pilot accepts no query parameters in this build.'
+            return
+        }
+        $html = Get-V04AutoPilotHtml
+        $html = Add-ButlerAccessibility -Html $html
+        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         return
     }
 

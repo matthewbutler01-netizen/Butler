@@ -908,6 +908,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1011 BLOCKED: Lineup Review footer normalization transform not found at $bf1011Transform"
     }
     & $bf1011Transform -CorePath $stagedCore
+
+    # BF-1019: begin the v0.4 manager shell after the frozen v0.3 presentation
+    # chain is complete. This is navigation/presentation only.
+    $bf1019Transform = Join-Path $PSScriptRoot 'butler-app-bf1019-v04-fantasy-manager-shell-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1019Transform -PathType Leaf)) {
+        throw "BF-1019 BLOCKED: v0.4 fantasy-manager shell transform not found at $bf1019Transform"
+    }
+    & $bf1019Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
