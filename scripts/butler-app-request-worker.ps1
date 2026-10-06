@@ -367,13 +367,6 @@ function Add-ButlerAccessibility {
         }
         else { '' }
 
-        # BF-1019: the existing explicit Lineup Advisor is the first v0.4
-        # Start/Sit Assistant surface. Keep the governed route unchanged while
-        # giving managers a direct product-level entry in the shared Playbook.
-        if ($result.IndexOf('<div class="eyebrow">Lineup advisor</div>', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-            $currentLabel = 'Start/Sit Assistant'
-        }
-
         $targetMatch = [regex]::Match($result, '(?is)<(?:div|header)\b[^>]*class="[^"]*\btarget\b[^"]*"[^>]*>(?<target>.*?)</(?:div|header)>')
         $targetText = ''
         if ($targetMatch.Success) {
