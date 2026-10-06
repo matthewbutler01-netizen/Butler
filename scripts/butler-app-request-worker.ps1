@@ -376,7 +376,7 @@ function Add-ButlerAccessibility {
         }
 
         $playbookContext = 'Manager tools'
-        $rosterContext = [regex]::Match($targetText, '(?i)(?:^|[·|])\s*(?<team>[^|·]+?)\s*\|\s*roster\s+\d+\b')
+        $rosterContext = [regex]::Match($targetText, '(?i)(?:^|[|\u00B7])\s*(?<team>[^|\u00B7]+?)\s*\|\s*roster\s+\d+\b')
         if ($rosterContext.Success) {
             $playbookContext = $rosterContext.Groups['team'].Value.Trim()
         }

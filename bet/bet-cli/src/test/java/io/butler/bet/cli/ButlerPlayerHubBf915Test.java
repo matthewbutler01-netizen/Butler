@@ -87,7 +87,10 @@ class ButlerPlayerHubBf915Test {
         String journey = source("scripts/butler-manager-journey-acceptance.ps1");
 
         assertTrue(journey.contains(
-                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Check Waiver Board','Back to My Team','Player Search','READ ONLY')"));
+                "Markers @('Player Detail','Player snapshot','What do you want to decide?','Find more ','Scout franchise','Open Trade Analyzer','Back to My Team','Player Search','READ ONLY')"));
+        assertTrue(journey.contains("Player Detail position Waiver Board"));
+        assertTrue(journey.contains("Player Detail did not expose the exact $playerPosition-focused Waiver Board action."));
+        assertTrue(journey.contains("Player Detail did not expose the generic Waiver Board fallback action."));
     }
 
     @Test
