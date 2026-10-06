@@ -62,8 +62,12 @@ if ([regex]::Matches($rendered, 'aria-current="page"').Count -ne 1) {
 
 $lineupFixture = '<!doctype html><html><head><title>Lineup</title></head><body><main class="shell"><header class="top"><div class="target">Hard(CORE)-Dynasty &middot; nuke the whales | roster 6</div></header><nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a class="active" href="/matchup">Matchup</a></nav><section class="panel"><div class="eyebrow">Lineup advisor</div><h1>Lineup Review</h1></section></main></body></html>'
 $lineupRendered = Add-ButlerAccessibility -Html $lineupFixture
-if ($lineupRendered.IndexOf('class="playbook-start-sit active" aria-current="page" href="/matchup/autofill">Start/Sit Assistant</a>', [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'BF-1019 BLOCKED: Lineup Advisor did not become the current Start/Sit Assistant Playbook entry.'
+if ($lineupRendered.IndexOf('class="playbook-start-sit" href="/matchup/autofill">Start/Sit Assistant</a>', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1019 BLOCKED: direct Start/Sit Assistant Playbook entry is missing.'
+}
+$lineupCurrent = [regex]::Matches($lineupRendered, '<a\b[^>]*aria-current="page"[^>]*>([^<]+)</a>')
+if ($lineupCurrent.Count -ne 1 -or $lineupCurrent[0].Groups[1].Value -cne 'Matchup') {
+    throw 'BF-1019 BLOCKED: legacy Matchup route identity was changed by the Start/Sit navigation entry.'
 }
 
 foreach ($marker in @(
