@@ -36,4 +36,4 @@ Stop the timer when back on Dashboard. Record elapsed time, whether all three an
 
 Optional keyboard pass: reload Dashboard, press Tab then Enter to skip navigation, continue with Tab/Shift+Tab, and open a disclosure with Enter. Report any lost focus, invisible indicator, or place you cannot leave.
 
-**Human result: pending.** Record the observed result here only after an actual user run.
+**Human result: PASS (October 5, 2026).** The manager completed the timed task in about 2 minutes with no confusing or problematic step reported. The highest-priority item was the saved waiver decision and Butler correctly presented it as **DO NOT ACT** / not ready for use because the saved move no longer passed the current safety frame. Waiver Board likewise instructed the manager to take no waiver action from that saved result and wait for a new decision. Decision History showed the latest recorded outcome as **ADD 3161 / DROP 9225**, after which the manager returned to Dashboard.
