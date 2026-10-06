@@ -52,9 +52,9 @@ class ButlerAppShellBf845MatchupSingleFlightTest {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
         int keyStart = worker.indexOf("function Get-ExpensiveReadSingleFlightKey");
-        int helperEnd = worker.indexOf("function Send-HttpResponse", keyStart);
-        assertTrue(keyStart >= 0 && helperEnd > keyStart);
-        String optimization = worker.substring(keyStart, helperEnd);
+        int optimizationEnd = worker.indexOf("function Add-ButlerAccessibility", keyStart);
+        assertTrue(keyStart >= 0 && optimizationEnd > keyStart);
+        String optimization = worker.substring(keyStart, optimizationEnd);
 
         assertFalse(optimization.contains("POST"));
         assertFalse(optimization.contains("submitTransaction"));
