@@ -61,7 +61,9 @@ class ButlerMatchupOpponentActionsBf926Test {
         assertTrue(journey.contains("Matchup opponent Franchise Scout"));
         assertTrue(journey.contains("Matchup opponent Trade Analyzer"));
         assertTrue(journey.contains("BF-926 FAILED: confirmed Matchup did not expose exact opponent Scout + Trade actions."));
-        assertTrue(journey.contains("$matchupOpponentUnavailable = $matchup.Body.IndexOf('Opponent data is incomplete'"));
+        assertTrue(journey.contains("$matchupOpponentUnavailable = $matchupUnavailable"));
+        assertTrue(journey.contains("$matchup.Body.IndexOf('Opponent not confirmed'"));
+        assertTrue(journey.contains("$matchup.Body.IndexOf('MATCHUP DATA NEEDED'"));
         String opponentActions = slice(journey,
                 "Write-Pass -Label 'Dashboard weekly matchup consistency'",
                 "Write-Pass -Label 'Matchup'");
