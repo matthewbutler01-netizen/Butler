@@ -100,9 +100,13 @@ if ($staging.IndexOf('bf1019Transform -CorePath $stagedCore', [System.StringComp
 
 $autoPilotStart = $worker.IndexOf('function Get-V04AutoPilotHtml', [System.StringComparison]::Ordinal)
 $autoPilotEnd = $worker.IndexOf('function Send-HttpResponse', $autoPilotStart, [System.StringComparison]::Ordinal)
-$autoPilotSurface = $worker.Substring($autoPilotStart, $autoPilotEnd - $autoPilotStart) + [Environment]::NewLine + $teamTransform
+$autoPilotSurface = $worker.Substring($autoPilotStart, $autoPilotEnd - $autoPilotStart)
+
+# The My Team transform enforces the same safety boundary against the actual
+# generated rail/CSS surface. Do not scan the transform source itself here:
+# its fail-closed assertion intentionally contains the forbidden-token names.
 if ($autoPilotSurface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-1019 BLOCKED: v0.4 shell or Auto-Pilot entry introduced provider, optimizer, or write behavior.'
+    throw 'BF-1019 BLOCKED: Auto-Pilot entry introduced provider, optimizer, or write behavior.'
 }
 
 Write-Host 'BF-1019 V0.4 FANTASY MANAGER SHELL ACCEPTANCE: PASS'
