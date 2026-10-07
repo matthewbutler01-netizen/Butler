@@ -13,8 +13,8 @@ if (-not (Test-Path -LiteralPath $DashboardPath -PathType Leaf)) {
 
 $text = [System.IO.File]::ReadAllText($DashboardPath)
 
-$old = '<div class="week-tools"><strong>Quick tools</strong><a class="week-tool" href="/trade">Trade Analyzer</a><a class="week-tool" href="/players">Player Search</a><a class="week-tool" href="/compare">Player Compare</a><a class="week-tool" href="/league">League</a></div>'
-$new = '<div class="week-tools"><strong>Quick tools</strong><a class="week-tool" href="/trade">Trade Analyzer</a><a class="week-tool" href="/players">Player Search</a><a class="week-tool" href="/compare">Player Compare</a><a class="week-tool" href="/league">League</a><a class="week-tool" href="/history?load=1">Decision History</a></div>'
+$old = '<div class="dashboard-tool-links"><a href="/trade">Trade Analyzer</a><a href="/players">Player Search</a><a href="/compare">Player Compare</a><a href="/league">League</a></div>'
+$new = '<div class="dashboard-tool-links"><a href="/trade">Trade Analyzer</a><a href="/players">Player Search</a><a href="/compare">Player Compare</a><a href="/league">League</a><a href="/history?load=1">Decision History</a></div>'
 
 $count = [regex]::Matches($text, [regex]::Escape($old)).Count
 if ($count -ne 1) {
@@ -26,6 +26,8 @@ $text = $text.Replace($old, $new)
 foreach ($required in @(
     'Week at a glance',
     'Quick tools',
+    'dashboard-quick-tools',
+    'dashboard-tool-links',
     'href="/trade">Trade Analyzer</a>',
     'href="/players">Player Search</a>',
     'href="/compare">Player Compare</a>',
