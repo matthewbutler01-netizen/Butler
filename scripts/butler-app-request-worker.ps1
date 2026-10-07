@@ -526,6 +526,9 @@ function ConvertTo-V04StartSitRouteHtml {
 
     $result = $Html.Replace('<title>Butler - Weekly Matchup</title>', '<title>Butler - Start/Sit Assistant</title>')
 
+    # BF-1029: exact Start/Sit route owns current-page identity before the shared Playbook is generated.
+    $result = $result.Replace('<a class="active" href="/matchup">Matchup</a>', '<a class="active" href="/matchup/autofill">Start/Sit Assistant</a>')
+
     # The explicit Start/Sit route should not repeat the Matchup decision hero
     # above the exact same lineup decision. Ordinary /matchup remains unchanged.
     $hero = [regex]::Match($result, '(?is)<section\b[^>]*class="[^"]*\bhero-panel\b[^"]*"[^>]*>.*?</section>\s*')
