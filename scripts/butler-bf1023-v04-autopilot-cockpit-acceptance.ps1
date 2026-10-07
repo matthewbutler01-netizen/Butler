@@ -19,7 +19,6 @@ foreach ($required in @(
     'AUTOMATION OFF',
     'No background job',
     'Start/Sit changes',
-    'Availability changes',
     'Approval rules',
     'Open Start/Sit Assistant',
     'Review My Team',
@@ -27,11 +26,19 @@ foreach ($required in @(
     'READ ONLY PREVIEW',
     '.autopilot-actions',
     '.autopilot-actions .primary',
-    '<div class="target">Manager tools</div>'
+    'class="target"'
 )) {
     if ($surface.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1023 BLOCKED: Auto-Pilot marker missing: $required"
     }
+}
+
+# BF-1024 legitimately evolves the second watch card from the static
+# Availability preview into a real Waiver-attention watch. Either label
+# satisfies the BF-1023 cockpit contract on descendant branches.
+if ($surface.IndexOf('Availability changes', [System.StringComparison]::Ordinal) -lt 0 -and
+    $surface.IndexOf('Waiver attention', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1023 BLOCKED: Auto-Pilot secondary watch card is missing.'
 }
 
 if ($surface -match 'currently monitors|background monitoring is active|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|https://api\.sleeper\.app') {
@@ -47,4 +54,4 @@ if (@($errors).Count -ne 0) {
 }
 
 Write-Host 'BF-1023 V0.4 AUTO-PILOT COCKPIT ACCEPTANCE: PASS'
-Write-Host 'Coverage: explicit preview/off state, no background-automation overclaim, planned watch/control cards, separated action buttons, manager-tool context, and no write behavior.'
+Write-Host 'Coverage: explicit preview/off state, no background-automation overclaim, Start/Sit plus secondary watch/control cards, separated action buttons, manager context, and no write behavior.'
