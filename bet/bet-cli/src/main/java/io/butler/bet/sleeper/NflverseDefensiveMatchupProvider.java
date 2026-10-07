@@ -7,7 +7,7 @@ import java.util.*;
 
 /** Observed positional production against the scheduled NFL opponent; never a forecast adjustment. */
 final class NflverseDefensiveMatchupProvider {
-    static final URI SCHEDULE_URI = URI.create("https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv");
+    static final URI SCHEDULE_URI = URI.create("https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv.gz");
     private final NflverseRosterUsageProvider downloads = new NflverseRosterUsageProvider();
 
     Map<String, String> load(int season, int week,
