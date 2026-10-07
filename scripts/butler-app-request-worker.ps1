@@ -606,30 +606,44 @@ function Get-V04AutoPilotHtml {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Butler - Auto-Pilot</title>
 <style>$css
+.autopilot-shell{padding:22px}
+.autopilot-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.autopilot-head h1{margin:4px 0 6px;font-size:clamp(25px,2.2vw,32px);line-height:1.1}
+.autopilot-head p{margin:0;max-width:78ch}
+.autopilot-preview{white-space:nowrap}
+.autopilot-state{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.autopilot-off{display:inline-flex;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:900;letter-spacing:.08em}
+.autopilot-state-copy{color:var(--muted);font-size:12px}
 .autopilot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
 .autopilot-card{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
-.autopilot-card h3{margin:0 0 7px}.autopilot-card p{margin:0;color:var(--muted);line-height:1.55}
-.autopilot-state{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
-.autopilot-off{display:inline-flex;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:11px;font-weight:900;letter-spacing:.08em}
-@media(max-width:900px){.autopilot-grid{grid-template-columns:1fr}}
+.autopilot-card .eyebrow{margin-bottom:5px}
+.autopilot-card h3{margin:0 0 7px;font-size:17px}
+.autopilot-card p{margin:0;color:var(--muted);line-height:1.55}
+.autopilot-card strong{color:var(--ink)}
+.autopilot-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:18px}
+.autopilot-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:12px;font-weight:800}
+.autopilot-actions .primary{background:var(--turf);border-color:var(--turf);color:#111315}
+.autopilot-actions .secondary{background:var(--surface-2);color:var(--turf-deep)}
+.autopilot-actions a:hover,.autopilot-actions a:focus-visible{border-color:var(--turf)}
+.autopilot-boundary{margin-top:14px}
+@media(max-width:900px){.autopilot-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-actions a{flex:1 1 auto}}
 </style>
 </head>
 <body>
 <main class="shell">
-<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">v0.4 development - manager tools</div></div>
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Manager tools</div></div>
 <nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a href="/team">My Team</a><a href="/matchup/autofill">Start/Sit Assistant</a><a href="/matchup">Matchup</a><a class="active" href="/autopilot">Auto-Pilot</a><a href="/waivers">Waiver Board</a><a href="/players">Player Search</a><a href="/trade">Trade Analyzer</a><a href="/league">League</a><a href="/compare">Player Compare</a><a href="/history?load=1">History</a></nav>
-<section class="panel">
-<div class="eyebrow">AUTO-PILOT</div>
-<div class="statusrow"><div><h1 class="headline">Let Butler watch the week for you</h1><p class="lede">This is the first Auto-Pilot control surface. It starts as a read-only preview while we build the rules, approval model, and safety checks for automated lineup management.</p></div><span class="status">PREVIEW</span></div>
-<div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="meta">No Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
+<section class="panel autopilot-shell">
+<div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This preview shows the planned workflow without pretending that background automation or Sleeper lineup writes are active yet.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
+<div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
 <div class="autopilot-grid">
-<div class="autopilot-card"><h3>1. Start/Sit monitoring</h3><p>Use Butler's existing weekly lineup evidence to surface starters that need attention and recommended slot changes.</p></div>
-<div class="autopilot-card"><h3>2. Availability watch</h3><p>Flag held starters, evidence gaps, and current-week changes before they become lineup mistakes.</p></div>
-<div class="autopilot-card"><h3>3. Approval boundary</h3><p>We will define exactly what Butler may prepare automatically and what still requires explicit manager approval before any write capability is considered.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Planned:</strong> reuse Butler's weekly lineup evidence to flag starters that need review and proposed slot changes.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Availability changes</h3><p><strong>Planned:</strong> surface injury, evidence-gap, and weekly-availability changes before lineup lock.</p></div>
+<div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Required before automation:</strong> define exactly what Butler may prepare automatically and what still requires explicit manager approval.</p></div>
 </div>
-<div class="button-row" style="margin-top:18px"><a class="btn btn-primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="btn btn-secondary" href="/team">Review My Team</a><a class="btn btn-secondary" href="/matchup">View Matchup</a></div>
+<div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
 </section>
-<section class="panel boundary"><strong>READ ONLY DEVELOPMENT SURFACE.</strong> Auto-Pilot currently monitors and explains only. It does not submit a Sleeper transaction or lineup change.</section>
+<section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
 </main>
 </body>
 </html>
