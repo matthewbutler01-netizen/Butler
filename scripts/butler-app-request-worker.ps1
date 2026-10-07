@@ -367,6 +367,15 @@ function Add-ButlerAccessibility {
         }
         else { '' }
 
+        # BF-1021: exact public route identity. /matchup remains Matchup; only
+        # /matchup/autofill owns the Start/Sit Assistant current-page state.
+        $publicTarget = ''
+        $publicTargetVariable = Get-Variable -Name ButlerPublicRequestTarget -Scope Script -ErrorAction SilentlyContinue
+        if ($null -ne $publicTargetVariable) { $publicTarget = [string]$publicTargetVariable.Value }
+        if ($publicTarget -ceq '/matchup/autofill') {
+            $currentLabel = 'Start/Sit Assistant'
+        }
+
         $targetMatch = [regex]::Match($result, '(?is)<(?:div|header)\b[^>]*class="[^"]*\btarget\b[^"]*"[^>]*>(?<target>.*?)</(?:div|header)>')
         $targetText = ''
         if ($targetMatch.Success) {
@@ -501,6 +510,38 @@ html body .history-action-primary:hover{background:#202426}
 '@
     $headEnd = $result.IndexOf('</head>', [StringComparison]::OrdinalIgnoreCase)
     if ($headEnd -ge 0) { $result = $result.Insert($headEnd, $style) }
+    return $result
+}
+
+function ConvertTo-V04StartSitRouteHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$Html,
+        [Parameter(Mandatory = $true)][string]$RequestTarget
+    )
+
+    if ($RequestTarget -cne '/matchup/autofill' -or
+        $Html.IndexOf('start-sit-assistant', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        return $Html
+    }
+
+    $result = $Html.Replace('<title>Butler - Weekly Matchup</title>', '<title>Butler - Start/Sit Assistant</title>')
+
+    # The explicit Start/Sit route should not repeat the Matchup decision hero
+    # above the exact same lineup decision. Ordinary /matchup remains unchanged.
+    $hero = [regex]::Match($result, '(?is)<section\b[^>]*class="[^"]*\bhero-panel\b[^"]*"[^>]*>.*?</section>\s*')
+    if ($hero.Success) {
+        $result = $result.Remove($hero.Index, $hero.Length)
+    }
+
+    $result = $result.Replace(
+        'Weekly Matchup leads with the existing Start/Sit Assistant decision, then shows confirmed-opponent context.',
+        'Start/Sit Assistant keeps the weekly lineup decision first and leaves opponent context available as secondary evidence.'
+    )
+    $result = $result.Replace(
+        'Weekly Matchup leads with the existing Lineup Advisor decision, then shows confirmed-opponent context.',
+        'Start/Sit Assistant keeps the weekly lineup decision first and leaves opponent context available as secondary evidence.'
+    )
+
     return $result
 }
 
@@ -863,7 +904,14 @@ try {
         if ([int]$proxied.StatusCode -ge 200 -and [int]$proxied.StatusCode -lt 300 -and
             $proxied.ContentType -match '^text/html' -and
             $body -match '<nav class="nav" aria-label="Butler sections">') {
-            $body = Add-AppNavigation -Html $body
+            $body = ConvertTo-V04StartSitRouteHtml -Html $body -RequestTarget $requestTarget
+            $script:ButlerPublicRequestTarget = $requestTarget
+            try {
+                $body = Add-AppNavigation -Html $body
+            }
+            finally {
+                $script:ButlerPublicRequestTarget = ''
+            }
             $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
         }
         if ($null -ne $bf856Timings) {
