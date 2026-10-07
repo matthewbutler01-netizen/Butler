@@ -473,13 +473,13 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 @media(min-width:1200px){
 main.playbook-shell{max-width:1580px;display:grid;grid-template-columns:235px minmax(0,1fr);gap:20px;align-items:start;padding-top:18px}
 main.playbook-shell>.top{grid-column:1/-1;margin-bottom:0}
-main.playbook-shell>.manager-playbook{grid-column:1;grid-row:2/span 64;display:flex;flex-direction:column;position:sticky;top:16px;padding:17px 10px;border:1px solid var(--line);border-radius:15px;background:var(--surface);max-height:calc(100vh - 32px);overflow-y:auto}
+main.playbook-shell>.manager-playbook{grid-column:1;grid-row:2/span 64;display:flex;flex-direction:column;position:sticky;top:16px;padding:14px 8px;border:1px solid var(--line);border-radius:15px;background:var(--surface);max-height:calc(100vh - 32px);overflow-y:auto}
 main.playbook-shell>.manager-playbook~*{grid-column:2;min-width:0}
-.manager-playbook a{display:block;color:var(--muted);padding:10px 12px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700}
+.manager-playbook a{display:block;color:var(--muted);padding:8px 11px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700}
 .manager-playbook a:hover,.manager-playbook a:focus-visible{background:var(--surface-2);color:var(--ink)}
 .manager-playbook a.active{background:rgba(105,162,125,.18);color:var(--turf-deep)}
 .playbook-title{padding:3px 12px;color:var(--turf);font-size:12px;font-weight:900;letter-spacing:.12em}
-.playbook-team{padding:8px 12px 13px;color:var(--ink);font-size:15px;font-weight:800;overflow-wrap:anywhere}
+.playbook-team{padding:7px 11px 11px;color:var(--ink);font-size:14px;font-weight:800;overflow-wrap:anywhere}
 .playbook-label{padding:16px 12px 5px;color:var(--muted);font-size:11px;font-weight:900;letter-spacing:.09em;border-top:1px solid var(--line)}.manager-playbook .playbook-autopilot::after{content:"BETA";margin-left:8px;padding:2px 5px;border:1px solid var(--line);border-radius:999px;font-size:8px;letter-spacing:.06em;color:var(--muted)}
 }
 @media(max-width:1199px){
