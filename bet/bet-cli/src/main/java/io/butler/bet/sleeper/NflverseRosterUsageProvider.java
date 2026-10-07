@@ -2,6 +2,7 @@ package io.butler.bet.sleeper;
 
 import io.butler.bet.intelligence.NflversePlayerWeekProductionImporter;
 import io.butler.bet.intelligence.NflversePlayerSeasonProductionImporter;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -9,10 +10,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPInputStream;
 
 /** Read-only exact-ID usage evidence. A conservative review policy, not a calibrated points model. */
 final class NflverseRosterUsageProvider {
@@ -52,9 +55,18 @@ final class NflverseRosterUsageProvider {
             }
             byte[] bytes = body.readNBytes(8_000_001);
             if (bytes.length > 8_000_000) throw new IOException("Usage source exceeds size limit: " + uri);
-            String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            String text = decodeText(uri, bytes);
             cache.put(uri, new Cached(text, now.plus(Duration.ofMinutes(15))));
             return text;
+        }
+    }
+
+    static String decodeText(URI uri, byte[] bytes) throws IOException {
+        if (!uri.getPath().endsWith(".gz")) return new String(bytes, StandardCharsets.UTF_8);
+        try (var gzip = new GZIPInputStream(new ByteArrayInputStream(bytes))) {
+            byte[] decoded = gzip.readNBytes(16_000_001);
+            if (decoded.length > 16_000_000) throw new IOException("Usage source decoded size exceeds limit: " + uri);
+            return new String(decoded, StandardCharsets.UTF_8);
         }
     }
 
