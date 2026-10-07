@@ -338,7 +338,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
                             + (news == null ? "" : "; " + news)
                             + (exactQuestionableBench
-                                ? ". Questionable is not confirmed Out. Butler normally withholds this bench player from promotion;"
+                                ? ". Pending clearance. Questionable is not confirmed Out. Butler normally withholds this bench player from promotion;"
                                     + " the exact projection remains available only for a hard lineup-legality fallback that still requires manager review."
                                 : ". Pending clearance, Butler preserved this player's current lineup state and excluded"
                                     + " the player from promotions and comparable projected totals. Questionable is not confirmed Out.")));
