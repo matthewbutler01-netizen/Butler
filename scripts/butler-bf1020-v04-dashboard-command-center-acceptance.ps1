@@ -51,6 +51,9 @@ try {
         'href="/history?load=1">Decision History</a>',
         '.manager-hero{padding:14px 18px!important',
         '.week-glance-card:nth-child(2)',
+        'content:"START/SIT ASSISTANT"',
+        '.week-glance-card .week-tools{display:flex',
+        '.week-glance-card .week-tool{display:inline-flex',
         '.top{padding:15px 20px!important'
     )) {
         if ($dashboard.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
