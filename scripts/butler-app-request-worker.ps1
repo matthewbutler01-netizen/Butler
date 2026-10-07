@@ -536,6 +536,14 @@ function ConvertTo-V04StartSitRouteHtml {
         $result = $result.Remove($hero.Index, $hero.Length)
     }
 
+    # BF-1029: blocked Start/Sit reviews surface the exact evidence reason
+    # before the disclosure so the manager sees the real recovery blocker.
+    $detail = [regex]::Match($result, '(?is)<details[^>]*>\s*<summary>\s*View evidence details\s*</summary>\s*<div[^>]*class="[^"]*callout-danger[^"]*"[^>]*>(?<reason>.*?)</div>\s*</details>')
+    if ($detail.Success) {
+        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $detail.Groups['reason'].Value + '</div>'
+        $result = $result.Insert($detail.Index, $visibleReason)
+    }
+
     $result = $result.Replace(
         'Weekly Matchup leads with the existing Start/Sit Assistant decision, then shows confirmed-opponent context.',
         'Start/Sit Assistant keeps the weekly lineup decision first and leaves opponent context available as secondary evidence.'
