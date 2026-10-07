@@ -90,7 +90,9 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             .recommend(emptyRoster);
 
         assertTrue(report.ready());
-        assertEquals("s-wr-b", report.recommendation().assignments().get(1).recommendedPlayerId());
+        assertEquals("s-wr-b", report.recommendation().assignments().stream()
+            .filter(assignment -> assignment.starterOrdinal() == 1)
+            .findFirst().orElseThrow().recommendedPlayerId());
         assertTrue(report.recommendation().promotions().stream()
             .anyMatch(player -> "s-wr-b".equals(player.playerId())));
         assertFalse(report.projectionHolds().stream()
