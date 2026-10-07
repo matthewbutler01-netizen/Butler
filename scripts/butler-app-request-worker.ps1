@@ -596,8 +596,63 @@ $nav
 "@
 }
 
+function Get-V04AutoPilotWatchState {
+    param([Parameter(Mandatory = $true)][string]$DashboardHtml)
+
+    $result = [ordered]@{
+        Ready = $false
+        Attention = 'UNAVAILABLE'
+        StartSit = 'UNAVAILABLE'
+        Waivers = 'UNAVAILABLE'
+        Roster = 'Manager tools'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($DashboardHtml)) {
+        return [pscustomobject]$result
+    }
+
+    $labels = @('Attention', 'Start/Sit', 'Waivers', 'Roster')
+    foreach ($label in $labels) {
+        $match = [regex]::Match(
+            $DashboardHtml,
+            '(?is)<div\b[^>]*class="[^"]*\bdashboard-summary-card\b[^"]*"[^>]*>\s*<span>\s*' +
+                [regex]::Escape($label) +
+                '\s*</span>\s*<strong>(?<value>.*?)</strong>\s*</div>'
+        )
+        if (-not $match.Success) { continue }
+
+        $plain = [regex]::Replace($match.Groups['value'].Value, '<[^>]+>', ' ')
+        $plain = [System.Net.WebUtility]::HtmlDecode($plain)
+        $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        switch -CaseSensitive ($label) {
+            'Attention' { $result.Attention = $plain }
+            'Start/Sit' { $result.StartSit = $plain }
+            'Waivers' { $result.Waivers = $plain }
+            'Roster' { $result.Roster = $plain }
+        }
+    }
+
+    $result.Ready =
+        $result.Attention -cne 'UNAVAILABLE' -and
+        $result.StartSit -cne 'UNAVAILABLE' -and
+        $result.Waivers -cne 'UNAVAILABLE'
+
+    return [pscustomobject]$result
+}
+
 function Get-V04AutoPilotHtml {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState
+    )
+
     $css = Get-AppCss
+    $attention = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Attention)
+    $startSit = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.StartSit)
+    $waivers = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Waivers)
+    $roster = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Roster)
+    $snapshotStatus = if ([bool]$WatchState.Ready) { 'CURRENT SNAPSHOT' } else { 'WATCH DATA UNAVAILABLE' }
+    $snapshotClass = if ([bool]$WatchState.Ready) { 'good' } else { 'warn' }
+
     return @"
 <!doctype html>
 <html lang="en">
@@ -614,6 +669,13 @@ function Get-V04AutoPilotHtml {
 .autopilot-state{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
 .autopilot-off{display:inline-flex;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:900;letter-spacing:.08em}
 .autopilot-state-copy{color:var(--muted);font-size:12px}
+.autopilot-watch{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.autopilot-watch-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}
+.autopilot-watch-head h2{margin:4px 0 0;font-size:18px}
+.autopilot-watch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.autopilot-watch-card{min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.autopilot-watch-card span{display:block;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.autopilot-watch-card strong{display:block;margin-top:5px;color:var(--ink);font-size:12px;line-height:1.35;overflow-wrap:anywhere}
 .autopilot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
 .autopilot-card{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 .autopilot-card .eyebrow{margin-bottom:5px}
@@ -626,24 +688,27 @@ function Get-V04AutoPilotHtml {
 .autopilot-actions .secondary{background:var(--surface-2);color:var(--turf-deep)}
 .autopilot-actions a:hover,.autopilot-actions a:focus-visible{border-color:var(--turf)}
 .autopilot-boundary{margin-top:14px}
+@media(max-width:1000px){.autopilot-watch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.autopilot-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-actions a{flex:1 1 auto}}
+@media(max-width:620px){.autopilot-watch-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <main class="shell">
-<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Manager tools</div></div>
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$roster</div></div>
 <nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a href="/team">My Team</a><a href="/matchup/autofill">Start/Sit Assistant</a><a href="/matchup">Matchup</a><a class="active" href="/autopilot">Auto-Pilot</a><a href="/waivers">Waiver Board</a><a href="/players">Player Search</a><a href="/trade">Trade Analyzer</a><a href="/league">League</a><a href="/compare">Player Compare</a><a href="/history?load=1">History</a></nav>
 <section class="panel autopilot-shell">
-<div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This preview shows the planned workflow without pretending that background automation or Sleeper lineup writes are active yet.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
+<div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This page now reuses Butler's current manager snapshot so you can see what would need attention before any future automation is allowed to act.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
+<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
 <div class="autopilot-grid">
-<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Planned:</strong> reuse Butler's weekly lineup evidence to flag starters that need review and proposed slot changes.</p></div>
-<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Availability changes</h3><p><strong>Planned:</strong> surface injury, evidence-gap, and weekly-availability changes before lineup lock.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Future automation may prepare a lineup review, but it cannot submit one in this build.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
 <div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Required before automation:</strong> define exactly what Butler may prepare automatically and what still requires explicit manager approval.</p></div>
 </div>
-<div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
+<div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/waivers">Open Waiver Board</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
 </section>
-<section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
+<section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> The watch snapshot reuses Butler's current read-only manager state. Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
 </main>
 </body>
 </html>
@@ -852,7 +917,26 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/plain; charset=utf-8' -Body 'Auto-Pilot accepts no query parameters in this build.'
             return
         }
-        $html = Get-V04AutoPilotHtml
+
+        $watchState = [pscustomobject]@{
+            Ready = $false
+            Attention = 'UNAVAILABLE'
+            StartSit = 'UNAVAILABLE'
+            Waivers = 'UNAVAILABLE'
+            Roster = 'Manager tools'
+        }
+        try {
+            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId
+            if ([int]$dashboard.StatusCode -eq 200 -and $dashboard.ContentType -match '^text/html') {
+                $watchState = Get-V04AutoPilotWatchState -DashboardHtml ([string]$dashboard.Body)
+            }
+        }
+        catch {
+            # Auto-Pilot is a read-only preview; a snapshot read failure must
+            # remain visible as unavailable instead of crashing or guessing.
+        }
+
+        $html = Get-V04AutoPilotHtml -WatchState $watchState
         $html = Add-ButlerAccessibility -Html $html
         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         return
