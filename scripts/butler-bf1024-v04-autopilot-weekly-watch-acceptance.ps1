@@ -15,7 +15,7 @@ if (@($errors).Count -ne 0) {
     throw "BF-1024 BLOCKED: request worker parse failed: $summary"
 }
 
-foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
+foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotApprovalPolicy','Get-V04AutoPilotHtml')) {
     $matches = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
@@ -38,7 +38,8 @@ if ($state.StartSit -cne 'REFRESH') { throw 'BF-1024 BLOCKED: Start/Sit snapshot
 if ($state.Waivers -cne 'DO NOT ACT') { throw 'BF-1024 BLOCKED: Waiver snapshot mismatch.' }
 if ($state.Roster -cne 'Hard(CORE)-Dynasty | nuke the whales | roster 6') { throw 'BF-1024 BLOCKED: roster snapshot mismatch.' }
 
-$html = Get-V04AutoPilotHtml -WatchState $state
+$policy = Get-V04AutoPilotApprovalPolicy
+$html = Get-V04AutoPilotHtml -WatchState $state -ApprovalPolicy $policy
 foreach ($required in @(
     'CURRENT WEEKLY WATCH',
     'What Butler sees right now',
@@ -61,7 +62,8 @@ if ($partial.Ready) { throw 'BF-1024 BLOCKED: incomplete watch snapshot was inco
 foreach ($required in @(
     'Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget ''/'' -League $LeagueId',
     'Get-V04AutoPilotWatchState -DashboardHtml',
-    'Get-V04AutoPilotHtml -WatchState $watchState',
+    'Get-V04AutoPilotApprovalPolicy',
+    'Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy',
     'Attention = ''UNAVAILABLE''',
     'StartSit = ''UNAVAILABLE''',
     'Waivers = ''UNAVAILABLE'''
