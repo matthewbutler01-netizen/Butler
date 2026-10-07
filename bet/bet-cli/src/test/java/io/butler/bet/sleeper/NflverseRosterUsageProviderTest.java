@@ -1,7 +1,10 @@
 package io.butler.bet.sleeper;
 
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
 import java.time.Instant;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,6 +89,25 @@ class NflverseRosterUsageProviderTest {
         assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(400));
         assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(401));
         assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(403));
+    }
+
+    @Test void decodesGzipReleaseAssetsAndLeavesPlainCsvUntouched() throws Exception {
+        String csv = "season,week,gameday,gametime\n2026,4,2026-10-04,13:00\n";
+        assertEquals(csv, NflverseRosterUsageProvider.decodeText(
+            URI.create("https://example.test/games.csv"), csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(bytes)) {
+            gzip.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertEquals(csv, NflverseRosterUsageProvider.decodeText(
+            URI.create("https://example.test/games.csv.gz"), bytes.toByteArray()));
+    }
+
+    @Test void scheduleSourceUsesCurrentNflverseGzipAsset() {
+        assertEquals(
+            "https://github.com/nflverse/nflverse-data/releases/download/schedules/games.csv.gz",
+            NflverseDefensiveMatchupProvider.SCHEDULE_URI.toString());
     }
 
     private static java.util.Map<String, NflverseRosterUsageProvider.UsageEvidence> parse(String stats, String snaps) {
