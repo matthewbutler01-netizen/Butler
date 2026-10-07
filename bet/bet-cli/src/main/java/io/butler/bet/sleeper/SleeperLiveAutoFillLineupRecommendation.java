@@ -232,6 +232,10 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
         Set<String> explicitlyUnavailablePlayerIds = new LinkedHashSet<>();
         Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
+        Set<String> conditionalAvailabilityPlayerIds = new LinkedHashSet<>();
+        Map<String, BigDecimal> conditionalAvailabilityProjections = new LinkedHashMap<>();
+        Map<String, String> conditionalAvailabilityEvidence = new LinkedHashMap<>();
+        Set<String> conditionalHardLegalityUsedPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
         List<ProjectionHold> projectionHolds = new ArrayList<>();
         // A projection is not proof that a player is healthy enough to start.
@@ -304,14 +308,39 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             boolean exactAvailability = availability != null
                 && target.sleeperPlayerId().equals(availability.sleeperPlayerId());
             if ((exactAvailability && availability.requiresInjuryReview()) || news != null) {
-                projectionsBySleeperId.remove(target.sleeperPlayerId());
                 if (exactAvailability && availability.confirmedUnavailable()) {
+                    projectionsBySleeperId.remove(target.sleeperPlayerId());
                     explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
                     availabilityExclusions.add(new UnavailablePlayerExclusion(
                         target.sleeperPlayerId(), display(target), availability.status(), availability.injuryStatus(),
                         "Excluded from startable candidates: " + availability.evidenceDescription()
                             + ". A projection does not override confirmed unavailable status."));
                 } else {
+                    // Reaching this branch with a projection proves the player is already in the
+                    // active STARTER/BENCH optimizer roster. Do not re-derive that state from the
+                    // presentation slot string; exact Questionable availability is sufficient.
+                    boolean exactQuestionableActive =
+                        exactAvailability
+                            && availability.injuryStatus() != null
+                            && "questionable".equalsIgnoreCase(availability.injuryStatus().trim());
+
+                    if (exactQuestionableActive) {
+                        SleeperWeeklyProjectionProvider.Projection conditionalProjection =
+                            projectionBySleeperId.get(target.sleeperPlayerId());
+                        if (conditionalProjection != null) {
+                            conditionalAvailabilityPlayerIds.add(target.sleeperPlayerId());
+                            conditionalAvailabilityProjections.put(
+                                target.sleeperPlayerId(), conditionalProjection.projectedPoints());
+                            conditionalAvailabilityEvidence.put(
+                                target.sleeperPlayerId(),
+                                availability.evidenceDescription() + (news == null ? "" : "; " + news));
+                        }
+                    }
+
+                    // Preserve the ordinary hold contract: Questionable players stay out of the
+                    // normal scoreable projection map. Their exact projection is isolated above
+                    // and can be reintroduced only inside the hard-legality fallback.
+                    projectionsBySleeperId.remove(target.sleeperPlayerId());
                     projectionHoldPlayerIds.add(target.sleeperPlayerId());
                     projectionHolds.add(new ProjectionHold(
                         target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
@@ -319,8 +348,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         exactAvailability ? availability.injuryStatus() : null,
                         "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
                             + (news == null ? "" : "; " + news)
-                            + ". Pending clearance, Butler preserved this player's current lineup state and excluded "
-                            + "the player from promotions and comparable projected totals. Questionable is not confirmed Out."));
+                            + (exactQuestionableActive
+                                ? ". Pending clearance. Questionable is not confirmed Out. Butler normally preserves this player's current lineup state;"
+                                    + " the exact projection remains available only for a hard lineup-legality fallback that still requires manager review."
+                                : ". Pending clearance, Butler preserved this player's current lineup state and excluded"
+                                    + " the player from promotions and comparable projected totals. Questionable is not confirmed Out.")));
                 }
             }
         }
@@ -404,13 +436,79 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     + " Preserved current lineup state; excluded from promotions. This is not an injury designation."));
         }
 
-        AutoFillLineupOptimizer.Recommendation recommendation = new AutoFillLineupOptimizer()
-            .optimize(
-                roster.startingSlots(),
-                optimizerRoster,
-                projectionsBySleeperId,
-                Set.copyOf(explicitlyUnavailablePlayerIds),
-                Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
+        boolean hardLegalityNeed = !roster.emptyStartingOrdinals().isEmpty()
+            || optimizerRoster.stream().anyMatch(player ->
+                player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
+                    && explicitlyUnavailablePlayerIds.contains(player.playerId()));
+
+        var optimizer = new AutoFillLineupOptimizer();
+        AutoFillLineupOptimizer.Recommendation recommendation = optimizer.optimize(
+            roster.startingSlots(),
+            optimizerRoster,
+            projectionsBySleeperId,
+            Set.copyOf(explicitlyUnavailablePlayerIds),
+            Set.copyOf(projectionHoldPlayerIds),
+            Set.copyOf(roster.emptyStartingOrdinals()));
+
+        if (!recommendation.ready()
+            && hardLegalityNeed
+            && recommendation.reason().startsWith("A complete legal lineup cannot be built")
+            && !conditionalAvailabilityPlayerIds.isEmpty()) {
+
+            Set<String> conditionalForFallback = optimizerRoster.stream()
+                .map(AutoFillLineupOptimizer.RosterPlayer::playerId)
+                .filter(conditionalAvailabilityPlayerIds::contains)
+                .filter(conditionalAvailabilityProjections::containsKey)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+
+            if (!conditionalForFallback.isEmpty()) {
+                Set<String> fallbackHolds = new LinkedHashSet<>(projectionHoldPlayerIds);
+                fallbackHolds.removeAll(conditionalForFallback);
+                Map<String, BigDecimal> fallbackProjections = new LinkedHashMap<>(projectionsBySleeperId);
+                for (String playerId : conditionalForFallback) {
+                    fallbackProjections.put(playerId, conditionalAvailabilityProjections.get(playerId));
+                }
+                var fallback = optimizer.optimize(
+                    roster.startingSlots(),
+                    optimizerRoster,
+                    fallbackProjections,
+                    Set.copyOf(explicitlyUnavailablePlayerIds),
+                    Set.copyOf(fallbackHolds),
+                    Set.copyOf(roster.emptyStartingOrdinals()));
+
+                if (fallback.ready()) {
+                    // A legal solution may resolve the hard need through RB/FLEX rearrangement.
+                    // Accept only if a conditionally released Questionable player is actually
+                    // present in the solved starting assignments.
+                    Set<String> used = fallback.assignments().stream()
+                        .map(AutoFillLineupOptimizer.SlotRecommendation::recommendedPlayerId)
+                        .filter(conditionalForFallback::contains)
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                    if (!used.isEmpty()) {
+                        recommendation = fallback;
+                        conditionalHardLegalityUsedPlayerIds.addAll(used);
+                        projectionHoldPlayerIds.removeAll(used);
+                        projectionHolds.removeIf(hold -> used.contains(hold.sleeperPlayerId()));
+                    } else {
+                        recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                            recommendation.reason()
+                                + " Hard-legality fallback solved without using a conditional candidate; candidates="
+                                + String.join(",", conditionalForFallback) + ".");
+                    }
+                } else {
+                    recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                        recommendation.reason()
+                            + " Hard-legality fallback candidates="
+                            + String.join(",", conditionalForFallback)
+                            + "; fallback result=" + fallback.reason());
+                }
+            } else {
+                recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                    recommendation.reason()
+                        + " Hard-legality fallback had no exact projected Questionable bench candidates.");
+            }
+        }
+
         List<AutoFillLineupOptimizer.SlotRecommendation> withheldSwaps = new ArrayList<>();
         // Re-evaluate after each batch of held bench candidates so replacement alternatives are checked too.
         while (recommendation.ready()) {
@@ -464,11 +562,6 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         List<AutoFillLineupOptimizer.SlotRecommendation> withheldSmallEdgeSwaps = new ArrayList<>();
-        boolean hardLegalityNeed = !roster.emptyStartingOrdinals().isEmpty()
-            || optimizerRoster.stream().anyMatch(player ->
-                player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
-                    && explicitlyUnavailablePlayerIds.contains(player.playerId()));
-
         while (LineupSwapReviewPolicy.belowActionableEdge(projectedGain, hardLegalityNeed)
             && recommendation.assignments().stream().anyMatch(AutoFillLineupOptimizer.SlotRecommendation::changed)) {
             var promotions = recommendation.promotions();
@@ -506,6 +599,17 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
 
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
+        for (String playerId : conditionalHardLegalityUsedPlayerIds) {
+            var player = optimizerRoster.stream().filter(p -> playerId.equals(p.playerId())).findFirst().orElse(null);
+            String name = player == null ? "Sleeper " + playerId : player.displayName();
+            String availabilityDetail = conditionalAvailabilityEvidence.getOrDefault(
+                playerId, "exact current availability remains under review");
+            decisionEvidence.add(
+                "Hard-lineup-legality review for " + name + ": Butler used this projected Questionable active player"
+                    + " only because a required starting slot otherwise had no complete legal scoreable fill."
+                    + " Manager approval is required and availability must be rechecked before kickoff. "
+                    + availabilityDetail);
+        }
         for (var assignment : recommendation.assignments()) {
             if (!assignment.changed()) continue;
             var currentUsage = usage.get(assignment.currentPlayerId());

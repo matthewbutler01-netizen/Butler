@@ -59,6 +59,51 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     }
 
     @Test
+    void questionableBenchPlayerMayFillExplicitEmptySlotOnlyForHardLegalityReview() throws Exception {
+        Database database = initializedDatabase("league-empty-questionable");
+        var snapshot = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
+
+        var original = rosterReport("league-empty-questionable");
+        var players = original.targetPlayers().stream().map(p -> "s-wr-a".equals(p.sleeperPlayerId())
+            ? new SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer(
+                p.sleeperPlayerId(), "BENCH", null, null,
+                p.butlerPlayerId(), p.displayName(), p.position(), p.nflTeam(), p.mappingState())
+            : p).toList();
+        var emptyRoster = new SleeperLiveWaiverTargetRosterContextAudit.AuditReport(
+            original.policyId(), original.leagueId(), original.marketSnapshotId(), original.waiverSnapshotId(),
+            original.sleeperLeagueId(), original.providerSeason(), original.providerStatus(), original.providerLeg(),
+            original.sleeperOwnerId(), original.ownerDisplayName(), original.ownerTeamName(), original.rosterId(),
+            original.butlerTeamId(), original.butlerTeamName(), original.lineupSlots(), original.startingSlots(),
+            original.candidateCount(), original.reviewableCandidateCount(), 3, 1, 2, 0, 0, 3, 0, players, List.of(1));
+
+        var report = new SleeperLiveAutoFillLineupRecommendation(
+            database,
+            (season, week, scoring) -> snapshot,
+            ids -> Map.of(
+                "s-wr-a",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-a", "Active", "Out"),
+                "s-wr-b",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-b", "Active", "Questionable", "Ankle", "Limited", PROJECTION_OBSERVED_AT)))
+            .recommend(emptyRoster);
+
+        assertTrue(report.ready());
+        assertEquals("s-wr-b", report.recommendation().assignments().stream()
+            .filter(assignment -> assignment.starterOrdinal() == 1)
+            .findFirst().orElseThrow().recommendedPlayerId());
+        assertTrue(report.recommendation().promotions().stream()
+            .anyMatch(player -> "s-wr-b".equals(player.playerId())));
+        assertFalse(report.projectionHolds().stream()
+            .anyMatch(hold -> "s-wr-b".equals(hold.sleeperPlayerId())));
+        assertTrue(report.decisionEvidence().stream().anyMatch(evidence ->
+            evidence.contains("Hard-lineup-legality review for Receiver B")
+                && evidence.contains("Questionable")
+                && evidence.contains("Manager approval is required")));
+    }
+
+    @Test
     void expertSitStarterGetsLowerProjectedBenchComparisonWithoutChangingLineup() throws Exception {
         Database database = initializedDatabase("league-replacement");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "8")));
