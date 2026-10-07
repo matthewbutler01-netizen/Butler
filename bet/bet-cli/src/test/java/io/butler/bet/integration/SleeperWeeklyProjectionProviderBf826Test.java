@@ -105,6 +105,32 @@ class SleeperWeeklyProjectionProviderBf826Test {
         assertEquals("s-rb", snapshot.gaps().getFirst().sleeperPlayerId());
         assertTrue(snapshot.gaps().getFirst().reason().contains("exact Sleeper projection row is present"));
         assertTrue(snapshot.gaps().getFirst().reason().contains("no numeric fields matching"));
+        assertTrue(snapshot.gaps().getFirst().reason().contains("numeric raw fields=snap_pct=0.72"));
+    }
+
+    @Test
+    void projectionGapListsAllCurrentNumericRowFieldsWithoutScoringThem() throws Exception {
+        String json = """
+            [{
+              "player_id":"s-rb",
+              "season":2026,
+              "week":2,
+              "season_type":"regular",
+              "stats":{"bonus":2,"snap_pct":0.72,"note":"x","usage":11}
+            }]
+            """;
+
+        var snapshot = provider().parse(
+            json,
+            2026,
+            2,
+            SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            Map.of("rush_yd", 0.1, "rec", 1.0));
+
+        assertEquals(0, snapshot.projections().size());
+        assertEquals(1, snapshot.gaps().size());
+        assertTrue(snapshot.gaps().getFirst().reason().contains(
+            "numeric raw fields=bonus=2,snap_pct=0.72,usage=11"));
     }
 
     @Test

@@ -208,7 +208,26 @@ public final class SleeperWeeklyProjectionProvider {
         gaps.add(new ProjectionGap(
             playerId,
             "exact Sleeper projection row is present but " + pointsField
-                + " is missing/non-numeric; " + rawScore.reason()));
+                + " is missing/non-numeric; " + rawScore.reason()
+                + "; numeric raw fields=" + numericFieldSummary(stats)));
+    }
+
+    private static String numericFieldSummary(JsonNode stats) {
+        if (stats == null || !stats.isObject()) return "none";
+        List<String> numeric = new ArrayList<>();
+        Iterator<Map.Entry<String, JsonNode>> fields = stats.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> entry = fields.next();
+            JsonNode value = entry.getValue();
+            if (value != null && value.isNumber()) {
+                numeric.add(entry.getKey() + "=" + value.decimalValue().stripTrailingZeros().toPlainString());
+            }
+        }
+        numeric.sort(String::compareTo);
+        if (numeric.isEmpty()) return "none";
+        int limit = Math.min(numeric.size(), 24);
+        String result = String.join(",", numeric.subList(0, limit));
+        return numeric.size() > limit ? result + ",...(" + numeric.size() + " total)" : result;
     }
 
     private static RawScore scoreRawProjection(JsonNode stats, Map<String, Double> leagueScoringSettings) {
