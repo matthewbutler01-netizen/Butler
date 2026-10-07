@@ -77,6 +77,17 @@ class NflverseRosterUsageProviderTest {
             + "g1,2026,REG,2,4,0,-1\n", SNAPS));
     }
 
+    @Test void retriesOnlyTransientSourceStatuses() {
+        assertTrue(NflverseRosterUsageProvider.shouldRetryStatus(404));
+        assertTrue(NflverseRosterUsageProvider.shouldRetryStatus(408));
+        assertTrue(NflverseRosterUsageProvider.shouldRetryStatus(429));
+        assertTrue(NflverseRosterUsageProvider.shouldRetryStatus(500));
+        assertTrue(NflverseRosterUsageProvider.shouldRetryStatus(503));
+        assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(400));
+        assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(401));
+        assertFalse(NflverseRosterUsageProvider.shouldRetryStatus(403));
+    }
+
     private static java.util.Map<String, NflverseRosterUsageProvider.UsageEvidence> parse(String stats, String snaps) {
         return NflverseRosterUsageProvider.parse(IDS, stats, snaps, 2026, 4, Set.of("s1"), NOW);
     }
