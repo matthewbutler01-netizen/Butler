@@ -15,7 +15,7 @@ if (@($errors).Count -ne 0) {
     throw "BF-1024 BLOCKED: request worker parse failed: $summary"
 }
 
-foreach ($functionName in @('Get-AppCss','Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
+foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
     $matches = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
@@ -23,6 +23,11 @@ foreach ($functionName in @('Get-AppCss','Get-V04AutoPilotWatchState','Get-V04Au
     if ($matches.Count -ne 1) { throw "BF-1024 BLOCKED: expected one $functionName function, found $($matches.Count)." }
     . ([scriptblock]::Create($matches[0].Extent.Text))
 }
+
+# Get-AppCss is supplied to the request worker at runtime by the staged app
+# core. The focused acceptance only needs a deterministic CSS value so the
+# Auto-Pilot renderer can be exercised without dot-sourcing the entire app.
+function Get-AppCss { return '' }
 
 $fixture = '<section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
 
