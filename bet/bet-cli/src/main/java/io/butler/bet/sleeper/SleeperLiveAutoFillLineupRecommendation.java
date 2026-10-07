@@ -430,22 +430,6 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
                     && explicitlyUnavailablePlayerIds.contains(player.playerId()));
 
-        Set<Integer> hardNeedOrdinals = new LinkedHashSet<>();
-        Set<String> hardNeedSlots = new LinkedHashSet<>();
-        for (Integer ordinal : roster.emptyStartingOrdinals()) {
-            if (ordinal != null && ordinal >= 0 && ordinal < roster.startingSlots().size()) {
-                hardNeedOrdinals.add(ordinal);
-                hardNeedSlots.add(roster.startingSlots().get(ordinal));
-            }
-        }
-        for (var player : optimizerRoster) {
-            if (player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
-                && explicitlyUnavailablePlayerIds.contains(player.playerId())) {
-                hardNeedOrdinals.add(player.starterOrdinal());
-                hardNeedSlots.add(player.currentLineupSlot());
-            }
-        }
-
         var optimizer = new AutoFillLineupOptimizer();
         AutoFillLineupOptimizer.Recommendation recommendation = optimizer.optimize(
             roster.startingSlots(),
@@ -460,19 +444,15 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             && recommendation.reason().startsWith("A complete legal lineup cannot be built")
             && !conditionalAvailabilityPlayerIds.isEmpty()) {
 
-            var eligibilityPolicy = new io.butler.bet.intelligence.LineupSlotEligibilityPolicy();
-            Set<String> conditionalForHardNeed = new LinkedHashSet<>();
-            for (var player : optimizerRoster) {
-                if (!conditionalAvailabilityPlayerIds.contains(player.playerId())
-                    || !projectionsBySleeperId.containsKey(player.playerId())) continue;
-                boolean canFillHardNeed = hardNeedSlots.stream().anyMatch(slot ->
-                    eligibilityPolicy.isPlayerEligible(slot, player.providerFantasyPositions()));
-                if (canFillHardNeed) conditionalForHardNeed.add(player.playerId());
-            }
+            Set<String> conditionalForFallback = optimizerRoster.stream()
+                .map(AutoFillLineupOptimizer.RosterPlayer::playerId)
+                .filter(conditionalAvailabilityPlayerIds::contains)
+                .filter(projectionsBySleeperId::containsKey)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
-            if (!conditionalForHardNeed.isEmpty()) {
+            if (!conditionalForFallback.isEmpty()) {
                 Set<String> fallbackHolds = new LinkedHashSet<>(projectionHoldPlayerIds);
-                fallbackHolds.removeAll(conditionalForHardNeed);
+                fallbackHolds.removeAll(conditionalForFallback);
                 var fallback = optimizer.optimize(
                     roster.startingSlots(),
                     optimizerRoster,
@@ -482,27 +462,35 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     Set.copyOf(roster.emptyStartingOrdinals()));
 
                 if (fallback.ready()) {
-                    // A legal solution may resolve the hard-needed slot indirectly by rearranging
-                    // another FLEX-eligible starter. Accept the fallback only when at least one of
-                    // the conditionally released Questionable players is actually used somewhere
-                    // in the solved starting lineup.
+                    // A legal solution may resolve the hard need through RB/FLEX rearrangement.
+                    // Accept only if a conditionally released Questionable player is actually
+                    // present in the solved starting assignments.
                     Set<String> used = fallback.assignments().stream()
                         .map(AutoFillLineupOptimizer.SlotRecommendation::recommendedPlayerId)
-                        .filter(conditionalForHardNeed::contains)
+                        .filter(conditionalForFallback::contains)
                         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
                     if (!used.isEmpty()) {
                         recommendation = fallback;
                         conditionalHardLegalityUsedPlayerIds.addAll(used);
                         projectionHoldPlayerIds.removeAll(used);
                         projectionHolds.removeIf(hold -> used.contains(hold.sleeperPlayerId()));
+                    } else {
+                        recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                            recommendation.reason()
+                                + " Hard-legality fallback solved without using a conditional candidate; candidates="
+                                + String.join(",", conditionalForFallback) + ".");
                     }
                 } else {
                     recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
                         recommendation.reason()
                             + " Hard-legality fallback candidates="
-                            + String.join(",", conditionalForHardNeed)
+                            + String.join(",", conditionalForFallback)
                             + "; fallback result=" + fallback.reason());
                 }
+            } else {
+                recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                    recommendation.reason()
+                        + " Hard-legality fallback had no exact projected Questionable bench candidates.");
             }
         }
 
