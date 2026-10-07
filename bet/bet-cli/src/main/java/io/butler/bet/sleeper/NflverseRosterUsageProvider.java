@@ -36,16 +36,35 @@ final class NflverseRosterUsageProvider {
         Instant now = Instant.now();
         Cached saved = cache.get(uri);
         if (saved != null && now.isBefore(saved.expires())) return saved.body();
-        var response = client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8))
-            .header("User-Agent", "Butler-FF/0.1").GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+
+        HttpResponse<java.io.InputStream> response = send(uri);
+        if (response.statusCode() != 200 && shouldRetryStatus(response.statusCode())) {
+            try (var ignored = response.body()) {
+                // GitHub release assets can briefly disappear while a release is replaced.
+            }
+            Thread.sleep(500);
+            response = send(uri);
+        }
+
         try (var body = response.body()) {
-            if (response.statusCode() != 200) throw new IOException("Usage source HTTP " + response.statusCode());
+            if (response.statusCode() != 200) {
+                throw new IOException("Usage source HTTP " + response.statusCode() + ": " + uri);
+            }
             byte[] bytes = body.readNBytes(8_000_001);
-            if (bytes.length > 8_000_000) throw new IOException("Usage source exceeds size limit");
+            if (bytes.length > 8_000_000) throw new IOException("Usage source exceeds size limit: " + uri);
             String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
             cache.put(uri, new Cached(text, now.plus(Duration.ofMinutes(15))));
             return text;
         }
+    }
+
+    private HttpResponse<java.io.InputStream> send(URI uri) throws IOException, InterruptedException {
+        return client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(8))
+            .header("User-Agent", "Butler-FF/0.1").GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+    }
+
+    static boolean shouldRetryStatus(int status) {
+        return status == 404 || status == 408 || status == 429 || (status >= 500 && status <= 599);
     }
 
     static Map<String, UsageEvidence> parse(String idsCsv, String statsCsv, String snapsCsv,
