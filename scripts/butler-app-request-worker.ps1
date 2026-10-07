@@ -728,6 +728,36 @@ function Get-V04AutoPilotHtml {
     $queueTradePolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.TradePolicy)
     $queueTradeNext = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.TradeNext)
 
+    # BF-1028: a prepared Start/Sit review packet is a read-only object derived
+    # from the already-governed weekly watch. It never invents a lineup when
+    # evidence is incomplete.
+    $preparedStartSit = if (-not [bool]$WatchState.Ready -or
+                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD') {
+        [pscustomobject]@{
+            State = 'BLOCKED'
+            Decision = 'NO RECOMMENDATION PREPARED'
+            Reason = [string]$ApprovalQueue.StartSitNext
+            Policy = [string]$ApprovalPolicy.StartSit
+            ReviewHref = '/matchup/autofill'
+        }
+    }
+    else {
+        [pscustomobject]@{
+            State = 'READY FOR MANAGER REVIEW'
+            Decision = [string]$WatchState.StartSit
+            Reason = 'The current Butler lineup signal is ready to review. Manager approval is still required.'
+            Policy = [string]$ApprovalPolicy.StartSit
+            ReviewHref = '/matchup/autofill'
+        }
+    }
+
+    $preparedState = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.State)
+    $preparedDecision = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.Decision)
+    $preparedReason = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.Reason)
+    $preparedPolicy = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.Policy)
+    $preparedHref = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.ReviewHref)
+    $preparedClass = if ($preparedStartSit.State -ceq 'BLOCKED') { 'warn' } else { 'good' }
+
     return @"
 <!doctype html>
 <html lang="en">
@@ -776,6 +806,13 @@ function Get-V04AutoPilotHtml {
 .autopilot-queue-row strong{display:block;margin-top:4px;color:var(--ink);font-size:12px}
 .autopilot-queue-next{color:var(--muted);font-size:12px;line-height:1.45}
 .autopilot-queue-action{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--turf-deep);text-decoration:none;font-size:11px;font-weight:800;white-space:nowrap}.autopilot-queue-action:hover,.autopilot-queue-action:focus-visible{border-color:var(--turf)}
+.autopilot-prepared{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.autopilot-prepared-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}
+.autopilot-prepared-head h2{margin:4px 0 0;font-size:18px}
+.autopilot-prepared-card{display:grid;grid-template-columns:150px 170px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.autopilot-prepared-card span{display:block;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.autopilot-prepared-card strong{display:block;margin-top:4px;color:var(--ink);font-size:12px}
+.autopilot-prepared-reason{color:var(--muted);font-size:12px;line-height:1.45}
 .autopilot-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:18px}
 .autopilot-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:12px;font-weight:800}
 .autopilot-actions .primary{background:var(--turf);border-color:var(--turf);color:#111315}
@@ -783,7 +820,7 @@ function Get-V04AutoPilotHtml {
 .autopilot-actions a:hover,.autopilot-actions a:focus-visible{border-color:var(--turf)}
 .autopilot-boundary{margin-top:14px}
 @media(max-width:1000px){.autopilot-watch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.autopilot-grid,.autopilot-policy-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-queue-row{grid-template-columns:1fr}.autopilot-queue-action{justify-self:start}.autopilot-actions a{flex:1 1 auto}}
+@media(max-width:900px){.autopilot-grid,.autopilot-policy-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-queue-row,.autopilot-prepared-card{grid-template-columns:1fr}.autopilot-queue-action{justify-self:start}.autopilot-actions a{flex:1 1 auto}}
 @media(max-width:620px){.autopilot-watch-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -802,6 +839,7 @@ function Get-V04AutoPilotHtml {
 </div>
 <div class="autopilot-policy"><div class="autopilot-policy-head"><div><div class="eyebrow">APPROVAL POLICY</div><h2>What Auto-Pilot is allowed to do</h2></div><span class="status warn">$approvalMode</span></div><div class="autopilot-policy-grid"><div class="autopilot-policy-card"><span>Start/Sit</span><strong>$startSitPolicy</strong></div><div class="autopilot-policy-card"><span>Waivers</span><strong>$waiverPolicy</strong></div><div class="autopilot-policy-card"><span>Trades</span><strong>$tradePolicy</strong></div></div><div class="autopilot-blockers"><h3>Hard blockers always stop action</h3><ul>$blockers</ul></div></div>
 <div class="autopilot-queue"><div class="autopilot-queue-head"><div><div class="eyebrow">APPROVAL QUEUE</div><h2>What needs your decision</h2></div><span class="status">NOTHING AUTO-EXECUTES</span></div><div class="autopilot-queue-list"><div class="autopilot-queue-row"><div><span>Start/Sit signal</span><strong>$queueStartSignal</strong></div><div><span>Allowed</span><strong>$queueStartPolicy</strong></div><div class="autopilot-queue-next">$queueStartNext</div><a class="autopilot-queue-action" href="/matchup/autofill">Review lineup</a></div><div class="autopilot-queue-row"><div><span>Waiver signal</span><strong>$queueWaiverSignal</strong></div><div><span>Allowed</span><strong>$queueWaiverPolicy</strong></div><div class="autopilot-queue-next">$queueWaiverNext</div><a class="autopilot-queue-action" href="/waivers">Review waivers</a></div><div class="autopilot-queue-row"><div><span>Trades</span><strong>MANUAL</strong></div><div><span>Allowed</span><strong>$queueTradePolicy</strong></div><div class="autopilot-queue-next">$queueTradeNext</div><a class="autopilot-queue-action" href="/trade">Open Trade Analyzer</a></div></div></div>
+<div class="autopilot-prepared"><div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status $preparedClass">$preparedState</span></div><div class="autopilot-prepared-card"><div><span>Decision</span><strong>$preparedDecision</strong></div><div><span>Policy</span><strong>$preparedPolicy</strong></div><div class="autopilot-prepared-reason">$preparedReason</div><a class="autopilot-queue-action" href="$preparedHref">Open review</a></div></div>
 <div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/waivers">Open Waiver Board</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
 </section>
 <section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> The watch snapshot reuses Butler's current read-only manager state. Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
