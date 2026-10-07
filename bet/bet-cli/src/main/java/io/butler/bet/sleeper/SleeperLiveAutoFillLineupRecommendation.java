@@ -232,6 +232,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
 
         Set<String> explicitlyUnavailablePlayerIds = new LinkedHashSet<>();
         Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
+        Set<String> conditionalAvailabilityPlayerIds = new LinkedHashSet<>();
+        Map<String, String> conditionalAvailabilityEvidence = new LinkedHashMap<>();
+        Set<String> conditionalHardLegalityUsedPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
         List<ProjectionHold> projectionHolds = new ArrayList<>();
         // A projection is not proof that a player is healthy enough to start.
@@ -304,14 +307,29 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             boolean exactAvailability = availability != null
                 && target.sleeperPlayerId().equals(availability.sleeperPlayerId());
             if ((exactAvailability && availability.requiresInjuryReview()) || news != null) {
-                projectionsBySleeperId.remove(target.sleeperPlayerId());
                 if (exactAvailability && availability.confirmedUnavailable()) {
+                    projectionsBySleeperId.remove(target.sleeperPlayerId());
                     explicitlyUnavailablePlayerIds.add(target.sleeperPlayerId());
                     availabilityExclusions.add(new UnavailablePlayerExclusion(
                         target.sleeperPlayerId(), display(target), availability.status(), availability.injuryStatus(),
                         "Excluded from startable candidates: " + availability.evidenceDescription()
                             + ". A projection does not override confirmed unavailable status."));
                 } else {
+                    boolean exactQuestionableBench =
+                        exactAvailability
+                            && "BENCH".equals(target.rosterSlot())
+                            && availability.injuryStatus() != null
+                            && "questionable".equalsIgnoreCase(availability.injuryStatus().trim());
+
+                    if (!exactQuestionableBench) {
+                        projectionsBySleeperId.remove(target.sleeperPlayerId());
+                    } else {
+                        conditionalAvailabilityPlayerIds.add(target.sleeperPlayerId());
+                        conditionalAvailabilityEvidence.put(
+                            target.sleeperPlayerId(),
+                            availability.evidenceDescription() + (news == null ? "" : "; " + news));
+                    }
+
                     projectionHoldPlayerIds.add(target.sleeperPlayerId());
                     projectionHolds.add(new ProjectionHold(
                         target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
@@ -319,8 +337,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         exactAvailability ? availability.injuryStatus() : null,
                         "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
                             + (news == null ? "" : "; " + news)
-                            + ". Pending clearance, Butler preserved this player's current lineup state and excluded "
-                            + "the player from promotions and comparable projected totals. Questionable is not confirmed Out."));
+                            + (exactQuestionableBench
+                                ? ". Questionable is not confirmed Out. Butler normally withholds this bench player from promotion;"
+                                    + " the exact projection remains available only for a hard lineup-legality fallback that still requires manager review."
+                                : ". Pending clearance, Butler preserved this player's current lineup state and excluded"
+                                    + " the player from promotions and comparable projected totals. Questionable is not confirmed Out.")));
                 }
             }
         }
@@ -404,13 +425,69 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     + " Preserved current lineup state; excluded from promotions. This is not an injury designation."));
         }
 
-        AutoFillLineupOptimizer.Recommendation recommendation = new AutoFillLineupOptimizer()
-            .optimize(
-                roster.startingSlots(),
-                optimizerRoster,
-                projectionsBySleeperId,
-                Set.copyOf(explicitlyUnavailablePlayerIds),
-                Set.copyOf(projectionHoldPlayerIds), Set.copyOf(roster.emptyStartingOrdinals()));
+        Set<String> hardNeedSlots = new LinkedHashSet<>();
+        for (Integer ordinal : roster.emptyStartingOrdinals()) {
+            if (ordinal != null && ordinal >= 0 && ordinal < roster.startingSlots().size()) {
+                hardNeedSlots.add(roster.startingSlots().get(ordinal));
+            }
+        }
+        for (var player : optimizerRoster) {
+            if (player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
+                && explicitlyUnavailablePlayerIds.contains(player.playerId())) {
+                hardNeedSlots.add(player.currentLineupSlot());
+            }
+        }
+
+        var optimizer = new AutoFillLineupOptimizer();
+        AutoFillLineupOptimizer.Recommendation recommendation = optimizer.optimize(
+            roster.startingSlots(),
+            optimizerRoster,
+            projectionsBySleeperId,
+            Set.copyOf(explicitlyUnavailablePlayerIds),
+            Set.copyOf(projectionHoldPlayerIds),
+            Set.copyOf(roster.emptyStartingOrdinals()));
+
+        if (!recommendation.ready()
+            && hardLegalityNeed
+            && recommendation.reason().startsWith("A complete legal lineup cannot be built")
+            && !conditionalAvailabilityPlayerIds.isEmpty()) {
+
+            var eligibilityPolicy = new io.butler.bet.intelligence.LineupSlotEligibilityPolicy();
+            Set<String> conditionalForHardNeed = new LinkedHashSet<>();
+            for (var player : optimizerRoster) {
+                if (!conditionalAvailabilityPlayerIds.contains(player.playerId())
+                    || !projectionsBySleeperId.containsKey(player.playerId())) continue;
+                boolean canFillHardNeed = hardNeedSlots.stream().anyMatch(slot ->
+                    eligibilityPolicy.isPlayerEligible(slot, player.providerFantasyPositions()));
+                if (canFillHardNeed) conditionalForHardNeed.add(player.playerId());
+            }
+
+            if (!conditionalForHardNeed.isEmpty()) {
+                Set<String> fallbackHolds = new LinkedHashSet<>(projectionHoldPlayerIds);
+                fallbackHolds.removeAll(conditionalForHardNeed);
+                var fallback = optimizer.optimize(
+                    roster.startingSlots(),
+                    optimizerRoster,
+                    projectionsBySleeperId,
+                    Set.copyOf(explicitlyUnavailablePlayerIds),
+                    Set.copyOf(fallbackHolds),
+                    Set.copyOf(roster.emptyStartingOrdinals()));
+
+                if (fallback.ready()) {
+                    Set<String> used = fallback.promotions().stream()
+                        .map(AutoFillLineupOptimizer.RosterPlayer::playerId)
+                        .filter(conditionalForHardNeed::contains)
+                        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                    if (!used.isEmpty()) {
+                        recommendation = fallback;
+                        conditionalHardLegalityUsedPlayerIds.addAll(used);
+                        projectionHoldPlayerIds.removeAll(used);
+                        projectionHolds.removeIf(hold -> used.contains(hold.sleeperPlayerId()));
+                    }
+                }
+            }
+        }
+
         List<AutoFillLineupOptimizer.SlotRecommendation> withheldSwaps = new ArrayList<>();
         // Re-evaluate after each batch of held bench candidates so replacement alternatives are checked too.
         while (recommendation.ready()) {
@@ -506,6 +583,17 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
 
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
+        for (String playerId : conditionalHardLegalityUsedPlayerIds) {
+            var player = optimizerRoster.stream().filter(p -> playerId.equals(p.playerId())).findFirst().orElse(null);
+            String name = player == null ? "Sleeper " + playerId : player.displayName();
+            String availabilityDetail = conditionalAvailabilityEvidence.getOrDefault(
+                playerId, "exact current availability remains under review");
+            decisionEvidence.add(
+                "Hard-lineup-legality review for " + name + ": Butler used this projected Questionable bench player"
+                    + " only because a required starting slot otherwise had no complete legal scoreable fill."
+                    + " Manager approval is required and availability must be rechecked before kickoff. "
+                    + availabilityDetail);
+        }
         for (var assignment : recommendation.assignments()) {
             if (!assignment.changed()) continue;
             var currentUsage = usage.get(assignment.currentPlayerId());
