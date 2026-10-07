@@ -844,8 +844,10 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         for (var hold : projectionHolds) {
             var player = rosterById.get(hold.sleeperPlayerId());
             String positions = player == null ? "unknown" : String.join("/", player.providerFantasyPositions());
+            String rosterState = hold.rosterSlot()
+                + (hold.lineupSlot() == null ? "" : "/" + hold.lineupSlot());
             held.add(hold.displayName() + " [" + hold.sleeperPlayerId() + "]=" + positions
-                + " {" + hold.reason() + "}");
+                + " [" + rosterState + "] {" + hold.reason() + "}");
         }
 
         List<String> unavailable = new ArrayList<>();

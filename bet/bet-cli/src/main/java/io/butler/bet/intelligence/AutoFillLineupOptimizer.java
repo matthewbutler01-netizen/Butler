@@ -178,13 +178,25 @@ public final class AutoFillLineupOptimizer {
                 .filter(assignment -> !assignment.filled())
                 .map(assignment -> assignment.slot() + "@" + openOrdinals.get(assignment.slotOrdinal()))
                 .toList();
+            List<String> openInventory = new ArrayList<>();
+            for (int index = 0; index < openLineupSlots.size(); index++) {
+                RosterPlayer current = currentOpenStarters.get(index);
+                openInventory.add(
+                    openLineupSlots.get(index) + "@" + openOrdinals.get(index) + "="
+                        + (current == null
+                            ? "EMPTY"
+                            : current.displayName() + " [" + current.playerId() + "]"));
+            }
             List<String> candidateEligibility = candidates.stream()
                 .map(player -> player.displayName() + " [" + player.playerId() + "]="
                     + String.join("/", player.providerFantasyPositions()))
                 .toList();
             return Recommendation.unavailable(
                 "A complete legal lineup cannot be built for the scoreable open slots from current eligibility evidence."
-                    + " Unfilled slots: " + String.join(", ", unfilled)
+                    + " Solver filled=" + solved.filledSlots() + "/" + solved.startingSlots()
+                    + "; candidates=" + candidates.size() + "."
+                    + " Open scoreable slots: " + String.join(", ", openInventory)
+                    + ". Unfilled slots: " + String.join(", ", unfilled)
                     + ". Scoreable candidate eligibility: " + String.join(", ", candidateEligibility)
                     + ". Projection holds=" + projectionHoldPlayerIds.size()
                     + "; explicitly unavailable=" + explicitlyUnavailablePlayerIds.size() + ".");
