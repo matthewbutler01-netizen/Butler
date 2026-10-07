@@ -430,15 +430,18 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
                     && explicitlyUnavailablePlayerIds.contains(player.playerId()));
 
+        Set<Integer> hardNeedOrdinals = new LinkedHashSet<>();
         Set<String> hardNeedSlots = new LinkedHashSet<>();
         for (Integer ordinal : roster.emptyStartingOrdinals()) {
             if (ordinal != null && ordinal >= 0 && ordinal < roster.startingSlots().size()) {
+                hardNeedOrdinals.add(ordinal);
                 hardNeedSlots.add(roster.startingSlots().get(ordinal));
             }
         }
         for (var player : optimizerRoster) {
             if (player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
                 && explicitlyUnavailablePlayerIds.contains(player.playerId())) {
+                hardNeedOrdinals.add(player.starterOrdinal());
                 hardNeedSlots.add(player.currentLineupSlot());
             }
         }
@@ -479,8 +482,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     Set.copyOf(roster.emptyStartingOrdinals()));
 
                 if (fallback.ready()) {
-                    Set<String> used = fallback.promotions().stream()
-                        .map(AutoFillLineupOptimizer.RosterPlayer::playerId)
+                    Set<String> used = fallback.assignments().stream()
+                        .filter(assignment -> hardNeedOrdinals.contains(assignment.starterOrdinal()))
+                        .map(AutoFillLineupOptimizer.SlotRecommendation::recommendedPlayerId)
                         .filter(conditionalForHardNeed::contains)
                         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
                     if (!used.isEmpty()) {
