@@ -15,7 +15,7 @@ if (@($errors).Count -ne 0) {
     throw "BF-1024 BLOCKED: request worker parse failed: $summary"
 }
 
-foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
+foreach ($functionName in @('Get-AppCss','Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
     $matches = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
