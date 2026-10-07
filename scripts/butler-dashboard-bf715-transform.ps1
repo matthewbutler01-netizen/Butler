@@ -916,6 +916,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
         throw "BF-1019 BLOCKED: v0.4 fantasy-manager shell transform not found at $bf1019Transform"
     }
     & $bf1019Transform -CorePath $stagedCore
+
+    # BF-1021: dedicated v0.4 Start/Sit presentation runs after the v0.4 shell
+    # is final. It reuses the existing governed Lineup Advisor evidence only.
+    $bf1021Transform = Join-Path $PSScriptRoot 'butler-app-bf1021-v04-start-sit-assistant-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1021Transform -PathType Leaf)) {
+        throw "BF-1021 BLOCKED: v0.4 Start/Sit Assistant transform not found at $bf1021Transform"
+    }
+    & $bf1021Transform -CorePath $stagedCore
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final

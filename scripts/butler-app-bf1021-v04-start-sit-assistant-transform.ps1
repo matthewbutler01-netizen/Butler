@@ -1,0 +1,99 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
+    [string]$CorePath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if (-not (Test-Path -LiteralPath $CorePath -PathType Leaf)) {
+    throw "BF-1021 BLOCKED: staged Butler core not found at $CorePath"
+}
+
+$core = [System.IO.File]::ReadAllText($CorePath)
+$functionStart = $core.IndexOf('function ConvertTo-AutoFillHtml {', [System.StringComparison]::Ordinal)
+$functionEnd = $core.IndexOf('function ConvertTo-TeamHtml {', $functionStart, [System.StringComparison]::Ordinal)
+if ($functionStart -lt 0 -or $functionEnd -le $functionStart) {
+    throw 'BF-1021 BLOCKED: final Start/Sit renderer boundary is missing.'
+}
+
+$function = $core.Substring($functionStart, $functionEnd - $functionStart)
+foreach ($required in @(
+    'Lineup advisor',
+    'CurrentPoints',
+    'RecommendedPoints',
+    'SlotGain',
+    'Compare this swap',
+    'Review queue',
+    'Projection hold',
+    'Refresh projection'
+)) {
+    if ($function.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1021 BLOCKED: final lineup capability is missing: $required"
+    }
+}
+
+$function = $function.Replace('Lineup advisor', 'Start/Sit Assistant')
+$function = $function.Replace('This week''s lineup decision', 'Start/Sit Assistant')
+$function = $function.Replace('recommendation-panel', 'recommendation-panel start-sit-assistant')
+$function = $function.Replace('<h3>Decision</h3>', '<h3>What should I change?</h3>')
+$function = $function.Replace('<h3>Proposed promotion</h3>', '<h3>START</h3>')
+$function = $function.Replace('<h3>Proposed bench move</h3>', '<h3>SIT</h3>')
+$function = $function.Replace('<small>Current</small>', '<small>Current starter</small>')
+$function = $function.Replace('<small>Candidate</small>', '<small>Recommended starter</small>')
+$function = $function.Replace('Projected change', 'Projected difference')
+
+$core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
+
+$cssStart = $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
+$cssEnd = $core.IndexOf('function Get-AppNav {', $cssStart, [System.StringComparison]::Ordinal)
+if ($cssStart -lt 0 -or $cssEnd -le $cssStart) {
+    throw 'BF-1021 BLOCKED: manager CSS boundary is missing.'
+}
+$cssBlock = $core.Substring($cssStart, $cssEnd - $cssStart)
+$cssTerminator = $cssBlock.LastIndexOf("'@", [System.StringComparison]::Ordinal)
+if ($cssTerminator -lt 0) {
+    throw 'BF-1021 BLOCKED: manager CSS terminator is missing.'
+}
+
+$css = @'
+/* BF-1021 v0.4 Start/Sit Assistant. */
+.start-sit-assistant{padding:22px}.start-sit-assistant>.manager-head{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}.start-sit-assistant>.manager-head .eyebrow{font-size:11px;letter-spacing:.11em}.start-sit-assistant>.manager-head h2{font-size:clamp(24px,2.2vw,32px);line-height:1.1}.start-sit-assistant .grid.four{gap:10px}.start-sit-assistant .grid.four>.summary-card:nth-child(1){border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .grid.four>.summary-card:nth-child(3){border-color:color-mix(in srgb,var(--good) 55%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(3) h3{color:var(--good);letter-spacing:.06em}.start-sit-assistant .grid.four>.summary-card:nth-child(4){border-color:color-mix(in srgb,var(--danger) 50%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(4) h3{color:var(--danger);letter-spacing:.06em}.start-sit-assistant .autofill-summary{margin-top:14px}.start-sit-assistant .lineup-row.changed{border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .lineup-choice small{font-size:10px;text-transform:uppercase;letter-spacing:.05em}.start-sit-assistant .lineup-swap-compare{font-size:11px}.start-sit-assistant .review-queue{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
+@media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
+'@
+
+$cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
+$core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
+
+$tokens = $null
+$errors = $null
+[void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
+if (@($errors).Count -gt 0) {
+    $summary = (@($errors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-1021 BLOCKED: generated staged core failed PowerShell parse: $summary"
+}
+
+foreach ($required in @(
+    'Start/Sit Assistant',
+    'What should I change?',
+    '<h3>START</h3>',
+    '<h3>SIT</h3>',
+    'Current starter',
+    'Recommended starter',
+    'Projected difference',
+    'Compare this swap',
+    'BF-1021 v0.4 Start/Sit Assistant'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1021 BLOCKED: Start/Sit Assistant marker is missing: $required"
+    }
+}
+
+$surface = $function + [Environment]::NewLine + $css
+if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
+    throw 'BF-1021 BLOCKED: Start/Sit Assistant presentation introduced provider, optimizer, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+Write-Host 'BF-1021 v0.4 Start/Sit Assistant applied.'
