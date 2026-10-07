@@ -655,10 +655,52 @@ function Get-V04AutoPilotApprovalPolicy {
     }
 }
 
-function Get-V04AutoPilotHtml {
+function Get-V04AutoPilotApprovalQueue {
     param(
         [Parameter(Mandatory = $true)]$WatchState,
         [Parameter(Mandatory = $true)]$ApprovalPolicy
+    )
+
+    $startSitSignal = [string]$WatchState.StartSit
+    $waiverSignal = [string]$WatchState.Waivers
+
+    $startSitNext = if (-not [bool]$WatchState.Ready -or $startSitSignal -ceq 'UNAVAILABLE') {
+        'Blocked until the weekly manager snapshot is complete.'
+    }
+    elseif ($startSitSignal -match '(?i)REFRESH|EVIDENCE|BLOCK|HOLD') {
+        'Refresh or resolve the current evidence state before Butler prepares a lineup change.'
+    }
+    else {
+        'Open Start/Sit Assistant and review the current lineup recommendation.'
+    }
+
+    $waiverNext = if (-not [bool]$WatchState.Ready -or $waiverSignal -ceq 'UNAVAILABLE') {
+        'Blocked until the weekly manager snapshot is complete.'
+    }
+    elseif ($waiverSignal -match '(?i)DO NOT ACT|BLOCK|HOLD') {
+        'No waiver action should be taken from the current Butler state.'
+    }
+    else {
+        'Review the current Waiver Board recommendation. Butler will not submit a claim.'
+    }
+
+    return [pscustomobject]@{
+        StartSitSignal = $startSitSignal
+        StartSitPolicy = [string]$ApprovalPolicy.StartSit
+        StartSitNext = $startSitNext
+        WaiverSignal = $waiverSignal
+        WaiverPolicy = [string]$ApprovalPolicy.Waivers
+        WaiverNext = $waiverNext
+        TradePolicy = [string]$ApprovalPolicy.Trades
+        TradeNext = 'Trades remain manager-only and are never queued for automatic execution.'
+    }
+}
+
+function Get-V04AutoPilotHtml {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState,
+        [Parameter(Mandatory = $true)]$ApprovalPolicy,
+        [Parameter(Mandatory = $true)]$ApprovalQueue
     )
 
     $css = Get-AppCss
@@ -676,6 +718,15 @@ function Get-V04AutoPilotHtml {
     $blockers = @($ApprovalPolicy.HardBlockers | ForEach-Object {
         '<li>' + [System.Net.WebUtility]::HtmlEncode([string]$_) + '</li>'
     }) -join ''
+
+    $queueStartSignal = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.StartSitSignal)
+    $queueStartPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.StartSitPolicy)
+    $queueStartNext = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.StartSitNext)
+    $queueWaiverSignal = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.WaiverSignal)
+    $queueWaiverPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.WaiverPolicy)
+    $queueWaiverNext = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.WaiverNext)
+    $queueTradePolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.TradePolicy)
+    $queueTradeNext = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalQueue.TradeNext)
 
     return @"
 <!doctype html>
@@ -716,6 +767,14 @@ function Get-V04AutoPilotHtml {
 .autopilot-blockers{margin:10px 0 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--danger) 45%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--danger) 6%,var(--surface))}
 .autopilot-blockers h3{margin:0 0 7px;font-size:13px}
 .autopilot-blockers ul{margin:0;padding-left:19px;color:var(--muted);font-size:12px;line-height:1.55}
+.autopilot-queue{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.autopilot-queue-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}
+.autopilot-queue-head h2{margin:4px 0 0;font-size:18px}
+.autopilot-queue-list{display:grid;gap:9px}
+.autopilot-queue-row{display:grid;grid-template-columns:150px 130px 1fr;gap:12px;align-items:start;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.autopilot-queue-row span{font-size:9px;font-weight:900;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.autopilot-queue-row strong{display:block;margin-top:4px;color:var(--ink);font-size:12px}
+.autopilot-queue-next{color:var(--muted);font-size:12px;line-height:1.45}
 .autopilot-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:18px}
 .autopilot-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:12px;font-weight:800}
 .autopilot-actions .primary{background:var(--turf);border-color:var(--turf);color:#111315}
@@ -723,7 +782,7 @@ function Get-V04AutoPilotHtml {
 .autopilot-actions a:hover,.autopilot-actions a:focus-visible{border-color:var(--turf)}
 .autopilot-boundary{margin-top:14px}
 @media(max-width:1000px){.autopilot-watch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.autopilot-grid,.autopilot-policy-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-actions a{flex:1 1 auto}}
+@media(max-width:900px){.autopilot-grid,.autopilot-policy-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-queue-row{grid-template-columns:1fr}.autopilot-actions a{flex:1 1 auto}}
 @media(max-width:620px){.autopilot-watch-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -741,6 +800,7 @@ function Get-V04AutoPilotHtml {
 <div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Default policy:</strong> $approvalMode. Future automation must obey the rules below before any Sleeper write capability is considered.</p></div>
 </div>
 <div class="autopilot-policy"><div class="autopilot-policy-head"><div><div class="eyebrow">APPROVAL POLICY</div><h2>What Auto-Pilot is allowed to do</h2></div><span class="status warn">$approvalMode</span></div><div class="autopilot-policy-grid"><div class="autopilot-policy-card"><span>Start/Sit</span><strong>$startSitPolicy</strong></div><div class="autopilot-policy-card"><span>Waivers</span><strong>$waiverPolicy</strong></div><div class="autopilot-policy-card"><span>Trades</span><strong>$tradePolicy</strong></div></div><div class="autopilot-blockers"><h3>Hard blockers always stop action</h3><ul>$blockers</ul></div></div>
+<div class="autopilot-queue"><div class="autopilot-queue-head"><div><div class="eyebrow">APPROVAL QUEUE</div><h2>What needs your decision</h2></div><span class="status">NOTHING AUTO-EXECUTES</span></div><div class="autopilot-queue-list"><div class="autopilot-queue-row"><div><span>Start/Sit signal</span><strong>$queueStartSignal</strong></div><div><span>Allowed</span><strong>$queueStartPolicy</strong></div><div class="autopilot-queue-next">$queueStartNext</div></div><div class="autopilot-queue-row"><div><span>Waiver signal</span><strong>$queueWaiverSignal</strong></div><div><span>Allowed</span><strong>$queueWaiverPolicy</strong></div><div class="autopilot-queue-next">$queueWaiverNext</div></div><div class="autopilot-queue-row"><div><span>Trades</span><strong>MANUAL</strong></div><div><span>Allowed</span><strong>$queueTradePolicy</strong></div><div class="autopilot-queue-next">$queueTradeNext</div></div></div></div>
 <div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/waivers">Open Waiver Board</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
 </section>
 <section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> The watch snapshot reuses Butler's current read-only manager state. Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
@@ -972,7 +1032,8 @@ try {
         }
 
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
-        $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy
+        $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
+        $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $html = Add-ButlerAccessibility -Html $html
         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         return
