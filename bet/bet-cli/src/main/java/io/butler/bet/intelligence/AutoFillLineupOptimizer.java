@@ -174,8 +174,20 @@ public final class AutoFillLineupOptimizer {
         OptimalLegalLineupSolver.LineupResult solved =
             new OptimalLegalLineupSolver().solve(openLineupSlots, scoredCandidates);
         if (!solved.complete()) {
+            List<String> unfilled = solved.assignments().stream()
+                .filter(assignment -> !assignment.filled())
+                .map(assignment -> assignment.slot() + "@" + openOrdinals.get(assignment.slotOrdinal()))
+                .toList();
+            List<String> candidateEligibility = candidates.stream()
+                .map(player -> player.displayName() + " [" + player.playerId() + "]="
+                    + String.join("/", player.providerFantasyPositions()))
+                .toList();
             return Recommendation.unavailable(
-                "A complete legal lineup cannot be built for the scoreable open slots from current eligibility evidence.");
+                "A complete legal lineup cannot be built for the scoreable open slots from current eligibility evidence."
+                    + " Unfilled slots: " + String.join(", ", unfilled)
+                    + ". Scoreable candidate eligibility: " + String.join(", ", candidateEligibility)
+                    + ". Projection holds=" + projectionHoldPlayerIds.size()
+                    + "; explicitly unavailable=" + explicitlyUnavailablePlayerIds.size() + ".");
         }
         if (currentOpenStarters.size() != solved.assignments().size()) {
             throw new IllegalStateException("Open starter count does not match solved open-slot count");
