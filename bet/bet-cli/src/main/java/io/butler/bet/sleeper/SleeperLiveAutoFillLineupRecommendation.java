@@ -482,8 +482,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     Set.copyOf(roster.emptyStartingOrdinals()));
 
                 if (fallback.ready()) {
+                    // A legal solution may resolve the hard-needed slot indirectly by rearranging
+                    // another FLEX-eligible starter. Accept the fallback only when at least one of
+                    // the conditionally released Questionable players is actually used somewhere
+                    // in the solved starting lineup.
                     Set<String> used = fallback.assignments().stream()
-                        .filter(assignment -> hardNeedOrdinals.contains(assignment.starterOrdinal()))
                         .map(AutoFillLineupOptimizer.SlotRecommendation::recommendedPlayerId)
                         .filter(conditionalForHardNeed::contains)
                         .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
@@ -493,6 +496,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         projectionHoldPlayerIds.removeAll(used);
                         projectionHolds.removeIf(hold -> used.contains(hold.sleeperPlayerId()));
                     }
+                } else {
+                    recommendation = AutoFillLineupOptimizer.Recommendation.unavailable(
+                        recommendation.reason()
+                            + " Hard-legality fallback candidates="
+                            + String.join(",", conditionalForHardNeed)
+                            + "; fallback result=" + fallback.reason());
                 }
             }
         }
