@@ -529,6 +529,29 @@ function ConvertTo-V04StartSitRouteHtml {
     # BF-1029: exact Start/Sit route owns current-page identity before the shared Playbook is generated.
     $result = $result.Replace('<a class="active" href="/matchup">Matchup</a>', '<a class="active" href="/matchup/autofill">Start/Sit Assistant</a>')
 
+    # BF-1031: loading /matchup/autofill already reruns the current read-only
+    # recommendation/evidence path and every public response is no-store.
+    # Remove legacy manual retry/refresh links that only reload the same route.
+    $result = [regex]::Replace(
+        $result,
+        '(?is)<a\b[^>]*href="/matchup/autofill"[^>]*>\s*Retry Lineup Review\s*</a>',
+        ''
+    )
+    $result = [regex]::Replace(
+        $result,
+        '(?is)<a\b[^>]*href="/team/autofill"[^>]*>\s*Refresh projection\s*</a>',
+        ''
+    )
+    $assistantPanel = [regex]::Match(
+        $result,
+        '(?is)<section\b[^>]*class="[^"]*\bstart-sit-assistant\b[^"]*"[^>]*>'
+    )
+    if ($assistantPanel.Success -and
+        $result.IndexOf('start-sit-auto-recheck', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        $autoRecheck = '<p class="meta start-sit-auto-recheck"><strong>Auto-recheck:</strong> This page reruns current read-only lineup evidence every time it loads. Reloading the page is enough; no manual retry is required.</p>'
+        $result = $result.Insert($assistantPanel.Index + $assistantPanel.Length, $autoRecheck)
+    }
+
     # The explicit Start/Sit route should not repeat the Matchup decision hero
     # above the exact same lineup decision. Ordinary /matchup remains unchanged.
     $hero = [regex]::Match($result, '(?is)<section\b[^>]*class="[^"]*\bhero-panel\b[^"]*"[^>]*>.*?</section>\s*')
@@ -1129,6 +1152,12 @@ try {
         }
         elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league' -or $requestTarget -ceq '/matchup') {
             Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+        }
+        elseif ($requestTarget -ceq '/matchup/autofill') {
+            # BF-1031: every Start/Sit page load goes directly to the current
+            # read-only recommendation/evidence path; it is not served from the
+            # manager-page single-flight cache.
+            Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
         }
         else {
             Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
