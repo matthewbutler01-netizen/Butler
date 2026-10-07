@@ -315,9 +315,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         "Excluded from startable candidates: " + availability.evidenceDescription()
                             + ". A projection does not override confirmed unavailable status."));
                 } else {
+                    // Reaching this branch with a projection proves the player is already in the
+                    // active STARTER/BENCH optimizer roster. Do not re-derive that state from the
+                    // presentation slot string; exact Questionable availability is sufficient.
                     boolean exactQuestionableActive =
                         exactAvailability
-                            && ("BENCH".equals(target.rosterSlot()) || "STARTER".equals(target.rosterSlot()))
                             && availability.injuryStatus() != null
                             && "questionable".equalsIgnoreCase(availability.injuryStatus().trim());
 
