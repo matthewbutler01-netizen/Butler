@@ -81,6 +81,9 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             database,
             (season, week, scoring) -> snapshot,
             ids -> Map.of(
+                "s-wr-a",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-a", "Active", "Out"),
                 "s-wr-b",
                 new SleeperPlayerAvailabilityProvider.PlayerAvailability(
                     "s-wr-b", "Active", "Questionable", "Ankle", "Limited", PROJECTION_OBSERVED_AT)))
