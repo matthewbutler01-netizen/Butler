@@ -640,9 +640,25 @@ function Get-V04AutoPilotWatchState {
     return [pscustomobject]$result
 }
 
+function Get-V04AutoPilotApprovalPolicy {
+    return [pscustomobject]@{
+        Mode = 'MANAGER APPROVAL REQUIRED'
+        StartSit = 'PREPARE ONLY'
+        Waivers = 'RECOMMEND ONLY'
+        Trades = 'NEVER AUTO-EXECUTE'
+        HardBlockers = @(
+            'Evidence gap',
+            'Stale or incomplete weekly data',
+            'Roster drift or identity mismatch',
+            'Unverified kickoff or game-lock state'
+        )
+    }
+}
+
 function Get-V04AutoPilotHtml {
     param(
-        [Parameter(Mandatory = $true)]$WatchState
+        [Parameter(Mandatory = $true)]$WatchState,
+        [Parameter(Mandatory = $true)]$ApprovalPolicy
     )
 
     $css = Get-AppCss
@@ -652,6 +668,14 @@ function Get-V04AutoPilotHtml {
     $roster = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Roster)
     $snapshotStatus = if ([bool]$WatchState.Ready) { 'CURRENT SNAPSHOT' } else { 'WATCH DATA UNAVAILABLE' }
     $snapshotClass = if ([bool]$WatchState.Ready) { 'good' } else { 'warn' }
+
+    $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
+    $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
+    $waiverPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Waivers)
+    $tradePolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Trades)
+    $blockers = @($ApprovalPolicy.HardBlockers | ForEach-Object {
+        '<li>' + [System.Net.WebUtility]::HtmlEncode([string]$_) + '</li>'
+    }) -join ''
 
     return @"
 <!doctype html>
@@ -682,6 +706,16 @@ function Get-V04AutoPilotHtml {
 .autopilot-card h3{margin:0 0 7px;font-size:17px}
 .autopilot-card p{margin:0;color:var(--muted);line-height:1.55}
 .autopilot-card strong{color:var(--ink)}
+.autopilot-policy{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.autopilot-policy-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px}
+.autopilot-policy-head h2{margin:4px 0 0;font-size:18px}
+.autopilot-policy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.autopilot-policy-card{padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.autopilot-policy-card span{display:block;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.autopilot-policy-card strong{display:block;margin-top:5px;color:var(--ink);font-size:13px}
+.autopilot-blockers{margin:10px 0 0;padding:12px 14px;border:1px solid color-mix(in srgb,var(--danger) 45%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--danger) 6%,var(--surface))}
+.autopilot-blockers h3{margin:0 0 7px;font-size:13px}
+.autopilot-blockers ul{margin:0;padding-left:19px;color:var(--muted);font-size:12px;line-height:1.55}
 .autopilot-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:18px}
 .autopilot-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:12px;font-weight:800}
 .autopilot-actions .primary{background:var(--turf);border-color:var(--turf);color:#111315}
@@ -689,7 +723,7 @@ function Get-V04AutoPilotHtml {
 .autopilot-actions a:hover,.autopilot-actions a:focus-visible{border-color:var(--turf)}
 .autopilot-boundary{margin-top:14px}
 @media(max-width:1000px){.autopilot-watch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.autopilot-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-actions a{flex:1 1 auto}}
+@media(max-width:900px){.autopilot-grid,.autopilot-policy-grid{grid-template-columns:1fr}.autopilot-head{display:block}.autopilot-preview{margin-top:10px}.autopilot-actions a{flex:1 1 auto}}
 @media(max-width:620px){.autopilot-watch-grid{grid-template-columns:1fr}}
 </style>
 </head>
@@ -702,10 +736,11 @@ function Get-V04AutoPilotHtml {
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
 <div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
 <div class="autopilot-grid">
-<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Future automation may prepare a lineup review, but it cannot submit one in this build.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
-<div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Required before automation:</strong> define exactly what Butler may prepare automatically and what still requires explicit manager approval.</p></div>
+<div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Default policy:</strong> $approvalMode. Future automation must obey the rules below before any Sleeper write capability is considered.</p></div>
 </div>
+<div class="autopilot-policy"><div class="autopilot-policy-head"><div><div class="eyebrow">APPROVAL POLICY</div><h2>What Auto-Pilot is allowed to do</h2></div><span class="status warn">$approvalMode</span></div><div class="autopilot-policy-grid"><div class="autopilot-policy-card"><span>Start/Sit</span><strong>$startSitPolicy</strong></div><div class="autopilot-policy-card"><span>Waivers</span><strong>$waiverPolicy</strong></div><div class="autopilot-policy-card"><span>Trades</span><strong>$tradePolicy</strong></div></div><div class="autopilot-blockers"><h3>Hard blockers always stop action</h3><ul>$blockers</ul></div></div>
 <div class="autopilot-actions"><a class="primary" href="/matchup/autofill">Open Start/Sit Assistant</a><a class="secondary" href="/waivers">Open Waiver Board</a><a class="secondary" href="/team">Review My Team</a><a class="secondary" href="/matchup">View Matchup</a></div>
 </section>
 <section class="panel boundary autopilot-boundary"><strong>READ ONLY PREVIEW.</strong> The watch snapshot reuses Butler's current read-only manager state. Auto-Pilot does not currently run background monitoring or submit a Sleeper transaction or lineup change.</section>
@@ -936,7 +971,8 @@ try {
             # remain visible as unavailable instead of crashing or guessing.
         }
 
-        $html = Get-V04AutoPilotHtml -WatchState $watchState
+        $approvalPolicy = Get-V04AutoPilotApprovalPolicy
+        $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy
         $html = Add-ButlerAccessibility -Html $html
         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         return
