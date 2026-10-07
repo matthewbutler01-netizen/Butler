@@ -1,0 +1,77 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$workerPath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
+if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
+    throw "BF-1024 BLOCKED: request worker missing at $workerPath"
+}
+
+$text = [IO.File]::ReadAllText($workerPath)
+$tokens = $null
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($workerPath, [ref]$tokens, [ref]$errors)
+if (@($errors).Count -ne 0) {
+    $summary = (@($errors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-1024 BLOCKED: request worker parse failed: $summary"
+}
+
+foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotHtml')) {
+    $matches = @($ast.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
+    }, $true))
+    if ($matches.Count -ne 1) { throw "BF-1024 BLOCKED: expected one $functionName function, found $($matches.Count)." }
+    . ([scriptblock]::Create($matches[0].Extent.Text))
+}
+
+$fixture = '<section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
+
+$state = Get-V04AutoPilotWatchState -DashboardHtml $fixture
+if (-not $state.Ready) { throw 'BF-1024 BLOCKED: complete Dashboard watch fixture did not become ready.' }
+if ($state.Attention -cne '2 NEED ATTENTION') { throw 'BF-1024 BLOCKED: Attention snapshot mismatch.' }
+if ($state.StartSit -cne 'REFRESH') { throw 'BF-1024 BLOCKED: Start/Sit snapshot mismatch.' }
+if ($state.Waivers -cne 'DO NOT ACT') { throw 'BF-1024 BLOCKED: Waiver snapshot mismatch.' }
+if ($state.Roster -cne 'Hard(CORE)-Dynasty | nuke the whales | roster 6') { throw 'BF-1024 BLOCKED: roster snapshot mismatch.' }
+
+$html = Get-V04AutoPilotHtml -WatchState $state
+foreach ($required in @(
+    'CURRENT WEEKLY WATCH',
+    'What Butler sees right now',
+    'CURRENT SNAPSHOT',
+    '2 NEED ATTENTION',
+    'REFRESH',
+    'DO NOT ACT',
+    'Hard(CORE)-Dynasty | nuke the whales | roster 6',
+    'Open Waiver Board',
+    'The watch snapshot reuses Butler''s current read-only manager state.'
+)) {
+    if ($html.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1024 BLOCKED: Auto-Pilot weekly-watch marker missing: $required"
+    }
+}
+
+$partial = Get-V04AutoPilotWatchState -DashboardHtml '<div class="dashboard-summary-card"><span>Attention</span><strong>1 NEED ATTENTION</strong></div>'
+if ($partial.Ready) { throw 'BF-1024 BLOCKED: incomplete watch snapshot was incorrectly marked ready.' }
+
+foreach ($required in @(
+    'Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget ''/'' -League $LeagueId',
+    'Get-V04AutoPilotWatchState -DashboardHtml',
+    'Get-V04AutoPilotHtml -WatchState $watchState',
+    'Attention = ''UNAVAILABLE''',
+    'StartSit = ''UNAVAILABLE''',
+    'Waivers = ''UNAVAILABLE'''
+)) {
+    if ($text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1024 BLOCKED: governed Auto-Pilot route marker missing: $required"
+    }
+}
+
+$start = $text.IndexOf('function Get-V04AutoPilotWatchState {', [System.StringComparison]::Ordinal)
+$end = $text.IndexOf('function Send-HttpResponse {', $start, [System.StringComparison]::Ordinal)
+$surface = $text.Substring($start, $end - $start)
+if ($surface -match 'Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer|https://api\.sleeper\.app|Invoke-RestMethod|Invoke-WebRequest') {
+    throw 'BF-1024 BLOCKED: Auto-Pilot weekly watch introduced provider, optimizer, or write behavior.'
+}
+
+Write-Host 'BF-1024 V0.4 AUTO-PILOT WEEKLY WATCH ACCEPTANCE: PASS'
+Write-Host 'Coverage: real Dashboard snapshot reuse, Attention/Start-Sit/Waiver/roster watch state, fail-visible unavailable fallback, and no new provider/write behavior.'
