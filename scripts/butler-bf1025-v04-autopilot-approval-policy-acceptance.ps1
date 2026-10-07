@@ -15,7 +15,7 @@ if (@($errors).Count -ne 0) {
     throw "BF-1025 BLOCKED: request worker parse failed: $summary"
 }
 
-foreach ($functionName in @('Get-V04AutoPilotApprovalPolicy','Get-V04AutoPilotHtml')) {
+foreach ($functionName in @('Get-V04AutoPilotApprovalPolicy','Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotHtml')) {
     $matches = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
@@ -62,7 +62,8 @@ $watch = [pscustomobject]@{
     Roster = 'Hard(CORE)-Dynasty | nuke the whales | roster 6'
 }
 
-$html = Get-V04AutoPilotHtml -WatchState $watch -ApprovalPolicy $policy
+$queue = Get-V04AutoPilotApprovalQueue -WatchState $watch -ApprovalPolicy $policy
+$html = Get-V04AutoPilotHtml -WatchState $watch -ApprovalPolicy $policy -ApprovalQueue $queue
 foreach ($required in @(
     'APPROVAL POLICY',
     'What Auto-Pilot is allowed to do',
@@ -83,7 +84,8 @@ foreach ($required in @(
 
 foreach ($required in @(
     'Get-V04AutoPilotApprovalPolicy',
-    'Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy'
+    'Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy',
+    'Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue'
 )) {
     if ($text.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1025 BLOCKED: Auto-Pilot approval route marker missing: $required"
