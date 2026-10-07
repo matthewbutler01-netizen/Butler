@@ -233,6 +233,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Set<String> explicitlyUnavailablePlayerIds = new LinkedHashSet<>();
         Set<String> projectionHoldPlayerIds = new LinkedHashSet<>();
         Set<String> conditionalAvailabilityPlayerIds = new LinkedHashSet<>();
+        Map<String, BigDecimal> conditionalAvailabilityProjections = new LinkedHashMap<>();
         Map<String, String> conditionalAvailabilityEvidence = new LinkedHashMap<>();
         Set<String> conditionalHardLegalityUsedPlayerIds = new LinkedHashSet<>();
         List<UnavailablePlayerExclusion> availabilityExclusions = new ArrayList<>();
@@ -323,15 +324,23 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                             && availability.injuryStatus() != null
                             && "questionable".equalsIgnoreCase(availability.injuryStatus().trim());
 
-                    if (!exactQuestionableActive) {
-                        projectionsBySleeperId.remove(target.sleeperPlayerId());
-                    } else {
-                        conditionalAvailabilityPlayerIds.add(target.sleeperPlayerId());
-                        conditionalAvailabilityEvidence.put(
-                            target.sleeperPlayerId(),
-                            availability.evidenceDescription() + (news == null ? "" : "; " + news));
+                    if (exactQuestionableActive) {
+                        SleeperWeeklyProjectionProvider.Projection conditionalProjection =
+                            projectionBySleeperId.get(target.sleeperPlayerId());
+                        if (conditionalProjection != null) {
+                            conditionalAvailabilityPlayerIds.add(target.sleeperPlayerId());
+                            conditionalAvailabilityProjections.put(
+                                target.sleeperPlayerId(), conditionalProjection.projectedPoints());
+                            conditionalAvailabilityEvidence.put(
+                                target.sleeperPlayerId(),
+                                availability.evidenceDescription() + (news == null ? "" : "; " + news));
+                        }
                     }
 
+                    // Preserve the ordinary hold contract: Questionable players stay out of the
+                    // normal scoreable projection map. Their exact projection is isolated above
+                    // and can be reintroduced only inside the hard-legality fallback.
+                    projectionsBySleeperId.remove(target.sleeperPlayerId());
                     projectionHoldPlayerIds.add(target.sleeperPlayerId());
                     projectionHolds.add(new ProjectionHold(
                         target.sleeperPlayerId(), display(target), target.rosterSlot(), target.lineupSlot(),
@@ -449,16 +458,20 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             Set<String> conditionalForFallback = optimizerRoster.stream()
                 .map(AutoFillLineupOptimizer.RosterPlayer::playerId)
                 .filter(conditionalAvailabilityPlayerIds::contains)
-                .filter(projectionsBySleeperId::containsKey)
+                .filter(conditionalAvailabilityProjections::containsKey)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
 
             if (!conditionalForFallback.isEmpty()) {
                 Set<String> fallbackHolds = new LinkedHashSet<>(projectionHoldPlayerIds);
                 fallbackHolds.removeAll(conditionalForFallback);
+                Map<String, BigDecimal> fallbackProjections = new LinkedHashMap<>(projectionsBySleeperId);
+                for (String playerId : conditionalForFallback) {
+                    fallbackProjections.put(playerId, conditionalAvailabilityProjections.get(playerId));
+                }
                 var fallback = optimizer.optimize(
                     roster.startingSlots(),
                     optimizerRoster,
-                    projectionsBySleeperId,
+                    fallbackProjections,
                     Set.copyOf(explicitlyUnavailablePlayerIds),
                     Set.copyOf(fallbackHolds),
                     Set.copyOf(roster.emptyStartingOrdinals()));
