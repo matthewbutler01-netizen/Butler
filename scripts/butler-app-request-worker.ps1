@@ -1153,6 +1153,12 @@ try {
         elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league' -or $requestTarget -ceq '/matchup') {
             Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
         }
+        elseif ($requestTarget -ceq '/matchup/autofill') {
+            # BF-1031: every Start/Sit page load goes directly to the current
+            # read-only recommendation/evidence path; it is not served from the
+            # manager-page single-flight cache.
+            Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+        }
         else {
             Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
         }
