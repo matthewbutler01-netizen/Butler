@@ -539,7 +539,7 @@ function ConvertTo-V04StartSitRouteHtml {
     )
     $result = [regex]::Replace(
         $result,
-        '(?is)<a\b[^>]*href="/team/autofill"[^>]*>\s*Refresh projections?\s*</a>',
+        '(?is)<a\b[^>]*>\s*Refresh projections?\s*</a>',
         ''
     )
     $assistantPanel = [regex]::Match(
