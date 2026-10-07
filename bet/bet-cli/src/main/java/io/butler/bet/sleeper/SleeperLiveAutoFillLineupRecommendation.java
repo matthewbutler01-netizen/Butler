@@ -425,6 +425,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     + " Preserved current lineup state; excluded from promotions. This is not an injury designation."));
         }
 
+        boolean hardLegalityNeed = !roster.emptyStartingOrdinals().isEmpty()
+            || optimizerRoster.stream().anyMatch(player ->
+                player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
+                    && explicitlyUnavailablePlayerIds.contains(player.playerId()));
+
         Set<String> hardNeedSlots = new LinkedHashSet<>();
         for (Integer ordinal : roster.emptyStartingOrdinals()) {
             if (ordinal != null && ordinal >= 0 && ordinal < roster.startingSlots().size()) {
@@ -541,11 +546,6 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
         BigDecimal projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         List<AutoFillLineupOptimizer.SlotRecommendation> withheldSmallEdgeSwaps = new ArrayList<>();
-        boolean hardLegalityNeed = !roster.emptyStartingOrdinals().isEmpty()
-            || optimizerRoster.stream().anyMatch(player ->
-                player.rosterSlot() == AutoFillLineupOptimizer.RosterSlot.STARTER
-                    && explicitlyUnavailablePlayerIds.contains(player.playerId()));
-
         while (LineupSwapReviewPolicy.belowActionableEdge(projectedGain, hardLegalityNeed)
             && recommendation.assignments().stream().anyMatch(AutoFillLineupOptimizer.SlotRecommendation::changed)) {
             var promotions = recommendation.promotions();
