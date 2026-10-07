@@ -526,11 +526,22 @@ function ConvertTo-V04StartSitRouteHtml {
 
     $result = $Html.Replace('<title>Butler - Weekly Matchup</title>', '<title>Butler - Start/Sit Assistant</title>')
 
+    # BF-1029: exact Start/Sit route owns current-page identity before the shared Playbook is generated.
+    $result = $result.Replace('<a class="active" href="/matchup">Matchup</a>', '<a class="active" href="/matchup/autofill">Start/Sit Assistant</a>')
+
     # The explicit Start/Sit route should not repeat the Matchup decision hero
     # above the exact same lineup decision. Ordinary /matchup remains unchanged.
     $hero = [regex]::Match($result, '(?is)<section\b[^>]*class="[^"]*\bhero-panel\b[^"]*"[^>]*>.*?</section>\s*')
     if ($hero.Success) {
         $result = $result.Remove($hero.Index, $hero.Length)
+    }
+
+    # BF-1029: blocked Start/Sit reviews surface the exact evidence reason
+    # before the disclosure so the manager sees the real recovery blocker.
+    $detail = [regex]::Match($result, '(?is)<details[^>]*>\s*<summary>\s*View evidence details\s*</summary>\s*<div[^>]*class="[^"]*callout-danger[^"]*"[^>]*>(?<reason>.*?)</div>\s*</details>')
+    if ($detail.Success) {
+        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $detail.Groups['reason'].Value + '</div>'
+        $result = $result.Insert($detail.Index, $visibleReason)
     }
 
     $result = $result.Replace(
