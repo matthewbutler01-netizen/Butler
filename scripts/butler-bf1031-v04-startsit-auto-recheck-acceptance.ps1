@@ -33,7 +33,7 @@ $fixture = @'
 <section class="panel recommendation-panel start-sit-assistant">
 <div class="eyebrow">Start/Sit Assistant</div>
 <h2>Lineup decision blocked by an evidence gap</h2>
-<div class="button-row"><a class="btn btn-primary" href="/matchup/autofill">Retry Lineup Review</a><a class="btn btn-secondary" href="/team/autofill">Refresh projection</a><a class="btn btn-secondary" href="/matchup">Back to Matchup</a></div>
+<div class="button-row"><a class="btn btn-primary" href="/matchup/autofill">Retry Lineup Review</a><a class="btn btn-secondary" href="/team/autofill">Refresh projection</a><a class="btn btn-secondary" href="/team/autofill">Refresh Projections</a><a class="btn btn-secondary" href="/matchup">Back to Matchup</a></div>
 </section>
 </main></body></html>
 '@
@@ -43,6 +43,7 @@ $route = ConvertTo-V04StartSitRouteHtml -Html $fixture -RequestTarget '/matchup/
 foreach ($forbidden in @(
     'Retry Lineup Review',
     'Refresh projection',
+    'Refresh Projections',
     'Duplicate matchup hero'
 )) {
     if ($route.IndexOf($forbidden, [System.StringComparison]::Ordinal) -ge 0) {

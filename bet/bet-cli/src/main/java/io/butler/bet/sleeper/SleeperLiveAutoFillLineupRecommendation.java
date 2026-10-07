@@ -443,7 +443,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         }
         if (!recommendation.ready()) {
             return RecommendationReport.unavailable(
-                roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
+                roster.providerSeason(), roster.providerLeg(), scoring,
+                appendLegalityExclusionDiagnostics(
+                    recommendation.reason(), optimizerRoster, projectionHolds, availabilityExclusions));
         }
 
         BigDecimal currentProjectedTotal = BigDecimal.ZERO;
@@ -496,7 +498,9 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 Set.copyOf(roster.emptyStartingOrdinals()));
             if (!recommendation.ready()) {
                 return RecommendationReport.unavailable(
-                    roster.providerSeason(), roster.providerLeg(), scoring, recommendation.reason());
+                    roster.providerSeason(), roster.providerLeg(), scoring,
+                    appendLegalityExclusionDiagnostics(
+                        recommendation.reason(), optimizerRoster, projectionHolds, availabilityExclusions));
             }
             projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         }
@@ -718,6 +722,40 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         return target.displayName() == null || target.displayName().isBlank()
             ? "Sleeper " + target.sleeperPlayerId()
             : target.displayName().trim();
+    }
+
+    static String appendLegalityExclusionDiagnostics(
+        String reason,
+        List<AutoFillLineupOptimizer.RosterPlayer> optimizerRoster,
+        List<ProjectionHold> projectionHolds,
+        List<UnavailablePlayerExclusion> availabilityExclusions) {
+
+        String base = requireText(reason, "reason");
+        if (!base.startsWith("A complete legal lineup cannot be built")) return base;
+
+        Map<String, AutoFillLineupOptimizer.RosterPlayer> rosterById = new LinkedHashMap<>();
+        for (var player : optimizerRoster) rosterById.put(player.playerId(), player);
+
+        List<String> held = new ArrayList<>();
+        for (var hold : projectionHolds) {
+            var player = rosterById.get(hold.sleeperPlayerId());
+            String positions = player == null ? "unknown" : String.join("/", player.providerFantasyPositions());
+            held.add(hold.displayName() + " [" + hold.sleeperPlayerId() + "]=" + positions
+                + " {" + hold.reason() + "}");
+        }
+
+        List<String> unavailable = new ArrayList<>();
+        for (var exclusion : availabilityExclusions) {
+            var player = rosterById.get(exclusion.sleeperPlayerId());
+            String positions = player == null ? "unknown" : String.join("/", player.providerFantasyPositions());
+            unavailable.add(exclusion.displayName() + " [" + exclusion.sleeperPlayerId() + "]=" + positions
+                + " {" + exclusion.reason() + "}");
+        }
+
+        return base
+            + " Projection-held players: " + (held.isEmpty() ? "none" : String.join(" | ", held))
+            + ". Explicitly unavailable players: "
+            + (unavailable.isEmpty() ? "none" : String.join(" | ", unavailable)) + ".";
     }
 
     private static String safeMessage(Exception e) {
