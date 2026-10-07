@@ -315,13 +315,13 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         "Excluded from startable candidates: " + availability.evidenceDescription()
                             + ". A projection does not override confirmed unavailable status."));
                 } else {
-                    boolean exactQuestionableBench =
+                    boolean exactQuestionableActive =
                         exactAvailability
-                            && "BENCH".equals(target.rosterSlot())
+                            && ("BENCH".equals(target.rosterSlot()) || "STARTER".equals(target.rosterSlot()))
                             && availability.injuryStatus() != null
                             && "questionable".equalsIgnoreCase(availability.injuryStatus().trim());
 
-                    if (!exactQuestionableBench) {
+                    if (!exactQuestionableActive) {
                         projectionsBySleeperId.remove(target.sleeperPlayerId());
                     } else {
                         conditionalAvailabilityPlayerIds.add(target.sleeperPlayerId());
@@ -337,8 +337,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                         exactAvailability ? availability.injuryStatus() : null,
                         "Availability hold: " + (exactAvailability ? availability.evidenceDescription() : "current status unverified")
                             + (news == null ? "" : "; " + news)
-                            + (exactQuestionableBench
-                                ? ". Pending clearance. Questionable is not confirmed Out. Butler normally withholds this bench player from promotion;"
+                            + (exactQuestionableActive
+                                ? ". Pending clearance. Questionable is not confirmed Out. Butler normally preserves this player's current lineup state;"
                                     + " the exact projection remains available only for a hard lineup-legality fallback that still requires manager review."
                                 : ". Pending clearance, Butler preserved this player's current lineup state and excluded"
                                     + " the player from promotions and comparable projected totals. Questionable is not confirmed Out.")));
@@ -590,7 +590,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String availabilityDetail = conditionalAvailabilityEvidence.getOrDefault(
                 playerId, "exact current availability remains under review");
             decisionEvidence.add(
-                "Hard-lineup-legality review for " + name + ": Butler used this projected Questionable bench player"
+                "Hard-lineup-legality review for " + name + ": Butler used this projected Questionable active player"
                     + " only because a required starting slot otherwise had no complete legal scoreable fill."
                     + " Manager approval is required and availability must be rechecked before kickoff. "
                     + availabilityDetail);
