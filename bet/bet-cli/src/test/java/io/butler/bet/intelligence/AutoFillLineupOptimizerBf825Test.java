@@ -46,6 +46,9 @@ class AutoFillLineupOptimizerBf825Test {
         var ineligible = optimizer.optimize(List.of("QB"), List.of(bench("a", "A")),
             Map.of("a", points("7")), Set.of(), Set.of(), Set.of(0));
         assertFalse(ineligible.ready());
+        assertTrue(ineligible.reason().contains("Unfilled slots: QB@0"));
+        assertTrue(ineligible.reason().contains("Scoreable candidate eligibility: A [a]=WR"));
+        assertTrue(ineligible.reason().contains("Projection holds=0; explicitly unavailable=0"));
     }
 
     @Test
