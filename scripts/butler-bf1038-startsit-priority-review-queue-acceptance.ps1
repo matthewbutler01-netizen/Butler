@@ -23,7 +23,7 @@ foreach ($required in @(
     'What needs your decision',
     'Start with direct Start/Sit signals.',
     'player holds are evidence checks, not separate lineup moves.',
-    'start/sit signal need review'
+    '$signalVerb'
 )) {
     if ($text.IndexOf($required, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         throw "BF-1038 BLOCKED: priority-review marker missing: $required"
