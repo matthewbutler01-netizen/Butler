@@ -43,6 +43,8 @@ $function = $function.Replace('<h3>Proposed bench move</h3>', '<h3>SIT</h3>')
 $function = $function.Replace('<small>Current</small>', '<small>Current starter</small>')
 $function = $function.Replace('<small>Candidate</small>', '<small>Recommended starter</small>')
 $function = $function.Replace('Projected change', 'Projected difference')
+$function = $function.Replace('<strong>Projection hold:</strong>', '<strong>Player holds:</strong>')
+$function = $function.Replace('Butler kept projection-held players in their current lineup state and did not assign synthetic points.', 'Butler kept held players in their current lineup state. Review each reason below; missing projections were not replaced with synthetic points.')
 
 # BF-1038: direct Start/Sit signals should lead the review experience.
 # Holds remain visible, but they are evidence checks rather than separate manager moves.
@@ -54,7 +56,16 @@ if ($function.IndexOf($queueInitOld, [System.StringComparison]::Ordinal) -lt 0) 
 $function = $function.Replace($queueInitOld, $queueInitNew)
 
 $holdAppendOld = '        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
-$holdAppendNew = '        $holdQueueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
+$holdAppendNew = @'
+        $holdCategory = 'Projection evidence incomplete'
+        if ($null -ne $hold.PSObject.Properties['Reason']) {
+            $holdCategory = if ([string]$hold.Reason -like 'Availability hold:*') { 'Availability review' }
+                elseif ([string]$hold.Reason -like 'Close-call usage conflict:*') { 'Projection/workload conflict' }
+                elseif ([string]$hold.Reason -like 'Usage review hold:*') { 'Workload decline' }
+                else { 'Projection evidence incomplete' }
+        }
+        $holdQueueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: $(ConvertTo-HtmlText $holdCategory). Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"
+'@
 if ($function.IndexOf($holdAppendOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1038 BLOCKED: projection-hold queue binding is missing.'
 }
@@ -173,6 +184,7 @@ foreach ($required in @(
     'Projected difference',
     'Compare this swap',
     'BF-1021 v0.4 Start/Sit Assistant',
+    'Player holds:',
     'What needs your decision',
     'Start with direct Start/Sit signals.',
     'start/sit signal',

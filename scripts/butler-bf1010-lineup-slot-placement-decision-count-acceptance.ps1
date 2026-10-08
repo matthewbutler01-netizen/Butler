@@ -83,12 +83,19 @@ Projection holds:
 
     $parsed = ConvertTo-AutoFillView -Text $fixture
     $parsed.ProjectionHolds = @(
-        [pscustomobject]@{ Name = 'KC Concepcion'; Id = '10'; Reason = 'Projection evidence incomplete.' },
+        [pscustomobject]@{ Name = 'KC Concepcion'; Id = '10'; Reason = 'Availability hold: Questionable' },
         [pscustomobject]@{ Name = 'Josh Jacobs'; Id = '11'; Reason = 'Projection evidence incomplete.' },
         [pscustomobject]@{ Name = 'Hunter Henry'; Id = '12'; Reason = 'Projection evidence incomplete.' }
     )
 
     $slotOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($slotOnly -notmatch '<strong>Player holds:</strong>' -or
+        $slotOnly -match '<strong>Projection hold:</strong>' -or
+        $slotOnly -notmatch '<strong>KC Concepcion</strong>: Availability review\.' -or
+        $slotOnly -notmatch '<strong>Josh Jacobs</strong>: Projection evidence incomplete\.') {
+        throw 'Player holds must distinguish availability restrictions from missing projection evidence.'
+    }
+
     if ($slotOnly -notmatch '1 start/sit signal needs review' -or $slotOnly -notmatch '>4 ITEMS</span>') {
         throw 'BF-1010 must count three holds plus one Drake Maye expert decision, not two internal slot placements.'
     }
