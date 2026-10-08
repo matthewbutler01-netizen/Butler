@@ -53,15 +53,15 @@ if ($function.IndexOf($queueInitOld, [System.StringComparison]::Ordinal) -lt 0) 
 }
 $function = $function.Replace($queueInitOld, $queueInitNew)
 
-$holdAppendOld = '        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink</li>"'
-$holdAppendNew = '        $holdQueueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink</li>"'
+$holdAppendOld = '        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
+$holdAppendNew = '        $holdQueueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
 if ($function.IndexOf($holdAppendOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1038 BLOCKED: projection-hold queue binding is missing.'
 }
 $function = $function.Replace($holdAppendOld, $holdAppendNew)
 
 $queueReturnOld = "    `$reviewQueueReturn = ''"
-$queueReturnNew = "    `$queueItems += `$holdQueueItems`n    `$reviewQueueReturn = ''"
+$queueReturnNew = "    `$directSignalCount = [regex]::Matches(`$queueItems, 'attributed SIT selection').Count`n    `$queueItems += `$holdQueueItems`n    `$reviewQueueReturn = ''"
 if ($function.IndexOf($queueReturnOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1038 BLOCKED: review queue return anchor is missing.'
 }
@@ -69,7 +69,6 @@ $function = $function.Replace($queueReturnOld, $queueReturnNew)
 
 $titleOld = '        $decisionTitle = "Review $reviewQueueCount unresolved $reviewQueueNoun"'
 $titleNew = @'
-        $directSignalCount = [regex]::Matches($queueItems, 'attributed SIT selection').Count
         $holdReviewCount = @($AutoFill.ProjectionHolds).Count
         if ($directSignalCount -gt 0) {
             $signalNoun = if ($directSignalCount -eq 1) { 'start/sit signal' } else { 'start/sit signals' }
