@@ -89,7 +89,7 @@ Projection holds:
     )
 
     $slotOnly = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($slotOnly -notmatch 'Review 4 unresolved items' -or $slotOnly -notmatch '>4 ITEMS</span>') {
+    if ($slotOnly -notmatch '1 start/sit signal needs review' -or $slotOnly -notmatch '>4 ITEMS</span>') {
         throw 'BF-1010 must count three holds plus one Drake Maye expert decision, not two internal slot placements.'
     }
     if ($slotOnly -notmatch 'Optimizer slot placement evidence \(2 placements\)' -or
@@ -108,10 +108,20 @@ Projection holds:
         throw 'BF-1012 internal slot-placement comparisons must not remain expanded standalone sections.'
     }
 
+    if ($slotOnly -notmatch '<h3>What should I change\?</h3><p>Review Drake Maye vs. Geno Smith\. No lineup change recommended yet\.</p>') {
+        throw 'Start/Sit summary must name the existing comparison without recommending a swap.'
+    }
+    $parsed.SwapReviews = @($wrReview, $flexReview)
+    $noCandidate = ConvertTo-AutoFillHtml -AutoFill $parsed
+    if ($noCandidate -notmatch "Review Drake Maye&#39;s SIT evidence\. No lineup change recommended yet\.") {
+        throw 'Start/Sit summary must fall back to source review when no candidate exists.'
+    }
+    $parsed.SwapReviews = @($wrReview, $flexReview, $drakeReview)
+
     $parsed.Promotions = @([pscustomobject]@{ Name = 'Jauan Jennings' })
     $parsed.BenchMoves = @([pscustomobject]@{ Name = 'Emeka Egbuka' })
     $oneMove = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($oneMove -notmatch 'Review 5 unresolved items' -or $oneMove -notmatch '>5 ITEMS</span>') {
+    if ($oneMove -notmatch '1 start/sit signal needs review' -or $oneMove -notmatch '>5 ITEMS</span>') {
         throw 'BF-1010 must collapse two internal slot placements into one actual manager move.'
     }
     if ($oneMove -notmatch '<strong>Manager move 1</strong>: review Emeka Egbuka &rarr; Jauan Jennings' -or
@@ -119,7 +129,10 @@ Projection holds:
         throw 'BF-1010 manager move summary or supporting slot-placement evidence is missing.'
     }
 
-    Write-Host 'BF-1010 LINEUP SLOT-PLACEMENT DECISION COUNT: PASS'
+    if ($oneMove -match '<h3>What should I change\?</h3><p>[^<]*No lineup change recommended yet') {
+        throw 'Start/Sit summary must preserve actual manager moves.'
+    }
+    Write-Host 'BF-1010 LINEUP SLOT-PLACEMENT DECISION COUNT AND START/SIT SUMMARY: PASS'
 }
 finally {
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

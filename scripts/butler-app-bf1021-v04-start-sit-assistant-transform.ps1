@@ -91,6 +91,39 @@ if ($function.IndexOf($titleOld, [System.StringComparison]::Ordinal) -lt 0) {
 }
 $function = $function.Replace($titleOld, $titleNew.TrimEnd())
 
+# Give the summary card a concrete review task without turning an opinion into a move.
+$summaryAnchor = '    return "<section class=`"panel recommendation-panel start-sit-assistant`"'
+$summarySetup = @'
+    $decisionActionCopy = $decisionTitle
+    if ($managerMoveCount -eq 0 -and $directSignalCount -gt 0) {
+        $reviewTasks = @(
+            foreach ($signal in [regex]::Matches($queueItems, '<li><strong>(?<player>.*?)</strong>: current starter with an attributed SIT selection')) {
+                $playerName = [System.Net.WebUtility]::HtmlDecode($signal.Groups['player'].Value)
+                $candidates = @($structuredReviews | Where-Object {
+                    [string]$_.current -ceq $playerName -and
+                    [string]$_.status -ceq 'MANUAL_REVIEW_REPLACEMENT' -and
+                    -not [string]::IsNullOrWhiteSpace([string]$_.proposed) -and
+                    [string]$_.proposed -cne $playerName
+                } | ForEach-Object { [string]$_.proposed } | Select-Object -Unique)
+                if ($candidates.Count -gt 0) { "$playerName vs. $($candidates -join ', ')" }
+                else { "$playerName's SIT evidence" }
+            }
+        )
+        if ($reviewTasks.Count -gt 0) {
+            $decisionActionCopy = "Review $($reviewTasks -join '; '). No lineup change recommended yet."
+        }
+    }
+'@
+if ($function.IndexOf($summaryAnchor, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'Start/Sit summary renderer anchor is missing.'
+}
+$function = $function.Replace($summaryAnchor, $summarySetup.TrimEnd() + "`n" + $summaryAnchor)
+$summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTitle)</p>'
+if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'Start/Sit decision summary card is missing.'
+}
+$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p>')
+
 $function = $function.Replace(
     '<h3>Review queue</h3>',
     '<h3>What needs your decision</h3>'
