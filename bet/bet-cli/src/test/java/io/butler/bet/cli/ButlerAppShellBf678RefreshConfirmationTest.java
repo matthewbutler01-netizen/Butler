@@ -41,7 +41,7 @@ class ButlerAppShellBf678RefreshConfirmationTest {
         assertTrue(confirmation.contains("manual recheck under BF-675"));
         assertTrue(confirmation.contains("BF-823 first performs a read-only roster/player recovery probe."));
         assertTrue(confirmation.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
-        assertTrue(confirmation.contains("If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
+        assertTrue(confirmation.contains("If lineup recovery is not needed, the BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
         assertTrue(confirmation.contains("If any required state is ambiguous or unsafe, the refresh stops instead of guessing."));
     }
 

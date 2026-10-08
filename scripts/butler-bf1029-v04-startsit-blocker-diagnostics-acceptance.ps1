@@ -30,7 +30,7 @@ $fixture = @'
 <!doctype html>
 <html lang="en"><head><title>Butler - Weekly Matchup</title></head><body>
 <main class="shell">
-<div class="top"><div class="target">Hard(CORE)-Dynasty · Week 4</div></div>
+<div class="top"><div class="target">Hard(CORE)-Dynasty &middot; Week 4</div></div>
 <nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a class="active" href="/matchup">Matchup</a></nav>
 <section class="panel hero-panel"><h1>Duplicate matchup hero</h1></section>
 <section class="panel recommendation-panel start-sit-assistant">

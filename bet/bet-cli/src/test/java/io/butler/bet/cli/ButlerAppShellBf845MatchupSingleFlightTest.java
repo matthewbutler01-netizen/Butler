@@ -42,7 +42,12 @@ class ButlerAppShellBf845MatchupSingleFlightTest {
         assertTrue(dispatchEnd > dispatchStart);
         String dispatch = worker.substring(dispatchStart, dispatchEnd);
 
-        assertFalse(dispatch.contains("$requestTarget -ceq '/matchup/autofill'"));
+        int autofillStart = dispatch.indexOf("elseif ($requestTarget -ceq '/matchup/autofill')");
+        int autofillEnd = dispatch.indexOf("        else {", autofillStart);
+        assertTrue(autofillStart >= 0 && autofillEnd > autofillStart);
+        String autofill = dispatch.substring(autofillStart, autofillEnd);
+        assertTrue(autofill.contains("Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget"));
+        assertFalse(autofill.contains("Invoke-ExpensiveReadSingleFlightGet"));
         assertFalse(dispatch.contains("$path -eq '/matchup'"));
         assertTrue(dispatch.contains("else {\n            Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget"));
     }

@@ -72,14 +72,24 @@ class ButlerAppShellBf676WarningRefreshTest {
     }
 
     @Test
-    void onlyNoTransactionOrWarningRecommendedStatesCanReachTheFixedCycle() throws Exception {
+    void onlyVerifiedRecoveryStatesCanReachTheFixedCycle() throws Exception {
         String runner = script("scripts/sleeper-live-waiver-no-transaction-refresh.ps1");
 
         assertTrue(runner.contains("$decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON'"));
         assertTrue(runner.contains("$decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED'"));
         assertTrue(runner.contains("is not authorized for browser refresh"));
         assertFalse(runner.contains("$decisionState -ceq 'CURRENT_AND_ACTIONABLE'"));
-        assertFalse(runner.contains("$decisionState -ceq 'STALE_DO_NOT_ACT'"));
+        assertTrue(runner.contains("$decisionState -ceq 'STALE_DO_NOT_ACT'"));
+        int staleStart = runner.indexOf("elseif ($decisionState -ceq 'STALE_DO_NOT_ACT')");
+        int staleEnd = runner.indexOf("elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED')", staleStart);
+        assertTrue(staleStart >= 0 && staleEnd > staleStart);
+        String stale = runner.substring(staleStart, staleEnd);
+        assertTrue(stale.contains("$bf629State -cne 'LIVE_ACTIONABLE_VERIFIED'"));
+        assertTrue(stale.contains("'MARKET_LINEAGE_SUPERSEDED'"));
+        assertTrue(stale.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(stale.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
+        assertTrue(stale.contains("-cnotcontains $bf631State"));
+        assertTrue(stale.contains("throw 'BF-676 BLOCKED:"));
         assertFalse(runner.contains("$decisionState -ceq 'TRANSACTION_PENDING_DO_NOT_DUPLICATE'"));
         assertFalse(runner.contains("$decisionState -ceq 'TRANSACTION_ALREADY_COMPLETE'"));
 
@@ -101,7 +111,7 @@ class ButlerAppShellBf676WarningRefreshTest {
         assertTrue(refresh.contains("Refresh Butler's data?"));
         assertTrue(refresh.contains("BF-823 first performs a read-only roster/player recovery probe."));
         assertTrue(refresh.contains("If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed."));
-        assertTrue(refresh.contains("If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
+        assertTrue(refresh.contains("If lineup recovery is not needed, the BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write."));
         assertTrue(refresh.contains("If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized."));
         assertTrue(refresh.contains("This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper."));
     }
