@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - startsit-review-action-summary
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
@@ -75,6 +76,14 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Host ("ASCII-only Windows source gate passed for {0} file(s)." -f $files.Count)
+
+      - name: Exercise waiver recovery and evidence presentation
+        shell: powershell
+        run: |
+          & '.\scripts\butler-stale-evidence-recovery-acceptance.ps1'
+          & '.\scripts\butler-waiver-evidence-display-acceptance.ps1'
+          & '.\scripts\butler-bf972-refresh-outcome-navigation-acceptance.ps1'
+          & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell
