@@ -155,6 +155,86 @@ function Invoke-AppCoreGet {
     }
 }
 
+function Test-StartSitRosterDriftResponse {
+    param(
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [AllowNull()][string]$Body
+    )
+
+    if ($RequestTarget -cne '/matchup/autofill' -or [string]::IsNullOrWhiteSpace($Body)) {
+        return $false
+    }
+
+    return $Body.IndexOf(
+        'current roster membership drifted',
+        [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $Body.IndexOf(
+            'downstream live evidence before target-roster review',
+            [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+}
+
+function Invoke-StartSitRosterDriftAutoRecovery {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    $scriptPath = Join-Path $Root 'scripts\butler-recover-roster-drift.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw "BF-1037 BLOCKED: roster-drift recovery script missing at $scriptPath"
+    }
+
+    $powershell = Join-Path $PSHOME 'powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) {
+        $powershell = 'powershell.exe'
+    }
+
+    $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.StartSit.RosterRecovery.{0}" -f $PID))
+    $lockTaken = $false
+    try {
+        try {
+            $lockTaken = $mutex.WaitOne(180000)
+        }
+        catch [System.Threading.AbandonedMutexException] {
+            $lockTaken = $true
+        }
+        if (-not $lockTaken) {
+            throw 'BF-1037 BLOCKED: finite wait for automatic roster recovery expired.'
+        }
+
+        $arguments = @(
+            '-NoProfile',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', $scriptPath,
+            '-AppAutoRecovery'
+        )
+        if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
+            $arguments += @('-JavaHome', [string]$env:JAVA_HOME)
+        }
+
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $lines = & $powershell @arguments 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
+        $text = (($lines | ForEach-Object { "$_" }) -join "`n")
+        if ($exitCode -ne 0 -or
+            $text.IndexOf('BF-723 APP AUTO RECOVERY: COMPLETE', [System.StringComparison]::Ordinal) -lt 0) {
+            $tail = [regex]::Replace([string]$text, '\s+', ' ').Trim()
+            if ($tail.Length -gt 1800) { $tail = '...' + $tail.Substring($tail.Length - 1800) }
+            throw "BF-1037 BLOCKED: automatic roster recovery failed; output=$tail"
+        }
+    }
+    finally {
+        if ($lockTaken) {
+            try { $mutex.ReleaseMutex() } catch {}
+        }
+        $mutex.Dispose()
+    }
+}
+
 function Invoke-TeamSingleFlightGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
@@ -1163,6 +1243,22 @@ try {
             Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
         }
         $body = $proxied.Body
+
+        # BF-1037: exact live-roster drift is a governed local-evidence repair,
+        # not a Sleeper transaction. Start/Sit reloads should repair that stale
+        # local frame automatically and then retry the same read-only route once.
+        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
+            try {
+                Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
+                $proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+                $body = $proxied.Body
+            }
+            catch {
+                # Preserve the original fail-closed page (including its manual
+                # refresh escape hatch) if bounded automatic local recovery fails.
+            }
+        }
+
         $bf856Timings = $null
         if ($bf856RouteTimingEnabled -and
             $requestTarget -ceq '/' -and
