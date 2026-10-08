@@ -1,4 +1,7 @@
-param([string]$JavaHome = $env:JAVA_HOME)
+param(
+    [string]$JavaHome = $env:JAVA_HOME,
+    [switch]$AppAutoRecovery
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -199,10 +202,15 @@ if ($recoveryNeeded) {
 [void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -LeagueId $leagueId)
 
 Write-Host 'BF-723 RECOVERY: VERIFIED'
-Write-Host 'BF-723: starting unchanged BF-698 GET-only acceptance.'
-& $acceptanceCmd
-if ($LASTEXITCODE -ne 0) {
-    throw "BF-723 FAILED: recovery verified, but BF-698 acceptance exited with code $LASTEXITCODE."
+if ($AppAutoRecovery) {
+    Write-Host 'BF-723 APP AUTO RECOVERY: COMPLETE'
+}
+else {
+    Write-Host 'BF-723: starting unchanged BF-698 GET-only acceptance.'
+    & $acceptanceCmd
+    if ($LASTEXITCODE -ne 0) {
+        throw "BF-723 FAILED: recovery verified, but BF-698 acceptance exited with code $LASTEXITCODE."
+    }
 }
 
 Write-Host 'BF-723 RESULT: COMPLETE'
