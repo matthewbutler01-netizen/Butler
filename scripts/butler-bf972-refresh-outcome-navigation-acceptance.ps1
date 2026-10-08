@@ -26,7 +26,7 @@ foreach ($path in @($tradeHost, $tradeLab, $history, $detail, $refresh)) {
 
 $success = Get-DecisionRefreshSuccessHtml -LeagueId 'league-test' -ResultText 'BF-972 TEST RESULT'
 foreach ($required in @(
-    'Butler is up to date',
+    'Butler refresh finished',
     'href="/">Return to Dashboard</a>',
     'href="/waivers">Review Waiver Board</a>',
     'href="/team">Review My Team</a>',
