@@ -17,7 +17,6 @@ if (@($errors).Count -ne 0) {
 
 foreach ($required in @(
     '$holdQueueItems',
-    '$queueItems += $holdQueueItems',
     '$directSignalCount',
     '$holdReviewCount',
     'What needs your decision',
