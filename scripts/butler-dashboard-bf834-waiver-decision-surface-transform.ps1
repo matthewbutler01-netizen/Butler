@@ -70,6 +70,19 @@ $decisionPrelude = @'
         default { "warn" }
     }
 
+    $waiverEvidenceHtml = ""
+    if ($pair.Active) {
+        $savedExplanation = Get-GovernedExplanationView -Summary $Summary
+        if ($savedExplanation.Ready) {
+            $waiverEvidenceHtml = @"
+<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $savedExplanation.ExplanationText)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
+"@
+        }
+        else {
+            $waiverEvidenceHtml = '<p class="waiver-pair-note">Saved explanation unavailable. Review the decision record before acting.</p>'
+        }
+    }
+
     $waiverPairHtml = ""
     if ($pair.Active) {
         $pairLead = if ([string]$current.State -ceq "CURRENT_AND_ACTIONABLE") {
@@ -87,6 +100,8 @@ $decisionPrelude = @'
 <p class="waiver-pair-note">Review the source season and scoring coverage in the decision evidence before acting. A recommendation does not guarantee future points.</p>
 "@
     }
+
+    $waiverPairHtml += $waiverEvidenceHtml
 
     $waiverNextActionCopy = switch ([string]$current.State) {
         "CURRENT_AND_ACTIONABLE" { "Review the exact pair and evidence. If you choose to act, make the roster move in Sleeper yourself; Butler remains read-only." }
