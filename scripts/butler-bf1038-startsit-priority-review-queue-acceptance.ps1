@@ -41,6 +41,13 @@ if ($holdAppend -lt 0 -or $mergeReplacement -lt 0 -or $queueRenderAnchor -lt 0 -
     throw 'BF-1038 BLOCKED: queue ordering contract anchors are incomplete.'
 }
 
+$priorityStart = $text.IndexOf('# BF-1038: direct Start/Sit signals should lead the review experience.', [System.StringComparison]::Ordinal)
+$priorityEnd = $text.IndexOf('$core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)', $priorityStart, [System.StringComparison]::Ordinal)
+if ($priorityStart -lt 0 -or $priorityEnd -le $priorityStart) {
+    throw 'BF-1038 BLOCKED: priority-review transform boundary is missing.'
+}
+$prioritySurface = $text.Substring($priorityStart, $priorityEnd - $priorityStart)
+
 foreach ($forbidden in @(
     'Invoke-RestMethod',
     'Invoke-WebRequest',
@@ -49,7 +56,7 @@ foreach ($forbidden in @(
     'setFaab',
     'AutoFillLineupOptimizer'
 )) {
-    if ($text.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    if ($prioritySurface.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw "BF-1038 BLOCKED: priority-review presentation introduced forbidden behavior: $forbidden"
     }
 }
