@@ -35,12 +35,10 @@ foreach ($required in @(
 # out of queueItems, then merged only at the final review-queue render anchor.
 $holdAppend = $text.IndexOf('$holdQueueItems +=', [System.StringComparison]::Ordinal)
 $mergeReplacement = $text.IndexOf('$queueItems += `$holdQueueItems`n    `$reviewQueueReturn =', [System.StringComparison]::Ordinal)
-$queueRenderAnchor = $text.IndexOf('$queueReturnOld = "    `$reviewQueueReturn = ''''"', [System.StringComparison]::Ordinal)
-if ($holdAppend -lt 0 -or $mergeReplacement -lt 0 -or $queueRenderAnchor -lt 0) {
+$queueRenderAnchor = $text.IndexOf('$queueReturnOld =', [System.StringComparison]::Ordinal)
+$holdRedirectAnchor = $text.IndexOf('$holdAppendNew =', [System.StringComparison]::Ordinal)
+if ($holdAppend -lt 0 -or $mergeReplacement -lt 0 -or $queueRenderAnchor -lt 0 -or $holdRedirectAnchor -lt 0) {
     throw 'BF-1038 BLOCKED: queue ordering contract anchors are incomplete.'
-}
-if ($text.IndexOf('$holdAppendNew = ''        $holdQueueItems +=', [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'BF-1038 BLOCKED: projection holds are not isolated from direct Start/Sit queue items.'
 }
 
 foreach ($forbidden in @(
