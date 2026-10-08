@@ -73,7 +73,8 @@ $titleNew = @'
         $holdReviewCount = @($AutoFill.ProjectionHolds).Count
         if ($directSignalCount -gt 0) {
             $signalNoun = if ($directSignalCount -eq 1) { 'start/sit signal' } else { 'start/sit signals' }
-            $decisionTitle = "$directSignalCount $signalNoun need review"
+            $signalVerb = if ($directSignalCount -eq 1) { 'needs' } else { 'need' }
+            $decisionTitle = "$directSignalCount $signalNoun $signalVerb review"
             $holdNoun = if ($holdReviewCount -eq 1) { 'player hold' } else { 'player holds' }
             $decisionCopy = "Start with the direct Start/Sit signal. $holdReviewCount $holdNoun still need evidence review before Butler can recommend a lineup change."
         }
