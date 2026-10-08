@@ -103,7 +103,7 @@ $priorityExplanation = @'
                 $primaryExplanationCopy = $whyCopy
                 switch ([string]$state) {
                     "CURRENT_AND_ACTIONABLE" {
-                        $primaryNextActionCopy = "Open Waiver Board and review the proven add/drop move and evidence before deciding whether to act."
+                        $primaryNextActionCopy = "Open Waiver Board and review the recommended add/drop move and evidence before deciding whether to act."
                         $primaryNextActionHref = "/waivers"
                         $primaryNextActionLabel = "Review Waiver Move"
                     }

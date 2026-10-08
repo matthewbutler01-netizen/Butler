@@ -32,27 +32,27 @@ if ($anchorMatches -ne 1) {
 
 $decisionPrelude = @'
     $waiverDecisionTitle = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "Review Butler's proven add/drop move" }
+        "CURRENT_AND_ACTIONABLE" { "Review Butler's recommended add/drop move" }
         "CURRENT_REFRESH_RECOMMENDED" { "Refresh before relying on this waiver move" }
         "TRANSACTION_ALREADY_COMPLETE" { "Waiver move already complete" }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "Waiver move already pending" }
         "STALE_DO_NOT_ACT" { "Do not act on the saved waiver move" }
-        "NO_TRANSACTION_TO_ACT_ON" { "Waiver review complete; no move proven" }
+        "NO_TRANSACTION_TO_ACT_ON" { "Waiver review complete; no move recommended" }
         "NO_AUDITED_DECISION" { "No waiver decision available" }
         default { "Waiver decision needs review" }
     }
     $waiverDecisionCopy = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "Butler has one currently governed add/drop pair. Review the exact players and supporting evidence before deciding whether to act." }
+        "CURRENT_AND_ACTIONABLE" { "Butler has one recommended add/drop pair for review. Review the exact players and supporting evidence before deciding whether to act." }
         "CURRENT_REFRESH_RECOMMENDED" { "A governed add/drop pair exists, but Butler requires fresher evidence before you rely on it." }
         "TRANSACTION_ALREADY_COMPLETE" { "The governed transaction is already complete. No duplicate waiver action is needed." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "The governed transaction is already pending. Do not submit the same move again." }
         "STALE_DO_NOT_ACT" { "The saved waiver move no longer passes Butler's current safety frame. Wait for a new governed decision." }
-        "NO_TRANSACTION_TO_ACT_ON" { "Butler completed the current waiver review and did not prove one clear add/drop move. No waiver action is needed from this evidence frame." }
+        "NO_TRANSACTION_TO_ACT_ON" { "Butler completed the current waiver review and did not identify one clear add/drop recommendation. No waiver action is needed from this evidence frame." }
         "NO_AUDITED_DECISION" { "Butler does not have a saved governed waiver decision for the current evidence frame." }
         default { "Butler cannot prove a waiver action from the current governed evidence frame." }
     }
     $waiverDecisionStatus = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "MOVE PROVEN" }
+        "CURRENT_AND_ACTIONABLE" { "READY FOR REVIEW" }
         "CURRENT_REFRESH_RECOMMENDED" { "REFRESH" }
         "TRANSACTION_ALREADY_COMPLETE" { "COMPLETE" }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "PENDING" }
@@ -84,6 +84,7 @@ $decisionPrelude = @'
   <article class="waiver-action-card drop"><div class="waiver-action-label">DROP</div><div class="waiver-action-name">$(ConvertTo-HtmlText $pair.Drop.Name)</div><div class="waiver-action-meta">$(ConvertTo-HtmlText $pair.Drop.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Drop.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Drop.SleeperId)</div></article>
 </div>
 <div class="waiver-pair-note"><strong>$(ConvertTo-HtmlText $pairLead).</strong> This is Butler's already-audited exact pair; it is not inferred from board order.</div>
+<p class="waiver-pair-note">Review the source season and scoring coverage in the decision evidence before acting. A recommendation does not guarantee future points.</p>
 "@
     }
 
@@ -93,7 +94,7 @@ $decisionPrelude = @'
         "TRANSACTION_ALREADY_COMPLETE" { "No waiver action is needed. Use History if you want to review the completed decision record." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "Do not submit a duplicate move. Wait for the pending transaction state to resolve." }
         "STALE_DO_NOT_ACT" { "Take no waiver action from this saved result. Wait for Butler to produce a new governed frame." }
-        "NO_TRANSACTION_TO_ACT_ON" { "Hold. No add/drop move is proven right now; use the review pool below only as context, not as a ranking." }
+        "NO_TRANSACTION_TO_ACT_ON" { "Hold. No add/drop move is recommended right now; use the review pool below only as context, not as a ranking." }
         default { "Review the current governed evidence before making a waiver decision." }
     }
 
@@ -145,8 +146,8 @@ foreach ($required in @(
     'Butler waiver decision',
     'What to do now',
     'Authorized review pool',
-    'Review Butler''s proven add/drop move',
-    'Waiver review complete; no move proven',
+    'Review Butler''s recommended add/drop move',
+    'Waiver review complete; no move recommended',
     'Refresh before relying on this waiver move',
     'READ ONLY &middot; MANAGER DECISION SUPPORT.',
     'Current governed ADD',
