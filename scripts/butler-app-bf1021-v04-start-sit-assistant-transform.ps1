@@ -44,6 +44,62 @@ $function = $function.Replace('<small>Current</small>', '<small>Current starter<
 $function = $function.Replace('<small>Candidate</small>', '<small>Recommended starter</small>')
 $function = $function.Replace('Projected change', 'Projected difference')
 
+# BF-1038: direct Start/Sit signals should lead the review experience.
+# Holds remain visible, but they are evidence checks rather than separate manager moves.
+$queueInitOld = "    `$queueItems = ''"
+$queueInitNew = "    `$queueItems = ''`n    `$holdQueueItems = ''"
+if ($function.IndexOf($queueInitOld, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1038 BLOCKED: review queue initialization is missing.'
+}
+$function = $function.Replace($queueInitOld, $queueInitNew)
+
+$holdAppendOld = '        $queueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
+$holdAppendNew = '        $holdQueueItems += "<li><strong>$(ConvertTo-HtmlText $hold.Name)</strong>: review hold. Keep the current lineup state pending review.$holdLink$holdExpertTail</li>"'
+if ($function.IndexOf($holdAppendOld, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1038 BLOCKED: projection-hold queue binding is missing.'
+}
+$function = $function.Replace($holdAppendOld, $holdAppendNew)
+
+$queueReturnOld = "    `$reviewQueueReturn = ''"
+$queueReturnNew = "    `$directSignalCount = [regex]::Matches(`$queueItems, 'attributed SIT selection').Count`n    `$queueItems += `$holdQueueItems`n    `$reviewQueueReturn = ''"
+if ($function.IndexOf($queueReturnOld, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1038 BLOCKED: review queue return anchor is missing.'
+}
+$function = $function.Replace($queueReturnOld, $queueReturnNew)
+
+$titleOld = '        $decisionTitle = "Review $reviewQueueCount unresolved $reviewQueueNoun"'
+$titleNew = @'
+        $holdReviewCount = @($AutoFill.ProjectionHolds).Count
+        if ($directSignalCount -gt 0) {
+            $signalNoun = if ($directSignalCount -eq 1) { 'start/sit signal' } else { 'start/sit signals' }
+            $signalVerb = if ($directSignalCount -eq 1) { 'needs' } else { 'need' }
+            $decisionTitle = "$directSignalCount $signalNoun $signalVerb review"
+            $holdNoun = if ($holdReviewCount -eq 1) { 'player hold' } else { 'player holds' }
+            $decisionCopy = "Start with the direct Start/Sit signal. $holdReviewCount $holdNoun still need evidence review before Butler can recommend a lineup change."
+        }
+        elseif ($holdReviewCount -gt 0) {
+            $holdNoun = if ($holdReviewCount -eq 1) { 'player hold' } else { 'player holds' }
+            $decisionTitle = "Review $holdReviewCount $holdNoun"
+            $decisionCopy = 'No direct Start/Sit change is ready. Clear the player holds before treating the current lineup as settled.'
+        }
+        else {
+            $decisionTitle = "Review $reviewQueueCount unresolved $reviewQueueNoun"
+        }
+'@
+if ($function.IndexOf($titleOld, [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1038 BLOCKED: unresolved-count decision title is missing.'
+}
+$function = $function.Replace($titleOld, $titleNew.TrimEnd())
+
+$function = $function.Replace(
+    '<h3>Review queue</h3>',
+    '<h3>What needs your decision</h3>'
+)
+$function = $function.Replace(
+    'Unresolved signals may overlap. Projection totals do not settle these decisions.',
+    'Start with direct Start/Sit signals. Player holds are evidence checks, not separate lineup moves.'
+)
+
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
 
 $cssStart = $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
@@ -83,7 +139,11 @@ foreach ($required in @(
     'Recommended starter',
     'Projected difference',
     'Compare this swap',
-    'BF-1021 v0.4 Start/Sit Assistant'
+    'BF-1021 v0.4 Start/Sit Assistant',
+    'What needs your decision',
+    'Start with direct Start/Sit signals.',
+    'start/sit signal',
+    '$holdQueueItems'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1021 BLOCKED: Start/Sit Assistant marker is missing: $required"
