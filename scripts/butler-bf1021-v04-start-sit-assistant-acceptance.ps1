@@ -38,7 +38,7 @@ try {
         'Recommended starter',
         'Projected difference',
         'Compare this swap',
-        'Review queue',
+        'What needs your decision',
         'Projection hold'
     )) {
         if ($surface.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
@@ -112,7 +112,7 @@ try {
     }
 
     Write-Host 'BF-1021 V0.4 START/SIT ASSISTANT ACCEPTANCE: PASS'
-    Write-Host 'Coverage: dedicated Start/Sit route and current-page state, no duplicate Matchup hero, What-should-I-change summary, START/SIT cards, current/recommended starter labels, projection difference, compare actions, holds, and read-only safety.'
+    Write-Host 'Coverage: dedicated Start/Sit route and current-page state, no duplicate Matchup hero, What-should-I-change summary, START/SIT cards, priority decision queue, current/recommended starter labels, projection difference, compare actions, holds, and read-only safety.'
 }
 finally {
     if (Test-Path -LiteralPath $root) {
