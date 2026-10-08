@@ -29,14 +29,18 @@ foreach ($required in @(
     }
 }
 
+# The transform source declares replacement strings in implementation order,
+# which is not the same as the generated renderer's runtime queue order.
+# Validate the generated-order contract structurally instead: holds are diverted
+# out of queueItems, then merged only at the final review-queue render anchor.
 $holdAppend = $text.IndexOf('$holdQueueItems +=', [System.StringComparison]::Ordinal)
-$signalAppend = $text.IndexOf('attributed SIT selection', [System.StringComparison]::Ordinal)
-$mergeHolds = $text.IndexOf('$queueItems += `$holdQueueItems', [System.StringComparison]::Ordinal)
-if ($holdAppend -lt 0 -or $signalAppend -lt 0 -or $mergeHolds -lt 0) {
-    throw 'BF-1038 BLOCKED: queue ordering anchors are incomplete.'
+$mergeReplacement = $text.IndexOf('$queueItems += `$holdQueueItems`n    `$reviewQueueReturn =', [System.StringComparison]::Ordinal)
+$queueRenderAnchor = $text.IndexOf('$queueReturnOld = "    `$reviewQueueReturn = ''''"', [System.StringComparison]::Ordinal)
+if ($holdAppend -lt 0 -or $mergeReplacement -lt 0 -or $queueRenderAnchor -lt 0) {
+    throw 'BF-1038 BLOCKED: queue ordering contract anchors are incomplete.'
 }
-if ($mergeHolds -le $signalAppend) {
-    throw 'BF-1038 BLOCKED: player holds would still be merged ahead of direct Start/Sit signals.'
+if ($text.IndexOf('$holdAppendNew = ''        $holdQueueItems +=', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1038 BLOCKED: projection holds are not isolated from direct Start/Sit queue items.'
 }
 
 foreach ($forbidden in @(
