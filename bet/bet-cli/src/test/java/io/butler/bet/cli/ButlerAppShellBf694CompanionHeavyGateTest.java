@@ -21,7 +21,8 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         assertTrue(functionStart >= 0 && functionEnd > functionStart);
         String block = worker.substring(functionStart, functionEnd);
 
-        int cacheCheck = block.indexOf("if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks)");
+        int cacheCheck = block.indexOf("if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and");
+        assertTrue(block.contains("$cached.ContainsKey('EvidenceGeneration')"));
         int companionCreate = block.indexOf("Local\\Butler.Companion.Heavy.{0}");
         int coreRead = block.indexOf("$proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget");
         assertTrue(cacheCheck >= 0 && companionCreate > cacheCheck && coreRead > companionCreate);
