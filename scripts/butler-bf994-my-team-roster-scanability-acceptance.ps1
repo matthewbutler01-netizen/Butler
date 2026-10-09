@@ -42,7 +42,6 @@ try {
     foreach ($required in @(
         '$weeklyAttentionRailHtml = if (-not [string]::IsNullOrWhiteSpace($weeklyAttentionHtml))',
         'href="#weekly-attention">Weekly attention</a>',
-        '$weeklyAttentionRailHtml<a class="rail-jump" href="#team-roster">Roster</a>',
         'class="roster-group roster-group-starters"',
         'class="roster-group roster-group-bench"',
         'class="roster-group roster-group-reserve"',
@@ -56,6 +55,10 @@ try {
         if ($team.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-994 BLOCKED: staged My Team marker is missing: $required"
         }
+    }
+
+    if ($team -notmatch '\$weeklyAttentionRailHtml\s*<a class="rail-jump" href="#team-roster">Roster</a>') {
+        throw 'BF-994 BLOCKED: Weekly Attention must immediately precede the exact roster jump link.'
     }
 
     $coreText = [IO.File]::ReadAllText($corePath)
