@@ -293,7 +293,7 @@ function Add-AutomaticGovernedRefreshHtml {
 <script nonce="$nonce">
 (async function () {
   const status = document.getElementById('butler-auto-refresh-status');
-  const key = 'butler-auto-refresh:$Route:$AuditId';
+  const key = 'butler-auto-refresh:${Route}:$AuditId';
   try {
     // Bound reload loops after a completed POST, but allow a later visit to recheck.
     const now = Date.now();
