@@ -161,7 +161,10 @@ function Test-StartSitRosterDriftResponse {
         [AllowNull()][string]$Body
     )
 
-    if ($RequestTarget -cne '/matchup/autofill' -or [string]::IsNullOrWhiteSpace($Body)) {
+    # Only exact My Team and Start/Sit roster-drift messages authorize the
+    # already-governed BF-723 local evidence repair. Other routes stay read-only.
+    if (@('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
+        [string]::IsNullOrWhiteSpace($Body)) {
         return $false
     }
 
@@ -1085,6 +1088,21 @@ function Test-EvidenceRefreshInProgress {
     }
 }
 
+# A separate, BF-723-authorized roster recovery also changes Butler-local
+# evidence. Invalidate the warm manager reads without changing POST ownership.
+function Advance-EvidenceRefreshGeneration {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        $State.EvidenceGeneration = (Get-EvidenceRefreshGeneration -State $State) + [long]1
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
 function Complete-DecisionRefreshAttempt {
     param([Parameter(Mandatory = $true)][hashtable]$State)
 
@@ -1322,18 +1340,27 @@ try {
         }
         $body = $proxied.Body
 
-        # BF-1037: exact live-roster drift is a governed local-evidence repair,
-        # not a Sleeper transaction. Start/Sit reloads should repair that stale
-        # local frame automatically and then retry the same read-only route once.
+        # BF-1037/continued: My Team and Start/Sit may encounter the same
+        # exact proven BF-610 roster drift. The BF-723 script rechecks its own
+        # strict authorization before any Butler-local evidence write; it never
+        # submits a Sleeper transaction.
         if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
             try {
-                Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
+                try {
+                    Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
+                }
+                finally {
+                    # Even partial recovery can have written earlier evidence.
+                    # Invalidate any cached pre-recovery My Team/manager HTML,
+                    # including on failures, before retrying the one GET.
+                    Advance-EvidenceRefreshGeneration -State $RefreshState
+                }
                 $proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
                 $body = $proxied.Body
             }
             catch {
-                # Preserve the original fail-closed page (including its manual
-                # refresh escape hatch) if bounded automatic local recovery fails.
+                # Preserve the original fail-closed page with its manual path if
+                # bounded automatic local recovery fails.
             }
         }
 
