@@ -53,7 +53,8 @@ foreach ($required in @(
     'BF-723 APP AUTO RECOVERY: COMPLETE',
     '-AppAutoRecovery',
     'Local\Butler.StartSit.RosterRecovery.',
-    'Advance-EvidenceRefreshGeneration -State $RefreshState'
+    'Claim-LocalEvidenceRecovery -State $RefreshState',
+    'Complete-DecisionRefreshAttempt -State $RefreshState'
 )) {
     if ($worker.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0 -and
         $recovery.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
