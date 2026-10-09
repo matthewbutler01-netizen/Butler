@@ -87,6 +87,7 @@ jobs:
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
           & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
           & '.\scripts\butler-bf972-refresh-outcome-navigation-acceptance.ps1'
+          & '.\scripts\butler-bf1020-v04-dashboard-command-center-acceptance.ps1'
           & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
           & '.\scripts\butler-presentation-closeout-acceptance.ps1'
 
