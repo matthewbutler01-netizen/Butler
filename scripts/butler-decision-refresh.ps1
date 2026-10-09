@@ -264,25 +264,38 @@ function Get-DecisionRefreshFailureHtml {
 "@
 }
 
-# A browser visit may request one protected refresh per saved audit per tab.
-# GET only renders a capability; the existing POST runner owns all write checks.
-function Add-AutomaticWaiverRefresh {
-    param([string]$Html, [string]$RequestTarget, [string]$Token)
+# Automatic evidence recheck is available only after an exact server-proven
+# eligibility signal. GET renders a capability; the existing token-gated POST
+# runner remains the sole authority for any governed Butler-local writes.
+function Add-AutomaticGovernedRefreshHtml {
+    param(
+        [string]$Html,
+        [string]$Route,
+        [string]$AuditId,
+        [string]$Token
+    )
     $result = @{ Html = $Html; Nonce = '' }
-    if ($RequestTarget -cne '/waivers') { return $result }
-    $auditMatches = [regex]::Matches($Html, 'data-butler-auto-waiver="(?<audit>[0-9a-fA-F-]{36})"')
-    if ($auditMatches.Count -ne 1 -or $Token -cnotmatch '^[0-9a-f]{64}$') { return $result }
-    $audit = $auditMatches[0].Groups['audit'].Value
+    if (@('/', '/waivers') -cnotcontains $Route -or
+        $Token -cnotmatch '^[0-9a-f]{64}$' -or
+        $AuditId -cnotmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+        return $result
+    }
+    # Never emit a script nonce if insertion into a single well-formed body
+    # cannot be proved. Do not introduce a permissive global script policy.
+    if ([regex]::Matches($Html, '(?i)<body>').Count -ne 1 -or
+        [regex]::Matches($Html, '(?i)</body>').Count -ne 1) {
+        return $result
+    }
+
     $nonce = New-DecisionRefreshToken
     $markup = @"
 <div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
 <script nonce="$nonce">
 (async function () {
   const status = document.getElementById('butler-auto-refresh-status');
-  const key = 'butler-waiver-refresh:$audit';
+  const key = 'butler-auto-refresh:$Route:$AuditId';
   try {
-    // Bound loops after the POST redirects back to a still-stale saved audit.
-    // A later visit can recheck; the same audit is not blocked for the tab's lifetime.
+    // Bound reload loops after a completed POST, but allow a later visit to recheck.
     const now = Date.now();
     const previous = Number(sessionStorage.getItem(key));
     if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < 300000) {
@@ -300,7 +313,7 @@ function Add-AutomaticWaiverRefresh {
       status.textContent = 'Automatic update stopped. Use Check refresh options to review the recovery state.';
       return;
     }
-    window.location.replace('/waivers');
+    window.location.replace('$Route');
   } catch (error) {
     status.textContent = 'Automatic update could not finish. Use Check refresh options; no automatic retry will run.';
   }
@@ -310,4 +323,35 @@ function Add-AutomaticWaiverRefresh {
     $result.Html = $Html.Replace('<body>', '<body>' + $markup)
     $result.Nonce = $nonce
     return $result
+}
+
+function Add-AutomaticWaiverRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/waivers') { return $result }
+    $auditMatches = [regex]::Matches($Html, 'data-butler-auto-waiver="(?<audit>[0-9a-fA-F-]{36})"')
+    if ($auditMatches.Count -ne 1) { return $result }
+    return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/waivers' -AuditId $auditMatches[0].Groups['audit'].Value -Token $Token
+}
+
+function Add-AutomaticDashboardRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/') { return $result }
+
+    # A successful Add-DecisionRefreshControl call adds this exact link only
+    # after it verifies the current audited decision against existing gates.
+    $nav = [regex]::Matches($Html, '(?is)<nav class="nav" aria-label="Butler sections">.*?</nav>')
+    if ($nav.Count -ne 1 -or
+        -not $nav[0].Value.Contains('<a href="/refresh">Refresh Butler data</a>')) {
+        return $result
+    }
+    $state = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Decision state:'
+    if (@('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -cnotcontains $state) {
+        # NO_TRANSACTION_TO_ACT_ON may allow an explicit manual recheck, but
+        # page visits must not silently launch a new nine-stage decision cycle.
+        return $result
+    }
+    $auditId = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Audit ID:'
+    return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/' -AuditId $auditId -Token $Token
 }
