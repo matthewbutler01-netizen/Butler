@@ -281,11 +281,15 @@ function Add-AutomaticWaiverRefresh {
   const status = document.getElementById('butler-auto-refresh-status');
   const key = 'butler-waiver-refresh:$audit';
   try {
-    if (sessionStorage.getItem(key)) {
-      status.textContent = 'Automatic update already attempted for this saved decision. Review the current status or use Check refresh options.';
+    // Bound loops after the POST redirects back to a still-stale saved audit.
+    // A later visit can recheck; the same audit is not blocked for the tab's lifetime.
+    const now = Date.now();
+    const previous = Number(sessionStorage.getItem(key));
+    if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < 300000) {
+      status.textContent = 'Butler checked this decision recently. Review the current status or use Check refresh options.';
       return;
     }
-    sessionStorage.setItem(key, 'attempted');
+    sessionStorage.setItem(key, String(now));
     status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
     const response = await fetch('/refresh', {
       method: 'POST', credentials: 'same-origin',
