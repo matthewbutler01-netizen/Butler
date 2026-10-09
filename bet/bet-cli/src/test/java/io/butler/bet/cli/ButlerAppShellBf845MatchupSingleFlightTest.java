@@ -26,7 +26,8 @@ class ButlerAppShellBf845MatchupSingleFlightTest {
         assertFalse(keyBlock.contains("/matchup/autofill"));
         assertTrue(worker.contains("Butler.Expensive.SingleFlight.$PID.$League.$routeKey"));
         assertTrue(worker.contains("AddSeconds(5).Ticks"));
-        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200)"));
+        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200 -and"));
+        assertTrue(worker.contains("Get-EvidenceRefreshGeneration -State $RefreshState"));
     }
 
     @Test
