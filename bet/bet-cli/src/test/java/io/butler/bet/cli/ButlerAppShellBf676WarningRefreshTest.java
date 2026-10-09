@@ -131,7 +131,8 @@ class ButlerAppShellBf676WarningRefreshTest {
         // Automatic Waiver Board recovery is allowed only through the existing governed POST.
         assertTrue(refresh.contains("<script nonce=\"$nonce\">"));
         assertTrue(refresh.contains("if ($RequestTarget -cne '/waivers') { return $result }"));
-        assertTrue(refresh.contains("window.location.replace('/waivers')"));
+        assertTrue(refresh.contains("window.location.replace('$Route')"));
+        assertTrue(refresh.contains("function Add-AutomaticDashboardRefresh"));
         assertTrue(worker.contains("script-src 'nonce-$ScriptNonce'; connect-src 'self'; "));
         assertTrue(worker.contains("if ($State.ContainsKey('InProgress') -and $State.InProgress)"));
         assertFalse(refresh.contains("javascript:"));
