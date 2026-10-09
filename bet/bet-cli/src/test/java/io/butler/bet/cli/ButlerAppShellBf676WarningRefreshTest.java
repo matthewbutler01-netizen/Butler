@@ -128,7 +128,12 @@ class ButlerAppShellBf676WarningRefreshTest {
         assertTrue(worker.contains("$SubmittedToken -cne [string]$State.Token"));
         assertTrue(worker.contains("$State.Token = New-DecisionRefreshToken"));
         assertTrue(shell.contains("[hashtable]::Synchronized(@{ Token = $decisionRefreshToken })"));
-        assertFalse(refresh.contains("<script"));
+        // Automatic Waiver Board recovery is allowed only through the existing governed POST.
+        assertTrue(refresh.contains("<script nonce=\"$nonce\">"));
+        assertTrue(refresh.contains("if ($RequestTarget -cne '/waivers') { return $result }"));
+        assertTrue(refresh.contains("window.location.replace('/waivers')"));
+        assertTrue(worker.contains("script-src 'nonce-$ScriptNonce'; connect-src 'self'; "));
+        assertTrue(worker.contains("if ($State.ContainsKey('InProgress') -and $State.InProgress)"));
         assertFalse(refresh.contains("javascript:"));
         assertFalse(runner.contains("create_transaction"));
         assertFalse(runner.contains("submitTransaction"));
