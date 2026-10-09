@@ -82,5 +82,36 @@ if ($surface -match 'Method = "POST"|submitTransaction|setFaab|AutoFillLineupOpt
     throw 'BF-1024 BLOCKED: Auto-Pilot weekly watch introduced provider, optimizer, or write behavior.'
 }
 
+# Regression: the governed single-flight helper requires the shared refresh
+# state. A missing parameter silently made Auto-Pilot show UNAVAILABLE because
+# the route catches watch read errors and falls back to a blank watch.
+$calls = @($ast.FindAll({
+    param($node)
+    $node -is [System.Management.Automation.Language.CommandAst] -and
+    $node.GetCommandName() -ceq 'Invoke-ExpensiveReadSingleFlightGet'
+}, $true))
+if ($calls.Count -ne 2) {
+    throw "BF-1024 BLOCKED: expected Auto-Pilot and manager single-flight calls, found $($calls.Count)."
+}
+foreach ($call in $calls) {
+    $parameters = @($call.CommandElements |
+        Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] } |
+        ForEach-Object { $_.ParameterName })
+    foreach ($requiredParameter in @('Port', 'RequestTarget', 'League', 'RefreshState')) {
+        if ($parameters -cnotcontains $requiredParameter) {
+            throw "BF-1024 BLOCKED: single-flight caller missing mandatory $requiredParameter at line $($call.Extent.StartLineNumber)."
+        }
+    }
+}
+$autopilotRegionStart = $text.IndexOf('if ($path -eq ''/autopilot'') {', [System.StringComparison]::Ordinal)
+$autopilotRegionEnd = $text.IndexOf('if ($path -eq ''/history'') {', $autopilotRegionStart, [System.StringComparison]::Ordinal)
+if ($autopilotRegionStart -lt 0 -or $autopilotRegionEnd -le $autopilotRegionStart) {
+    throw 'BF-1024 BLOCKED: bounded Auto-Pilot request region is missing.'
+}
+$autopilotRegion = $text.Substring($autopilotRegionStart, $autopilotRegionEnd - $autopilotRegionStart)
+if ($autopilotRegion.IndexOf('-RefreshState $RefreshState', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1024 BLOCKED: Auto-Pilot did not receive the shared evidence cache generation.'
+}
+
 Write-Host 'BF-1024 V0.4 AUTO-PILOT WEEKLY WATCH ACCEPTANCE: PASS'
 Write-Host 'Coverage: real Dashboard snapshot reuse, Attention/Start-Sit/Waiver/roster watch state, fail-visible unavailable fallback, and no new provider/write behavior.'
