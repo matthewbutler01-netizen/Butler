@@ -12,6 +12,7 @@ foreach ($name in @(
     'Get-Bf856ElapsedMs',
     'New-Bf856RouteTiming',
     'Get-EvidenceRefreshGeneration',
+    'Test-EvidenceRefreshInProgress',
     'Complete-DecisionRefreshAttempt',
     'Invoke-TeamSingleFlightGet',
     'Get-ExpensiveReadSingleFlightKey',
@@ -40,7 +41,7 @@ function Invoke-AppCoreGet {
 }
 
 $league = [Guid]::NewGuid().ToString('N')
-$state = [hashtable]::Synchronized(@{ Token = 'a' * 64; InProgress = $true })
+$state = [hashtable]::Synchronized(@{ Token = 'a' * 64; InProgress = $false })
 if ((Get-EvidenceRefreshGeneration -State $state) -ne 0) { throw 'Unexpected startup evidence generation.' }
 
 foreach ($route in @('/team', '/waivers', '/', '/matchup')) {
@@ -58,18 +59,29 @@ foreach ($route in @('/team', '/waivers', '/', '/matchup')) {
         throw "$route failed to reuse a valid same-generation read."
     }
 
-    # A completed governed refresh, including a partial failure, invalidates
-    # old team/dashboard/waiver/matchup evidence before the browser reload.
+    # A refresh may begin while a warm response still exists. That response
+    # must not be served, and in-progress reads must not repopulate the cache.
+    $state.InProgress = $true
+    if (-not (Test-EvidenceRefreshInProgress -State $state)) {
+        throw "$route did not register the in-progress evidence refresh."
+    }
+    $duringOne = & $run
+    $duringTwo = & $run
+    if ($duringOne.Body -cne 'core-read-2' -or $duringTwo.Body -cne 'core-read-3' -or $script:coreReads -ne 3) {
+        throw "$route served or populated a cache during the governed refresh."
+    }
+
+    # Completing even a partially failed refresh invalidates prior generations.
     Complete-DecisionRefreshAttempt -State $state
-    if ($state.InProgress -or (Get-EvidenceRefreshGeneration -State $state) -le 0) {
+    if ($state.InProgress -or (Test-EvidenceRefreshInProgress -State $state) -or
+        (Get-EvidenceRefreshGeneration -State $state) -le 0) {
         throw "$route refresh completion failed to release and advance generation."
     }
-    $third = & $run
-    $fourth = & $run
-    if ($third.Body -cne 'core-read-2' -or $fourth.Body -cne 'core-read-2' -or $script:coreReads -ne 2) {
+    $afterOne = & $run
+    $afterTwo = & $run
+    if ($afterOne.Body -cne 'core-read-4' -or $afterTwo.Body -cne 'core-read-4' -or $script:coreReads -ne 4) {
         throw "$route served a pre-refresh cached response or broke same-generation reuse."
     }
-    $state.InProgress = $true
 }
 
 Write-Host 'EVIDENCE REFRESH CACHE GENERATION ACCEPTANCE: PASS (team, waiver, dashboard, matchup)'
