@@ -46,7 +46,7 @@ $decisionPrelude = @'
         "CURRENT_REFRESH_RECOMMENDED" { "A governed add/drop pair exists, but Butler requires fresher evidence before you rely on it." }
         "TRANSACTION_ALREADY_COMPLETE" { "The governed transaction is already complete. No duplicate waiver action is needed." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "The governed transaction is already pending. Do not submit the same move again." }
-        "STALE_DO_NOT_ACT" { "The saved waiver move no longer passes Butler's current safety frame. Wait for a new governed decision." }
+        "STALE_DO_NOT_ACT" { "The saved waiver move no longer passes Butler's current checks. Check the available recovery options before taking action." }
         "NO_TRANSACTION_TO_ACT_ON" { "Butler completed the current waiver review and did not identify one clear add/drop recommendation. No waiver action is needed from this evidence frame." }
         "NO_AUDITED_DECISION" { "Butler does not have a saved governed waiver decision for the current evidence frame." }
         default { "Butler cannot prove a waiver action from the current governed evidence frame." }
@@ -74,8 +74,11 @@ $decisionPrelude = @'
     if ($pair.Active) {
         $savedExplanation = Get-GovernedExplanationView -Summary $Summary
         if ($savedExplanation.Ready) {
+            $explanationDisplay = [string]$savedExplanation.ExplanationText
+            # Replace only the known leading policy identifier, preserving the saved evidence.
+            $explanationDisplay = $explanationDisplay -replace '^BF-\d+(?:/BF-\d+)*\s+produced\b', 'Butler produced'
             $waiverEvidenceHtml = @"
-<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $savedExplanation.ExplanationText)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
+<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
 "@
         }
         else {
@@ -108,7 +111,7 @@ $decisionPrelude = @'
         "CURRENT_REFRESH_RECOMMENDED" { "Refresh the governed evidence before relying on the saved pair. Do not act from the stale frame." }
         "TRANSACTION_ALREADY_COMPLETE" { "No waiver action is needed. Use History if you want to review the completed decision record." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "Do not submit a duplicate move. Wait for the pending transaction state to resolve." }
-        "STALE_DO_NOT_ACT" { "Take no waiver action from this saved result. Wait for Butler to produce a new governed frame." }
+        "STALE_DO_NOT_ACT" { "Do not act on this saved move. Open the refresh check to see whether Butler can update its evidence; some blocked states require a different next step." }
         "NO_TRANSACTION_TO_ACT_ON" { "Hold. No add/drop move is recommended right now; use the review pool below only as context, not as a ranking." }
         default { "Review the current governed evidence before making a waiver decision." }
     }

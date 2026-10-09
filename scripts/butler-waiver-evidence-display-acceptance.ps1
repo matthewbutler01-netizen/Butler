@@ -14,6 +14,9 @@ $script:lookupFails = $false
 $script:fixture = [pscustomobject]@{ Ready = $true; ExplanationText = 'Historical comparison <script>'; EvidenceTrace = 'source=nflverse,improvement=7.1457,scoringKeys=[rec, rush_yd]' }
 . $render
 if ($waiverEvidenceHtml -notmatch 'source=nflverse' -or $waiverEvidenceHtml -notmatch 'scoringKeys' -or $waiverEvidenceHtml -notmatch 'Source season: not recorded' -or $waiverEvidenceHtml -match '<script>') { throw 'Evidence display or escaping failed' }
+$script:fixture.ExplanationText = 'BF-624 produced the unique complete add/drop transaction.'
+. $render
+if ($waiverEvidenceHtml -notmatch 'Butler produced the unique' -or $waiverEvidenceHtml -match 'BF-624 produced') { throw 'Explanation subject missing' }
 $script:fixture.Ready = $false
 . $render
 if ($waiverEvidenceHtml -notmatch 'Saved explanation unavailable' -or $waiverEvidenceHtml -match 'nflverse') { throw 'Missing explanation reused evidence' }

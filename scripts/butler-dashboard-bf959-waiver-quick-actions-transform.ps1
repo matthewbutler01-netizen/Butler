@@ -62,7 +62,7 @@ $quickActionPrelude = @'
 $waiver = $waiver.Insert($returnStart, $quickActionPrelude)
 
 $nextOld = '<div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$waiverHistoryLink</div>'
-$nextNew = '<div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$waiverQuickActions$waiverHistoryLink</div>'
+$nextNew = '<div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$(if ([string]$current.State -ceq ''STALE_DO_NOT_ACT'') { ''<a class="waiver-history-link" href="/refresh">Check refresh options</a>'' })$waiverQuickActions$waiverHistoryLink</div>'
 $waiver = Replace-ExactlyOnce -Text $waiver -Old $nextOld -New $nextNew -Contract 'Waiver decision quick actions'
 
 $styleEnd = $waiver.LastIndexOf('</style>', [System.StringComparison]::Ordinal)
