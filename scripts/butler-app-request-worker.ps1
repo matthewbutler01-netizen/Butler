@@ -266,7 +266,8 @@ function Invoke-TeamSingleFlightGet {
         $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
         if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
             $cached.ContainsKey('EvidenceGeneration') -and
-            [long]$cached.EvidenceGeneration -eq $evidenceGeneration) {
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             return [pscustomobject]@{
                 StatusCode = [int]$cached.StatusCode
                 StatusText = [string]$cached.StatusText
@@ -279,7 +280,8 @@ function Invoke-TeamSingleFlightGet {
         # If a refresh finished while the core rendered this response, do not
         # populate a new cache entry with the pre-refresh generation.
         if ([int]$proxied.StatusCode -eq 200 -and
-            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState)) {
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState) -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
                 EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
@@ -358,7 +360,8 @@ function Invoke-ExpensiveReadSingleFlightGet {
         $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
         if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
             $cached.ContainsKey('EvidenceGeneration') -and
-            [long]$cached.EvidenceGeneration -eq $evidenceGeneration) {
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             if ($null -ne $bf856Timing) {
                 $bf856Timing.cache_hit = 1.0
                 $bf856Timing.singleflight_total_ms = Get-Bf856ElapsedMs -StartedTicks $bf856SingleFlightStarted
@@ -411,7 +414,8 @@ function Invoke-ExpensiveReadSingleFlightGet {
         # If a refresh finished while the core rendered this response, do not
         # populate a new cache entry with the pre-refresh generation.
         if ([int]$proxied.StatusCode -eq 200 -and
-            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState)) {
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState) -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
                 EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
@@ -1066,6 +1070,19 @@ function Get-EvidenceRefreshGeneration {
     param([Parameter(Mandatory = $true)][hashtable]$State)
     if (-not $State.ContainsKey('EvidenceGeneration')) { return [long]0 }
     return [long]$State.EvidenceGeneration
+}
+
+function Test-EvidenceRefreshInProgress {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        return ($State.ContainsKey('InProgress') -and [bool]$State.InProgress)
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
 }
 
 function Complete-DecisionRefreshAttempt {
