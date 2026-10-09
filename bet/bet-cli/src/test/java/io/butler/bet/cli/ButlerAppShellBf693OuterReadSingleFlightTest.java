@@ -85,7 +85,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
         String block = worker.substring(singleFlight, dispose + "$mutex.Dispose()".length());
         assertTrue(block.contains("catch [System.Threading.AbandonedMutexException]"));
         assertTrue(block.contains("if ($lockTaken)"));
-        assertTrue(block.contains("if ([int]$proxied.StatusCode -eq 200)"));
+        assertTrue(block.contains("if ([int]$proxied.StatusCode -eq 200 -and"));
         assertFalse(block.contains("Start-Sleep"));
         assertFalse(block.contains("create_transaction"));
         assertFalse(block.contains("submitTransaction"));
