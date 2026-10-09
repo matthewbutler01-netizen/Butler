@@ -1274,7 +1274,7 @@ try {
             Roster = 'Manager tools'
         }
         try {
-            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId
+            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId -RefreshState $RefreshState
             if ([int]$dashboard.StatusCode -eq 200 -and $dashboard.ContentType -match '^text/html') {
                 $watchState = Get-V04AutoPilotWatchState -DashboardHtml ([string]$dashboard.Body)
             }
