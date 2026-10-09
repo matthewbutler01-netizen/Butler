@@ -1357,7 +1357,10 @@ try {
             $null
         }
         $autoRefresh = @{ Html = $body; Nonce = '' }
-        if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
+        if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/') {
+            $autoRefresh = Add-AutomaticDashboardRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        }
+        elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
             $autoRefresh = Add-AutomaticWaiverRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce
