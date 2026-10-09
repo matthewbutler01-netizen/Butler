@@ -13,7 +13,7 @@ foreach ($name in @(
     'New-Bf856RouteTiming',
     'Get-EvidenceRefreshGeneration',
     'Test-EvidenceRefreshInProgress',
-    'Advance-EvidenceRefreshGeneration',
+    'Claim-LocalEvidenceRecovery',
     'Complete-DecisionRefreshAttempt',
     'Invoke-TeamSingleFlightGet',
     'Get-ExpensiveReadSingleFlightKey',
@@ -84,19 +84,28 @@ foreach ($route in @('/team', '/waivers', '/', '/matchup')) {
         throw "$route served a pre-refresh cached response or broke same-generation reuse."
     }
 
-    # BF-723 on-open roster drift recovery is an independent Butler-local
-    # evidence writer. It invalidates cached pre-recovery reads without
-    # releasing a separate /refresh POST claim or minting a refresh token.
+    # BF-723 on-open roster drift shares the same writer claim as POST, but
+    # must not rotate the protected POST token or reuse pre-recovery HTML.
     $previousToken = $state.Token
     $previousGeneration = Get-EvidenceRefreshGeneration -State $state
-    Advance-EvidenceRefreshGeneration -State $state
+    Claim-LocalEvidenceRecovery -State $state
+    $secondClaimBlocked = $false
+    try { Claim-LocalEvidenceRecovery -State $state } catch { $secondClaimBlocked = $true }
+    if (-not $secondClaimBlocked -or -not $state.InProgress) {
+        throw "$route allowed overlapping BF-723/POST evidence writers."
+    }
+    $bf723InProgress = & $run
+    if ($bf723InProgress.Body -cne 'core-read-5' -or $script:coreReads -ne 5) {
+        throw "$route reused stale HTML during BF-723 evidence recovery."
+    }
+    Complete-DecisionRefreshAttempt -State $state
     if ((Get-EvidenceRefreshGeneration -State $state) -ne ($previousGeneration + 1) -or
         $state.Token -cne $previousToken -or $state.InProgress) {
-        throw "$route BF-723 invalidation changed protected refresh ownership."
+        throw "$route BF-723 recovery did not preserve POST token ownership."
     }
     $bf723One = & $run
     $bf723Two = & $run
-    if ($bf723One.Body -cne 'core-read-5' -or $bf723Two.Body -cne 'core-read-5' -or $script:coreReads -ne 5) {
+    if ($bf723One.Body -cne 'core-read-6' -or $bf723Two.Body -cne 'core-read-6' -or $script:coreReads -ne 6) {
         throw "$route reused pre-BF-723 local evidence after guarded recovery."
     }
 }
