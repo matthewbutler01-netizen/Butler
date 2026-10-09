@@ -105,6 +105,15 @@ $decisionPrelude = @'
     }
 
     $waiverPairHtml += $waiverEvidenceHtml
+    # Metadata only: the protected POST revalidates eligibility before writing.
+    if (($current.State -ceq 'STALE_DO_NOT_ACT' -and
+         $current.Bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED', 'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $current.Bf631) -or
+        ($current.State -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+         $current.Bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         $current.Bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED')) {
+        $waiverPairHtml += '<span hidden data-butler-auto-waiver="' + (ConvertTo-HtmlText ([string]$current.AuditId)) + '"></span>'
+    }
 
     $waiverNextActionCopy = switch ([string]$current.State) {
         "CURRENT_AND_ACTIONABLE" { "Review the exact pair and evidence. If you choose to act, make the roster move in Sleeper yourself; Butler remains read-only." }
@@ -150,7 +159,7 @@ $header
   <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> and <strong>Paired audited DROP</strong> come only from the already-audited exact transaction; they do not alter BF-616 order.</div>
   <details><summary>Technical and audit details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>Paired ADD Sleeper ID: $(ConvertTo-HtmlText $pair.AddSleeperId)</div><div>Paired DROP Sleeper ID: $(ConvertTo-HtmlText $pair.DropSleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY &middot; MANAGER DECISION SUPPORT.</span> Butler surfaces the existing governed waiver state and exact audited pair when available. It does not rerank BF-616, invent player values, choose a new add or drop, set FAAB, refresh evidence automatically, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY &middot; MANAGER DECISION SUPPORT.</span> Butler surfaces the existing governed waiver state and exact audited pair when available. It does not rerank BF-616, invent player values, choose a new add or drop, set FAAB or submit a Sleeper transaction. Opening this page may refresh eligible Butler-local evidence automatically.</section>
 </main></body></html>
 "@
 }

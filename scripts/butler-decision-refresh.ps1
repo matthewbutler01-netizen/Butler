@@ -263,3 +263,47 @@ function Get-DecisionRefreshFailureHtml {
 <body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We&apos;re here to serve you. Less Research. Better Decisions.</p></div><div class="target">Refresh blocked safely</div></div>$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><div class="statusrow"><div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p></div><span class="status warn">STOPPED SAFELY</span></div><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/waivers">Review Waiver Board</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
 "@
 }
+
+# A browser visit may request one protected refresh per saved audit per tab.
+# GET only renders a capability; the existing POST runner owns all write checks.
+function Add-AutomaticWaiverRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/waivers') { return $result }
+    $auditMatches = [regex]::Matches($Html, 'data-butler-auto-waiver="(?<audit>[0-9a-fA-F-]{36})"')
+    if ($auditMatches.Count -ne 1 -or $Token -cnotmatch '^[0-9a-f]{64}$') { return $result }
+    $audit = $auditMatches[0].Groups['audit'].Value
+    $nonce = New-DecisionRefreshToken
+    $markup = @"
+<div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
+<script nonce="$nonce">
+(async function () {
+  const status = document.getElementById('butler-auto-refresh-status');
+  const key = 'butler-waiver-refresh:$audit';
+  try {
+    if (sessionStorage.getItem(key)) {
+      status.textContent = 'Automatic update already attempted for this saved decision. Review the current status or use Check refresh options.';
+      return;
+    }
+    sessionStorage.setItem(key, 'attempted');
+    status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
+    const response = await fetch('/refresh', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'token=$Token'
+    });
+    if (!response.ok) {
+      status.textContent = 'Automatic update stopped. Use Check refresh options to review the recovery state.';
+      return;
+    }
+    window.location.replace('/waivers');
+  } catch (error) {
+    status.textContent = 'Automatic update could not finish. Use Check refresh options; no automatic retry will run.';
+  }
+})();
+</script>
+"@
+    $result.Html = $Html.Replace('<body>', '<body>' + $markup)
+    $result.Nonce = $nonce
+    return $result
+}

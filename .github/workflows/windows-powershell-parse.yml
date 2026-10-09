@@ -82,6 +82,7 @@ jobs:
         run: |
           & '.\scripts\butler-stale-evidence-recovery-acceptance.ps1'
           & '.\scripts\butler-waiver-evidence-display-acceptance.ps1'
+          & '.\scripts\butler-automatic-waiver-refresh-acceptance.ps1'
           & '.\scripts\butler-bf972-refresh-outcome-navigation-acceptance.ps1'
           & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
           & '.\scripts\butler-presentation-closeout-acceptance.ps1'

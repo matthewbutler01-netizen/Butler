@@ -973,9 +973,15 @@ function Send-HttpResponse {
 
         [hashtable]$DiagnosticTimings,
 
-        [string]$Bf857Timing
+        [string]$Bf857Timing,
+        [string]$ScriptNonce
     )
 
+    $scriptPolicy = ''
+    if (-not [string]::IsNullOrWhiteSpace($ScriptNonce)) {
+        if ($ScriptNonce -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid script nonce' }
+        $scriptPolicy = "script-src 'nonce-$ScriptNonce'; connect-src 'self'; "
+    }
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
     $bf856Header = ''
     if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
@@ -1014,7 +1020,7 @@ function Send-HttpResponse {
         "Content-Length: $($bodyBytes.Length)`r`n" +
         "Cache-Control: no-store`r`n" +
         "X-Content-Type-Options: nosniff`r`n" +
-        "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
+        "Content-Security-Policy: ${scriptPolicy}default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
         $bf856Header +
         $bf857Header +
         "Connection: close`r`n`r`n"
@@ -1048,6 +1054,7 @@ function Consume-RefreshToken {
     try {
         [System.Threading.Monitor]::Enter($State.SyncRoot)
         $lockTaken = $true
+        if ($State.ContainsKey('InProgress') -and $State.InProgress) { throw 'Butler evidence update already running.' }
         if ([string]::IsNullOrWhiteSpace($SubmittedToken) -or $SubmittedToken -cne [string]$State.Token) {
             throw 'BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid.'
         }
@@ -1055,6 +1062,7 @@ function Consume-RefreshToken {
         # Invalidate atomically before any Butler write. A concurrent replay sees
         # the replacement token and cannot execute a second refresh.
         $State.Token = New-DecisionRefreshToken
+        $State.InProgress = $true
     }
     finally {
         if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
@@ -1122,10 +1130,12 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
             return
         }
+        $refreshOwned = $false
         try {
             $formBody = Read-DecisionRefreshFormBody -Reader $reader -Headers $requestHeaders
             $submittedToken = Get-DecisionRefreshSubmittedToken -Body $formBody
             Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken
+            $refreshOwned = $true
 
             $resultText = Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner
             $html = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
@@ -1134,6 +1144,9 @@ try {
         catch {
             $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+        }
+        finally {
+            if ($refreshOwned) { $RefreshState.InProgress = $false }
         }
         return
     }
@@ -1295,7 +1308,11 @@ try {
         } else {
             $null
         }
-        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing
+        $autoRefresh = @{ Html = $body; Nonce = '' }
+        if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
+            $autoRefresh = Add-AutomaticWaiverRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        }
+        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce
     }
     catch {
         $errorHtml = Get-ButlerBlockedPageHtml -Title 'Butler app blocked' -Message $_.Exception.Message -Active 'dashboard' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard' -SecondaryHref '/team' -SecondaryLabel 'Review My Team'
