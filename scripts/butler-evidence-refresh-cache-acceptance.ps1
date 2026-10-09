@@ -13,6 +13,7 @@ foreach ($name in @(
     'New-Bf856RouteTiming',
     'Get-EvidenceRefreshGeneration',
     'Test-EvidenceRefreshInProgress',
+    'Advance-EvidenceRefreshGeneration',
     'Complete-DecisionRefreshAttempt',
     'Invoke-TeamSingleFlightGet',
     'Get-ExpensiveReadSingleFlightKey',
@@ -81,6 +82,22 @@ foreach ($route in @('/team', '/waivers', '/', '/matchup')) {
     $afterTwo = & $run
     if ($afterOne.Body -cne 'core-read-4' -or $afterTwo.Body -cne 'core-read-4' -or $script:coreReads -ne 4) {
         throw "$route served a pre-refresh cached response or broke same-generation reuse."
+    }
+
+    # BF-723 on-open roster drift recovery is an independent Butler-local
+    # evidence writer. It invalidates cached pre-recovery reads without
+    # releasing a separate /refresh POST claim or minting a refresh token.
+    $previousToken = $state.Token
+    $previousGeneration = Get-EvidenceRefreshGeneration -State $state
+    Advance-EvidenceRefreshGeneration -State $state
+    if ((Get-EvidenceRefreshGeneration -State $state) -ne ($previousGeneration + 1) -or
+        $state.Token -cne $previousToken -or $state.InProgress) {
+        throw "$route BF-723 invalidation changed protected refresh ownership."
+    }
+    $bf723One = & $run
+    $bf723Two = & $run
+    if ($bf723One.Body -cne 'core-read-5' -or $bf723Two.Body -cne 'core-read-5' -or $script:coreReads -ne 5) {
+        throw "$route reused pre-BF-723 local evidence after guarded recovery."
     }
 }
 
