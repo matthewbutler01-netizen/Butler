@@ -1088,15 +1088,19 @@ function Test-EvidenceRefreshInProgress {
     }
 }
 
-# A separate, BF-723-authorized roster recovery also changes Butler-local
-# evidence. Invalidate the warm manager reads without changing POST ownership.
-function Advance-EvidenceRefreshGeneration {
+# GET may invoke only the pre-authorized BF-723 exact roster repair.
+# Share ownership with the POST refresh runner so two independent local
+# evidence writers can never run against Butler's database concurrently.
+function Claim-LocalEvidenceRecovery {
     param([Parameter(Mandatory = $true)][hashtable]$State)
     $lockTaken = $false
     try {
         [System.Threading.Monitor]::Enter($State.SyncRoot)
         $lockTaken = $true
-        $State.EvidenceGeneration = (Get-EvidenceRefreshGeneration -State $State) + [long]1
+        if ($State.ContainsKey('InProgress') -and $State.InProgress) {
+            throw 'BF-723 BLOCKED: another governed evidence recovery is already running.'
+        }
+        $State.InProgress = $true
     }
     finally {
         if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
@@ -1346,21 +1350,22 @@ try {
         # submits a Sleeper transaction.
         if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
             try {
+                Claim-LocalEvidenceRecovery -State $RefreshState
                 try {
                     Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
                 }
                 finally {
-                    # Even partial recovery can have written earlier evidence.
-                    # Invalidate any cached pre-recovery My Team/manager HTML,
-                    # including on failures, before retrying the one GET.
-                    Advance-EvidenceRefreshGeneration -State $RefreshState
+                    # Even partial BF-723 evidence recovery may have written to
+                    # Butler's database. Release the shared write claim and
+                    # invalidate old warm reads BEFORE the read-only retry.
+                    Complete-DecisionRefreshAttempt -State $RefreshState
                 }
                 $proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
                 $body = $proxied.Body
             }
             catch {
                 # Preserve the original fail-closed page with its manual path if
-                # bounded automatic local recovery fails.
+                # exact recovery is unavailable or another refresh owns writes.
             }
         }
 
