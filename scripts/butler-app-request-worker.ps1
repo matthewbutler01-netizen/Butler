@@ -239,7 +239,8 @@ function Invoke-TeamSingleFlightGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [Parameter(Mandatory = $true)][string]$League
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
     )
 
     if ($RequestTarget -cne '/team') {
@@ -262,7 +263,10 @@ function Invoke-TeamSingleFlightGet {
         $cacheKey = "Butler.Team.SingleFlight.$PID.$League"
         $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
         $nowTicks = [DateTime]::UtcNow.Ticks
-        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+        $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
+            $cached.ContainsKey('EvidenceGeneration') -and
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration) {
             return [pscustomobject]@{
                 StatusCode = [int]$cached.StatusCode
                 StatusText = [string]$cached.StatusText
@@ -272,8 +276,12 @@ function Invoke-TeamSingleFlightGet {
         }
 
         $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
-        if ([int]$proxied.StatusCode -eq 200) {
+        # If a refresh finished while the core rendered this response, do not
+        # populate a new cache entry with the pre-refresh generation.
+        if ([int]$proxied.StatusCode -eq 200 -and
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
                 StatusCode = [int]$proxied.StatusCode
                 StatusText = [string]$proxied.StatusText
@@ -307,7 +315,8 @@ function Invoke-ExpensiveReadSingleFlightGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [Parameter(Mandatory = $true)][string]$League
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
     )
 
     $routeKey = Get-ExpensiveReadSingleFlightKey -RequestTarget $RequestTarget
@@ -346,7 +355,10 @@ function Invoke-ExpensiveReadSingleFlightGet {
         $cacheKey = "Butler.Expensive.SingleFlight.$PID.$League.$routeKey"
         $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
         $nowTicks = [DateTime]::UtcNow.Ticks
-        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+        $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
+            $cached.ContainsKey('EvidenceGeneration') -and
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration) {
             if ($null -ne $bf856Timing) {
                 $bf856Timing.cache_hit = 1.0
                 $bf856Timing.singleflight_total_ms = Get-Bf856ElapsedMs -StartedTicks $bf856SingleFlightStarted
@@ -396,8 +408,12 @@ function Invoke-ExpensiveReadSingleFlightGet {
             $companionSemaphore.Dispose()
         }
 
-        if ([int]$proxied.StatusCode -eq 200) {
+        # If a refresh finished while the core rendered this response, do not
+        # populate a new cache entry with the pre-refresh generation.
+        if ([int]$proxied.StatusCode -eq 200 -and
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
                 StatusCode = [int]$proxied.StatusCode
                 StatusText = [string]$proxied.StatusText
@@ -1044,6 +1060,29 @@ function Get-RefreshTokenSnapshot {
     }
 }
 
+# The local read cache must never survive a completed governed evidence-update attempt.
+# Generation 0 is the startup state; the counter advances even after partial/failed runs.
+function Get-EvidenceRefreshGeneration {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    if (-not $State.ContainsKey('EvidenceGeneration')) { return [long]0 }
+    return [long]$State.EvidenceGeneration
+}
+
+function Complete-DecisionRefreshAttempt {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        $State.EvidenceGeneration = (Get-EvidenceRefreshGeneration -State $State) + [long]1
+        $State.InProgress = $false
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
 function Consume-RefreshToken {
     param(
         [Parameter(Mandatory = $true)][hashtable]$State,
@@ -1131,6 +1170,7 @@ try {
             return
         }
         $refreshOwned = $false
+        $refreshSucceeded = $false
         try {
             $formBody = Read-DecisionRefreshFormBody -Reader $reader -Headers $requestHeaders
             $submittedToken = Get-DecisionRefreshSubmittedToken -Body $formBody
@@ -1138,15 +1178,23 @@ try {
             $refreshOwned = $true
 
             $resultText = Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner
-            $html = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
-            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+            $responseHtml = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
+            $refreshSucceeded = $true
         }
         catch {
-            $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
-            Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+            $responseHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
         }
         finally {
-            if ($refreshOwned) { $RefreshState.InProgress = $false }
+            # Release the claim and invalidate all local single-flight read caches
+            # BEFORE responding; the browser's redirect must see the updated evidence.
+            # Even a failed runner can have completed earlier local evidence stages.
+            if ($refreshOwned) { Complete-DecisionRefreshAttempt -State $RefreshState }
+        }
+        if ($refreshSucceeded) {
+            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $responseHtml
+        }
+        else {
+            Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $responseHtml
         }
         return
     }
@@ -1241,10 +1289,10 @@ try {
 
     try {
         $proxied = if ($requestTarget -ceq '/team') {
-            Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+            Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId -RefreshState $RefreshState
         }
         elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league' -or $requestTarget -ceq '/matchup') {
-            Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+            Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId -RefreshState $RefreshState
         }
         elseif ($requestTarget -ceq '/matchup/autofill') {
             # BF-1031: every Start/Sit page load goes directly to the current
