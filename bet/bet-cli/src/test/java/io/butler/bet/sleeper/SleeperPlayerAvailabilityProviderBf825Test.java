@@ -55,10 +55,10 @@ class SleeperPlayerAvailabilityProviderBf825Test {
     @Test
     void malformedOrDuplicateAvailabilityNeverCertifiesCurrentInjuryStatus() {
         var bad = new String[] {
-            "{\\\"target\\\":{\\\"status\\\":\\\"Out\\\",\\\"status\\\":\\\"Active\\\"}}",
-            "{\\\"target\\\":{\\\"injury_status\\\":\\\"Out\\\",\\\"injury_status\\\":\\\"Healthy\\\"}}",
-            "{\\\"target\\\":{\\\"status\\\":\\\"Active\\\"},\\\"target\\\":{\\\"status\\\":\\\"Out\\\"}}",
-            "{\\\"target\\\":{\\\"status\\\":\\\"Active\\\"}} {\\\"target\\\":{\\\"status\\\":\\\"Out\\\"}}"
+            "{\"target\":{\"status\":\"Out\",\"status\":\"Active\"}}",
+            "{\"target\":{\"injury_status\":\"Out\",\"injury_status\":\"Healthy\"}}",
+            "{\"target\":{\"status\":\"Active\"},\"target\":{\"status\":\"Out\"}}",
+            "{\"target\":{\"status\":\"Active\"}} {\"target\":{\"status\":\"Out\"}}"
         };
         for (String payload : bad) {
             var provider = new SleeperPlayerAvailabilityProvider(
