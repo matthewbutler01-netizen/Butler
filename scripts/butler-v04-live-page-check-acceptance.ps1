@@ -223,7 +223,7 @@ foreach ($fixture in @(
 
 # BF-1053: compare the actual BF-840 rendered matchup header with only
 # Sleeper's small public NFL state payload. No real Internet is used here.
-$matchingMatchup = '<html><body><div class="target">Synthetic league &middot; Week 5</div><h1>Team A vs Team B</h1></body></html>'
+$matchingMatchup = '<html><body><div class="target" data-butler-matchup-season="2026">Synthetic league &middot; Week 5</div><h1>Team A vs Team B</h1></body></html>'
 $liveWeekFixture = '{"season":"2026","season_type":"regular","week":5,"leg":5,"display_week":5}'
 $matchingWeek = Test-ButlerSleeperWeekMatch -MatchupHtml $matchingMatchup -PublicNflState $liveWeekFixture
 if ($matchingWeek.Status -cne 'PASS' -or $matchingWeek.Evidence -cne 'WEEK MATCH') {
@@ -231,6 +231,8 @@ if ($matchingWeek.Status -cne 'PASS' -or $matchingWeek.Evidence -cne 'WEEK MATCH
 }
 foreach ($badComparison in @(
     @{ Html = $matchingMatchup.Replace('Week 5', 'Week 4'); Json = $liveWeekFixture; Expected = 'WEEK MISMATCH' },
+    @{ Html = $matchingMatchup.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"'); Json = $liveWeekFixture; Expected = 'WEEK MISMATCH' },
+    @{ Html = $matchingMatchup.Replace(' data-butler-matchup-season="2026"', ''); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = '<html><body>Sidebar: Week 5</body></html>'; Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = ($matchingMatchup + $matchingMatchup); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"post","week":5}'; Expected = 'WEEK UNVERIFIED' },
