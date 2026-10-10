@@ -485,7 +485,8 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections).recommend(rosterReport("league-decision-evidence"));
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids))
+            .recommend(rosterReport("league-decision-evidence"));
         assertTrue(report.ready());
         assertEquals(3, report.decisionEvidence().size());
         String evidence = report.decisionEvidence().getFirst();
