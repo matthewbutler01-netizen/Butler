@@ -43,6 +43,7 @@ jobs:
           & '.\scripts\butler-automatic-waiver-refresh-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-automatic-dashboard-refresh-acceptance.ps1'
+          & '.\scripts\butler-automatic-autopilot-refresh-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
           if (-not $?) { exit 1 }
@@ -113,6 +114,7 @@ jobs:
           & '.\scripts\butler-waiver-evidence-display-acceptance.ps1'
           & '.\scripts\butler-automatic-waiver-refresh-acceptance.ps1'
           & '.\scripts\butler-automatic-dashboard-refresh-acceptance.ps1'
+          & '.\scripts\butler-automatic-autopilot-refresh-acceptance.ps1'
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
           & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
           & '.\scripts\butler-bf972-refresh-outcome-navigation-acceptance.ps1'
