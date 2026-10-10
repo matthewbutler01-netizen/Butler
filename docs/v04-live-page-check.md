@@ -14,7 +14,7 @@ If no port is specified, the tool looks for **exact Butler loopback health** on 
 
 It checks Dashboard, My Team, Waiver Board, Matchup, Start/Sit, League, and Auto-Pilot. Each check inspects HTTP 200, the expected current page marker, `Cache-Control: no-store`, and the restrictive CSP. On Dashboard, Waiver Board and Auto-Pilot, `auto=ARMED` means the nonce-protected on-open refresh script is present and the CSP matches. `auto=NOT NEEDED/GATED` means no eligible automatic evidence update was announced. Neither proves browser JavaScript has executed.
 
-If Auto-Pilot says `WATCH DATA UNAVAILABLE`, its row shows `WARN WATCH INCOMPLETE`, not a fabricated current lineup or waiver recommendation. A `FAIL` is a page, network, or security-contract problem, and the command exits nonzero.
+If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row shows `WARN WATCH INCOMPLETE`, not a fabricated current lineup or waiver recommendation. Even complete weekly summary cards are blocked from Auto-Pilot manager approvals unless the Dashboard audit is uniquely `CURRENT_AND_ACTIONABLE` or `NO_TRANSACTION_TO_ACT_ON`. A `FAIL` is a page, network, or security-contract problem, and the command exits nonzero.
 
 The tool reports **only route names and pass/warn/fail categories**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
