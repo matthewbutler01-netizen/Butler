@@ -99,10 +99,11 @@ function Test-ButlerSleeperWeekMatch {
         # after it proves the roster/league matchup. Never infer the week
         # from a sidebar or a fake "Week 5" label in generic page text.
         $matches = [regex]::Matches($MatchupHtml,
-            '(?is)<div class="target">[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
+            '(?is)<div class="target" data-butler-matchup-season="(?<season>20[0-9]{2})">[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
         if ($matches.Count -ne 1) { return [pscustomobject]$result }
         $localWeek = [int]$matches[0].Groups['week'].Value
-        if ($localWeek -eq [int]$weekText) {
+        $localSeason = $matches[0].Groups['season'].Value
+        if ($localWeek -eq [int]$weekText -and $localSeason -ceq $season) {
             $result.Status = 'PASS'
             $result.Evidence = 'WEEK MATCH'
         }
