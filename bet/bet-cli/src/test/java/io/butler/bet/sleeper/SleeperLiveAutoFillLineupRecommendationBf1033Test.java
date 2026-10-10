@@ -3,7 +3,9 @@ package io.butler.bet.sleeper;
 import io.butler.bet.intelligence.AutoFillLineupOptimizer;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,6 +39,44 @@ class SleeperLiveAutoFillLineupRecommendationBf1033Test {
         assertTrue(result.contains("pending clearance"));
         assertTrue(result.contains("Explicitly unavailable players: Out RB [rb-out]=RB"));
         assertTrue(result.contains("confirms unavailable status"));
+    }
+
+    @Test
+    void projectedSwapRequiresExactCurrentStatusForBothPlayerIds() {
+        var swap = new AutoFillLineupOptimizer.SlotRecommendation(
+            1, "WR", "starter", "Current WR", "bench", "Bench WR",
+            new BigDecimal("8"), new BigDecimal("18"), new BigDecimal("10"));
+        var starter = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+            "starter", "Active", "Healthy");
+        var bench = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+            "bench", "Active", null);
+        assertTrue(SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("starter", starter, "bench", bench)));
+        assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("bench", bench)), "A missing current starter must hold.");
+        assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("starter", starter)), "A missing proposed player must hold.");
+        assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("starter", starter, "bench",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability("bench", null, "Healthy"))),
+            "An unverified status is not health clearance.");
+        assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("starter", starter, "bench",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability("different", "Active", null))),
+            "A map key cannot override contradictory exact player identity.");
+    }
+
+    @Test
+    void anEmptyStartingSlotNeedsOnlyExactProposedPlayerStatus() {
+        var fill = new AutoFillLineupOptimizer.SlotRecommendation(
+            1, "WR", "0", "Empty WR", "bench", "Bench WR",
+            null, new BigDecimal("18"), null);
+        var bench = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+            "bench", "Active", "Healthy");
+        assertTrue(SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            fill, Map.of("bench", bench)));
+        assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            fill, Map.of()));
     }
 
     @Test
