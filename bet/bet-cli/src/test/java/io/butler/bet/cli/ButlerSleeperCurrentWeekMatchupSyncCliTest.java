@@ -28,7 +28,7 @@ class ButlerSleeperCurrentWeekMatchupSyncCliTest {
 
     @Test
     void matchingPublicNflWeekIsRequiredBeforeAnyLocalEvidenceImport() {
-        String current = "{\\\"season\\\":\\\"2026\\\",\\\"season_type\\\":\\\"regular\\\",\\\"week\\\":5}";
+        String current = "{\"season\":\"2026\",\"season_type\":\"regular\",\"week\":5}";
         ButlerSleeperCurrentWeekMatchupSyncCli.requirePublicWeekMatch(2026, 5, current);
         assertThrows(IllegalStateException.class,
             () -> ButlerSleeperCurrentWeekMatchupSyncCli.requirePublicWeekMatch(2026, 4, current));
@@ -38,10 +38,10 @@ class ButlerSleeperCurrentWeekMatchupSyncCliTest {
             () -> ButlerSleeperCurrentWeekMatchupSyncCli.requirePublicWeekMatch(2026, 5, ""));
         assertThrows(IllegalStateException.class,
             () -> ButlerSleeperCurrentWeekMatchupSyncCli.requirePublicWeekMatch(
-                2026, 5, "{\\\"season\\\":\\\"2026\\\",\\\"season_type\\\":\\\"regular\\\",\\\"week\\\":4,\\\"week\\\":5}"));
+                2026, 5, "{\"season\":\"2026\",\"season_type\":\"regular\",\"week\":4,\"week\":5}"));
         assertThrows(IllegalStateException.class,
             () -> ButlerSleeperCurrentWeekMatchupSyncCli.requirePublicWeekMatch(
-                2026, 5, "{\\\"season\\\":\\\"2026\\\",\\\"season_type\\\":\\\"post\\\",\\\"week\\\":5}"));
+                2026, 5, "{\"season\":\"2026\",\"season_type\":\"post\",\"week\":5}"));
     }
 
     @Test
