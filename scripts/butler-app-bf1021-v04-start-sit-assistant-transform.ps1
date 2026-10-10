@@ -125,7 +125,7 @@ $summarySetup = @'
     $statusFetchedText = if ([string]$AutoFill.SwapStatusFetchedAt -ceq 'UNVERIFIED') {
         'exact swap status fetch time not verified'
     } else { 'swap players status map retrieved ' + [string]$AutoFill.SwapStatusFetchedAt + ' UTC' }
-    $statusProofCopy += " Sources: $projectionFetchedText; $statusFetchedText. This is a fetch timestamp, not an injury report publication time."
+    $statusProofCopy += " Sources: $projectionFetchedText; $statusFetchedText. This records a source fetch, not an injury report publication time."
     $decisionActionCopy = $decisionTitle
     if ($managerMoveCount -eq 0 -and $directSignalCount -gt 0) {
         $reviewTasks = @(
@@ -168,225 +168,47 @@ $function = $function.Replace(
 
 $core = $core.Substring(0, $functionStart) + $function + $core.Substring($functionEnd)
 
-# BF-1068: parse technical fetch times from exactly one ready AutoFill
-# evidence section. Legacy fixture data without timestamps stays UNVERIFIED.
-# Duplicates or partial fields fail closed instead of selecting the first.
+# BF-1068: source timestamps are technical fetch observations, not injury
+# publication or medical clearance timestamps. Missing legacy fields display
+# UNVERIFIED. Duplicated/partial/fake evidence must fail closed.
 $parserStart = $core.IndexOf('function ConvertTo-AutoFillView {', [System.StringComparison]::Ordinal)
 $parserEnd = $core.IndexOf('function ConvertTo-AutoFillHtml {', $parserStart, [System.StringComparison]::Ordinal)
 if ($parserStart -lt 0 -or $parserEnd -le $parserStart) {
-    throw 'BF-1068 BLOCKED: unique final AutoFill parser boundaries missing.'
+    throw 'BF-1068 BLOCKED: AutoFill parser function boundaries missing.'
 }
 $parserBlock = $core.Substring($parserStart, $parserEnd - $parserStart)
-$timeParserOld = '    $scoring = [regex]::Match($Text, ''(?m)^Scoring basis:\s+(?<value>\S+)\s* $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
-$cssEnd = $core.IndexOf('function Get-AppNav {', $cssStart, [System.StringComparison]::Ordinal)
-if ($cssStart -lt 0 -or $cssEnd -le $cssStart) {
-    throw 'BF-1021 BLOCKED: manager CSS boundary is missing.'
-}
-$cssBlock = $core.Substring($cssStart, $cssEnd - $cssStart)
-$cssTerminator = $cssBlock.LastIndexOf("'@", [System.StringComparison]::Ordinal)
-if ($cssTerminator -lt 0) {
-    throw 'BF-1021 BLOCKED: manager CSS terminator is missing.'
-}
-
-$css = @'
-/* BF-1021 v0.4 Start/Sit Assistant. */
-.start-sit-assistant{padding:22px}.start-sit-assistant>.manager-head{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}.start-sit-assistant>.manager-head .eyebrow{font-size:11px;letter-spacing:.11em}.start-sit-assistant>.manager-head h2{font-size:clamp(24px,2.2vw,32px);line-height:1.1}.start-sit-assistant .grid.four{gap:10px}.start-sit-assistant .grid.four>.summary-card:nth-child(1){border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .grid.four>.summary-card:nth-child(3){border-color:color-mix(in srgb,var(--good) 55%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(3) h3{color:var(--good);letter-spacing:.06em}.start-sit-assistant .grid.four>.summary-card:nth-child(4){border-color:color-mix(in srgb,var(--danger) 50%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(4) h3{color:var(--danger);letter-spacing:.06em}.start-sit-assistant .autofill-summary{margin-top:14px}.start-sit-assistant .lineup-row.changed{border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .lineup-choice small{font-size:10px;text-transform:uppercase;letter-spacing:.05em}.start-sit-assistant .lineup-swap-compare{font-size:11px}.start-sit-assistant .review-queue{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
-.start-sit-assistant .butler-startsit-source-proof{display:block;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--turf);border-radius:8px;background:var(--surface-2);color:inherit;line-height:1.5;font-size:13px}
-@media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
-'@
-
-$cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
-$core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
-
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
-if (@($errors).Count -gt 0) {
-    $summary = (@($errors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
-    throw "BF-1021 BLOCKED: generated staged core failed PowerShell parse: $summary"
-}
-
-foreach ($required in @(
-    'Start/Sit Assistant',
-    'What should I change?',
-    '<h3>START</h3>',
-    '<h3>SIT</h3>',
-    'Current starter',
-    'Recommended starter',
-    'Projected difference',
-    'Compare this swap',
-    'BF-1021 v0.4 Start/Sit Assistant',
-    'Player holds:',
-    'What needs your decision',
-    'Start with direct Start/Sit signals.',
-    'start/sit signal',
-    'butler-startsit-source-proof',
-    'Recheck injury updates before kickoff',
-    '$holdQueueItems'
-)) {
-    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
-        throw "BF-1021 BLOCKED: Start/Sit Assistant marker is missing: $required"
-    }
-}
-
-$surface = $function + [Environment]::NewLine + $css
-if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-1021 BLOCKED: Start/Sit Assistant presentation introduced provider, optimizer, or write behavior.'
-}
-
-[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
-Write-Host 'BF-1021 v0.4 Start/Sit Assistant applied.'
-')'
-$timeParserNew = @'
-    # The timestamp is a fetch observation, not when an injury was published
-    # or when a player was clinically cleared.
+$timestampAnchor = '    $scoring = [regex]::Match($Text, ''(?m)^Scoring basis:\s+(?<value>\S+)\s*$'')'
+$timestampParser = @'
     $timePattern = '20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z'
     $projectionTimeFields = [regex]::Matches($Text, '(?m)^Projection retrieved at \(UTC\):')
     $statusTimeFields = [regex]::Matches($Text, '(?m)^Swap player status fetched at \(UTC\):')
     if (($projectionTimeFields.Count -ne 0 -or $statusTimeFields.Count -ne 0) -and
         ($projectionTimeFields.Count -ne 1 -or $statusTimeFields.Count -ne 1)) {
-        throw 'BF-1068 BLOCKED: incomplete or duplicate source timestamp proof.'
+        throw 'BF-1068 BLOCKED: incomplete or duplicate source timestamp evidence.'
     }
     $projectionFetched = 'UNVERIFIED'
     $swapStatusFetched = 'UNVERIFIED'
     if ($projectionTimeFields.Count -eq 1) {
-        $projectionTime = [regex]::Matches($Text, '(?m)^Projection retrieved at \(UTC\): (?<value>' + $timePattern + ')\r? $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
-$cssEnd = $core.IndexOf('function Get-AppNav {', $cssStart, [System.StringComparison]::Ordinal)
-if ($cssStart -lt 0 -or $cssEnd -le $cssStart) {
-    throw 'BF-1021 BLOCKED: manager CSS boundary is missing.'
-}
-$cssBlock = $core.Substring($cssStart, $cssEnd - $cssStart)
-$cssTerminator = $cssBlock.LastIndexOf("'@", [System.StringComparison]::Ordinal)
-if ($cssTerminator -lt 0) {
-    throw 'BF-1021 BLOCKED: manager CSS terminator is missing.'
-}
-
-$css = @'
-/* BF-1021 v0.4 Start/Sit Assistant. */
-.start-sit-assistant{padding:22px}.start-sit-assistant>.manager-head{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}.start-sit-assistant>.manager-head .eyebrow{font-size:11px;letter-spacing:.11em}.start-sit-assistant>.manager-head h2{font-size:clamp(24px,2.2vw,32px);line-height:1.1}.start-sit-assistant .grid.four{gap:10px}.start-sit-assistant .grid.four>.summary-card:nth-child(1){border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .grid.four>.summary-card:nth-child(3){border-color:color-mix(in srgb,var(--good) 55%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(3) h3{color:var(--good);letter-spacing:.06em}.start-sit-assistant .grid.four>.summary-card:nth-child(4){border-color:color-mix(in srgb,var(--danger) 50%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(4) h3{color:var(--danger);letter-spacing:.06em}.start-sit-assistant .autofill-summary{margin-top:14px}.start-sit-assistant .lineup-row.changed{border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .lineup-choice small{font-size:10px;text-transform:uppercase;letter-spacing:.05em}.start-sit-assistant .lineup-swap-compare{font-size:11px}.start-sit-assistant .review-queue{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
-.start-sit-assistant .butler-startsit-source-proof{display:block;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--turf);border-radius:8px;background:var(--surface-2);color:inherit;line-height:1.5;font-size:13px}
-@media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
-'@
-
-$cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
-$core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
-
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
-if (@($errors).Count -gt 0) {
-    $summary = (@($errors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
-    throw "BF-1021 BLOCKED: generated staged core failed PowerShell parse: $summary"
-}
-
-foreach ($required in @(
-    'Start/Sit Assistant',
-    'What should I change?',
-    '<h3>START</h3>',
-    '<h3>SIT</h3>',
-    'Current starter',
-    'Recommended starter',
-    'Projected difference',
-    'Compare this swap',
-    'BF-1021 v0.4 Start/Sit Assistant',
-    'Player holds:',
-    'What needs your decision',
-    'Start with direct Start/Sit signals.',
-    'start/sit signal',
-    'butler-startsit-source-proof',
-    'Recheck injury updates before kickoff',
-    '$holdQueueItems'
-)) {
-    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
-        throw "BF-1021 BLOCKED: Start/Sit Assistant marker is missing: $required"
-    }
-}
-
-$surface = $function + [Environment]::NewLine + $css
-if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-1021 BLOCKED: Start/Sit Assistant presentation introduced provider, optimizer, or write behavior.'
-}
-
-[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
-Write-Host 'BF-1021 v0.4 Start/Sit Assistant applied.'
-)
-        $statusTime = [regex]::Matches($Text, '(?m)^Swap player status fetched at \(UTC\): (?<value>UNVERIFIED|' + $timePattern + ')\r? $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
-$cssEnd = $core.IndexOf('function Get-AppNav {', $cssStart, [System.StringComparison]::Ordinal)
-if ($cssStart -lt 0 -or $cssEnd -le $cssStart) {
-    throw 'BF-1021 BLOCKED: manager CSS boundary is missing.'
-}
-$cssBlock = $core.Substring($cssStart, $cssEnd - $cssStart)
-$cssTerminator = $cssBlock.LastIndexOf("'@", [System.StringComparison]::Ordinal)
-if ($cssTerminator -lt 0) {
-    throw 'BF-1021 BLOCKED: manager CSS terminator is missing.'
-}
-
-$css = @'
-/* BF-1021 v0.4 Start/Sit Assistant. */
-.start-sit-assistant{padding:22px}.start-sit-assistant>.manager-head{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}.start-sit-assistant>.manager-head .eyebrow{font-size:11px;letter-spacing:.11em}.start-sit-assistant>.manager-head h2{font-size:clamp(24px,2.2vw,32px);line-height:1.1}.start-sit-assistant .grid.four{gap:10px}.start-sit-assistant .grid.four>.summary-card:nth-child(1){border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .grid.four>.summary-card:nth-child(3){border-color:color-mix(in srgb,var(--good) 55%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(3) h3{color:var(--good);letter-spacing:.06em}.start-sit-assistant .grid.four>.summary-card:nth-child(4){border-color:color-mix(in srgb,var(--danger) 50%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(4) h3{color:var(--danger);letter-spacing:.06em}.start-sit-assistant .autofill-summary{margin-top:14px}.start-sit-assistant .lineup-row.changed{border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .lineup-choice small{font-size:10px;text-transform:uppercase;letter-spacing:.05em}.start-sit-assistant .lineup-swap-compare{font-size:11px}.start-sit-assistant .review-queue{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
-.start-sit-assistant .butler-startsit-source-proof{display:block;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--turf);border-radius:8px;background:var(--surface-2);color:inherit;line-height:1.5;font-size:13px}
-@media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
-'@
-
-$cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
-$core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
-
-$tokens = $null
-$errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
-if (@($errors).Count -gt 0) {
-    $summary = (@($errors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
-    throw "BF-1021 BLOCKED: generated staged core failed PowerShell parse: $summary"
-}
-
-foreach ($required in @(
-    'Start/Sit Assistant',
-    'What should I change?',
-    '<h3>START</h3>',
-    '<h3>SIT</h3>',
-    'Current starter',
-    'Recommended starter',
-    'Projected difference',
-    'Compare this swap',
-    'BF-1021 v0.4 Start/Sit Assistant',
-    'Player holds:',
-    'What needs your decision',
-    'Start with direct Start/Sit signals.',
-    'start/sit signal',
-    'butler-startsit-source-proof',
-    'Recheck injury updates before kickoff',
-    '$holdQueueItems'
-)) {
-    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
-        throw "BF-1021 BLOCKED: Start/Sit Assistant marker is missing: $required"
-    }
-}
-
-$surface = $function + [Environment]::NewLine + $css
-if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
-    throw 'BF-1021 BLOCKED: Start/Sit Assistant presentation introduced provider, optimizer, or write behavior.'
-}
-
-[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
-Write-Host 'BF-1021 v0.4 Start/Sit Assistant applied.'
-)
+        $projectionTime = [regex]::Matches($Text, '(?m)^Projection retrieved at \(UTC\): (?<value>' + $timePattern + ')\r?$')
+        $statusTime = [regex]::Matches($Text, '(?m)^Swap player status fetched at \(UTC\): (?<value>UNVERIFIED|' + $timePattern + ')\r?$')
         if ($projectionTime.Count -ne 1 -or $statusTime.Count -ne 1) {
-            throw 'BF-1068 BLOCKED: malformed UTC timestamp proof.'
+            throw 'BF-1068 BLOCKED: malformed timestamp evidence.'
         }
         $projectionFetched = $projectionTime[0].Groups['value'].Value
         $swapStatusFetched = $statusTime[0].Groups['value'].Value
     }
 '@
-if ([regex]::Matches($parserBlock, [regex]::Escape($timeParserOld)).Count -ne 1) {
-    throw 'BF-1068 BLOCKED: AutoFill parser source timestamp insertion is ambiguous.'
+if ([regex]::Matches($parserBlock, [regex]::Escape($timestampAnchor)).Count -ne 1) {
+    throw 'BF-1068 BLOCKED: scoring anchor missing from exact AutoFill parser.'
 }
-$parserBlock = $parserBlock.Replace($timeParserOld, $timeParserOld + "`n" + $timeParserNew.TrimEnd())
-$timeResultOld = "        SourceSurface = `$sourceSurface.Groups['value'].Value.Trim()"
-$timeResultNew = $timeResultOld + "`n        ProjectionFetchedAt = `$projectionFetched`n        SwapStatusFetchedAt = `$swapStatusFetched"
-if ([regex]::Matches($parserBlock, [regex]::Escape($timeResultOld)).Count -ne 1) {
-    throw 'BF-1068 BLOCKED: ready AutoFill parser result timestamp insertion ambiguous.'
+$parserBlock = $parserBlock.Replace($timestampAnchor, $timestampAnchor + [Environment]::NewLine + $timestampParser.TrimEnd())
+$timestampResultOld = '        SourceSurface = $sourceSurface.Groups[''value''].Value.Trim()'
+$timestampResultNew = $timestampResultOld + [Environment]::NewLine + '        ProjectionFetchedAt = $projectionFetched' +
+    [Environment]::NewLine + '        SwapStatusFetchedAt = $swapStatusFetched'
+if ([regex]::Matches($parserBlock, [regex]::Escape($timestampResultOld)).Count -ne 1) {
+    throw 'BF-1068 BLOCKED: unique ready AutoFill result anchor missing.'
 }
-$parserBlock = $parserBlock.Replace($timeResultOld, $timeResultNew)
+$parserBlock = $parserBlock.Replace($timestampResultOld, $timestampResultNew)
 $core = $core.Substring(0, $parserStart) + $parserBlock + $core.Substring($parserEnd)
 
 $cssStart = $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)
