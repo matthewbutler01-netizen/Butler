@@ -742,6 +742,7 @@ function Get-V04AutoPilotWatchState {
         StartSit = 'UNAVAILABLE'
         Waivers = 'UNAVAILABLE'
         Roster = 'Manager tools'
+        EvidenceStatus = 'UNVERIFIED'
     }
 
     if ([string]::IsNullOrWhiteSpace($DashboardHtml)) {
@@ -775,6 +776,15 @@ function Get-V04AutoPilotWatchState {
     # This is the same unique Dashboard technical state used by BF-677.
     $decisionState = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Decision state:'
     $currentEvidence = @('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON') -ccontains $decisionState
+    $result.EvidenceStatus = if ($currentEvidence) {
+        'CURRENT'
+    }
+    elseif (@('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -ccontains $decisionState) {
+        'STALE'
+    }
+    else {
+        'UNVERIFIED'
+    }
     $result.Ready =
         $currentEvidence -and
         $result.Attention -cne 'UNAVAILABLE' -and
@@ -852,7 +862,18 @@ function Get-V04AutoPilotHtml {
     $startSit = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.StartSit)
     $waivers = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Waivers)
     $roster = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Roster)
-    $snapshotStatus = if ([bool]$WatchState.Ready) { 'CURRENT SNAPSHOT' } else { 'WATCH DATA UNAVAILABLE' }
+    $evidenceStatus = if ($null -ne $WatchState.PSObject.Properties['EvidenceStatus']) {
+        [string]$WatchState.EvidenceStatus
+    } else { 'UNVERIFIED' }
+    $snapshotStatus = if ([bool]$WatchState.Ready) {
+        'CURRENT SNAPSHOT'
+    }
+    elseif ($evidenceStatus -ceq 'STALE') {
+        'EVIDENCE NEEDS REFRESH'
+    }
+    else {
+        'WATCH DATA UNAVAILABLE'
+    }
     $snapshotClass = if ([bool]$WatchState.Ready) { 'good' } else { 'warn' }
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
