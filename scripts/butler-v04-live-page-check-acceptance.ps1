@@ -32,7 +32,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -238,6 +238,38 @@ foreach ($fixture in @(
     if ($check.Status -cne $fixture.Expected -or $check.Evidence -cne $fixture.Evidence) {
         throw "BF-1049 BLOCKED: real page vs navigation-only $($fixture.Route) expected $($fixture.Expected)/$($fixture.Evidence), got $($check.Status)/$($check.Evidence)."
     }
+}
+
+# BF-1072: independently valid route pages cannot describe different
+# leagues/weeks while the all-pages smoke claims everything agrees.
+$verified = [pscustomobject]@{ Status = 'PASS'; Evidence = 'PAIRING VERIFIED' }
+$held = [pscustomobject]@{ Status = 'WARN'; Evidence = 'WEEK UNVERIFIED' }
+$matchupPage = '<div class="target" data-butler-matchup-season="2026">Test league &middot; Week 5</div>'
+$startSitPage = '<div class="target" data-butler-matchup-season="2026">Test league &middot; Week 5</div>'
+$aligned = Test-ButlerCrossRouteWeek -MatchupHtml $matchupPage -StartSitHtml $startSitPage -MatchupCheck $verified -StartSitCheck $verified
+if ($aligned.Status -cne 'PASS' -or $aligned.Evidence -cne 'WEEK/LEAGUE ALIGNED') {
+    throw 'BF-1072 BLOCKED: two equal, independently verified league/week pages were not aligned.'
+}
+foreach ($bad in @(
+    ($startSitPage.Replace('Week 5', 'Week 4')),
+    ($startSitPage.Replace('2026', '2025')),
+    ($startSitPage.Replace('Test league', 'Other league')),
+    ($startSitPage + $startSitPage),
+    ($startSitPage.Replace('data-butler-matchup-season="2026"', '')),
+    ($startSitPage.Replace('Test league', ''))
+)) {
+    $difference = Test-ButlerCrossRouteWeek -MatchupHtml $matchupPage -StartSitHtml $bad -MatchupCheck $verified -StartSitCheck $verified
+    if ($difference.Status -cne 'FAIL') {
+        throw 'BF-1072 BLOCKED: conflicting, duplicate or incomplete pairing appeared cross-route consistent.'
+    }
+}
+$notBoth = Test-ButlerCrossRouteWeek -MatchupHtml $matchupPage -StartSitHtml $startSitPage -MatchupCheck $verified -StartSitCheck $held
+if ($notBoth.Status -cne 'SKIP' -or $notBoth.Evidence -cne 'PAGE NOT VERIFIED') {
+    throw 'BF-1072 BLOCKED: a held Start/Sit page was certified aligned.'
+}
+if ($source.IndexOf('Test-ButlerCrossRouteWeek -MatchupHtml', [StringComparison]::Ordinal) -lt 0 -or
+    $source.IndexOf('$weekPair.Status -ceq', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1072 BLOCKED: cross-route frame check is not enforced by the real loopback diagnostic.'
 }
 
 # BF-1053: compare the actual BF-840 rendered matchup header with only
