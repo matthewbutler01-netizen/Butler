@@ -52,6 +52,8 @@ foreach ($bad in @(
     'Swap player status fetched at (UTC): 2026-10-10T08:00:00Z',
     "Projection retrieved at (UTC): yesterday`nSwap player status fetched at (UTC): UNVERIFIED",
     "Projection retrieved at (UTC): 2026-13-10T08:00:00Z`nSwap player status fetched at (UTC): UNVERIFIED",
+    "Projection retrieved at (UTC): 2026-02-30T08:00:00Z`nSwap player status fetched at (UTC): UNVERIFIED",
+    "Projection retrieved at (UTC): 2025-02-29T08:00:00Z`nSwap player status fetched at (UTC): UNVERIFIED",
     "Projection retrieved at (UTC): 2026-10-10T08:00:00Z`nSwap player status fetched at (UTC): sometime",
     "Projection retrieved at (UTC): 2026-10-10T08:00:00Z`nProjection retrieved at (UTC): 2026-10-10T08:00:00Z`nSwap player status fetched at (UTC): UNVERIFIED",
     "Projection retrieved at (UTC): 2026-10-10T08:00:00Z`nSwap player status fetched at (UTC): UNVERIFIED`nSwap player status fetched at (UTC): 2026-10-10T08:00:00Z"
