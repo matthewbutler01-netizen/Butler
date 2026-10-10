@@ -1257,7 +1257,7 @@ try {
 
     if ($parts[0] -eq 'GET') {
         if ($path -eq '/health') {
-            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
+            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"127.0.0.1"}'
             return
         }
     }
