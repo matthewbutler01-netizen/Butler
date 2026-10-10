@@ -71,7 +71,7 @@ function Get-ButlerPublicNflState {
         if ($length -le 0 -or $length -gt 8192) {
             throw 'BF-1053 BLOCKED: public NFL state exceeded the small expected response size.'
         }
-        return (New-Object string($buffer, 0, $length))
+        return [string]::new($buffer, 0, $length)
     }
     finally {
         if ($null -ne $reader) { $reader.Dispose() }
