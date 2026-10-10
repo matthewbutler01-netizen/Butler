@@ -82,7 +82,7 @@ function Test-ButlerLivePage {
         $result.Evidence = 'HTTP SAFETY'
         return [pscustomobject]$result
     }
-    if ($Route -ceq '/autopilot' -and [string]$Response.Body -match 'WATCH DATA UNAVAILABLE') {
+    if ($Route -ceq '/autopilot' -and [string]$Response.Body -match 'WATCH DATA UNAVAILABLE|EVIDENCE NEEDS REFRESH') {
         $result.Status = 'WARN'
         $result.Evidence = 'WATCH INCOMPLETE'
     }
