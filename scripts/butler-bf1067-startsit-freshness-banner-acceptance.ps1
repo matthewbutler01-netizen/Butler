@@ -64,7 +64,10 @@ if ($held -notmatch '^No lineup change is ready' -or
     throw 'BF-1067 BLOCKED: unchanged lineup was incorrectly labeled as sourced swap.'
 }
 $partial = Test-FreshnessPreview -Assignments @($changed) -Holds @('hold 1') -ProjectionCoverage 'PARTIAL'
-if ($partial -notmatch '1 player hold' -or $partial -notmatch 'Recheck injury updates before kickoff') {
+if ($partial -notmatch '1 player hold' -or
+    $partial -notmatch 'status check time is UNVERIFIED' -or
+    $partial -notmatch 'Do not act on this proposal' -or
+    $partial -match 'status checks from Sleeper at the recorded fetch time') {
     throw 'BF-1067 BLOCKED: partial-source proposal lost explicit hold or pre-kickoff review warning.'
 }
 
