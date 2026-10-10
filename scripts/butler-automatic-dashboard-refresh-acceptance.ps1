@@ -28,7 +28,9 @@ foreach ($bad in @(
     ($eligible.Replace('</body>', '<div>Audit ID: 11111111-1111-1111-1111-111111111111</div></body>')),
     ($eligible.Replace('<body>', '<body><body>')),
     ($eligible.Replace('</body>', '')),
-    ($eligible.Replace('<body>', '<body class="unsupported">'))
+    ($eligible.Replace('<body>', '<body class="unsupported">')),
+    ($eligible.Replace('<body>', '<BODY>')),
+    ($eligible.Replace('</body>', '</BODY>'))
 )) {
     $blocked = Add-AutomaticDashboardRefresh -Html $bad -RequestTarget '/' -Token $token
     if ($blocked.Nonce -ne '' -or $blocked.Html -cne $bad) {
