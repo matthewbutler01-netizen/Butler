@@ -5,12 +5,19 @@ $ErrorActionPreference = 'Stop'
 $path = Join-Path $PSScriptRoot 'butler-v04-live-page-check.ps1'
 $launcher = Join-Path $PSScriptRoot 'butler-v04-live-page-check.cmd'
 $doubleClick = Join-Path $PSScriptRoot 'butler-v04-live-page-check-open.cmd'
-foreach ($requiredPath in @($path, $launcher, $doubleClick)) {
+$publicWeekCheck = Join-Path $PSScriptRoot 'butler-v04-week-check-open.cmd'
+foreach ($requiredPath in @($path, $launcher, $doubleClick, $publicWeekCheck)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "BF-1040 BLOCKED: missing $requiredPath" }
 }
 $source = [IO.File]::ReadAllText($path)
 $wrapper = [IO.File]::ReadAllText($launcher)
 $doubleClickWrapper = [IO.File]::ReadAllText($doubleClick)
+$publicWeekWrapper = [IO.File]::ReadAllText($publicWeekCheck)
+foreach ($required in @('butler-v04-live-page-check.cmd', '-CheckSleeperWeek', 'pause >nul')) {
+    if ($publicWeekWrapper.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1053 BLOCKED: optional public NFL week launcher is missing: $required"
+    }
+}
 foreach ($required in @('call "%~dp0butler-v04-live-page-check.cmd"', 'pause >nul', 'exit /b %butlerExit%')) {
     if ($doubleClickWrapper.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1049 BLOCKED: the double-click tester lost its safe visible-result behavior: $required"
