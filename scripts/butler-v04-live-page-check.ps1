@@ -297,6 +297,18 @@ function Test-ButlerLivePage {
         }
     }
 
+    # BF-1073: matching season and opponent does not imply a usable
+    # player recommendation. The read-only Start/Sit route can correctly
+    # report a held lineup after provider/injury/projection evidence fails.
+    # Surface that hold rather than printing an all-green page check.
+    if ($Route -ceq '/matchup/autofill' -and
+        $result.Status -ceq 'PASS' -and
+        ($body.IndexOf('class="callout callout-danger start-sit-blocker"', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+         $body.IndexOf('Butler could not prove a complete weekly lineup recommendation.', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+        $result.Status = 'WARN'
+        $result.Evidence = 'START/SIT BLOCKED'
+    }
+
     # BF-1047: do not misreport a successfully rendered but stale Dashboard
     # as a fresh team/waiver decision. The old smoke gate only checked HTML
     # shape, so it could say PASS even with outdated or unverified evidence.
