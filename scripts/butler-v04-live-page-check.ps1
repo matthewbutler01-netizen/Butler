@@ -1,6 +1,7 @@
 param(
     [ValidateRange(0, 65535)][int]$Port = 0,
-    [ValidateRange(5, 180)][int]$TimeoutSeconds = 120
+    [ValidateRange(5, 180)][int]$TimeoutSeconds = 120,
+    [switch]$CheckSleeperWeek
 )
 
 Set-StrictMode -Version Latest
@@ -44,6 +45,77 @@ function Invoke-ButlerLocalGet {
         if ($null -ne $reader) { $reader.Dispose() }
         if ($null -ne $response) { $response.Close() }
     }
+}
+
+# BF-1053: optional direct read-only check against Sleeper's public NFL
+# current-week endpoint. This request does not include Butler's league ID,
+# owner identity, tokens, roster, or any other private context.
+function Get-ButlerPublicNflState {
+    $request = [System.Net.HttpWebRequest]::Create('https://api.sleeper.app/v1/state/nfl')
+    $request.Method = 'GET'
+    $request.Proxy = $null
+    $request.AllowAutoRedirect = $false
+    $request.Timeout = 5000
+    $request.ReadWriteTimeout = 5000
+    $response = $null
+    $reader = $null
+    try {
+        $response = $request.GetResponse()
+        if ([int]$response.StatusCode -ne 200 -or
+            [string]$response.ContentType -notmatch '^application/json') {
+            throw 'BF-1053 BLOCKED: public NFL state was not a JSON success.'
+        }
+        $reader = [System.IO.StreamReader]::new($response.GetResponseStream(), [System.Text.Encoding]::UTF8)
+        $buffer = New-Object char[] 8193
+        $length = $reader.ReadBlock($buffer, 0, $buffer.Length)
+        if ($length -le 0 -or $length -gt 8192) {
+            throw 'BF-1053 BLOCKED: public NFL state exceeded the small expected response size.'
+        }
+        return (New-Object string($buffer, 0, $length))
+    }
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $response) { $response.Close() }
+    }
+}
+
+function Test-ButlerSleeperWeekMatch {
+    param(
+        [string]$MatchupHtml,
+        [string]$PublicNflState
+    )
+    $result = [ordered]@{ Status = 'WARN'; Evidence = 'WEEK UNVERIFIED' }
+    try {
+        $state = ConvertFrom-Json -InputObject $PublicNflState -ErrorAction Stop
+        $season = [string]$state.season
+        $type = [string]$state.season_type
+        $weekText = [string]$state.week
+        if ($season -cnotmatch '^20[0-9]{2}$' -or
+            $type -cne 'regular' -or
+            $weekText -cnotmatch '^(?:[1-9]|1[0-8])$') {
+            return [pscustomobject]$result
+        }
+        # The app's BF-840 exact weekly-matchup renderer only shows a week
+        # after it proves the roster/league matchup. Never infer the week
+        # from a sidebar or a fake "Week 5" label in generic page text.
+        $matches = [regex]::Matches($MatchupHtml,
+            '(?is)<div class="target">[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
+        if ($matches.Count -ne 1) { return [pscustomobject]$result }
+        $localWeek = [int]$matches[0].Groups['week'].Value
+        if ($localWeek -eq [int]$weekText) {
+            $result.Status = 'PASS'
+            $result.Evidence = 'WEEK MATCH'
+        }
+        else {
+            $result.Evidence = 'WEEK MISMATCH'
+        }
+    }
+    catch {
+        # An incomplete or malformed provider response is not evidence of
+        # the live week. Never guess from the current calendar date.
+        return [pscustomobject]$result
+    }
+    return [pscustomobject]$result
 }
 
 function Test-ButlerLocalHealth {
@@ -231,9 +303,11 @@ Write-Host ''
 
 $failed = 0
 $warned = 0
+$matchupResponse = $null
 foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
+        if ($route -ceq '/matchup') { $matchupResponse = $response }
         $check = Test-ButlerLivePage -Route $route -Response $response
     }
     catch {
@@ -243,10 +317,27 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
     if ($check.Status -ceq 'WARN') { $warned++ }
     Write-Host ("{0,-19} {1,-5} evidence={2,-17} auto={3}" -f $check.Route, $check.Status, $check.Evidence, $check.AutoCheck)
 }
+# The optional source check is deliberately separate from default localhost
+# smoke behavior. It never downloads player/league data or repairs evidence.
+if ($CheckSleeperWeek) {
+    Write-Host 'Public Sleeper NFL week check: one read-only GET to api.sleeper.app; no account or league identifiers sent.'
+    $weekCheck = $null
+    try {
+        $nflState = Get-ButlerPublicNflState
+        $html = if ($null -ne $matchupResponse) { [string]$matchupResponse.Body } else { '' }
+        $weekCheck = Test-ButlerSleeperWeekMatch -MatchupHtml $html -PublicNflState $nflState
+    }
+    catch {
+        $weekCheck = [pscustomobject]@{ Status = 'WARN'; Evidence = 'SLEEPER OFFLINE' }
+    }
+    if ($weekCheck.Status -ceq 'WARN') { $warned++ }
+    Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Sleeper NFL week', $weekCheck.Status, $weekCheck.Evidence)
+}
 Write-Host ''
 Write-Host ("RESULT: {0} page failure(s), {1} watch warning(s)." -f $failed, $warned)
 Write-Host 'A page may respond normally but have stale/unknown audited evidence. WARN never certifies current decisions.'
-Write-Host 'This checks local route responses and audited labels, NOT live Sleeper provider freshness or browser refresh completion.'
+Write-Host 'Local audited labels do NOT prove source freshness. Optional public week matching cannot verify player injury/projection or roster synchronization.'
+Write-Host 'This does not test actual browser refresh completion.'
 if ($failed -gt 0) { exit 1 }
 if ($warned -gt 0) { Write-Host 'Review WARN statuses before treating Auto-Pilot data as current.' }
 Write-Host 'BF-1040 LIVE PAGE CHECK: COMPLETE'
