@@ -10,7 +10,7 @@ With the v0.4 development checkout and app already running, use this single comm
 .\scripts\butler-v04-live-page-check.cmd -Port 18080
 ```
 
-If no port is specified, the tool looks for **exact Butler loopback health** on ports `18080` and `8080`. It refuses to guess when both respond or neither responds. It connects only to `127.0.0.1` and only makes GET requests.
+If no port is specified, the tool looks for **exact v0.4 audited-freshness Butler loopback health** on ports `18080` and `8080`. The public health response must include the `featureSet` identifier `v04-audited-onopen-freshness-bf1048`; a frozen v0.3 instance or another app does **not** qualify. It refuses to guess when both respond or neither responds. It connects only to `127.0.0.1` and only makes GET requests.
 
 It checks Dashboard, My Team, Waiver Board, Matchup, Start/Sit, League, and Auto-Pilot. Each check inspects HTTP 200, the expected current page marker, `Cache-Control: no-store`, and the restrictive CSP. On Dashboard, Waiver Board and Auto-Pilot, `auto=ARMED` means the nonce-protected on-open refresh script is present and the CSP matches. `auto=NOT NEEDED/GATED` means no eligible automatic evidence update was announced. Neither proves browser JavaScript has executed.
 
