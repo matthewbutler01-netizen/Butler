@@ -6,6 +6,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Use the identical unique-field parser and lineage allowlist as the running
+# refresh gate. This local diagnostic reads HTML only and never invokes its
+# POST runner, changes a league, or initiates a Sleeper transaction.
+. (Join-Path $PSScriptRoot 'butler-decision-refresh.ps1')
+
 # Loopback-only diagnostic. Never POST, submit to Sleeper, or output
 # private player/league information. GET can trigger existing narrowly
 # governed Butler-local BF-723 recovery if exact roster drift is proven.
@@ -56,7 +61,7 @@ function Test-ButlerLocalHealth {
 
 function Test-ButlerLivePage {
     param([string]$Route, $Response)
-    $result = [ordered]@{ Route = $Route; Status = 'PASS'; Evidence = 'READY'; AutoCheck = 'N/A' }
+    $result = [ordered]@{ Route = $Route; Status = 'PASS'; Evidence = 'PAGE RESPONSE'; AutoCheck = 'N/A' }
     $marker = switch -CaseSensitive ($Route) {
         '/' { 'dashboard-summary-row' }
         '/team' { 'My Team' }
@@ -82,9 +87,44 @@ function Test-ButlerLivePage {
         $result.Evidence = 'HTTP SAFETY'
         return [pscustomobject]$result
     }
-    if ($Route -ceq '/autopilot' -and [string]$Response.Body -match 'WATCH DATA UNAVAILABLE|EVIDENCE NEEDS REFRESH') {
-        $result.Status = 'WARN'
-        $result.Evidence = 'WATCH INCOMPLETE'
+    # BF-1047: do not misreport a successfully rendered but stale Dashboard
+    # as a fresh team/waiver decision. The old smoke gate only checked HTML
+    # shape, so it could say PASS even with outdated or unverified evidence.
+    if ($Route -ceq '/') {
+        $html = [string]$Response.Body
+        $state = Get-DecisionRefreshTechnicalField -Html $html -Label 'Decision state:'
+        $bf629 = Get-DecisionRefreshTechnicalField -Html $html -Label 'BF-629:'
+        $bf631 = Get-DecisionRefreshTechnicalField -Html $html -Label 'BF-631:'
+        if (($state -ceq 'CURRENT_AND_ACTIONABLE' -and
+                $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+                $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') -or
+            ($state -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+                $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+                $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED')) {
+            $result.Evidence = 'AUDIT CURRENT'
+        }
+        elseif (@('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -ccontains $state -or
+                ($state -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+                 $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+                 @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+                   'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631)) {
+            $result.Status = 'WARN'
+            $result.Evidence = 'AUDIT STALE'
+        }
+        else {
+            $result.Status = 'WARN'
+            $result.Evidence = 'AUDIT UNVERIFIED'
+        }
+    }
+    if ($Route -ceq '/autopilot') {
+        if ([string]$Response.Body -match 'WATCH DATA UNAVAILABLE|EVIDENCE NEEDS REFRESH' -or
+            [string]$Response.Body -notmatch 'CURRENT SNAPSHOT') {
+            $result.Status = 'WARN'
+            $result.Evidence = 'WATCH INCOMPLETE'
+        }
+        else {
+            $result.Evidence = 'WATCH CURRENT'
+        }
     }
     if (@('/', '/waivers', '/autopilot') -ccontains $Route) {
         if ([string]$Response.Body -match 'id="butler-auto-refresh-status"') {
@@ -136,7 +176,8 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
 }
 Write-Host ''
 Write-Host ("RESULT: {0} page failure(s), {1} watch warning(s)." -f $failed, $warned)
-Write-Host 'This checks local route responses, NOT browser refresh completion or live provider freshness.'
+Write-Host 'A page may respond normally but have stale/unknown audited evidence. WARN never certifies current decisions.'
+Write-Host 'This checks local route responses and audited labels, NOT live Sleeper provider freshness or browser refresh completion.'
 if ($failed -gt 0) { exit 1 }
 if ($warned -gt 0) { Write-Host 'Review WARN statuses before treating Auto-Pilot data as current.' }
 Write-Host 'BF-1040 LIVE PAGE CHECK: COMPLETE'
