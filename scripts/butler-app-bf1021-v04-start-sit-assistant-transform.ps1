@@ -147,7 +147,7 @@ $summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTi
 if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'Start/Sit decision summary card is missing.'
 }
-$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p><p class="meta butler-startsit-source-proof" role="status">$(ConvertTo-HtmlText $statusProofCopy)</p>')
+$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p><p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p>')
 
 $function = $function.Replace(
     '<h3>Review queue</h3>',
