@@ -27,9 +27,18 @@ if ($configured -cne $LeagueId) {
     throw 'BF-1060 BLOCKED: requested league does not match the configured Butler league.'
 }
 
+# BF-1069: use the same governed runtime path as BF-723 when the user
+# has not set an explicit override. Requiring an environment variable here
+# silently disabled automatic week repair on ordinary installed launches.
+if ([string]::IsNullOrWhiteSpace($localData)) {
+    throw 'BF-1069 BLOCKED: LocalApplicationData is unavailable.'
+}
 $rawData = [string]$env:BUTLER_APP_DATA_DIR
-if ([string]::IsNullOrWhiteSpace($rawData) -or -not [IO.Path]::IsPathRooted($rawData)) {
-    throw 'BF-1060 BLOCKED: governed runtime data directory must be explicit and absolute.'
+if ([string]::IsNullOrWhiteSpace($rawData)) {
+    $rawData = Join-Path $localData 'Butler\data'
+}
+elseif (-not [IO.Path]::IsPathRooted($rawData)) {
+    throw 'BF-1069 BLOCKED: runtime data directory override must be absolute.'
 }
 $dataDir = [IO.Path]::GetFullPath($rawData)
 $sourceRoot = [IO.Path]::GetFullPath($root).TrimEnd('\')
