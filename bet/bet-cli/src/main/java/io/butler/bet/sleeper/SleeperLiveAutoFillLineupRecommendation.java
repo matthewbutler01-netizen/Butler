@@ -756,7 +756,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         AutoFillLineupOptimizer.SlotRecommendation assignment,
         Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> source) {
         if (!assignment.changed()) return true;
-        for (String id : List.of(assignment.currentPlayerId(), assignment.recommendedPlayerId())) {
+        for (String id : new String[]{assignment.currentPlayerId(), assignment.recommendedPlayerId()}) {
             // Exact empty starter slots are not player identities.
             if (id == null || id.isBlank() || "0".equals(id)) continue;
             var status = source.get(id);
