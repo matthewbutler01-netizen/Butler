@@ -36,6 +36,7 @@ class ButlerWeeklyMatchupLiveWeekBf1054Test {
             "{\"season\":\"2026\",\"season_type\":\"regular\",\"week\":4,\"week\":5}",
             "{\"season\":\"2025\",\"season\":\"2026\",\"season_type\":\"regular\",\"week\":5}",
             "{\"season\":\"2026\",\"season_type\":\"regular\",\"season_type\":\"regular\",\"week\":5}",
+            "{\"season\":\"2026\",\"season_type\":\"regular\",\"week\":5} {\"week\":4}",
             "{\"season\":\"2026\",\"season_type\":\"regular\",\"week\":5"
         }) {
             String text = ButlerWeeklyMatchupEvidenceBundleCli.renderWeekFreshness(2026, 5, payload);
