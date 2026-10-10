@@ -95,7 +95,7 @@ function Test-ButlerLivePage {
     # can contain all the navigation names while providing no usable evidence.
     $body = [string]$Response.Body
     $requiredContent = switch -CaseSensitive ($Route) {
-        '/team' { @('Current roster', 'Roster players') }
+        '/team' { @('Roster hub', 'Lineup and depth at a glance', 'id="roster-starters"') }
         '/waivers' { @('waiver-decision-hero', 'Butler waiver decision') }
         '/matchup' { @('Weekly matchup', 'hero-panel') }
         '/matchup/autofill' { @('recommendation-panel start-sit-assistant') }
@@ -110,7 +110,7 @@ function Test-ButlerLivePage {
         }
     }
     if ($Route -ceq '/team' -and
-        $body.IndexOf('roster-card', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        $body.IndexOf('<div class="player-row">', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         $result.Status = 'WARN'
         $result.Evidence = 'ROSTER NOT SHOWN'
     }
