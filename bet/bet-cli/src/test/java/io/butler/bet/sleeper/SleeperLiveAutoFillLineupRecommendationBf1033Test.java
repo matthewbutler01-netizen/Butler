@@ -45,7 +45,7 @@ class SleeperLiveAutoFillLineupRecommendationBf1033Test {
     void projectedSwapRequiresExactCurrentStatusForBothPlayerIds() {
         var swap = new AutoFillLineupOptimizer.SlotRecommendation(
             1, "WR", "starter", "Current WR", "bench", "Bench WR",
-            new BigDecimal("8"), new BigDecimal("18"), new BigDecimal("10"));
+            new BigDecimal("8"), new BigDecimal("18"), new BigDecimal("10"), true);
         var starter = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
             "starter", "Active", "Healthy");
         var bench = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
@@ -70,7 +70,7 @@ class SleeperLiveAutoFillLineupRecommendationBf1033Test {
     void anEmptyStartingSlotNeedsOnlyExactProposedPlayerStatus() {
         var fill = new AutoFillLineupOptimizer.SlotRecommendation(
             1, "WR", "0", "Empty WR", "bench", "Bench WR",
-            null, new BigDecimal("18"), null);
+            null, new BigDecimal("18"), null, true);
         var bench = new SleeperPlayerAvailabilityProvider.PlayerAvailability(
             "bench", "Active", "Healthy");
         assertTrue(SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
