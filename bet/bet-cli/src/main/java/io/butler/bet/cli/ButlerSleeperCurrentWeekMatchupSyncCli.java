@@ -1,10 +1,12 @@
 package io.butler.bet.cli;
 
 import io.butler.bet.data.Database;
+import io.butler.bet.sleeper.SleeperClient;
 import io.butler.bet.sleeper.SleeperLiveSeasonOperationalReadinessAudit;
 import io.butler.bet.sleeper.SleeperWeeklyMatchupImporter;
 
 import java.nio.file.Path;
+import java.time.Duration;
 
 /** Explicit Butler evidence-write CLI for the current exact Sleeper matchup pairing. */
 public final class ButlerSleeperCurrentWeekMatchupSyncCli {
@@ -24,6 +26,13 @@ public final class ButlerSleeperCurrentWeekMatchupSyncCli {
             if (live.providerLeg() == null || live.providerLeg() <= 0) {
                 throw new IllegalStateException("Current Sleeper week is unavailable");
             }
+
+            // BF-1059: an in-season league's providerLeg alone does not
+            // prove this is the public current NFL week. Fail before any
+            // Butler evidence write if the two independent Sleeper sources
+            // differ, are malformed, or the public endpoint is unavailable.
+            String publicWeek = new SleeperClient().getNflState(Duration.ofSeconds(4));
+            requirePublicWeekMatch(live.providerSeason(), live.providerLeg(), publicWeek);
 
             var imported = new SleeperWeeklyMatchupImporter(database)
                 .importWeek(live.sleeperLeagueId(), live.providerLeg());
@@ -46,6 +55,16 @@ public final class ButlerSleeperCurrentWeekMatchupSyncCli {
         } catch (Exception e) {
             System.err.println("Error: " + safeMessage(e));
             System.exit(2);
+        }
+    }
+
+    static void requirePublicWeekMatch(int leagueSeason, int leagueWeek, String publicStateJson) {
+        String proof = ButlerWeeklyMatchupEvidenceBundleCli.renderWeekFreshness(
+            leagueSeason, leagueWeek, publicStateJson);
+        if (!proof.contains(System.lineSeparator() + "State: MATCH" + System.lineSeparator())) {
+            throw new IllegalStateException(
+                "BF-1059 BLOCKED: provider league season/week is not verified against the public current NFL week. "
+                + "No weekly matchup evidence was written.");
         }
     }
 
