@@ -111,6 +111,22 @@ async function scenario(name, mutations, expect) {
   await scenario('stale-or-incomplete', {routes:stale}, {
     code:0, output:/RESULT: 0 page failure\(s\), 4 watch warning\(s\)/, allRoutes:true
   });
+  const nonce = 'a'.repeat(64);
+  const autoDashboard = good['/'].replace('</body>',
+    '<div id="butler-auto-refresh-status">Checking evidence</div>' +
+    '<script nonce="' + nonce + '">/* mocked inert script */</script></body>');
+  await scenario('nonce-armed', {
+    routes: {'/':autoDashboard},
+    csp: csp + "; script-src 'nonce-" + nonce + "'; connect-src 'self'"
+  }, {
+    code:0, output:/\/\s+PASS\s+evidence=AUDIT CURRENT\s+auto=ARMED/, allRoutes:true
+  });
+  await scenario('nonce-mismatch', {
+    routes: {'/':autoDashboard},
+    csp: csp + "; script-src 'nonce-" + 'b'.repeat(64) + "'; connect-src 'self'"
+  }, {
+    code:1, output:/\/\s+FAIL\s+evidence=AUTO CSP/, allRoutes:true
+  });
   await scenario('navigation-only', {
     routes: {'/team':html('My Team navigation only')}
   }, {code:1, output:/\/team\s+FAIL\s+evidence=PAGE CONTENT/, allRoutes:true});
@@ -121,5 +137,5 @@ async function scenario(name, mutations, expect) {
     code:1, output:/\/team\s+FAIL\s+evidence=HTTP SAFETY/, allRoutes:true
   });
   console.log('BF-1050 REAL HTTP v0.4 MANAGER SMOKE: PASS');
-  console.log('Coverage: real loopback GET transport, 7 manager pages, stale/empty roster/unknown opponent, nav-only content, old v0.3 feature rejection, CSP rejection, no POST/Sleeper/provider requests.');
+  console.log('Coverage: real loopback GET transport, 7 manager pages, stale/empty roster/unknown opponent, nonce-armed/mismatched CSP, nav-only content, old v0.3 feature rejection, HTTP safety, no POST/Sleeper/provider requests.');
 })().catch(err => { console.error(err); process.exitCode = 1; });
