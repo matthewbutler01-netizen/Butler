@@ -4,7 +4,7 @@ This check is for the **development v0.4 app** only. The v0.3.0 release is froze
 
 ## Windows quick run
 
-With the v0.4 development checkout and app already running, double-click `scripts\\butler-v04-live-page-check.cmd`. In a terminal you can choose the exact port instead:
+With the v0.4 development checkout and app already running, use this single command from Command Prompt or PowerShell:
 
 ```powershell
 .\scripts\butler-v04-live-page-check.cmd -Port 18080
@@ -24,4 +24,4 @@ The diagnostic itself never POSTs and never creates/cancels/submits waivers, lin
 
 PowerShell cannot execute the on-open browser JavaScript. After smoke checks pass, verify in an actual browser that eligible stale Dashboard/Waiver Board pages update once without pressing Refresh, that non-eligible pages do not launch an update, and that the revised data is present after navigation. The app must be running the v0.4 development SHA being tested; these checks do not validate Sleeper provider freshness without local real-league context.
 
-Offline Windows smoke contract fixtures: `scripts\\butler-v04-live-page-check-acceptance.ps1`. PR #1512 remains draft and v0.3.0 is not changed.
+Offline Windows smoke contract fixtures: `scripts\butler-v04-live-page-check-acceptance.ps1`. PR #1512 remains draft and v0.3.0 is not changed.
