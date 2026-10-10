@@ -769,7 +769,14 @@ function Get-V04AutoPilotWatchState {
         }
     }
 
+    # BF-1042: presence of summary cards proves a readable local snapshot,
+    # not that its audited evidence remains current. Auto-Pilot must not show
+    # READY or prepare approval actions from stale/unknown decision evidence.
+    # This is the same unique Dashboard technical state used by BF-677.
+    $decisionState = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Decision state:'
+    $currentEvidence = @('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON') -ccontains $decisionState
     $result.Ready =
+        $currentEvidence -and
         $result.Attention -cne 'UNAVAILABLE' -and
         $result.StartSit -cne 'UNAVAILABLE' -and
         $result.Waivers -cne 'UNAVAILABLE'
