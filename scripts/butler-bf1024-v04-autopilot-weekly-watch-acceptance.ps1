@@ -105,6 +105,18 @@ if (-not $noMove.Ready) { throw 'BF-1042 BLOCKED: exact audited no-transaction w
 $badNoMove = Get-V04AutoPilotWatchState -DashboardHtml ($noMoveHtml.Replace('BF-629: NO_TRANSACTION_TO_REVALIDATE', 'BF-629: BLOCKED'))
 if ($badNoMove.Ready) { throw 'BF-1044 BLOCKED: unproven no-transaction lineage passed.' }
 
+# BF-1045: malformed or duplicated summary cards must never select
+# the first plausible lineup/waiver value by accident.
+foreach ($badCards in @(
+    ($fixture.Replace('<div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div>', '<div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>START 1 / SIT 1</strong></div>')),
+    ($fixture.Replace('<div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div>', '<div class="dashboard-summary-card"><span>Waivers</span><strong> </strong></div>')),
+    ($fixture.Replace('<div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div>', '<div class="dashboard-summary-card"><span>Attention</span><strong></strong></div>'))
+)) {
+    $badCardWatch = Get-V04AutoPilotWatchState -DashboardHtml $badCards
+    if ($badCardWatch.Ready) {
+        throw 'BF-1045 BLOCKED: duplicate or empty manager summary authorized Auto-Pilot.'
+    }
+}
 $policy = Get-V04AutoPilotApprovalPolicy
 $queue = Get-V04AutoPilotApprovalQueue -WatchState $state -ApprovalPolicy $policy
 $html = Get-V04AutoPilotHtml -WatchState $state -ApprovalPolicy $policy -ApprovalQueue $queue
