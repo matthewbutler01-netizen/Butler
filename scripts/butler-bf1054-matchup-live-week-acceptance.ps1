@@ -70,7 +70,7 @@ catch {
 
 foreach ($required in @(
     'Get-TeamEvidenceBundleSection -Text $bundleText -Name "WEEK_FRESHNESS"',
-    'if ($weekProof.State -ceq ''MISMATCH'')',
+    'if ($weekProof.State -ceq ''MISMATCH'' -or',
     'New-AutoFillIdleView',
     'Add-MatchupPublicWeekNotice -Html $html -Proof $weekProof'
 )) {
