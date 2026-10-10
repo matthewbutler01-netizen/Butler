@@ -90,6 +90,36 @@ function Test-ButlerLivePage {
         $result.Evidence = 'HTTP SAFETY'
         return [pscustomobject]$result
     }
+    # BF-1049: route-navigation labels alone cannot prove that the actual
+    # roster, matchup, waiver, or Start/Sit data rendered. A generic error page
+    # can contain all the navigation names while providing no usable evidence.
+    $body = [string]$Response.Body
+    $requiredContent = switch -CaseSensitive ($Route) {
+        '/team' { @('Current roster', 'Roster players') }
+        '/waivers' { @('waiver-decision-hero', 'Butler waiver decision') }
+        '/matchup' { @('Weekly matchup', 'hero-panel') }
+        '/matchup/autofill' { @('recommendation-panel start-sit-assistant') }
+        '/league' { @('League intelligence', 'Governed guidance') }
+        default { @() }
+    }
+    foreach ($required in $requiredContent) {
+        if ($body.IndexOf($required, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            $result.Status = 'FAIL'
+            $result.Evidence = 'PAGE CONTENT'
+            return [pscustomobject]$result
+        }
+    }
+    if ($Route -ceq '/team' -and
+        $body.IndexOf('roster-card', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        $result.Status = 'WARN'
+        $result.Evidence = 'ROSTER NOT SHOWN'
+    }
+    if ($Route -ceq '/matchup' -and
+        $body -match '(?i)>\s*Opponent not confirmed\s*<') {
+        $result.Status = 'WARN'
+        $result.Evidence = 'OPPONENT UNKNOWN'
+    }
+
     # BF-1047: do not misreport a successfully rendered but stale Dashboard
     # as a fresh team/waiver decision. The old smoke gate only checked HTML
     # shape, so it could say PASS even with outdated or unverified evidence.
