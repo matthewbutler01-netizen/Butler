@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -49,6 +50,25 @@ class SleeperPlayerAvailabilityProviderBf825Test {
         assertFalse(first.get("p-active-out").explicitlyUnavailable());
         assertFalse(first.get("p-questionable").explicitlyUnavailable());
         assertEquals(Set.of("p-out"), second.keySet());
+    }
+
+    @Test
+    void malformedOrDuplicateAvailabilityNeverCertifiesCurrentInjuryStatus() {
+        var bad = new String[] {
+            "{\\\"target\\\":{\\\"status\\\":\\\"Out\\\",\\\"status\\\":\\\"Active\\\"}}",
+            "{\\\"target\\\":{\\\"injury_status\\\":\\\"Out\\\",\\\"injury_status\\\":\\\"Healthy\\\"}}",
+            "{\\\"target\\\":{\\\"status\\\":\\\"Active\\\"},\\\"target\\\":{\\\"status\\\":\\\"Out\\\"}}",
+            "{\\\"target\\\":{\\\"status\\\":\\\"Active\\\"}} {\\\"target\\\":{\\\"status\\\":\\\"Out\\\"}}"
+        };
+        for (String payload : bad) {
+            var provider = new SleeperPlayerAvailabilityProvider(
+                () -> payload,
+                Clock.fixed(Instant.parse("2026-10-10T08:00:00Z"), ZoneOffset.UTC),
+                Duration.ofMinutes(5),
+                new ObjectMapper());
+            assertThrows(java.io.IOException.class, () -> provider.load(Set.of("target")),
+                "Conflicting injury evidence must never select the last status.");
+        }
     }
 
     @Test
