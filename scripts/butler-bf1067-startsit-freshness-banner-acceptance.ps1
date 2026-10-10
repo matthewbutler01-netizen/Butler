@@ -18,9 +18,9 @@ if ($start -lt 0 -or $end -le $start) {
     throw 'BF-1067 BLOCKED: unique source-check summary not found.'
 }
 $proof = $source.Substring($start, $end - $start)
-$renderer = $source.IndexOf('<p class="meta butler-startsit-source-proof" role="status">$(ConvertTo-HtmlText $statusProofCopy)</p>', [StringComparison]::Ordinal)
+$renderer = $source.IndexOf('<p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p>', [StringComparison]::Ordinal)
 if ($renderer -lt 0 -or
-    $source.IndexOf('<p class="meta butler-startsit-source-proof"', $renderer + 1, [StringComparison]::Ordinal) -ge 0) {
+    $source.IndexOf('<p class=`"meta butler-startsit-source-proof`"', $renderer + 1, [StringComparison]::Ordinal) -ge 0) {
     throw 'BF-1067 BLOCKED: Start/Sit did not render exactly one accessible, escaped source proof.'
 }
 if ($proof -match 'Invoke-RestMethod|Invoke-WebRequest|submitTransaction|setFaab|https://api|Method\s*=\s*POST') {
