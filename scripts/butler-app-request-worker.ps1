@@ -257,8 +257,8 @@ function Invoke-AutomaticWeekRecovery {
 function Resolve-V04AutoPilotOnOpenWeek {
     param(
         [Parameter(Mandatory = $true)]$InitialWatchState,
-        [string]$DashboardHtml = '',
-        [string]$MatchupHtml = '',
+        [AllowEmptyString()][string]$DashboardHtml = '',
+        [AllowEmptyString()][string]$MatchupHtml = '',
         [Parameter(Mandatory = $true)][int]$InnerPort,
         [Parameter(Mandatory = $true)][string]$League,
         [Parameter(Mandatory = $true)][string]$Root,
