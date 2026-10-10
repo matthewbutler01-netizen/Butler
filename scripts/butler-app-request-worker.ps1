@@ -1266,6 +1266,7 @@ try {
             return
         }
 
+        $dashboardHtmlForRefresh = ''
         $watchState = [pscustomobject]@{
             Ready = $false
             Attention = 'UNAVAILABLE'
@@ -1276,7 +1277,8 @@ try {
         try {
             $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId -RefreshState $RefreshState
             if ([int]$dashboard.StatusCode -eq 200 -and $dashboard.ContentType -match '^text/html') {
-                $watchState = Get-V04AutoPilotWatchState -DashboardHtml ([string]$dashboard.Body)
+                $dashboardHtmlForRefresh = [string]$dashboard.Body
+                $watchState = Get-V04AutoPilotWatchState -DashboardHtml $dashboardHtmlForRefresh
             }
         }
         catch {
@@ -1288,7 +1290,8 @@ try {
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $html = Add-ButlerAccessibility -Html $html
-        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+        $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $autoRefresh.Html -ScriptNonce $autoRefresh.Nonce
         return
     }
 
