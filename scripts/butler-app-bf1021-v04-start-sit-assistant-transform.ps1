@@ -105,6 +105,20 @@ $function = $function.Replace($titleOld, $titleNew.TrimEnd())
 # Give the summary card a concrete review task without turning an opinion into a move.
 $summaryAnchor = '    return "<section class=`"panel recommendation-panel start-sit-assistant`"'
 $summarySetup = @'
+    # BF-1067: report what this exact preview did and did not verify.
+    # BF-1066 has already withheld changed assignments lacking source
+    # player statuses; displaying a proposal is not health clearance.
+    $proposedChanges = @($AutoFill.Assignments | Where-Object { [bool]$_.Changed }).Count
+    $playerHolds = @($AutoFill.ProjectionHolds).Count
+    $holdCopy = if ($playerHolds -eq 1) { '1 player hold' } else { "$playerHolds player holds" }
+    $projectionBasisCopy = if ([string]$AutoFill.ProjectionCoverage -ceq 'FULL') { 'Full scoreable projection coverage' }
+        else { 'Partial projection coverage; missing projections are not zeros' }
+    if ($proposedChanges -gt 0) {
+        $statusProofCopy = "$proposedChanges proposed lineup changes have exact player-status checks from Sleeper at review time. $projectionBasisCopy; $holdCopy. Recheck injury updates before kickoff. A projection is not availability clearance and no Sleeper move was submitted."
+    }
+    else {
+        $statusProofCopy = "No lineup change is ready. $projectionBasisCopy; $holdCopy. If availability or a player's projection cannot be verified, Butler holds the move rather than guessing. Recheck before kickoff."
+    }
     $decisionActionCopy = $decisionTitle
     if ($managerMoveCount -eq 0 -and $directSignalCount -gt 0) {
         $reviewTasks = @(
@@ -133,7 +147,7 @@ $summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTi
 if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'Start/Sit decision summary card is missing.'
 }
-$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p>')
+$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p><p class="meta butler-startsit-source-proof" role="status">$(ConvertTo-HtmlText $statusProofCopy)</p>')
 
 $function = $function.Replace(
     '<h3>Review queue</h3>',
@@ -188,6 +202,8 @@ foreach ($required in @(
     'What needs your decision',
     'Start with direct Start/Sit signals.',
     'start/sit signal',
+    'butler-startsit-source-proof',
+    'Recheck injury updates before kickoff',
     '$holdQueueItems'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
