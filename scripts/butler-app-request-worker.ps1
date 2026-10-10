@@ -1002,7 +1002,29 @@ function Limit-V04AutoPilotToVerifiedWeek {
     if ($markers.Count -eq 1 -and $proof.Count -eq 1) {
         $state = [string]$proof[0].Groups['state'].Value
     }
-    if ($state -ceq 'MATCH') { return $WatchState }
+    if ($state -ceq 'MATCH') {
+        # BF-1062: source current-week proof is not confirmation of the
+        # persisted pairing. Confirm the sole rendered matchup header is
+        # for that exact verified season/week; unavailable opponent pages
+        # have no pairing metadata and cannot authorize manager approval.
+        $sourceWeek = [regex]::Matches(
+            $MatchupHtml,
+            '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>'
+        )
+        $pairing = [regex]::Matches(
+            $MatchupHtml,
+            '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>'
+        )
+        if ($markers.Count -eq 1 -and $sourceWeek.Count -eq 1 -and $pairing.Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-week-season=').Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-week-number=').Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-matchup-season=').Count -eq 1 -and
+            $sourceWeek[0].Groups['season'].Value -ceq $pairing[0].Groups['season'].Value -and
+            $sourceWeek[0].Groups['week'].Value -ceq $pairing[0].Groups['week'].Value) {
+            return $WatchState
+        }
+        $state = 'UNVERIFIED'
+    }
 
     $WatchState.Ready = $false
     if ($state -ceq 'MISMATCH') {
