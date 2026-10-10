@@ -83,9 +83,15 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
                     context.season(),
                     context.week(),
                     SOURCE));
-            Future<SleeperLiveAutoFillLineupRecommendation.RecommendationReport> autoFillFuture = includeAutoFill
-                ? executor.submit(() -> autoFillSafely(database, leagueId, context))
-                : null;
+            // BF-1055: no FantasyPros/lineup recommendation fetch for a
+            // saved weekly pairing the public Sleeper week cannot verify.
+            // Finish the bounded public read while local DB analyses run.
+            String weekProof = renderWeekFreshness(context.season(), context.week(), awaitWeekState(weekFuture));
+            boolean weekVerified = weekProof.contains(System.lineSeparator() + "State: MATCH" + System.lineSeparator());
+            Future<SleeperLiveAutoFillLineupRecommendation.RecommendationReport> autoFillFuture =
+                includeAutoFill && weekVerified
+                    ? executor.submit(() -> autoFillSafely(database, leagueId, context))
+                    : null;
 
             LeagueRosterStrengthTierAnalyzer.RosterStrengthReport strength = await(strengthFuture);
             LeaguePositionalPressureAnalyzer.PositionalPressureReport pressure = await(pressureFuture);
@@ -93,14 +99,17 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             String matchupContext = renderMatchupContext(context);
             String autoFill = includeAutoFill
                 ? ButlerMyTeamEvidenceBundleCli.capture(() ->
-                    ButlerAutoFillLineupRecommendationCli.print(await(autoFillFuture)))
+                    ButlerAutoFillLineupRecommendationCli.print(weekVerified
+                        ? await(autoFillFuture)
+                        : SleeperLiveAutoFillLineupRecommendation.RecommendationReport.unavailable(
+                            context.season(), context.week(), null,
+                            "Current Sleeper season/week is unverified or differs from saved matchup. Start/Sit is held without querying projections.")))
                 : null;
             String rosterStrength = ButlerMyTeamEvidenceBundleCli.capture(() ->
                 ButlerLeagueRosterStrengthCli.print(strength));
             String positionalPressure = ButlerMyTeamEvidenceBundleCli.capture(() ->
                 ButlerLeaguePositionalPressureCli.print(pressure));
             String matchup = renderMatchup(matchupFuture);
-            String weekProof = renderWeekFreshness(context.season(), context.week(), awaitWeekState(weekFuture));
 
             ButlerMyTeamEvidenceBundleCli.emit(MATCHUP_CONTEXT, matchupContext);
             ButlerMyTeamEvidenceBundleCli.emit(WEEK_FRESHNESS, weekProof);
