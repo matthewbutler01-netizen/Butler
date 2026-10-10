@@ -139,7 +139,7 @@ async function scenario(name, mutations, expect) {
     code:0, output:/RESULT: 0 page failure\(s\), 2 watch warning\(s\)/, allRoutes:true
   });
   await scenario('missing-week-proof', {
-    routes: {'/matchup': good['/matchup'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="")'}
+    routes: {'/matchup': good['/matchup'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="BROKEN"')}
   }, {
     code:1, output:/\/matchup\s+FAIL\s+evidence=WEEK PROOF/, allRoutes:true
   });
