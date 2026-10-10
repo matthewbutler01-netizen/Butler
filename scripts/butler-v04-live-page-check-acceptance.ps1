@@ -123,6 +123,56 @@ if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'AUDIT UNVERIFIED') {
     throw 'BF-1047 BLOCKED: Dashboard with no audited evidence was reported current.'
 }
 
+# BF-1051: exact eligible stale decisions may not quietly lose their
+# on-open browser script while retaining otherwise healthy page markup.
+$auditId = '11111111-1111-1111-1111-111111111111'
+$baseCsp = "default-src 'none'; frame-ancestors 'none'"
+$eligibleDashboard = '<html><body><div class="dashboard-summary-row"></div>' +
+    '<div>Decision state: STALE_DO_NOT_ACT</div>' +
+    '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
+    '<div>BF-631: MARKET_LINEAGE_SUPERSEDED</div>' +
+    '<div>Audit ID: ' + $auditId + '</div></body></html>'
+$page.Body = $eligibleDashboard
+$page.Csp = $baseCsp
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'AUTO MISSING') {
+    throw 'BF-1051 BLOCKED: eligible stale Dashboard silently omitted automatic update.'
+}
+$page.Body = $eligibleDashboard.Replace('</body>', '<div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">synthetic inert script</script></body>')
+$page.Csp = $baseCsp + "; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'AUDIT STALE' -or
+    $check.AutoCheck -cne 'ARMED') {
+    throw 'BF-1051 BLOCKED: eligible stale Dashboard with correct auto script was rejected.'
+}
+$recommended = $eligibleDashboard.Replace('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED').
+    Replace('MARKET_LINEAGE_SUPERSEDED', 'LATEST_EVIDENCE_LINEAGE_VERIFIED').
+    Replace('</body>', '<div>BF-636 plan state: MANUAL_REFRESH_PLAN_READY</div><div>BF-636 plan policy: sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution</div><div>Governed step count: 9</div></body>')
+$page.Body = $recommended
+$page.Csp = $baseCsp
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'AUTO MISSING') {
+    throw 'BF-1051 BLOCKED: governed nine-stage refresh recommendation lost automatic update.'
+}
+$page.Body = $recommended.Replace('Governed step count: 9', 'Governed step count: 10')
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'AUDIT STALE' -or
+    $check.AutoCheck -cne 'NOT NEEDED/GATED') {
+    throw 'BF-1051 BLOCKED: invalid nine-stage plan incorrectly demanded an automatic update.'
+}
+$waiverBase = '<html><body>Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section><span hidden data-butler-auto-waiver="' + $auditId + '"></span></body></html>'
+$page.Body = $waiverBase
+$check = Test-ButlerLivePage -Route '/waivers' -Response $page
+if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'AUTO MISSING') {
+    throw 'BF-1051 BLOCKED: eligible Waiver Board silently omitted automatic update.'
+}
+$page.Body = $waiverBase.Replace('</body>', '<div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">synthetic inert script</script></body>')
+$page.Csp = $baseCsp + "; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
+$check = Test-ButlerLivePage -Route '/waivers' -Response $page
+if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
+    throw 'BF-1051 BLOCKED: eligible Waiver Board with correct auto script was rejected.'
+}
+$page.Csp = $baseCsp
 $page.Body = '<html><body>broken manager page</body></html>'
 $check = Test-ButlerLivePage -Route '/' -Response $page
 if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'PAGE CONTRACT') {
