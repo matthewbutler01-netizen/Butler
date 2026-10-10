@@ -42,7 +42,11 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
     @Test
     void currentMatchupPublishesAuditedSeasonForOptionalSleeperWeekComparison() throws Exception {
         String transform = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
+        String finalMatchup = source("scripts/butler-app-bf881-matchup-decision-first-transform.ps1");
         assertTrue(transform.contains("data-butler-matchup-season=\"$(ConvertTo-HtmlText $Matchup.Season)\""));
+        // BF-881 replaces BF-840's complete renderer: the final staged page
+        // must preserve this proof too or the real local week check always warns.
+        assertTrue(finalMatchup.contains("data-butler-matchup-season=\"$(ConvertTo-HtmlText $Matchup.Season)\""));
         assertTrue(transform.contains("Week $(ConvertTo-HtmlText $Matchup.Week)"));
         // Only a confirmed exact BF-840 matchup exposes this season marker;
         // the unavailable/opponent-unconfirmed renderer has no such proof.
