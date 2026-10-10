@@ -134,6 +134,31 @@ if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
     throw 'BF-1040 BLOCKED: eligible Auto-Pilot nonce or healthy watch was rejected.'
 }
 
+# BF-1049: menu labels can appear on a normal-looking shell even when the
+# actual roster/matchup/waiver evidence did not render. Require page-specific
+# content, and warn on an empty roster or unconfirmed opponent.
+$page.Csp = "default-src 'none'; frame-ancestors 'none'"
+foreach ($fixture in @(
+    @{ Route = '/team'; Body = '<html><body>My Team Current roster Roster players <article class="roster-card">safe</article></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/team'; Body = '<html><body>My Team Current roster Roster players</body></html>'; Expected = 'WARN'; Evidence = 'ROSTER NOT SHOWN' },
+    @{ Route = '/team'; Body = '<html><body>My Team navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/waivers'; Body = '<html><body>Waiver Board waiver-decision-hero Butler waiver decision</body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/waivers'; Body = '<html><body>Waiver Board navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/matchup'; Body = '<html><body>Matchup Weekly matchup hero-panel <h1>Week 5</h1></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/matchup'; Body = '<html><body>Matchup Weekly matchup hero-panel <h1>Opponent not confirmed</h1></body></html>'; Expected = 'WARN'; Evidence = 'OPPONENT UNKNOWN' },
+    @{ Route = '/matchup'; Body = '<html><body>Matchup navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant <section class="panel recommendation-panel start-sit-assistant">safe</section></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/league'; Body = '<html><body>League League intelligence Governed guidance</body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/league'; Body = '<html><body>League navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' }
+)) {
+    $page.Body = $fixture.Body
+    $check = Test-ButlerLivePage -Route $fixture.Route -Response $page
+    if ($check.Status -cne $fixture.Expected -or $check.Evidence -cne $fixture.Evidence) {
+        throw "BF-1049 BLOCKED: real page vs navigation-only $($fixture.Route) expected $($fixture.Expected)/$($fixture.Evidence), got $($check.Status)/$($check.Evidence)."
+    }
+}
+
 # Validate input is rejected before opening an external or invalid connection.
 foreach ($probe in @(
     @{ SelectedPort = 443; Route = '/team' },
