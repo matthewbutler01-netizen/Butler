@@ -12,6 +12,7 @@ import io.butler.bet.intelligence.WeeklyMatchupWorkspaceAnalyzer;
 import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 import io.butler.bet.sleeper.SleeperClient;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -139,7 +140,10 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
         String providerWeek = "-";
         try {
             if (providerJson != null && !providerJson.isBlank() && providerJson.length() <= 8192) {
-                JsonNode source = new ObjectMapper().readTree(providerJson);
+                // BF-1058: ambiguous duplicate source fields cannot certify a current week.
+                JsonNode source = new ObjectMapper()
+                    .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                    .readTree(providerJson);
                 if (source != null && source.isObject()
                     && "regular".equals(source.path("season_type").asText())
                     && source.path("season").asText().matches("20[0-9]{2}")
