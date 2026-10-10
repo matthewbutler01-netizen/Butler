@@ -54,8 +54,18 @@ $matchup = '<html><body><main><section class="panel hero-panel"><h1>Weekly match
 $shown = Add-MatchupPublicWeekNotice -Html $matchup -Proof $healthy
 if ($shown -notmatch 'WEEK MATCHES SLEEPER' -or
     $shown -notmatch 'have not been independently refreshed' -or
-    $shown -notmatch 'data-butler-week-state="MATCH"') {
+    $shown -notmatch 'data-butler-week-state="MATCH"' -or
+    $shown -notmatch 'data-butler-week-season="2026"' -or
+    $shown -notmatch 'data-butler-week-number="5"') {
     throw 'BF-1054 BLOCKED: matching public NFL week implied full roster freshness.'
+}
+$invalidMatch = Add-MatchupPublicWeekNotice -Html $matchup -Proof ([pscustomobject]@{
+    State = 'MATCH'; Saved = '2026/5'; Provider = '2025/5'
+})
+if ($invalidMatch -match 'data-butler-week-state="MATCH"' -or
+    $invalidMatch -notmatch 'data-butler-week-state="UNVERIFIED"' -or
+    $invalidMatch -match 'data-butler-week-season=') {
+    throw 'BF-1062 BLOCKED: an unverified week comparison emitted a fake numeric MATCH proof.'
 }
 $blocked = Add-MatchupPublicWeekNotice -Html $matchup -Proof $stale
 if ($blocked -notmatch 'SAVED MATCHUP OUTDATED' -or
