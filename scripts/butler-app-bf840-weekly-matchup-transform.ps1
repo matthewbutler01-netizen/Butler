@@ -164,9 +164,23 @@ $assistantHold
 function Get-MatchupPublicWeekProof {
     param([Parameter(Mandatory = $true)][string]$Text)
 
-    $state = [regex]::Matches($Text, '(?m)^State:\s+(?<value>MATCH|MISMATCH|UNVERIFIED)\s*$')
-    $saved = [regex]::Matches($Text, '(?m)^Saved season/week:\s+(?<season>20[0-9]{2})/(?<week>[1-9]|1[0-8])\s*$')
-    $provider = [regex]::Matches($Text, '(?m)^Provider season/week:\s+(?<season>20[0-9]{2})/(?<week>[1-9]|1[0-8])\s*$')
+    # BF-1058: the Java bundle is an exact technical contract, not loose
+    # natural-language text. Duplicate *invalid* fields must block as surely
+    # as duplicate valid ones; never select a convenient first MATCH.
+    $rawState = [regex]::Matches($Text, '(?m)^[ \t]*State[ \t]*:')
+    $rawSaved = [regex]::Matches($Text, '(?m)^[ \t]*Saved season/week[ \t]*:')
+    $rawProvider = [regex]::Matches($Text, '(?m)^[ \t]*Provider season/week[ \t]*:')
+    $header = [regex]::Matches($Text, '(?m)^Live public NFL week proof[ \t]*$')
+    $boundary = [regex]::Matches($Text,
+        '(?m)^Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked\.[ \t]*$')
+    if ($rawState.Count -ne 1 -or $rawSaved.Count -ne 1 -or $rawProvider.Count -ne 1 -or
+        $header.Count -ne 1 -or $boundary.Count -ne 1) {
+        return [pscustomobject]@{ State = 'UNVERIFIED'; Saved = ''; Provider = '' }
+    }
+
+    $state = [regex]::Matches($Text, '(?m)^State:[ \t]+(?<value>MATCH|MISMATCH|UNVERIFIED)[ \t]*$')
+    $saved = [regex]::Matches($Text, '(?m)^Saved season/week:[ \t]+(?<season>20[0-9]{2})/(?<week>[1-9]|1[0-8])[ \t]*$')
+    $provider = [regex]::Matches($Text, '(?m)^Provider season/week:[ \t]+(?<season>20[0-9]{2})/(?<week>[1-9]|1[0-8])[ \t]*$')
     if ($state.Count -ne 1 -or $saved.Count -ne 1) {
         return [pscustomobject]@{ State = 'UNVERIFIED'; Saved = ''; Provider = '' }
     }
@@ -180,6 +194,12 @@ function Get-MatchupPublicWeekProof {
     if ($proofState -ceq 'MISMATCH' -and
         ([string]::IsNullOrWhiteSpace($providerText) -or $providerText -ceq $savedText)) {
         $proofState = 'UNVERIFIED'
+    }
+    # Exactly one unknown-state provider placeholder is the only supported
+    # non-numeric public source response; do not trust malformed alternatives.
+    if ($proofState -ceq 'UNVERIFIED' -and $provider.Count -eq 0 -and
+        -not [regex]::IsMatch($Text, '(?m)^Provider season/week:[ \t]+-/-[ \t]*$')) {
+        return [pscustomobject]@{ State = 'UNVERIFIED'; Saved = ''; Provider = '' }
     }
     return [pscustomobject]@{
         State = $proofState
