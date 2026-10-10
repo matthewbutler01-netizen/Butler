@@ -9,7 +9,7 @@ foreach ($route in @('/', '/waivers?position=RB', '/history')) {
     $result = Add-AutomaticWaiverRefresh -Html $html -RequestTarget $route -Token $token
     if ($result.Nonce -ne '' -or $result.Html -ne $html) { throw 'Unexpected automatic update route.' }
 }
-foreach ($body in @('<html><body>No update</body></html>', ($html + $html))) {
+foreach ($body in @('<html><body>No update</body></html>', ($html + $html), ($html.Replace('<body>', '<BODY>')), ($html.Replace('</body>', '</BODY>')))) {
     $result = Add-AutomaticWaiverRefresh -Html $body -RequestTarget '/waivers' -Token $token
     if ($result.Nonce -ne '') { throw 'Missing or ambiguous update metadata accepted.' }
 }
