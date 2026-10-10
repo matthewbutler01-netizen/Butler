@@ -1107,7 +1107,7 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # unverified timestamp, no-change decision, or generic Dashboard
         # signal cannot authorize an Auto-Pilot prepared packet.
         if ($message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -lt 0 -or
-            $message.IndexOf('No Sleeper move was submitted', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('no Sleeper move was submitted', [StringComparison]::Ordinal) -lt 0 -or
             $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
             $valid = $false
         }
