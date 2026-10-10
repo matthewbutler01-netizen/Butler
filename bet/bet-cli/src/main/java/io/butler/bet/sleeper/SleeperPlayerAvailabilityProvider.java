@@ -1,5 +1,7 @@
 package io.butler.bet.sleeper;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -54,7 +56,12 @@ final class SleeperPlayerAvailabilityProvider {
         this.payloadSource = Objects.requireNonNull(payloadSource, "payloadSource must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.cacheTtl = Objects.requireNonNull(cacheTtl, "cacheTtl must not be null");
-        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+        // BF-1064: a duplicate player ID or conflicting injury_status is
+        // ambiguous safety evidence, not a "last field wins" clearance.
+        // Copy the injected mapper so tests and production share this gate.
+        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null").copy()
+            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         if (cacheTtl.isZero() || cacheTtl.isNegative()) {
             throw new IllegalArgumentException("cacheTtl must be positive");
         }
