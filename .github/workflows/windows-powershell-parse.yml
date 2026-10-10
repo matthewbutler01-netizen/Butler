@@ -9,6 +9,7 @@ on:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
       - '.github/workflows/windows-powershell-parse.yml'
+      - 'gradle/wrapper/gradle-wrapper.properties'
   pull_request:
     branches:
       - main
@@ -16,6 +17,7 @@ on:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
       - '.github/workflows/windows-powershell-parse.yml'
+      - 'gradle/wrapper/gradle-wrapper.properties'
 
 concurrency:
   group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
@@ -53,6 +55,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
           if (-not $?) { exit 1 }
+          node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
 
   powershell-51:
