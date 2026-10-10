@@ -44,7 +44,7 @@ if ($state.Roster -cne 'Hard(CORE)-Dynasty | nuke the whales | roster 6') { thro
 # Matchup itself owns the bounded read-only public Sleeper week proof.
 $actionableFixture = $fixture.Replace('<strong>REFRESH</strong>', '<strong>START 1 / SIT 1</strong>').
     Replace('<strong>DO NOT ACT</strong>', '<strong>ADD 1 / DROP 1</strong>')
-$weekMatch = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH"><strong>WEEK MATCHES SLEEPER</strong></section>'
+$weekMatch = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"><strong>WEEK MATCHES SLEEPER</strong></section><div class="target" data-butler-matchup-season="2026">Test league &middot; Week 5</div>'
 $allowWatch = Get-V04AutoPilotWatchState -DashboardHtml $actionableFixture
 $allowWatch = Limit-V04AutoPilotToVerifiedWeek -WatchState $allowWatch -MatchupHtml $weekMatch
 if (-not $allowWatch.Ready -or $allowWatch.StartSit -cne 'START 1 / SIT 1') {
@@ -56,7 +56,13 @@ $blockedFixtures = @(
     [pscustomobject]@{ Html = ''; Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
     [pscustomobject]@{ Html = '<div data-butler-week-state="MATCH">no approved source proof</div>'; Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
     [pscustomobject]@{ Html = ($weekMatch + $weekMatch); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
-    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-week-state="MATCH"', 'data-butler-week-state="INVALID"'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' }
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-week-state="MATCH"', 'data-butler-week-state="INVALID"'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-matchup-season="2026"', ''); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('Week 5</div>', 'Week 4</div>'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-week-number="5"', 'data-butler-week-number="4"'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-week-season="2026"', ''); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = ($weekMatch + '<div data-butler-matchup-season="2026"></div>'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' }
 )
 foreach ($case in $blockedFixtures) {
     $blocked = Get-V04AutoPilotWatchState -DashboardHtml $actionableFixture
