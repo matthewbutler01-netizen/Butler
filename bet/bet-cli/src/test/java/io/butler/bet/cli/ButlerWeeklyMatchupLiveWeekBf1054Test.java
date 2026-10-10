@@ -59,7 +59,7 @@ class ButlerWeeklyMatchupLiveWeekBf1054Test {
         assertTrue(bundle.contains("Start/Sit is held without querying projections."));
         assertTrue(renderer.contains("ConvertTo-MatchupWeekHoldHtml -Reason $reason -StartSit $requestAutoFill"));
         assertTrue(renderer.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"WEEK_FRESHNESS\""));
-        assertTrue(renderer.contains("if ($weekProof.State -ceq 'MISMATCH')"));
+        assertTrue(renderer.contains("if ($weekProof.State -ceq 'MISMATCH' -or"));
         assertTrue(renderer.contains("New-AutoFillIdleView"));
         assertTrue(renderer.contains("Add-MatchupPublicWeekNotice"));
         assertFalse(bundle.contains("importWeek("), "GET may not sync the persisted pairing");
