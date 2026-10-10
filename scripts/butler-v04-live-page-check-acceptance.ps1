@@ -25,7 +25,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -218,6 +218,41 @@ foreach ($fixture in @(
     $check = Test-ButlerLivePage -Route $fixture.Route -Response $page
     if ($check.Status -cne $fixture.Expected -or $check.Evidence -cne $fixture.Evidence) {
         throw "BF-1049 BLOCKED: real page vs navigation-only $($fixture.Route) expected $($fixture.Expected)/$($fixture.Evidence), got $($check.Status)/$($check.Evidence)."
+    }
+}
+
+# BF-1053: compare the actual BF-840 rendered matchup header with only
+# Sleeper's small public NFL state payload. No real Internet is used here.
+$matchingMatchup = '<html><body><div class="target">Synthetic league &middot; Week 5</div><h1>Team A vs Team B</h1></body></html>'
+$liveWeekFixture = '{"season":"2026","season_type":"regular","week":5,"leg":5,"display_week":5}'
+$matchingWeek = Test-ButlerSleeperWeekMatch -MatchupHtml $matchingMatchup -PublicNflState $liveWeekFixture
+if ($matchingWeek.Status -cne 'PASS' -or $matchingWeek.Evidence -cne 'WEEK MATCH') {
+    throw 'BF-1053 BLOCKED: matching external NFL week and exact matchup header were rejected.'
+}
+foreach ($badComparison in @(
+    @{ Html = $matchingMatchup.Replace('Week 5', 'Week 4'); Json = $liveWeekFixture; Expected = 'WEEK MISMATCH' },
+    @{ Html = '<html><body>Sidebar: Week 5</body></html>'; Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = ($matchingMatchup + $matchingMatchup); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"post","week":5}'; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular","week":25}'; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular","week":"5x"}'; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular","week":5'; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular"}'; Expected = 'WEEK UNVERIFIED' }
+)) {
+    $check = Test-ButlerSleeperWeekMatch -MatchupHtml $badComparison.Html -PublicNflState $badComparison.Json
+    if ($check.Status -cne 'WARN' -or $check.Evidence -cne $badComparison.Expected) {
+        throw "BF-1053 BLOCKED: invalid/old NFL matchup fixture was incorrectly marked current ($($badComparison.Expected))."
+    }
+}
+foreach ($required in @(
+    "'https://api.sleeper.app/v1/state/nfl'",
+    '$request.Method = ''GET''',
+    '$request.AllowAutoRedirect = $false',
+    '[switch]$CheckSleeperWeek',
+    'Test-ButlerSleeperWeekMatch -MatchupHtml $html -PublicNflState $nflState'
+)) {
+    if ($source.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1053 BLOCKED: opt-in bounded public NFL week contract missing: $required"
     }
 }
 
