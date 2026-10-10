@@ -50,7 +50,8 @@ foreach ($stale in @(
     ($fixture.Replace('</div></div><section', '</div><div>Decision state: CURRENT_AND_ACTIONABLE</div></div><section'))
 )) {
     $blockedWatch = Get-V04AutoPilotWatchState -DashboardHtml $stale
-    if ($blockedWatch.Ready -or $blockedWatch.StartSit -cne 'REFRESH') {
+    $expectedStartSit = if ($blockedWatch.EvidenceStatus -ceq 'STALE') { 'REFRESH' } else { 'UNAVAILABLE' }
+    if ($blockedWatch.Ready -or $blockedWatch.StartSit -cne $expectedStartSit) {
         throw 'BF-1042 BLOCKED: stale/ambiguous Dashboard data authorized Auto-Pilot.'
     }
     $blockedPolicy = Get-V04AutoPilotApprovalPolicy
