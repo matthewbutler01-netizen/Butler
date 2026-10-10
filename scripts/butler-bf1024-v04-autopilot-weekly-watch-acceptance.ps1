@@ -190,7 +190,7 @@ if ($partial.Ready) { throw 'BF-1024 BLOCKED: incomplete watch snapshot was inco
 foreach ($required in @(
     'Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget ''/'' -League $LeagueId',
     'Get-V04AutoPilotWatchState -DashboardHtml',
-    'Limit-V04AutoPilotToVerifiedWeek -WatchState $watchState -MatchupHtml $matchupHtmlForWeekProof',
+    'Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof',
     'Get-V04AutoPilotApprovalPolicy',
     'Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy',
     'Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue',
@@ -239,9 +239,9 @@ if ($autopilotRegionStart -lt 0 -or $autopilotRegionEnd -le $autopilotRegionStar
 $autopilotRegion = $text.Substring($autopilotRegionStart, $autopilotRegionEnd - $autopilotRegionStart)
 if ($autopilotRegion.IndexOf('-RefreshState $RefreshState', [System.StringComparison]::Ordinal) -lt 0 -or
     $autopilotRegion.IndexOf("-RequestTarget '/matchup'", [System.StringComparison]::Ordinal) -lt 0 -or
-    $autopilotRegion.IndexOf('if ([bool]$watchState.Ready)', [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'BF-1057 BLOCKED: Auto-Pilot did not safely verify the public NFL week through read-only Matchup before manager approval.'
+    $autopilotRegion.IndexOf('Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1061 BLOCKED: Auto-Pilot did not route weekly source proof through governed on-open recovery and independent manager audit.'
 }
 
 Write-Host 'BF-1024 V0.4 AUTO-PILOT WEEKLY WATCH ACCEPTANCE: PASS'
-Write-Host 'Coverage: real Dashboard snapshot reuse, live read-only Matchup season/week gate, fail-closed manager advice masking, fallback and no new provider/write behavior.'
+Write-Host 'Coverage: real Dashboard snapshot reuse, live Matchup season/week gate, governed BF-1061 local-only pairing repair, fail-closed manager advice masking and no Sleeper transaction.'
