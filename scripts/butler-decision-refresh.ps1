@@ -282,8 +282,11 @@ function Add-AutomaticGovernedRefreshHtml {
     }
     # Never emit a script nonce if insertion into a single well-formed body
     # cannot be proved. Do not introduce a permissive global script policy.
-    if ([regex]::Matches($Html, '(?i)<body>').Count -ne 1 -or
-        [regex]::Matches($Html, '(?i)</body>').Count -ne 1) {
+    # The insertion uses an exact case-sensitive replacement. Require that
+    # exact casing here too; an uppercase <BODY> must not claim a live nonce
+    # while silently leaving the automatic refresh script uninserted.
+    if ([regex]::Matches($Html, '<body>').Count -ne 1 -or
+        [regex]::Matches($Html, '</body>').Count -ne 1) {
         return $result
     }
 
