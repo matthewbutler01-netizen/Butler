@@ -176,6 +176,80 @@ function Test-StartSitRosterDriftResponse {
             [System.StringComparison]::OrdinalIgnoreCase) -ge 0
 }
 
+# BF-1060: only a *rendered, source-verified* mismatched week on the
+# exact weekly manager routes may attempt governed Butler-local repair.
+# Missing/duplicate/unknown week proof and other routes are read-only.
+function Test-AutomaticWeekRecoveryCandidate {
+    param(
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [AllowNull()][string]$Body,
+        [int]$StatusCode = 200
+    )
+    if (@('/matchup', '/matchup/autofill') -cnotcontains $RequestTarget -or
+        $StatusCode -ne 200 -or [string]::IsNullOrWhiteSpace($Body)) {
+        return $false
+    }
+    $markers = [regex]::Matches($Body, 'data-butler-week-state=')
+    $mismatch = [regex]::Matches($Body,
+        '(?s)<section class="panel butler-live-week-status" role="status" data-butler-week-state="MISMATCH"><strong>SAVED MATCHUP OUTDATED</strong>')
+    if ($markers.Count -ne 1 -or $mismatch.Count -ne 1) { return $false }
+    return [regex]::IsMatch($Body, '(?:Saved matchup not usable|Start/Sit review held)') -and
+        $Body.IndexOf('DO NOT ACT', [StringComparison]::Ordinal) -ge 0
+}
+
+# Atomically acquire the SAME evidence-writer claim used by BF-723 and
+# token-gated POST /refresh. A five-minute bounded cooldown stops repeated
+# provider/DB work when a league is offline or provider weeks still conflict.
+function Claim-AutomaticWeekRecovery {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        $now = [DateTime]::UtcNow.Ticks
+        if (($State.ContainsKey('InProgress') -and [bool]$State.InProgress) -or
+            ($State.ContainsKey('AutoWeekRetryAfterUtcTicks') -and
+             [long]$State.AutoWeekRetryAfterUtcTicks -gt $now)) {
+            return $false
+        }
+        $State.AutoWeekRetryAfterUtcTicks = $now + [TimeSpan]::FromMinutes(5).Ticks
+        $State.InProgress = $true
+        return $true
+    }
+    finally {
+        if ($lockTaken) { [Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
+function Invoke-AutomaticWeekRecovery {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$League
+    )
+    $scriptPath = Join-Path $Root 'scripts\butler-current-week-onopen-recovery.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw 'BF-1060 BLOCKED: governed week recovery runner is missing.'
+    }
+    $powershell = Join-Path $PSHOME 'powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) {
+        $powershell = 'powershell.exe'
+    }
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $lines = & $powershell '-NoProfile' '-ExecutionPolicy' 'Bypass' '-File' $scriptPath '-LeagueId' $League 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    $output = (($lines | ForEach-Object { "$_" }) -join "`n")
+    if ($exitCode -ne 0 -or
+        $output.IndexOf('BF-1060 WEEK RECOVERY: COMPLETE', [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1060 BLOCKED: current-week repair not verified.'
+    }
+}
+
 function Invoke-StartSitRosterDriftAutoRecovery {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -1505,6 +1579,36 @@ try {
             catch {
                 # Preserve the original fail-closed page with its manual path if
                 # exact recovery is unavailable or another refresh owns writes.
+            }
+        }
+
+        # BF-1060: when an ordinary Matchup/Start-Sit page proves a
+        # precise public-week mismatch, try one guarded local evidence sync
+        # *before returning the page*, without requiring a Refresh click.
+        # The Java writer rechecks both live league and public NFL week
+        # before DB writes. Failures keep the original advice-free hold.
+        if (Test-AutomaticWeekRecoveryCandidate -RequestTarget $requestTarget -Body ([string]$body) -StatusCode ([int]$proxied.StatusCode)) {
+            if (Claim-AutomaticWeekRecovery -State $RefreshState) {
+                try {
+                    try {
+                        Invoke-AutomaticWeekRecovery -Root $RepoRoot -League $LeagueId
+                        $retried = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+                        if ([int]$retried.StatusCode -eq 200 -and
+                            $retried.ContentType -match '^text/html') {
+                            $proxied = $retried
+                            $body = $retried.Body
+                        }
+                    }
+                    catch {
+                        # A failed/partial local repair never returns an
+                        # invented CURRENT badge or stale lineup action.
+                    }
+                }
+                finally {
+                    # Invalidate all four five-second read caches even after
+                    # a partially completed guarded local evidence write.
+                    Complete-DecisionRefreshAttempt -State $RefreshState
+                }
             }
         }
 
