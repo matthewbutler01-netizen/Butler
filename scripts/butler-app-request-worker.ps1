@@ -1092,7 +1092,7 @@ function Limit-V04AutoPilotToSourcedStartSit {
             $matchup.League -ceq $startSit.League
     }
     if ($valid -and
-        ($StartSitHtml.IndexOf('start-sit-blocker', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        ($StartSitHtml.IndexOf('class="callout callout-danger start-sit-blocker"', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
          $StartSitHtml.IndexOf('Butler could not prove a complete weekly lineup recommendation.', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
         $valid = $false
     }
