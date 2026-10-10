@@ -67,6 +67,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1067-startsit-freshness-banner-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1068-source-timestamps-acceptance.ps1'
+          if (-not $?) { exit 1 }
           node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-live-page-check-http-e2e.cjs'
