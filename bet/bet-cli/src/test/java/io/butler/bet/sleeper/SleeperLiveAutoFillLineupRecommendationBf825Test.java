@@ -261,6 +261,28 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     }
 
     @Test
+    void missingOrUnknownPlayerStatusWithholdsHighProjectionPromotion() throws Exception {
+        for (String status : List.of("Reserved", "Status_Unknown")) {
+            String leagueId = "league-unverified-status-" + status;
+            Database database = initializedDatabase(leagueId);
+            var snapshot = snapshot(List.of(
+                projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "20")));
+            var report = new SleeperLiveAutoFillLineupRecommendation(
+                database,
+                (season, week, scoring) -> snapshot,
+                ids -> Map.of("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-b", status, null)))
+                .recommend(rosterReport(leagueId));
+            assertTrue(report.ready(), "The unchanged lineup remains reviewable.");
+            assertTrue(report.recommendation().promotions().isEmpty(),
+                "Unrecognized injury status must not promote the higher-projected bench player.");
+            assertTrue(report.projectionHolds().stream().anyMatch(h ->
+                "s-wr-b".equals(h.sleeperPlayerId())
+                    && h.reason().contains("Availability hold")));
+        }
+    }
+
+    @Test
     void currentInjurySourceFailureWithholdsOtherwiseActionableLineupSwap() throws Exception {
         Database database = initializedDatabase("league-injury-outage-swap");
         var snapshot = snapshot(List.of(
