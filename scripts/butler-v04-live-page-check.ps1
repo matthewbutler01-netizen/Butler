@@ -86,7 +86,7 @@ function Test-ButlerLivePage {
         $result.Status = 'WARN'
         $result.Evidence = 'WATCH INCOMPLETE'
     }
-    if (@('/', '/waivers') -ccontains $Route) {
+    if (@('/', '/waivers', '/autopilot') -ccontains $Route) {
         if ([string]$Response.Body -match 'id="butler-auto-refresh-status"') {
             $nonces = [regex]::Matches([string]$Response.Body, '<script nonce="(?<nonce>[0-9a-f]{64})">')
             if ($nonces.Count -ne 1 -or
