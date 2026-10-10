@@ -86,5 +86,52 @@ foreach ($required in @(
 if ($route -match 'Sleeper.*(submit|transaction)|Set-Faab|Method\s*=\s*POST') {
     throw 'BF-1074 BLOCKED: new Auto-Pilot route added a Sleeper transaction.'
 }
+# BF-1075: the manager-facing card must explain why Start/Sit is held
+# without incorrectly prescribing a blind Refresh or blocking waivers.
+foreach ($name in @('Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotHtml')) {
+    $found = @($ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
+    }, $true))
+    if ($found.Count -ne 1) { throw "BF-1075 BLOCKED: $name missing or ambiguous." }
+    . ([scriptblock]::Create($found[0].Extent.Text))
+}
+function Get-AppCss { return '' }
+$policy = [pscustomobject]@{
+    Mode = 'MANAGER APPROVAL REQUIRED'
+    StartSit = 'PREPARE ONLY'
+    Waivers = 'RECOMMEND ONLY'
+    Trades = 'NEVER AUTO-EXECUTE'
+    HardBlockers = @('Evidence gap')
+}
+$heldView = [pscustomobject]@{
+    Ready = $true
+    StartSit = 'BLOCKED - CHECK START/SIT'
+    Waivers = 'ADD 1 / DROP 1'
+    Attention = '2 NEED ATTENTION'
+    EvidenceStatus = 'CURRENT'
+    Roster = 'Test Team'
+}
+$queue = Get-V04AutoPilotApprovalQueue -WatchState $heldView -ApprovalPolicy $policy
+$html = Get-V04AutoPilotHtml -WatchState $heldView -ApprovalPolicy $policy -ApprovalQueue $queue
+if ($queue.StartSitNext -notmatch 'Open Start/Sit Assistant' -or
+    $queue.StartSitNext -notmatch 'pressing Refresh is not a substitute' -or
+    $queue.WaiverNext -notmatch 'Review the current Waiver Board recommendation' -or
+    $html -notmatch 'LINEUP SOURCE NOT VERIFIED' -or
+    $html -notmatch 'NO RECOMMENDATION PREPARED' -or
+    $html -notmatch 'BLOCKED - CHECK START/SIT' -or
+    $html -match 'READY FOR MANAGER REVIEW' -or
+    $html -match 'CURRENT SNAPSHOT') {
+    throw 'BF-1075 BLOCKED: incomplete Start/Sit source was incorrectly advertised as a current prepared packet.'
+}
+$heldView.StartSit = 'START 1 / SIT 1'
+$queue = Get-V04AutoPilotApprovalQueue -WatchState $heldView -ApprovalPolicy $policy
+$html = Get-V04AutoPilotHtml -WatchState $heldView -ApprovalPolicy $policy -ApprovalQueue $queue
+if ($html -notmatch 'CURRENT SNAPSHOT' -or
+    $html -notmatch 'READY FOR MANAGER REVIEW' -or
+    $html -match 'LINEUP SOURCE NOT VERIFIED') {
+    throw 'BF-1075 BLOCKED: supported Start/Sit source never displayed a ready review.'
+}
+
 Write-Host 'BF-1074 AUTO-PILOT SOURCED START/SIT: PASS'
 Write-Host 'Coverage: exact source/season/week/league, hold, UTC recency, invalid dates, duplicate proof, read-only route and independent waiver.'
