@@ -24,7 +24,7 @@ foreach ($name in @('Invoke-ButlerLocalGet', 'Test-ButlerLocalHealth', 'Test-But
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
-    Body = '{"status":"ok","service":"butler-app-shell","bind":"127.0.0.1"}'
+    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"127.0.0.1"}'
 }
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1040 BLOCKED: exact Butler loopback health was rejected.'
@@ -33,7 +33,17 @@ $health.Body = '{"status":"ok","service":"different-app","bind":"127.0.0.1"}'
 if (Test-ButlerLocalHealth -Response $health) {
     throw 'BF-1040 BLOCKED: unrelated loopback service accepted.'
 }
-$health.Body = '{"status":"ok","service":"butler-app-shell","bind":"0.0.0.0"}'
+# Old frozen Butler health must not pass as a v0.4 app even when
+# hosted on the expected port and bound to loopback.
+$health.Body = '{"status":"ok","service":"butler-app-shell","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1048 BLOCKED: unversioned/old Butler instance passed as v0.4.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"unknown","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1048 BLOCKED: incompatible development build passed v0.4 identity gate.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"0.0.0.0"}'
 if (Test-ButlerLocalHealth -Response $health) {
     throw 'BF-1040 BLOCKED: public bind accepted.'
 }
