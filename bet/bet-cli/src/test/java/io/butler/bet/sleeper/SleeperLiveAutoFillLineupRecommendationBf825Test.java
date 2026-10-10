@@ -261,6 +261,27 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     }
 
     @Test
+    void currentInjurySourceFailureWithholdsOtherwiseActionableLineupSwap() throws Exception {
+        Database database = initializedDatabase("league-injury-outage-swap");
+        var snapshot = snapshot(List.of(
+            projection("s-qb", "20"),
+            projection("s-wr-a", "10"),
+            projection("s-wr-b", "20")));
+
+        var report = new SleeperLiveAutoFillLineupRecommendation(
+            database,
+            (season, week, scoring) -> snapshot,
+            ids -> { throw new IOException("synthetic injury source outage"); })
+            .recommend(rosterReport("league-injury-outage-swap"));
+
+        assertFalse(report.ready(),
+            "Missing current injury status must not permit a projected bench promotion.");
+        assertTrue(report.reason().contains("BF-1063 BLOCKED"));
+        assertTrue(report.reason().contains("did not prepare a player swap"));
+        assertTrue(report.recommendation() == null);
+    }
+
+    @Test
     void availabilityProviderFailureCreatesProjectionHoldInsteadOfBlockingReview() throws Exception {
         Database database = initializedDatabase("league-provider-failure");
         var snapshot = snapshot(List.of(projection("s-qb", "20"), projection("s-wr-b", "15")));
