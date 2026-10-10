@@ -750,7 +750,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             snapshot.sourceName(), snapshot.sourceSurface(), snapshot.observedAt(), mappedActivePlayers,
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
-            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks);
+            .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks)
+            .withSwapStatusFetchedAt(oldestSwapStatusFetch(recommendation, availabilityBySleeperId));
     }
 
     static boolean hasExactSwapAvailability(
@@ -767,6 +768,30 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             }
         }
         return true;
+    }
+
+    // BF-1068: this timestamp is when the Sleeper player-map response
+    // was fetched, never the time a player was medically cleared or last
+    // received a new injury designation. If any swap participant lacks a
+    // timestamp, do not present a speculative "last checked" time.
+    static Instant oldestSwapStatusFetch(
+        AutoFillLineupOptimizer.Recommendation recommendation,
+        Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> source) {
+        Instant oldest = null;
+        for (var assignment : recommendation.assignments()) {
+            if (!assignment.changed()) continue;
+            for (String id : new String[]{assignment.currentPlayerId(), assignment.recommendedPlayerId()}) {
+                if (id == null || id.isBlank() || "0".equals(id)) continue;
+                var status = source.get(id);
+                if (status == null || !id.equals(status.sleeperPlayerId()) || status.observedAt() == null) {
+                    return null;
+                }
+                if (oldest == null || status.observedAt().isBefore(oldest)) {
+                    oldest = status.observedAt();
+                }
+            }
+        }
+        return oldest;
     }
 
     private static String expertSummary(List<ExpertPick> picks, String playerId) {
@@ -1014,6 +1039,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         String sourceName,
         String sourceSurface,
         Instant projectionObservedAt,
+        Instant swapStatusFetchedAt,
         int mappedActivePlayers,
         BigDecimal currentProjectedTotal,
         BigDecimal projectedGain,
@@ -1048,7 +1074,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                 if (!recommendation.ready()) throw new IllegalArgumentException("ready report requires ready recommendation");
             } else {
                 reason = requireText(reason, "reason");
-                if (sourceName != null || sourceSurface != null || projectionObservedAt != null || mappedActivePlayers != 0
+                if (sourceName != null || sourceSurface != null || projectionObservedAt != null || swapStatusFetchedAt != null || mappedActivePlayers != 0
                     || currentProjectedTotal != null || projectedGain != null || recommendation != null
                     || !availabilityExclusions.isEmpty() || !projectionHolds.isEmpty() || projectionProvenance != null
                     || !decisionEvidence.isEmpty() || !swapReviews.isEmpty() || !expertPicks.isEmpty()) {
@@ -1064,7 +1090,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String reason) {
             return new RecommendationReport(
                 POLICY_ID, false, reason, season, week, scoringBasis,
-                null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of(), List.of());
+                null, null, null, null, 0, null, null, null, List.of(), List.of(), null, List.of(), List.of(), List.of());
         }
 
         public static RecommendationReport ready(
@@ -1083,27 +1109,35 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             String projectionProvenance) {
             return new RecommendationReport(
                 POLICY_ID, true, null, season, week, scoringBasis,
-                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers,
+                sourceName, sourceSurface, projectionObservedAt, null, mappedActivePlayers,
                 currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
                 projectionHolds, projectionProvenance, List.of(), List.of(), List.of());
         }
 
+        RecommendationReport withSwapStatusFetchedAt(Instant fetchedAt) {
+            if (!ready) throw new IllegalStateException("no swap timestamp on unavailable report");
+            return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
+                sourceName, sourceSurface, projectionObservedAt, fetchedAt, mappedActivePlayers,
+                currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
+                projectionHolds, projectionProvenance, decisionEvidence, swapReviews, expertPicks);
+        }
+
         RecommendationReport withDecisionEvidence(List<String> evidence) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
-                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                sourceName, sourceSurface, projectionObservedAt, swapStatusFetchedAt, mappedActivePlayers, currentProjectedTotal,
                 projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, evidence, swapReviews, expertPicks);
         }
 
         RecommendationReport withExpertPicks(List<ExpertPick> picks) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
-                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                sourceName, sourceSurface, projectionObservedAt, swapStatusFetchedAt, mappedActivePlayers, currentProjectedTotal,
                 projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance,
                 decisionEvidence, swapReviews, picks);
         }
 
         RecommendationReport withSwapReviews(List<SwapReview> reviews) {
             return new RecommendationReport(policyId, ready, reason, season, week, scoringBasis,
-                sourceName, sourceSurface, projectionObservedAt, mappedActivePlayers, currentProjectedTotal,
+                sourceName, sourceSurface, projectionObservedAt, swapStatusFetchedAt, mappedActivePlayers, currentProjectedTotal,
                 projectedGain, recommendation, availabilityExclusions, projectionHolds, projectionProvenance, decisionEvidence, reviews, expertPicks);
         }
     }
