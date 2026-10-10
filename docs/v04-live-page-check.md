@@ -12,7 +12,7 @@ With the v0.4 development checkout and app already running, use this single comm
 
 If no port is specified, the tool looks for **exact Butler loopback health** on ports `18080` and `8080`. It refuses to guess when both respond or neither responds. It connects only to `127.0.0.1` and only makes GET requests.
 
-It checks Dashboard, My Team, Waiver Board, Matchup, Start/Sit, League, and Auto-Pilot. Each check inspects HTTP 200, the expected current page marker, `Cache-Control: no-store`, and the restrictive CSP. On Dashboard and Waiver Board, `auto=ARMED` means the nonce-protected on-open refresh script is present and the CSP matches. `auto=NOT NEEDED/GATED` means no eligible automatic evidence update was announced. Neither proves browser JavaScript has executed.
+It checks Dashboard, My Team, Waiver Board, Matchup, Start/Sit, League, and Auto-Pilot. Each check inspects HTTP 200, the expected current page marker, `Cache-Control: no-store`, and the restrictive CSP. On Dashboard, Waiver Board and Auto-Pilot, `auto=ARMED` means the nonce-protected on-open refresh script is present and the CSP matches. `auto=NOT NEEDED/GATED` means no eligible automatic evidence update was announced. Neither proves browser JavaScript has executed.
 
 If Auto-Pilot says `WATCH DATA UNAVAILABLE`, its row shows `WARN WATCH INCOMPLETE`, not a fabricated current lineup or waiver recommendation. A `FAIL` is a page, network, or security-contract problem, and the command exits nonzero.
 
@@ -22,6 +22,10 @@ The tool reports **only route names and pass/warn/fail categories**. It does not
 
 The diagnostic itself never POSTs and never creates/cancels/submits waivers, lineups, trades, or FAAB changes. **Important:** an ordinary My Team or Start/Sit GET may independently trigger Butler's existing narrowly governed BF-723 Butler-local evidence recovery when exact roster drift is proven. That is app behavior, not a new diagnostic write endpoint.
 
-PowerShell cannot execute the on-open browser JavaScript. After smoke checks pass, verify in an actual browser that eligible stale Dashboard/Waiver Board pages update once without pressing Refresh, that non-eligible pages do not launch an update, and that the revised data is present after navigation. The app must be running the v0.4 development SHA being tested; these checks do not validate Sleeper provider freshness without local real-league context.
+PowerShell cannot execute the on-open browser JavaScript. After smoke checks pass, verify in an actual browser that eligible stale Dashboard/Waiver Board/Auto-Pilot pages update once without pressing Refresh, that non-eligible pages do not launch an update, and that the revised data is present after navigation. The app must be running the v0.4 development SHA being tested; these checks do not validate Sleeper provider freshness without local real-league context.
 
 Offline Windows smoke contract fixtures: `scripts\butler-v04-live-page-check-acceptance.ps1`. PR #1512 remains draft and v0.3.0 is not changed.
+
+## BF-1041 Auto-Pilot on-open refresh
+
+Auto-Pilot reuses its already-loaded Dashboard HTML as the only eligibility source. It must prove the exact BF-677 Dashboard manual-refresh state, BF-629 live actionability, BF-631 lineage, and any BF-636 governed plan before emitting a client-side refresh. Merely finding a Refresh link cannot authorize an update. An eligible Auto-Pilot visit uses the same existing token-gated Butler-local `POST /refresh`, with a shared audit-based five-minute cooldown across Dashboard and Auto-Pilot. On successful POST, the browser returns to `/autopilot`. No transaction is sent to Sleeper, and no automatic write is permitted on no-transaction, ambiguous, or blocked evidence.
