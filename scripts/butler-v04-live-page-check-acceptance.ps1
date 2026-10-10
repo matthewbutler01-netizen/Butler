@@ -70,6 +70,11 @@ $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'WATCH INCOMPLETE') {
     throw 'BF-1040 BLOCKED: incomplete Auto-Pilot watch treated as current.'
 }
+$page.Body = '<html><body>CURRENT WEEKLY WATCH - EVIDENCE NEEDS REFRESH</body></html>'
+$check = Test-ButlerLivePage -Route '/autopilot' -Response $page
+if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'WATCH INCOMPLETE') {
+    throw 'BF-1042 BLOCKED: stale Auto-Pilot watch was mislabeled current.'
+}
 $page.Body = '<html><body>CURRENT WEEKLY WATCH <div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
 $page.Csp = "default-src 'none'; frame-ancestors 'none'; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
 $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
