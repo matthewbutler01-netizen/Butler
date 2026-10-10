@@ -224,8 +224,254 @@ function Add-MatchupPublicWeekNotice {
         $badge = 'SAVED MATCHUP OUTDATED'
         $copy = "Butler has saved matchup season/week $($Proof.Saved), but Sleeper reports $($Proof.Provider). Butler is withholding saved matchup advice until its weekly pairing is synchronized."
     }
+    # BF-1062: source-week MATCH alone does not certify that the page has
+    # the exact saved opponent pairing for that season/week. Expose verified
+    # numeric proof for the read-only Auto-Pilot manager gate, but never an
+    # unverified/synthetic week number.
+    $weekAttributes = ''
+    if ($state -ceq 'MATCH') {
+        $savedFrame = [regex]::Match([string]$Proof.Saved, '^(?<season>20[0-9]{2})/(?<week>[1-9]|1[0-8])
+    $marker = '<section class="panel hero-panel">'
+    if ([regex]::Matches($Html, [regex]::Escape($marker)).Count -ne 1) {
+        throw 'BF-1054 BLOCKED: current weekly matchup hero is missing or ambiguous.'
+    }
+    return $Html.Replace($marker, $notice + $marker)
+}
+
+function ConvertTo-MatchupOpponentContextHtml {
+    param(
+        [Parameter(Mandatory = $true)]$Strength,
+        [Parameter(Mandatory = $true)]$Pressure
+    )
+
+    if ($Strength.Available) {
+        $strengthText = [string]$Strength.Tier
+        $strengthEvidence = "Starter value $($Strength.StarterValue) | roster value $($Strength.TotalPlayerValue) | coverage $($Strength.Coverage)%"
+    }
+    else {
+        $strengthText = 'Coverage needed'
+        $strengthEvidence = if ($null -ne $Strength.PSObject.Properties['Reason']) { [string]$Strength.Reason } else { 'Current governed roster-strength evidence is unavailable.' }
+    }
+
+    $positionCards = ''
+    foreach ($position in $Pressure) {
+        if ($position.Available) {
+            $positionCards += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">$(ConvertTo-HtmlText $position.Tier)</div><div class=`"meta`">Starter coverage $(ConvertTo-HtmlText $position.StarterCoverageValue) &middot; total position value $(ConvertTo-HtmlText $position.TotalPositionValue)</div></article>"
+        }
+        else {
+            $positionCards += "<article class=`"card position-card`"><div class=`"rank`">$(ConvertTo-HtmlText $position.Position)</div><div class=`"pressure-tier`">Coverage needed</div><div class=`"meta`">$(ConvertTo-HtmlText $position.Reason)</div></article>"
+        }
+    }
+
+    return "<section class=`"panel`"><div class=`"section-head`"><div><div class=`"eyebrow`">Opponent context</div><h2>Roster profile</h2><p class=`"lede`">Roster-strength and positional context only. Butler does not use this section to predict a winner.</p></div></div><div class=`"manager-metrics`"><div class=`"metric-card`"><span class=`"metric-label`">Roster strength</span><span class=`"metric-value`">$(ConvertTo-HtmlText $strengthText)</span><div class=`"meta`">$(ConvertTo-HtmlText $strengthEvidence)</div></div></div><div class=`"grid four`">$positionCards</div></section>"
+}
+
+function ConvertTo-MatchupAutoFillHtml {
+    param([Parameter(Mandatory = $true)]$AutoFill)
+
+    $html = ConvertTo-AutoFillHtml -AutoFill $AutoFill
+    $html = $html.Replace('href="/team/autofill"', 'href="/matchup/autofill"')
+    $html = $html.Replace('href="/team"', 'href="/matchup"')
+    $html = $html.Replace('>Run AutoFill</a>', '>Review Lineup</a>')
+    $html = $html.Replace('>Back to My Team</a>', '>Back to Matchup</a>')
+    return $html
+}
+
+function ConvertTo-MatchupHtml {
+    param(
+        [Parameter(Mandatory = $true)]$Roster,
+        [Parameter(Mandatory = $true)]$Matchup,
+        [Parameter(Mandatory = $true)]$AutoFill,
+        [Parameter(Mandatory = $true)]$OpponentStrength,
+        [Parameter(Mandatory = $true)]$OpponentPressure
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'matchup'
+    $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
+    $opponentHtml = ConvertTo-MatchupOpponentContextHtml -Strength $OpponentStrength -Pressure $OpponentPressure
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Weekly Matchup</title><style>$css</style></head><body><main class="shell">
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target" data-butler-matchup-season="$(ConvertTo-HtmlText $Matchup.Season)">$(ConvertTo-HtmlText $Roster.LeagueName) &middot; Week $(ConvertTo-HtmlText $Matchup.Week)</div></header>
+$nav
+<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">$(ConvertTo-HtmlText $displayTeam) vs. $(ConvertTo-HtmlText $Matchup.OpponentTeamName)</h1><p class="lede">Your Week $(ConvertTo-HtmlText $Matchup.Week) opponent is confirmed. Review your lineup and opponent context here; Butler does not predict a winner.</p></div><span class="status good">OPPONENT CONFIRMED</span></div><div class="stats"><div class="stat"><strong>Week</strong><span>$(ConvertTo-HtmlText $Matchup.Week)</span></div><div class="stat"><strong>Your team</strong><span>$(ConvertTo-HtmlText $displayTeam)</span></div><div class="stat"><strong>Opponent</strong><span>$(ConvertTo-HtmlText $Matchup.OpponentTeamName)</span></div></div><details><summary>Matchup details</summary><div class="technical">Sleeper matchup $(ConvertTo-HtmlText $Matchup.MatchupId) &middot; source $(ConvertTo-HtmlText $Matchup.Source) &middot; as-of $(ConvertTo-HtmlText $Matchup.AsOf)</div></details></section>
+$autoFillHtml
+$opponentHtml
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Weekly Matchup uses your confirmed Sleeper opponent plus Butler's Lineup Advisor, roster-strength, and positional context. It does not calculate win probability, predict a winner, submit a lineup, refresh evidence automatically, or execute any Sleeper transaction.</section>
+</main></body></html>
+"@
+}
+
+function ConvertTo-MatchupUnavailableHtml {
+    param(
+        [Parameter(Mandatory = $true)]$Roster,
+        [Parameter(Mandatory = $true)]$AutoFill,
+        [Parameter(Mandatory = $true)][string]$Reason
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'matchup'
+    $displayTeam = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and $Roster.TeamName -cne 'none') { $Roster.TeamName } else { $Roster.ButlerTeamName }
+    $autoFillHtml = ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Weekly Matchup</title><style>$css</style></head><body><main class="shell">
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $Roster.LeagueName) &middot; $(ConvertTo-HtmlText $displayTeam)</div></header>
+$nav
+<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">Opponent not confirmed</h1><p class="lede">Butler could not confirm your current Sleeper opponent, so it will not guess or display one.</p></div><span class="status warn">MATCHUP DATA NEEDED</span></div><div class="callout">$(ConvertTo-HtmlText $Reason)</div></section>
+$autoFillHtml
+<section class="panel boundary"><span class="lock">READ ONLY.</span> You can still review your lineup, but Butler will not guess your opponent or imply a matchup result when matchup data is incomplete.</section>
+</main></body></html>
+"@
+}
+
+'@
+
+$leagueMarker = 'function ConvertTo-LeagueHtml {'
+$leagueIndex = $core.IndexOf($leagueMarker, [System.StringComparison]::Ordinal)
+if ($leagueIndex -lt 0) {
+    throw 'BF-840 BLOCKED: League renderer insertion marker is missing.'
+}
+$core = $core.Insert($leagueIndex, $matchupFunctions.TrimEnd() + "`r`n")
+
+$routeMarker = '            if ($path -eq "/league") {'
+$routeIndex = $core.IndexOf($routeMarker, [System.StringComparison]::Ordinal)
+if ($routeIndex -lt 0) {
+    throw 'BF-840 BLOCKED: matchup route insertion marker is missing.'
+}
+
+$matchupRoute = @'
+            if ($path -eq "/matchup" -or $path -eq "/matchup/autofill") {
+                try {
+                    $requestAutoFill = $path -eq "/matchup/autofill"
+                    $bundleArguments = if ($requestAutoFill) { "$LeagueId --weekly-matchup-bundle-autofill" } else { "$LeagueId --weekly-matchup-bundle" }
+                    $bundleText = Invoke-ButlerReadOnlyTask -Task ":bet:bet-cli:sleeperLiveWaiverTargetRosterContextAudit" -Arguments $bundleArguments -BoundaryName "BF-849"
+                    $rosterView = ConvertTo-MatchupRosterContextView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT")
+                    $weekProofText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "WEEK_FRESHNESS"
+                    $weekProof = Get-MatchupPublicWeekProof -Text $weekProofText
+                    $autoFill = if ($requestAutoFill) {
+                        ConvertTo-AutoFillView -Text (Get-TeamEvidenceBundleSection -Text $bundleText -Name "AUTOFILL")
+                    }
+                    else {
+                        New-AutoFillIdleView
+                    }
+
+                    # A proven source-season/week change overrides all saved
+                    # opponent and Start/Sit suggestions. GET never syncs or
+                    # changes Sleeper or Butler database records.
+                    if ($weekProof.State -ceq 'MISMATCH' -or
+                        ($requestAutoFill -and $weekProof.State -cne 'MATCH')) {
+                        $reason = if ($weekProof.State -ceq 'MISMATCH') {
+                            'The saved weekly pairing is outdated relative to the current public Sleeper NFL week. No saved opponent or Start/Sit decision is usable until governed weekly evidence is synchronized.'
+                        }
+                        else {
+                            'Sleeper could not verify the current NFL season and week. Start/Sit advice is held rather than presenting a saved-week recommendation as current.'
+                        }
+                        $html = ConvertTo-MatchupWeekHoldHtml -Reason $reason -StartSit $requestAutoFill
+                        $html = Add-MatchupPublicWeekNotice -Html $html -Proof $weekProof
+                        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
+                        continue
+                    }
+                    $week = 0
+                    if (-not [int]::TryParse([string]$rosterView.ProviderLeg, [ref]$week) -or $week -le 0) {
+                        $html = ConvertTo-MatchupUnavailableHtml -Roster $rosterView -AutoFill $autoFill -Reason "Current Sleeper week is unavailable, so exact opponent pairing cannot be resolved."
+                        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
+                        continue
+                    }
+
+                    try {
+                        $rawMatchup = Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"
+                        if ($rawMatchup.IndexOf("State: UNAVAILABLE", [System.StringComparison]::Ordinal) -ge 0) {
+                            $reasonMarker = "Reason: "
+                            $reasonStart = $rawMatchup.IndexOf($reasonMarker, [System.StringComparison]::Ordinal)
+                            if ($reasonStart -lt 0) {
+                                throw "BF-849 BLOCKED: unavailable bundled matchup is missing a reason."
+                            }
+                            $reasonStart += $reasonMarker.Length
+                            $reasonEnd = $rawMatchup.IndexOf([Environment]::NewLine, $reasonStart, [System.StringComparison]::Ordinal)
+                            if ($reasonEnd -lt 0) { $reasonEnd = $rawMatchup.Length }
+                            throw $rawMatchup.Substring($reasonStart, $reasonEnd - $reasonStart).Trim()
+                        }
+
+                        $matchup = ConvertTo-WeeklyMatchupView -Text $rawMatchup
+                        if ($matchup.UserTeamId -cne $rosterView.ButlerTeamId -or $matchup.Week -ne $week -or $matchup.Season -ne $rosterView.Season) {
+                            throw "BF-849 BLOCKED: exact matchup frame does not match the bound roster frame."
+                        }
+                        $strengthText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "ROSTER_STRENGTH"
+                        $pressureText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "POSITIONAL_PRESSURE"
+                        $opponentStrength = ConvertTo-RosterStrengthView -Text $strengthText -TeamId $matchup.OpponentTeamId
+                        $opponentPressure = ConvertTo-PositionalPressureView -Text $pressureText -TeamId $matchup.OpponentTeamId
+                        $html = ConvertTo-MatchupHtml -Roster $rosterView -Matchup $matchup -AutoFill $autoFill -OpponentStrength $opponentStrength -OpponentPressure $opponentPressure
+                    }
+                    catch {
+                        $html = ConvertTo-MatchupUnavailableHtml -Roster $rosterView -AutoFill $autoFill -Reason $_.Exception.Message
+                    }
+
+                    $html = Add-MatchupPublicWeekNotice -Html $html -Proof $weekProof
+                    Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
+                }
+                catch {
+                    $errorHtml = "<!doctype html><html><body><h1>Butler Weekly Matchup view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                    Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
+                }
+                continue
+            }
+
+'@
+$core = $core.Insert($routeIndex, $matchupRoute)
+
+foreach ($required in @(
+    'ProviderLeg = $season.Groups[''leg''].Value.Trim()',
+    '/matchup',
+    'Weekly matchup',
+    'OPPONENT CONFIRMED',
+    'Opponent not confirmed',
+    'does not predict a winner',
+    '--weekly-matchup-bundle',
+    '--weekly-matchup-bundle-autofill',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP_CONTEXT"',
+    'ConvertTo-MatchupRosterContextView',
+    'Get-TeamEvidenceBundleSection -Text $bundleText -Name "MATCHUP"',
+    '/matchup/autofill',
+    'New-AutoFillIdleView',
+    'ConvertTo-MatchupAutoFillHtml -AutoFill $AutoFill'
+)) {
+    if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-840 BLOCKED: required weekly-matchup marker is missing: $required"
+    }
+}
+
+$installedStart = $core.IndexOf('function ConvertTo-WeeklyMatchupView {', [System.StringComparison]::Ordinal)
+$installedEnd = $core.IndexOf('function ConvertTo-LeagueHtml {', $installedStart, [System.StringComparison]::Ordinal)
+$installedBlock = $core.Substring($installedStart, $installedEnd - $installedStart)
+if ($installedBlock -match 'winnerProbability|predictedWinner|Method = "POST"|submitTransaction|setFaab|Invoke-RestMethod|https://api\.sleeper\.app') {
+    throw 'BF-840 BLOCKED: Weekly Matchup presentation introduced prediction, provider, or write behavior.'
+}
+
+[System.IO.File]::WriteAllText($CorePath, $core, [System.Text.UTF8Encoding]::new($false))
+
+$tokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile($CorePath, [ref]$tokens, [ref]$parseErrors)
+if (@($parseErrors).Count -gt 0) {
+    $parseSummary = (@($parseErrors) | ForEach-Object { "line $($_.Extent.StartLineNumber): $($_.Message)" }) -join '; '
+    throw "BF-840 BLOCKED: generated staged core failed PowerShell parse: $parseSummary"
+}
+)
+        if (-not $savedFrame.Success -or [string]$Proof.Provider -cne [string]$Proof.Saved) {
+            $state = 'UNVERIFIED'
+            $badge = 'WEEK NOT VERIFIED'
+            $copy = 'Sleeper public NFL week evidence is incomplete. Saved matchup and roster advice are not verified.'
+        }
+        else {
+            $weekAttributes = ' data-butler-week-season="' + $savedFrame.Groups['season'].Value +
+                '" data-butler-week-number="' + $savedFrame.Groups['week'].Value + '"'
+        }
+    }
     $notice = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="' +
-        (ConvertTo-HtmlText $state) + '"><strong>' + (ConvertTo-HtmlText $badge) +
+        (ConvertTo-HtmlText $state) + '"' + $weekAttributes + '><strong>' + (ConvertTo-HtmlText $badge) +
         '</strong><p class="lede">' + (ConvertTo-HtmlText $copy) + '</p></section>'
     $marker = '<section class="panel hero-panel">'
     if ([regex]::Matches($Html, [regex]::Escape($marker)).Count -ne 1) {
