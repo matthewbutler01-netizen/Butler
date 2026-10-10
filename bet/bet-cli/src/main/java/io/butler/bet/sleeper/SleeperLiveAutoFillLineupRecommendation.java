@@ -618,10 +618,11 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         // projection is not a substitute for exact current availability
         // evidence for either side of the proposed change. Preserve an
         // unchanged lineup review, but never prepare a partially sourced swap.
+        final var exactSwapAvailability = availabilityBySleeperId;
         if (recommendation.assignments().stream()
             .filter(AutoFillLineupOptimizer.SlotRecommendation::changed)
             .anyMatch(assignment ->
-                !hasExactSwapAvailability(assignment, availabilityBySleeperId))) {
+                !hasExactSwapAvailability(assignment, exactSwapAvailability))) {
             return RecommendationReport.unavailable(
                 roster.providerSeason(), roster.providerLeg(), scoring,
                 "BF-1066 BLOCKED: current Sleeper player status is missing or ambiguous "
