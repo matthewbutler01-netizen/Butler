@@ -291,7 +291,7 @@ function Resolve-V04AutoPilotOnOpenWeek {
                         # not reuse a pre-write READY Dashboard snapshot.
                         $verifiedDashboard = ''
                         $verifiedMatchup = ''
-                        $watch = Get-V04AutoPilotWatchState -DashboardHtml ''
+                        $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $InitialWatchState -MatchupHtml ''
                     }
                 }
                 catch {
@@ -299,7 +299,7 @@ function Resolve-V04AutoPilotOnOpenWeek {
                     # completion; withhold actions until both reads verify.
                     $verifiedDashboard = ''
                     $verifiedMatchup = ''
-                    $watch = Get-V04AutoPilotWatchState -DashboardHtml ''
+                    $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $InitialWatchState -MatchupHtml ''
                 }
             }
             finally {
