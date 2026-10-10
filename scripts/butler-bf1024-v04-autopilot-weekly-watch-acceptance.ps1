@@ -16,7 +16,7 @@ if (@($errors).Count -ne 0) {
     throw "BF-1024 BLOCKED: request worker parse failed: $summary"
 }
 
-foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotApprovalPolicy','Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotHtml')) {
+foreach ($functionName in @('Get-V04AutoPilotWatchState','Limit-V04AutoPilotToVerifiedWeek','Get-V04AutoPilotApprovalPolicy','Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotHtml')) {
     $matches = @($ast.FindAll({
         param($node)
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
@@ -38,6 +38,41 @@ if ($state.Attention -cne '2 NEED ATTENTION') { throw 'BF-1024 BLOCKED: Attentio
 if ($state.StartSit -cne 'REFRESH') { throw 'BF-1024 BLOCKED: Start/Sit snapshot mismatch.' }
 if ($state.Waivers -cne 'DO NOT ACT') { throw 'BF-1024 BLOCKED: Waiver snapshot mismatch.' }
 if ($state.Roster -cne 'Hard(CORE)-Dynasty | nuke the whales | roster 6') { throw 'BF-1024 BLOCKED: roster snapshot mismatch.' }
+
+# BF-1057: even a complete, freshly audited Dashboard card cannot
+# certify player recommendations from a saved matchup in the wrong week.
+# Matchup itself owns the bounded read-only public Sleeper week proof.
+$actionableFixture = $fixture.Replace('<strong>REFRESH</strong>', '<strong>START 1 / SIT 1</strong>').
+    Replace('<strong>DO NOT ACT</strong>', '<strong>ADD 1 / DROP 1</strong>')
+$weekMatch = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH"><strong>WEEK MATCHES SLEEPER</strong></section>'
+$allowWatch = Get-V04AutoPilotWatchState -DashboardHtml $actionableFixture
+$allowWatch = Limit-V04AutoPilotToVerifiedWeek -WatchState $allowWatch -MatchupHtml $weekMatch
+if (-not $allowWatch.Ready -or $allowWatch.StartSit -cne 'START 1 / SIT 1') {
+    throw 'BF-1057 BLOCKED: uniquely sourced matching NFL week failed to preserve audited manager review.'
+}
+$blockedFixtures = @(
+    [pscustomobject]@{ Html = $weekMatch.Replace('MATCH', 'MISMATCH'); Status = 'WEEK_MISMATCH'; Banner = 'SAVED WEEK OUTDATED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('MATCH', 'UNVERIFIED'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = ''; Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = '<div data-butler-week-state="MATCH">no approved source proof</div>'; Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = ($weekMatch + $weekMatch); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
+    [pscustomobject]@{ Html = $weekMatch.Replace('data-butler-week-state="MATCH"', 'data-butler-week-state="INVALID"'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' }
+)
+foreach ($case in $blockedFixtures) {
+    $blocked = Get-V04AutoPilotWatchState -DashboardHtml $actionableFixture
+    $blocked = Limit-V04AutoPilotToVerifiedWeek -WatchState $blocked -MatchupHtml $case.Html
+    if ($blocked.Ready -or $blocked.EvidenceStatus -cne $case.Status -or
+        $blocked.StartSit -cmatch 'START 1 / SIT 1' -or $blocked.Waivers -cmatch 'ADD 1 / DROP 1') {
+        throw 'BF-1057 BLOCKED: absent, forged, conflicting or stale week proof leaked a manager recommendation.'
+    }
+    $blockedPolicy = Get-V04AutoPilotApprovalPolicy
+    $blockedQueue = Get-V04AutoPilotApprovalQueue -WatchState $blocked -ApprovalPolicy $blockedPolicy
+    $blockedHtml = Get-V04AutoPilotHtml -WatchState $blocked -ApprovalPolicy $blockedPolicy -ApprovalQueue $blockedQueue
+    if ($blockedHtml -notmatch [regex]::Escape($case.Banner) -or
+        $blockedHtml -match 'READY FOR MANAGER REVIEW|START 1 / SIT 1|ADD 1 / DROP 1') {
+        throw 'BF-1057 BLOCKED: Auto-Pilot renderer failed to withhold unsafe stale-week advice.'
+    }
+}
 
 # BF-1042: a complete manager card is NOT a current, approved watch if
 # the governing decision is stale, refresh-required, missing or ambiguous.
@@ -155,6 +190,7 @@ if ($partial.Ready) { throw 'BF-1024 BLOCKED: incomplete watch snapshot was inco
 foreach ($required in @(
     'Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget ''/'' -League $LeagueId',
     'Get-V04AutoPilotWatchState -DashboardHtml',
+    'Limit-V04AutoPilotToVerifiedWeek -WatchState $watchState -MatchupHtml $matchupHtmlForWeekProof',
     'Get-V04AutoPilotApprovalPolicy',
     'Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy',
     'Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue',
@@ -182,8 +218,8 @@ $calls = @($ast.FindAll({
     $node -is [System.Management.Automation.Language.CommandAst] -and
     $node.GetCommandName() -ceq 'Invoke-ExpensiveReadSingleFlightGet'
 }, $true))
-if ($calls.Count -ne 2) {
-    throw "BF-1024 BLOCKED: expected Auto-Pilot and manager single-flight calls, found $($calls.Count)."
+if ($calls.Count -ne 3) {
+    throw "BF-1057 BLOCKED: expected Dashboard, Matchup week proof and manager single-flight calls, found $($calls.Count)."
 }
 foreach ($call in $calls) {
     $parameters = @($call.CommandElements |
@@ -201,9 +237,11 @@ if ($autopilotRegionStart -lt 0 -or $autopilotRegionEnd -le $autopilotRegionStar
     throw 'BF-1024 BLOCKED: bounded Auto-Pilot request region is missing.'
 }
 $autopilotRegion = $text.Substring($autopilotRegionStart, $autopilotRegionEnd - $autopilotRegionStart)
-if ($autopilotRegion.IndexOf('-RefreshState $RefreshState', [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'BF-1024 BLOCKED: Auto-Pilot did not receive the shared evidence cache generation.'
+if ($autopilotRegion.IndexOf('-RefreshState $RefreshState', [System.StringComparison]::Ordinal) -lt 0 -or
+    $autopilotRegion.IndexOf("-RequestTarget '/matchup'", [System.StringComparison]::Ordinal) -lt 0 -or
+    $autopilotRegion.IndexOf('if ([bool]$watchState.Ready)', [System.StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1057 BLOCKED: Auto-Pilot did not safely verify the public NFL week through read-only Matchup before manager approval.'
 }
 
 Write-Host 'BF-1024 V0.4 AUTO-PILOT WEEKLY WATCH ACCEPTANCE: PASS'
-Write-Host 'Coverage: real Dashboard snapshot reuse, Attention/Start-Sit/Waiver/roster watch state, fail-visible unavailable fallback, and no new provider/write behavior.'
+Write-Host 'Coverage: real Dashboard snapshot reuse, live read-only Matchup season/week gate, fail-closed manager advice masking, fallback and no new provider/write behavior.'
