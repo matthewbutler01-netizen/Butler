@@ -53,6 +53,16 @@ foreach ($stale in @(
     if ($blockedWatch.Ready -or $blockedWatch.StartSit -cne 'REFRESH') {
         throw 'BF-1042 BLOCKED: stale/ambiguous Dashboard data authorized Auto-Pilot.'
     }
+    $blockedPolicy = Get-V04AutoPilotApprovalPolicy
+    $blockedQueue = Get-V04AutoPilotApprovalQueue -WatchState $blockedWatch -ApprovalPolicy $blockedPolicy
+    $blockedHtml = Get-V04AutoPilotHtml -WatchState $blockedWatch -ApprovalPolicy $blockedPolicy -ApprovalQueue $blockedQueue
+    if ($blockedHtml -match 'READY FOR MANAGER REVIEW' -or
+        $blockedQueue.StartSitNext -notmatch '^Blocked until') {
+        throw 'BF-1042 BLOCKED: stale watch produced an actionable approval.'
+    }
+    if ($blockedWatch.EvidenceStatus -ceq 'STALE' -and $blockedHtml -notmatch 'EVIDENCE NEEDS REFRESH') {
+        throw 'BF-1042 BLOCKED: stale watch failed to display its refresh warning.'
+    }
 }
 $noMove = Get-V04AutoPilotWatchState -DashboardHtml ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON'))
 if (-not $noMove.Ready) { throw 'BF-1042 BLOCKED: exact audited no-transaction watch should remain reviewable.' }
