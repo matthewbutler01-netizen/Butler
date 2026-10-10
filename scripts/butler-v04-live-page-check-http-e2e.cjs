@@ -111,6 +111,20 @@ async function scenario(name, mutations, expect) {
   }, {
     code:1, output:/\/matchup\s+FAIL\s+evidence=PAIRING CONFLICT/, allRoutes:true
   });
+  // BF-1073: exact opponent/week verification must never clear a held
+  // lineup review. Health/projection outages are manager WARN, not PASS.
+  await scenario('startsit-sourced-player-hold', {
+    routes: {'/matchup/autofill': good['/matchup/autofill'].replace(
+      'Review only', '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> BF-1066 BLOCKED</div>')}
+  }, {
+    code:0, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT BLOCKED/, allRoutes:true
+  });
+  await scenario('startsit-projection-unavailable', {
+    routes: {'/matchup/autofill': good['/matchup/autofill'].replace(
+      'Review only', '<p class="lede">Butler could not prove a complete weekly lineup recommendation.</p>')}
+  }, {
+    code:0, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT BLOCKED/, allRoutes:true
+  });
   // BF-1072: two independently source-MATCH pages can still refer to
   // different saved leagues or weeks. The loopback diagnostic must detect
   // the inconsistency without contacting Sleeper or issuing any writes.
