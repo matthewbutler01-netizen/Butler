@@ -250,6 +250,73 @@ function Invoke-AutomaticWeekRecovery {
     }
 }
 
+# BF-1061: Auto-Pilot performs the same exact, governed week recovery as
+# Matchup on page-open. Never infer an actionable watch from cached pre-write
+# Dashboard cards: after a completed recovery read BOTH pages from core again
+# and re-run their independent technical/sleeper-week proof gates.
+function Resolve-V04AutoPilotOnOpenWeek {
+    param(
+        [Parameter(Mandatory = $true)]$InitialWatchState,
+        [string]$DashboardHtml = '',
+        [string]$MatchupHtml = '',
+        [Parameter(Mandatory = $true)][int]$InnerPort,
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
+    )
+
+    $verifiedDashboard = $DashboardHtml
+    $verifiedMatchup = $MatchupHtml
+    $watch = $InitialWatchState
+    if (Test-AutomaticWeekRecoveryCandidate -RequestTarget '/matchup' -Body $MatchupHtml) {
+        if (Claim-AutomaticWeekRecovery -State $RefreshState) {
+            try {
+                try {
+                    Invoke-AutomaticWeekRecovery -Root $Root -League $League
+                    # A completed local evidence write invalidates every
+                    # warmed manager route. Recompute from the raw core, not
+                    # an old single-flight Dashboard or an old week badge.
+                    $updatedDashboard = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/'
+                    $updatedMatchup = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup'
+                    if ([int]$updatedDashboard.StatusCode -eq 200 -and
+                        $updatedDashboard.ContentType -match '^text/html' -and
+                        [int]$updatedMatchup.StatusCode -eq 200 -and
+                        $updatedMatchup.ContentType -match '^text/html') {
+                        $verifiedDashboard = [string]$updatedDashboard.Body
+                        $verifiedMatchup = [string]$updatedMatchup.Body
+                        $watch = Get-V04AutoPilotWatchState -DashboardHtml $verifiedDashboard
+                    }
+                    else {
+                        # If either independent source cannot be read, do
+                        # not reuse a pre-write READY Dashboard snapshot.
+                        $verifiedDashboard = ''
+                        $verifiedMatchup = ''
+                        $watch = Get-V04AutoPilotWatchState -DashboardHtml ''
+                    }
+                }
+                catch {
+                    # An attempted or partial evidence write is not proof of
+                    # completion; withhold actions until both reads verify.
+                    $verifiedDashboard = ''
+                    $verifiedMatchup = ''
+                    $watch = Get-V04AutoPilotWatchState -DashboardHtml ''
+                }
+            }
+            finally {
+                Complete-DecisionRefreshAttempt -State $RefreshState
+            }
+        }
+    }
+
+    if ([bool]$watch.Ready) {
+        $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $watch -MatchupHtml $verifiedMatchup
+    }
+    return [pscustomobject]@{
+        WatchState = $watch
+        DashboardHtml = $verifiedDashboard
+    }
+}
+
 function Invoke-StartSitRosterDriftAutoRecovery {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -1479,22 +1546,23 @@ try {
             # remain visible as unavailable instead of crashing or guessing.
         }
 
-        # Check the real public NFL week on opening Auto-Pilot only when the
-        # Dashboard audit would otherwise prepare manager actions. The inner
-        # Matchup GET is read-only; failure/partial HTML blocks the watch.
-        if ([bool]$watchState.Ready) {
-            $matchupHtmlForWeekProof = ''
-            try {
-                $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState
-                if ([int]$matchupPage.StatusCode -eq 200 -and $matchupPage.ContentType -match '^text/html') {
-                    $matchupHtmlForWeekProof = [string]$matchupPage.Body
-                }
+        # BF-1061: even a locally stale Dashboard can have an old weekly
+        # pairing. Check the read-only public week on opening Auto-Pilot;
+        # if exact MISMATCH is proven, the common writer claim permits one
+        # bounded Butler-local pairing recovery and fresh dual-page audit.
+        $matchupHtmlForWeekProof = ''
+        try {
+            $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState
+            if ([int]$matchupPage.StatusCode -eq 200 -and $matchupPage.ContentType -match '^text/html') {
+                $matchupHtmlForWeekProof = [string]$matchupPage.Body
             }
-            catch {
-                # No league write or fallback to a guessed current week.
-            }
-            $watchState = Limit-V04AutoPilotToVerifiedWeek -WatchState $watchState -MatchupHtml $matchupHtmlForWeekProof
         }
+        catch {
+            # No league write or fallback to a guessed current week.
+        }
+        $resolvedWatch = Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof -InnerPort $InnerPort -League $LeagueId -Root $RepoRoot -RefreshState $RefreshState
+        $watchState = $resolvedWatch.WatchState
+        $dashboardHtmlForRefresh = [string]$resolvedWatch.DashboardHtml
 
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
