@@ -219,6 +219,38 @@ function Test-ButlerLivePage {
             $result.Status = 'WARN'
             $result.Evidence = if ($sourceWeekState -ceq 'MISMATCH') { 'WEEK MISMATCH' } else { 'WEEK UNVERIFIED' }
         }
+        else {
+            # BF-1071: MATCH as a decorative badge is not a checked league
+            # opponent. A source-verified numeric season/week must agree with
+            # the exact saved pairing target before this diagnostic says PASS.
+            # This is still LOCAL evidence, not a fresh injury/roster check.
+            $rawSeason = [regex]::Matches($body, 'data-butler-week-season=')
+            $rawWeek = [regex]::Matches($body, 'data-butler-week-number=')
+            $rawPairing = [regex]::Matches($body, 'data-butler-matchup-season=')
+            if ($rawSeason.Count -gt 1 -or $rawWeek.Count -gt 1 -or $rawPairing.Count -gt 1) {
+                $result.Status = 'FAIL'
+                $result.Evidence = 'PAIRING PROOF'
+                return [pscustomobject]$result
+            }
+            $source = [regex]::Matches($body,
+                '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>')
+            $pair = [regex]::Matches($body,
+                '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
+            if ($source.Count -ne 1 -or $pair.Count -ne 1 -or
+                $rawSeason.Count -ne 1 -or $rawWeek.Count -ne 1 -or $rawPairing.Count -ne 1) {
+                if ($result.Status -cne 'WARN') { $result.Status = 'WARN' }
+                if ($result.Evidence -cne 'OPPONENT UNKNOWN') { $result.Evidence = 'PAIRING UNVERIFIED' }
+            }
+            elseif ($source[0].Groups['season'].Value -cne $pair[0].Groups['season'].Value -or
+                    $source[0].Groups['week'].Value -cne $pair[0].Groups['week'].Value) {
+                $result.Status = 'FAIL'
+                $result.Evidence = 'PAIRING CONFLICT'
+                return [pscustomobject]$result
+            }
+            elseif ($result.Status -ceq 'PASS') {
+                $result.Evidence = 'PAIRING VERIFIED'
+            }
+        }
     }
 
     # BF-1047: do not misreport a successfully rendered but stale Dashboard
