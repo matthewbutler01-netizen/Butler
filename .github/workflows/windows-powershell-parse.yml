@@ -8,6 +8,7 @@ on:
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
+      - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
   pull_request:
@@ -16,6 +17,7 @@ on:
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
+      - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
 
