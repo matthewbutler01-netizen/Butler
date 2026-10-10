@@ -751,17 +751,20 @@ function Get-V04AutoPilotWatchState {
 
     $labels = @('Attention', 'Start/Sit', 'Waivers', 'Roster')
     foreach ($label in $labels) {
-        $match = [regex]::Match(
+        # BF-1045: duplicate or empty summary cards are ambiguous manager
+        # evidence. Never pick the first plausible lineup/waiver signal.
+        $matches = [regex]::Matches(
             $DashboardHtml,
             '(?is)<div\b[^>]*class="[^"]*\bdashboard-summary-card\b[^"]*"[^>]*>\s*<span>\s*' +
                 [regex]::Escape($label) +
                 '\s*</span>\s*<strong>(?<value>.*?)</strong>\s*</div>'
         )
-        if (-not $match.Success) { continue }
+        if ($matches.Count -ne 1) { continue }
 
-        $plain = [regex]::Replace($match.Groups['value'].Value, '<[^>]+>', ' ')
+        $plain = [regex]::Replace($matches[0].Groups['value'].Value, '<[^>]+>', ' ')
         $plain = [System.Net.WebUtility]::HtmlDecode($plain)
         $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        if ([string]::IsNullOrWhiteSpace($plain)) { continue }
         switch -CaseSensitive ($label) {
             'Attention' { $result.Attention = $plain }
             'Start/Sit' { $result.StartSit = $plain }
