@@ -649,7 +649,11 @@ function ConvertTo-V04StartSitRouteHtml {
         $result,
         '(?is)<section\b[^>]*class="[^"]*\bstart-sit-assistant\b[^"]*"[^>]*>'
     )
+    # BF-1055: when Sleeper's season/week is mismatched or unverified,
+    # Start/Sit is intentionally withheld, not silently "auto-rechecked".
     if ($assistantPanel.Success -and
+        $result.IndexOf('data-butler-week-state="MISMATCH"', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+        $result.IndexOf('data-butler-week-state="UNVERIFIED"', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
         $result.IndexOf('start-sit-auto-recheck', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         $autoRecheck = '<p class="meta start-sit-auto-recheck"><strong>Auto-recheck:</strong> This page reruns current read-only lineup evidence every time it loads. Reloading the page is enough; no manual retry is required.</p>'
         $result = $result.Insert($assistantPanel.Index + $assistantPanel.Length, $autoRecheck)
