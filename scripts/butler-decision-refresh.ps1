@@ -353,9 +353,28 @@ function Add-AutomaticDashboardRefresh {
         return $result
     }
     $state = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Decision state:'
-    if (@('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -cnotcontains $state) {
-        # NO_TRANSACTION_TO_ACT_ON may allow an explicit manual recheck, but
-        # page visits must not silently launch a new nine-stage decision cycle.
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-629:'
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-631:'
+    # Never infer automatic-write authorization from a preexisting navigation
+    # link alone. Prove the audited actionability and lineage independently.
+    $autoEligible = $false
+    if ($state -ceq 'STALE_DO_NOT_ACT' -and
+        $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631) {
+        $autoEligible = $true
+    }
+    elseif ($state -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+            $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+            $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan state:') -ceq 'MANUAL_REFRESH_PLAN_READY' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan policy:') -ceq 'sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'Governed step count:') -ceq '9') {
+        $autoEligible = $true
+    }
+    if (-not $autoEligible) {
+        # NO_TRANSACTION_TO_ACT_ON allows only the separate manual recheck.
+        # Unproven or duplicated BF fields also remain ineligible.
         return $result
     }
     $auditId = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Audit ID:'
