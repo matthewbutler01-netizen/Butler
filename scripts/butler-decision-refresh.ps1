@@ -275,7 +275,7 @@ function Add-AutomaticGovernedRefreshHtml {
         [string]$Token
     )
     $result = @{ Html = $Html; Nonce = '' }
-    if (@('/', '/waivers') -cnotcontains $Route -or
+    if (@('/', '/waivers', '/autopilot') -cnotcontains $Route -or
         $Token -cnotmatch '^[0-9a-f]{64}$' -or
         $AuditId -cnotmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
         return $result
@@ -291,12 +291,15 @@ function Add-AutomaticGovernedRefreshHtml {
     }
 
     $nonce = New-DecisionRefreshToken
+    # Dashboard and Auto-Pilot share one cooldown per audited decision so
+    # navigating between the two cannot silently trigger duplicate refreshes.
+    $cooldownRoute = if ($Route -ceq '/autopilot') { '/' } else { $Route }
     $markup = @"
 <div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
 <script nonce="$nonce">
 (async function () {
   const status = document.getElementById('butler-auto-refresh-status');
-  const key = 'butler-auto-refresh:${Route}:$AuditId';
+  const key = 'butler-auto-refresh:${cooldownRoute}:$AuditId';
   try {
     // Bound reload loops after a completed POST, but allow a later visit to recheck.
     const now = Date.now();
@@ -357,4 +360,37 @@ function Add-AutomaticDashboardRefresh {
     }
     $auditId = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Audit ID:'
     return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/' -AuditId $auditId -Token $Token
+}
+
+
+# Auto-Pilot reuses the real governed Dashboard evidence rather than inventing
+# an independent refresh authorization. On eligible stale evidence, its page
+# can update the Butler-local watch on open and return to Auto-Pilot. The same
+# five-minute audit cooldown is shared with Dashboard; Sleeper stays read-only.
+function Add-AutomaticAutoPilotRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/autopilot' -or
+        [string]::IsNullOrWhiteSpace($DashboardHtml)) { return $result }
+
+    try {
+        # BF-677 must prove state, live actionability, evidence lineage and
+        # any nine-step plan policy before emitting its exact refresh link.
+        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
+        $proof = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token $Token
+        if ([string]::IsNullOrWhiteSpace([string]$proof.Nonce)) { return $result }
+
+        $auditId = Get-DecisionRefreshTechnicalField -Html $governed -Label 'Audit ID:'
+        return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/autopilot' -AuditId $auditId -Token $Token
+    }
+    catch {
+        # Missing, ambiguous, or structurally invalid Dashboard proof never
+        # authorizes an Auto-Pilot local evidence write.
+        return $result
+    }
 }
