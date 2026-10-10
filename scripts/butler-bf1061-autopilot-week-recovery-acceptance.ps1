@@ -25,7 +25,7 @@ foreach ($name in @(
 . (Join-Path $PSScriptRoot 'butler-decision-refresh.ps1')
 
 $script:oldDashboard = '<div class="butler-refresh-contract" hidden><div>Decision state: CURRENT_AND_ACTIONABLE</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>START 1 / SIT 1</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>ADD 1 / DROP 1</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Test roster</strong></div></div>'
-$script:match = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH"><strong>WEEK MATCHES SLEEPER</strong></section>'
+$script:match = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"><strong>WEEK MATCHES SLEEPER</strong></section><div class="target" data-butler-matchup-season="2026">Test league &middot; Week 5</div>'
 $script:mismatch = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MISMATCH"><strong>SAVED MATCHUP OUTDATED</strong></section><h1>Saved matchup not usable</h1><span>DO NOT ACT</span>'
 $script:attempts = 0
 $script:claims = 0
