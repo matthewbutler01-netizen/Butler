@@ -114,7 +114,15 @@ $summarySetup = @'
     $projectionBasisCopy = if ([string]$AutoFill.ProjectionCoverage -ceq 'FULL') { 'Full scoreable projection coverage' }
         else { 'Partial projection coverage; missing projections are not zeros' }
     if ($proposedChanges -gt 0) {
-        $statusProofCopy = "$proposedChanges proposed lineup changes have exact player-status checks from Sleeper at review time. $projectionBasisCopy; $holdCopy. Recheck injury updates before kickoff. A projection is not availability clearance and no Sleeper move was submitted."
+        $swapTimestampUnverified = [string]$AutoFill.SwapStatusFetchedAt -ceq 'UNVERIFIED'
+        if ($swapTimestampUnverified) {
+            # Do not claim a recent Sleeper check just because the local
+            # optimizer received an exact player-status row.
+            $statusProofCopy = "$proposedChanges proposed lineup changes have exact player IDs, but the status check time is UNVERIFIED. Do not act on this proposal without checking current player availability. $projectionBasisCopy; $holdCopy. No Sleeper move was submitted."
+        }
+        else {
+            $statusProofCopy = "$proposedChanges proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. $projectionBasisCopy; $holdCopy. Recheck injury updates before kickoff. A projection is not availability clearance and no Sleeper move was submitted."
+        }
     }
     else {
         $statusProofCopy = "No lineup change is ready. $projectionBasisCopy; $holdCopy. If availability or a player's projection cannot be verified, Butler holds the move rather than guessing. Recheck before kickoff."
@@ -196,6 +204,19 @@ $timestampParser = @'
         }
         $projectionFetched = $projectionTime[0].Groups['value'].Value
         $swapStatusFetched = $statusTime[0].Groups['value'].Value
+        # BF-1070: a regex-formed UTC timestamp like February 30 is not
+        # legitimate source evidence. DateTimeOffset parses the calendar
+        # portion; fractional nanoseconds remain unchanged for display.
+        foreach ($candidate in @($projectionFetched, $swapStatusFetched)) {
+            if ($candidate -ceq 'UNVERIFIED') { continue }
+            $utcSeconds = $candidate -replace '\.[0-9]{1,9}Z$', 'Z'
+            $parsedUtc = [DateTimeOffset]::MinValue
+            if (-not [DateTimeOffset]::TryParseExact($utcSeconds,
+                "yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsedUtc)) {
+                throw 'BF-1070 BLOCKED: invalid calendar date in source UTC fetch timestamp.'
+            }
+        }
     }
 '@
 if ([regex]::Matches($parserBlock, [regex]::Escape($timestampAnchor)).Count -ne 1) {
