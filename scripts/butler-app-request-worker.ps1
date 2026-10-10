@@ -775,7 +775,20 @@ function Get-V04AutoPilotWatchState {
     # READY or prepare approval actions from stale/unknown decision evidence.
     # This is the same unique Dashboard technical state used by BF-677.
     $decisionState = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Decision state:'
-    $currentEvidence = @('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON') -ccontains $decisionState
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-629:'
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-631:'
+    # BF-1044: independently prove the actionability and lineage behind a
+    # displayed CURRENT decision. A populated summary card or state label
+    # alone cannot authorize a manager Start/Sit or waiver recommendation.
+    $currentEvidence = (
+        ($decisionState -ceq 'CURRENT_AND_ACTIONABLE' -and
+         $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') -or
+        ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+         $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+         $null -ne $bf631 -and
+         (Test-DecisionRefreshNoTransactionLineage -LineageState $bf631))
+    )
     $result.EvidenceStatus = if ($currentEvidence) {
         'CURRENT'
     }
@@ -784,6 +797,20 @@ function Get-V04AutoPilotWatchState {
     }
     else {
         'UNVERIFIED'
+    }
+
+    # Do not leak an apparently actionable lineup or waiver signal from stale
+    # cards when the audited proof fails. Show a clear hold until fresh data
+    # can be read; preserve only non-actionable roster context.
+    if ($result.EvidenceStatus -ceq 'STALE') {
+        $result.Attention = 'NEEDS REFRESH'
+        $result.StartSit = 'REFRESH'
+        $result.Waivers = 'DO NOT ACT'
+    }
+    elseif ($result.EvidenceStatus -ceq 'UNVERIFIED') {
+        $result.Attention = 'UNAVAILABLE'
+        $result.StartSit = 'UNAVAILABLE'
+        $result.Waivers = 'UNAVAILABLE'
     }
     $result.Ready =
         $currentEvidence -and
