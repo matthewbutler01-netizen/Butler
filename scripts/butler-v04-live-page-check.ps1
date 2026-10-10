@@ -193,6 +193,30 @@ function Test-ButlerLivePage {
         $result.Evidence = 'OPPONENT UNKNOWN'
     }
 
+    # BF-1056: the v0.4 Matchup and Start/Sit pages must show their
+    # actual source-week state. A HTTP 200 and a pretty lineup card are NOT
+    # evidence of this week's advice. Catch missing/ambiguous source proof,
+    # stale/unverified weeks, and recommendations leaking into held pages.
+    if (@('/matchup', '/matchup/autofill') -ccontains $Route) {
+        $weekProofs = [regex]::Matches($body, 'data-butler-week-state="(?<state>MATCH|MISMATCH|UNVERIFIED)"')
+        $weekMarkers = [regex]::Matches($body, 'data-butler-week-state=')
+        if ($weekProofs.Count -ne 1 -or $weekMarkers.Count -ne 1) {
+            $result.Status = 'FAIL'
+            $result.Evidence = 'WEEK PROOF'
+            return [pscustomobject]$result
+        }
+        $sourceWeekState = $weekProofs[0].Groups['state'].Value
+        if ($sourceWeekState -ceq 'MISMATCH' -or $sourceWeekState -ceq 'UNVERIFIED') {
+            if ($body -match '(?i)Promote to lineup|Recommended starter|Start this player|Review Lineup') {
+                $result.Status = 'FAIL'
+                $result.Evidence = 'HELD ADVICE'
+                return [pscustomobject]$result
+            }
+            $result.Status = 'WARN'
+            $result.Evidence = if ($sourceWeekState -ceq 'MISMATCH') { 'WEEK MISMATCH' } else { 'WEEK UNVERIFIED' }
+        }
+    }
+
     # BF-1047: do not misreport a successfully rendered but stale Dashboard
     # as a fresh team/waiver decision. The old smoke gate only checked HTML
     # shape, so it could say PASS even with outdated or unverified evidence.
