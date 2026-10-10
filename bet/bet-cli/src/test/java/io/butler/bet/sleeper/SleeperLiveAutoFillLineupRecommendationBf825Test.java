@@ -283,6 +283,22 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
     }
 
     @Test
+    void missingExactPlayerMapRowsCannotAuthorizeHighProjectionSwap() throws Exception {
+        Database database = initializedDatabase("league-missing-swap-status");
+        var snapshot = snapshot(List.of(
+            projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "20")));
+        var report = new SleeperLiveAutoFillLineupRecommendation(
+            database, (season, week, scoring) -> snapshot,
+            ids -> Map.of("s-wr-a",
+                new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Healthy")))
+            .recommend(rosterReport("league-missing-swap-status"));
+        assertFalse(report.ready(), "Missing proposed bench player's exact live status blocks the swap.");
+        assertTrue(report.reason().contains("BF-1066 BLOCKED"));
+        assertTrue(report.reason().contains("withheld the swap"));
+        assertTrue(report.recommendation() == null);
+    }
+
+    @Test
     void currentInjurySourceFailureWithholdsOtherwiseActionableLineupSwap() throws Exception {
         Database database = initializedDatabase("league-injury-outage-swap");
         var snapshot = snapshot(List.of(
