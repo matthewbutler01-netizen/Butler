@@ -4,11 +4,23 @@ $ErrorActionPreference = 'Stop'
 
 $path = Join-Path $PSScriptRoot 'butler-v04-live-page-check.ps1'
 $launcher = Join-Path $PSScriptRoot 'butler-v04-live-page-check.cmd'
-foreach ($requiredPath in @($path, $launcher)) {
+$doubleClick = Join-Path $PSScriptRoot 'butler-v04-live-page-check-open.cmd'
+foreach ($requiredPath in @($path, $launcher, $doubleClick)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "BF-1040 BLOCKED: missing $requiredPath" }
 }
 $source = [IO.File]::ReadAllText($path)
 $wrapper = [IO.File]::ReadAllText($launcher)
+$doubleClickWrapper = [IO.File]::ReadAllText($doubleClick)
+foreach ($required in @('call "%~dp0butler-v04-live-page-check.cmd"', 'pause >nul', 'exit /b %butlerExit%')) {
+    if ($doubleClickWrapper.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1049 BLOCKED: the double-click tester lost its safe visible-result behavior: $required"
+    }
+}
+foreach ($forbidden in @('taskkill', 'Stop-Process', 'git reset', 'git checkout', 'submitTransaction')) {
+    if ($doubleClickWrapper.IndexOf($forbidden, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw 'BF-1049 BLOCKED: the double-click tester may modify a frozen Butler instance.'
+    }
+}
 $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
