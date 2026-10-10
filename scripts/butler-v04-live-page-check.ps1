@@ -159,6 +159,36 @@ function Test-ButlerLivePage {
             $result.Evidence = 'WATCH CURRENT'
         }
     }
+    # BF-1051: a route can be stale but entitled to an automatic update.
+    # A missing browser script in that exact situation must FAIL the smoke;
+    # it must not silently be reported as NOT NEEDED/GATED.
+    $autoRequired = $false
+    if ($Route -ceq '/') {
+        $auditId = Get-DecisionRefreshTechnicalField -Html $body -Label 'Audit ID:'
+        if ($auditId -cmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+            if ($state -ceq 'STALE_DO_NOT_ACT' -and
+                $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+                @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+                  'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631) {
+                $autoRequired = $true
+            }
+            elseif ($state -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+                $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+                $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED' -and
+                (Get-DecisionRefreshTechnicalField -Html $body -Label 'BF-636 plan state:') -ceq 'MANUAL_REFRESH_PLAN_READY' -and
+                (Get-DecisionRefreshTechnicalField -Html $body -Label 'BF-636 plan policy:') -ceq 'sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution' -and
+                (Get-DecisionRefreshTechnicalField -Html $body -Label 'Governed step count:') -ceq '9') {
+                $autoRequired = $true
+            }
+        }
+    }
+    elseif ($Route -ceq '/waivers') {
+        $waiverMarker = [regex]::Matches($body, 'data-butler-auto-waiver="(?<audit>[0-9a-fA-F-]{36})"')
+        if ($waiverMarker.Count -eq 1 -and
+            $waiverMarker[0].Groups['audit'].Value -cmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+            $autoRequired = $true
+        }
+    }
     if (@('/', '/waivers', '/autopilot') -ccontains $Route) {
         if ([string]$Response.Body -match 'id="butler-auto-refresh-status"') {
             $nonces = [regex]::Matches([string]$Response.Body, '<script nonce="(?<nonce>[0-9a-f]{64})">')
@@ -171,6 +201,12 @@ function Test-ButlerLivePage {
             else { $result.AutoCheck = 'ARMED' }
         }
         else { $result.AutoCheck = 'NOT NEEDED/GATED' }
+    }
+    if ($autoRequired -and $result.AutoCheck -cne 'ARMED' -and
+        $result.AutoCheck -cne 'BLOCKED') {
+        $result.Status = 'FAIL'
+        $result.Evidence = 'AUTO MISSING'
+        $result.AutoCheck = 'BLOCKED'
     }
     return [pscustomobject]$result
 }
