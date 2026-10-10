@@ -169,7 +169,11 @@ class ButlerAppShellBf675ManualRefreshTest {
         assertTrue(refresh.contains("if ($RequestTarget -cne '/waivers') { return $result }"));
         assertTrue(refresh.contains("credentials: 'same-origin'"));
         assertTrue(refresh.contains("function Add-AutomaticDashboardRefresh"));
-        assertTrue(refresh.contains("'STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED'"));
+        assertTrue(refresh.contains("$state -ceq 'STALE_DO_NOT_ACT'"));
+        assertTrue(refresh.contains("$state -ceq 'CURRENT_REFRESH_RECOMMENDED'"));
+        assertTrue(refresh.contains("$bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED'"));
+        assertTrue(refresh.contains("function Add-AutomaticAutoPilotRefresh"));
+        assertTrue(refresh.contains("Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'"));
         assertTrue(refresh.contains("method: 'POST'"));
         assertTrue(worker.contains("script-src 'nonce-$ScriptNonce'; connect-src 'self'; "));
         assertTrue(worker.contains("if ($State.ContainsKey('InProgress') -and $State.InProgress)"));
