@@ -26,6 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SleeperLiveAutoFillLineupRecommendationBf825Test {
     private static final Instant PROJECTION_OBSERVED_AT = Instant.parse("2026-09-17T04:00:00Z");
 
+    // Ordinary healthy-feed fixture: other tests explicitly inject missing,
+    // contradictory, questionable or unavailable status to exercise holds.
+    private static Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability>
+    allActiveStatuses(java.util.Set<String> ids) {
+        return ids.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+            id -> id,
+            id -> new SleeperPlayerAvailabilityProvider.PlayerAvailability(id, "Active", "Healthy")));
+    }
+
     @TempDir
     Path tempDir;
 
@@ -44,7 +53,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             original.butlerTeamId(), original.butlerTeamName(), original.lineupSlots(), original.startingSlots(),
             original.candidateCount(), original.reviewableCandidateCount(), 3, 1, 2, 0, 0, 3, 0, players, List.of(1));
         var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
-            ids -> Map.of(), playersToCheck -> Map.of()).recommend(emptyRoster);
+            ids -> allActiveStatuses(ids), playersToCheck -> Map.of()).recommend(emptyRoster);
         assertTrue(report.ready());
         assertEquals(new BigDecimal("20"), report.currentProjectedTotal());
         assertEquals(new BigDecimal("35"), report.recommendation().projectedTotal());
@@ -111,7 +120,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             "Test Author", "2026-09-30T17:00:00Z", "2026-09-30T18:00:00Z", "2026-10-01T07:00:00Z",
             "https://www.nfl.com/news/test", "One author");
         var report = new SleeperLiveAutoFillLineupRecommendation(database, (season, week, scoring) -> snapshot,
-            ids -> Map.of(), players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
+            ids -> allActiveStatuses(ids), players -> Map.of(), players -> Map.of(), (season, week, ids) -> Map.of(),
             (season, week, players) -> Map.of("s-wr-b", "Candidate matchup"), (season, week, players) -> List.of(pick))
             .recommend(rosterReport("league-replacement"));
         assertTrue(report.ready());
@@ -445,7 +454,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids),
             players -> Map.of("s-wr-b", "Recent injury headline; source=https://www.espn.com/example"))
             .recommend(rosterReport("league-news-hold"));
         assertTrue(report.ready());
@@ -487,7 +496,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids), players -> Map.of(),
             players -> Map.of("s-wr-b", "ESPN public analysis; source=https://www.espn.com/example; author=Example Writer"))
             .recommend(rosterReport("league-public-analysis"));
         assertTrue(report.ready());
@@ -503,7 +512,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids), players -> Map.of(), players -> Map.of(),
             (season, week, ids) -> Map.of("s-wr-b",
                 new NflverseRosterUsageProvider.UsageEvidence(true, "Verified snap/workload decline; source=example")))
             .recommend(rosterReport("league-usage-risk"));
@@ -520,7 +529,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids), players -> Map.of(), players -> Map.of(),
             (season, week, ids) -> { throw new IOException("source down"); })
             .recommend(rosterReport("league-usage-failure"));
         assertTrue(report.ready());
@@ -536,7 +545,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "10.25")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids), players -> Map.of(), players -> Map.of(),
             (season, week, ids) -> Map.of("s-wr-a", workload(6, 9), "s-wr-b", workload(7, 2)))
             .recommend(rosterReport("league-close-usage-conflict"));
         assertTrue(report.ready());
@@ -555,7 +564,7 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections, ids -> Map.of(), players -> Map.of(), players -> Map.of(),
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids), players -> Map.of(), players -> Map.of(),
             (season, week, ids) -> Map.of("s-wr-a", workload(6, 9), "s-wr-b", workload(7, 2)))
             .recommend(rosterReport("league-large-usage-conflict"));
         assertEquals(new BigDecimal("5"), report.projectedGain());
