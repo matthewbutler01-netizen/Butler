@@ -16,7 +16,7 @@ function ConvertTo-HtmlText {
 }
 
 $nl = [Environment]::NewLine
-$baseline = @('Live public NFL week proof', 'State: MATCH', 'Saved season/week: 2026/5', 'Provider season/week: 2026/5') -join $nl
+$baseline = @('Live public NFL week proof', 'State: MATCH', 'Saved season/week: 2026/5', 'Provider season/week: 2026/5', 'Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked.') -join $nl
 $healthy = Get-MatchupPublicWeekProof -Text $baseline
 if ($healthy.State -cne 'MATCH' -or $healthy.Saved -cne '2026/5') {
     throw 'BF-1054 BLOCKED: a proven current NFL matchup was not recognized.'
@@ -33,6 +33,15 @@ foreach ($bad in @(
     $baseline.Replace('Saved season/week: 2026/5', 'Saved season/week: 2025/5'),
     ($baseline + $nl + 'State: MATCH' + $nl),
     ($baseline + $nl + 'Saved season/week: 2026/5' + $nl),
+    ($baseline + $nl + 'State: INVALID' + $nl),
+    ($baseline + $nl + 'Saved season/week: unavailable' + $nl),
+    ($baseline + $nl + 'Provider season/week: 2026/99' + $nl),
+    ($baseline + $nl + 'Provider season/week: -/-' + $nl),
+    ($baseline + $nl + 'Live public NFL week proof' + $nl),
+    ($baseline + $nl + 'Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked.' + $nl),
+    ($baseline.Replace('Live public NFL week proof', 'Unknown source')),
+    ($baseline.Replace('Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked.', 'Boundary: fictional current week')),
+    ($baseline.Replace('State: MATCH', 'State: OTHER')),
     'State: MATCH'
 )) {
     $proof = Get-MatchupPublicWeekProof -Text $bad
@@ -54,9 +63,10 @@ if ($blocked -notmatch 'SAVED MATCHUP OUTDATED' -or
     $blocked -notmatch 'data-butler-week-state="MISMATCH"') {
     throw 'BF-1054 BLOCKED: stale saved week banner did not warn to withhold actions.'
 }
-$unknown = Get-MatchupPublicWeekProof -Text (@('State: UNVERIFIED', 'Saved season/week: 2026/5', 'Provider season/week: -/-') -join $nl)
+$unknown = Get-MatchupPublicWeekProof -Text (@('Live public NFL week proof', 'State: UNVERIFIED', 'Saved season/week: 2026/5', 'Provider season/week: -/-', 'Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked.') -join $nl)
 $unverifiedHtml = Add-MatchupPublicWeekNotice -Html $matchup -Proof $unknown
-if ($unverifiedHtml -notmatch 'WEEK NOT VERIFIED' -or
+if ($unknown.State -cne 'UNVERIFIED' -or
+    $unverifiedHtml -notmatch 'WEEK NOT VERIFIED' -or
     $unverifiedHtml -match 'WEEK MATCHES SLEEPER') {
     throw 'BF-1054 BLOCKED: offline current-week check was misrepresented as confirmed.'
 }
