@@ -223,10 +223,12 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var report = new SleeperLiveAutoFillLineupRecommendation(
             database,
             (season, week, scoring) -> snapshot,
-            ids -> Map.of(
-                "s-wr-a",
-                new SleeperPlayerAvailabilityProvider.PlayerAvailability(
-                    "s-wr-a", "Commissioner Exempt", null)))
+            ids -> {
+                var statuses = new java.util.LinkedHashMap<>(allActiveStatuses(ids));
+                statuses.put("s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-a", "Commissioner Exempt", null));
+                return Map.copyOf(statuses);
+            })
             .recommend(rosterReport("league-starter-out"));
 
         assertTrue(report.ready());
@@ -380,7 +382,8 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         var projections = snapshot(List.of(
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
-            (season, week, scoring) -> projections).recommend(rosterReport("league-acquisition"));
+            (season, week, scoring) -> projections, ids -> allActiveStatuses(ids))
+            .recommend(rosterReport("league-acquisition"));
         assertTrue(report.ready());
         assertEquals("s-wr-b", report.recommendation().assignments().get(1).recommendedPlayerId());
         assertTrue(new PlayerFantasyPositionRepository(database).findByPlayerId("butler-wr-b").isEmpty());
@@ -436,8 +439,12 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             projection("s-qb", "20"), projection("s-wr-a", "10"), projection("s-wr-b", "15")));
         var report = new SleeperLiveAutoFillLineupRecommendation(database,
             (season, week, scoring) -> projections,
-            ids -> Map.of("s-qb", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
-                "s-qb", "Active", "Questionable", "Chest", "Limited", PROJECTION_OBSERVED_AT)))
+            ids -> {
+                var statuses = new java.util.LinkedHashMap<>(allActiveStatuses(ids));
+                statuses.put("s-qb", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-qb", "Active", "Questionable", "Chest", "Limited", PROJECTION_OBSERVED_AT));
+                return Map.copyOf(statuses);
+            })
             .recommend(rosterReport("league-starter-injury-hold"));
         assertTrue(report.ready());
         assertEquals(new BigDecimal("10"), report.currentProjectedTotal());
