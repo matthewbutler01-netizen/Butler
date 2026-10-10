@@ -4,7 +4,9 @@ This check is for the **development v0.4 app** only. The v0.3.0 release is froze
 
 ## Windows quick run
 
-With the v0.4 development checkout and app already running, use this single command from Command Prompt or PowerShell:
+**No PowerShell typing needed:** with the v0.4 development checkout and app already running, double-click `scripts\butler-v04-live-page-check-open.cmd` in File Explorer. It launches the same GET-only smoke check, keeps the results visible, and pauses before closing. It never launches, stops, or replaces a running Butler app.
+
+Or use this single command from Command Prompt or PowerShell:
 
 ```powershell
 .\scripts\butler-v04-live-page-check.cmd -Port 18080
