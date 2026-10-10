@@ -762,8 +762,7 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             if (id == null || id.isBlank() || "0".equals(id)) continue;
             var status = source.get(id);
             if (status == null || !id.equals(status.sleeperPlayerId()) ||
-                status.status() == null ||
-                !(status.status().equalsIgnoreCase("Active") || status.confirmedUnavailable())) {
+                !(("Active".equalsIgnoreCase(status.status())) || status.confirmedUnavailable())) {
                 return false;
             }
         }
