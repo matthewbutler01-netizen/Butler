@@ -111,6 +111,22 @@ async function scenario(name, mutations, expect) {
   }, {
     code:1, output:/\/matchup\s+FAIL\s+evidence=PAIRING CONFLICT/, allRoutes:true
   });
+  // BF-1072: two independently source-MATCH pages can still refer to
+  // different saved leagues or weeks. The loopback diagnostic must detect
+  // the inconsistency without contacting Sleeper or issuing any writes.
+  await scenario('startsit-different-week', {
+    routes: {'/matchup/autofill': good['/matchup/autofill']
+      .replace('data-butler-week-number="5"', 'data-butler-week-number="6"')
+      .replace('&middot; Week 5', '&middot; Week 6')}
+  }, {
+    code:1, output:/Cross-route week\s+FAIL\s+evidence=CROSS-ROUTE CONFLICT/, allRoutes:true
+  });
+  await scenario('startsit-different-league', {
+    routes: {'/matchup/autofill': good['/matchup/autofill']
+      .replace('League &middot; Week 5', 'Another league &middot; Week 5')}
+  }, {
+    code:1, output:/Cross-route week\s+FAIL\s+evidence=CROSS-ROUTE CONFLICT/, allRoutes:true
+  });
   const stale = {
     ...good,
     '/': good['/'].replace('CURRENT_AND_ACTIONABLE','STALE_DO_NOT_ACT'),
