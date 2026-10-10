@@ -819,7 +819,8 @@ function Get-V04AutoPilotWatchState {
         $currentEvidence -and
         $result.Attention -cne 'UNAVAILABLE' -and
         $result.StartSit -cne 'UNAVAILABLE' -and
-        $result.Waivers -cne 'UNAVAILABLE'
+        $result.Waivers -cne 'UNAVAILABLE' -and
+        $result.Roster -cne 'Manager tools'
 
     return [pscustomobject]$result
 }
