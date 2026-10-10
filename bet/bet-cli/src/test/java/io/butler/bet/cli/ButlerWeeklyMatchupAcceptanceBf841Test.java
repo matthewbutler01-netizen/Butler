@@ -40,6 +40,17 @@ class ButlerWeeklyMatchupAcceptanceBf841Test {
     }
 
     @Test
+    void currentMatchupPublishesAuditedSeasonForOptionalSleeperWeekComparison() throws Exception {
+        String transform = source("scripts/butler-app-bf840-weekly-matchup-transform.ps1");
+        assertTrue(transform.contains("data-butler-matchup-season=\"$(ConvertTo-HtmlText $Matchup.Season)\""));
+        assertTrue(transform.contains("Week $(ConvertTo-HtmlText $Matchup.Week)"));
+        // Only a confirmed exact BF-840 matchup exposes this season marker;
+        // the unavailable/opponent-unconfirmed renderer has no such proof.
+        String unavailable = transform.substring(transform.indexOf("function ConvertTo-MatchupUnavailableHtml {"));
+        assertFalse(unavailable.contains("data-butler-matchup-season"));
+    }
+
+    @Test
     void acceptanceIsGetOnlyAndOwnsItsProcessCleanup() throws Exception {
         String script = source("scripts/butler-weekly-matchup-acceptance.ps1");
         String cmd = source("scripts/butler-weekly-matchup-acceptance.cmd");
