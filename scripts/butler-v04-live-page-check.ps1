@@ -52,8 +52,11 @@ function Test-ButlerLocalHealth {
         [string]$Response.Type -notmatch '^application/json') { return $false }
     try {
         $health = ConvertFrom-Json -InputObject ([string]$Response.Body)
+        # An older frozen Butler build may answer the same loopback health
+        # route. Never mistake that for the v0.4 code under test.
         return $health.status -ceq 'ok' -and
             $health.service -ceq 'butler-app-shell' -and
+            $health.featureSet -ceq 'v04-audited-onopen-freshness-bf1048' -and
             $health.bind -ceq '127.0.0.1'
     }
     catch { return $false }
@@ -152,7 +155,7 @@ foreach ($candidate in $ports) {
     catch { }
 }
 if ($live.Count -ne 1) {
-    throw 'BF-1040 BLOCKED: expected exactly one local Butler on 18080/8080. Launch the v0.4 app or specify -Port. No outside host was contacted.'
+    throw 'BF-1048 BLOCKED: expected exactly one *v0.4 audited-freshness* Butler on 18080/8080. An older frozen v0.3 app cannot pass this gate. Launch the v0.4 test checkout, or specify its exact -Port. No outside host was contacted.'
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)
