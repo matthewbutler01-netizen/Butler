@@ -839,6 +839,46 @@ function Get-V04AutoPilotWatchState {
     return [pscustomobject]$result
 }
 
+# BF-1057: A current Dashboard decision does not establish that the saved
+# matchup belongs to the *current* public Sleeper NFL week. Reuse the exact
+# read-only Matchup route's BF-1054 source proof before Auto-Pilot presents a
+# prepared Start/Sit or waiver decision. Missing/ambiguous/unverified proof
+# fails closed without inventing a refreshed roster or mutating Sleeper.
+function Limit-V04AutoPilotToVerifiedWeek {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState,
+        [string]$MatchupHtml = ''
+    )
+
+    if (-not [bool]$WatchState.Ready) { return $WatchState }
+
+    $state = 'UNVERIFIED'
+    $markers = [regex]::Matches($MatchupHtml, 'data-butler-week-state=')
+    $proof = [regex]::Matches(
+        $MatchupHtml,
+        '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="(?<state>MATCH|MISMATCH|UNVERIFIED)"[^>]*>'
+    )
+    if ($markers.Count -eq 1 -and $proof.Count -eq 1) {
+        $state = [string]$proof[0].Groups['state'].Value
+    }
+    if ($state -ceq 'MATCH') { return $WatchState }
+
+    $WatchState.Ready = $false
+    if ($state -ceq 'MISMATCH') {
+        $WatchState.EvidenceStatus = 'WEEK_MISMATCH'
+        $WatchState.Attention = 'SYNC SAVED WEEK'
+        $WatchState.StartSit = 'DO NOT ACT'
+        $WatchState.Waivers = 'DO NOT ACT'
+    }
+    else {
+        $WatchState.EvidenceStatus = 'WEEK_UNVERIFIED'
+        $WatchState.Attention = 'WEEK NOT VERIFIED'
+        $WatchState.StartSit = 'UNAVAILABLE'
+        $WatchState.Waivers = 'UNAVAILABLE'
+    }
+    return $WatchState
+}
+
 function Get-V04AutoPilotApprovalPolicy {
     return [pscustomobject]@{
         Mode = 'MANAGER APPROVAL REQUIRED'
@@ -915,6 +955,12 @@ function Get-V04AutoPilotHtml {
     }
     elseif ($evidenceStatus -ceq 'STALE') {
         'EVIDENCE NEEDS REFRESH'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_MISMATCH') {
+        'SAVED WEEK OUTDATED'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_UNVERIFIED') {
+        'WEEK NOT VERIFIED'
     }
     else {
         'WATCH DATA UNAVAILABLE'
@@ -1357,6 +1403,23 @@ try {
         catch {
             # Auto-Pilot is a read-only preview; a snapshot read failure must
             # remain visible as unavailable instead of crashing or guessing.
+        }
+
+        # Check the real public NFL week on opening Auto-Pilot only when the
+        # Dashboard audit would otherwise prepare manager actions. The inner
+        # Matchup GET is read-only; failure/partial HTML blocks the watch.
+        if ([bool]$watchState.Ready) {
+            $matchupHtmlForWeekProof = ''
+            try {
+                $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState
+                if ([int]$matchupPage.StatusCode -eq 200 -and $matchupPage.ContentType -match '^text/html') {
+                    $matchupHtmlForWeekProof = [string]$matchupPage.Body
+                }
+            }
+            catch {
+                # No league write or fallback to a guessed current week.
+            }
+            $watchState = Limit-V04AutoPilotToVerifiedWeek -WatchState $watchState -MatchupHtml $matchupHtmlForWeekProof
         }
 
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
