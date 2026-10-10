@@ -151,8 +151,8 @@ if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
 # content, and warn on an empty roster or unconfirmed opponent.
 $page.Csp = "default-src 'none'; frame-ancestors 'none'"
 foreach ($fixture in @(
-    @{ Route = '/team'; Body = '<html><body>My Team Current roster Roster players <article class="roster-card">safe</article></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
-    @{ Route = '/team'; Body = '<html><body>My Team Current roster Roster players</body></html>'; Expected = 'WARN'; Evidence = 'ROSTER NOT SHOWN' },
+    @{ Route = '/team'; Body = '<html><body>My Team Roster hub Lineup and depth at a glance <section id="roster-starters"><div class="player-row">safe</div></section></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/team'; Body = '<html><body>My Team Roster hub Lineup and depth at a glance <section id="roster-starters"></section></body></html>'; Expected = 'WARN'; Evidence = 'ROSTER NOT SHOWN' },
     @{ Route = '/team'; Body = '<html><body>My Team navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
     @{ Route = '/waivers'; Body = '<html><body>Waiver Board waiver-decision-hero Butler waiver decision</body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
     @{ Route = '/waivers'; Body = '<html><body>Waiver Board navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
