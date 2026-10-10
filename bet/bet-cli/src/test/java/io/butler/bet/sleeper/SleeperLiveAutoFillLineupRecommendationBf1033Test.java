@@ -60,6 +60,10 @@ class SleeperLiveAutoFillLineupRecommendationBf1033Test {
             swap, Map.of("starter", starter, "bench",
                 new SleeperPlayerAvailabilityProvider.PlayerAvailability("bench", null, "Healthy"))),
             "An unverified status is not health clearance.");
+        assertTrue(SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
+            swap, Map.of("starter", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                "starter", null, "Out"), "bench", bench)),
+            "A source-confirmed Out starter can be replaced even when generic status is omitted.");
         assertTrue(!SleeperLiveAutoFillLineupRecommendation.hasExactSwapAvailability(
             swap, Map.of("starter", starter, "bench",
                 new SleeperPlayerAvailabilityProvider.PlayerAvailability("different", "Active", null))),
