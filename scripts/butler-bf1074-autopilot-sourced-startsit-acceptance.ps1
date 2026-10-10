@@ -16,7 +16,7 @@ foreach ($name in @('Get-V04AutoPilotExactPageFrame','Limit-V04AutoPilotToSource
 }
 $clock = [DateTimeOffset]::Parse('2026-10-10T15:02:00Z')
 $matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">Our &amp; League &middot; Week 5</div>'
-$proof = '<p class="meta butler-startsit-source-proof" role="status">1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. Full scoreable projection coverage; 0 player holds. No Sleeper move was submitted. Sources: projection snapshot retrieved 2026-10-10T14:59:00.123456789Z UTC; swap players status map retrieved 2026-10-10T15:00:00Z UTC.</p>'
+$proof = '<p class="meta butler-startsit-source-proof" role="status">1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. Full scoreable projection coverage; 0 player holds. no Sleeper move was submitted. Sources: projection snapshot retrieved 2026-10-10T14:59:00.123456789Z UTC; swap players status map retrieved 2026-10-10T15:00:00Z UTC.</p>'
 $startSit = '<style>.start-sit-blocker{border:1px solid red}</style>' + $matchup + '<section class="panel recommendation-panel start-sit-assistant">' + $proof + '</section>'
 function Test-Packet {
     param([string]$Page,[string]$OtherPage)
@@ -43,7 +43,7 @@ foreach ($bad in @(
     ($startSit.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"')),
     ($startSit + $startSit),
     ($startSit.Replace($proof, '')),
-    ($startSit.Replace('No Sleeper move was submitted', 'Transaction submitted')),
+    ($startSit.Replace('no Sleeper move was submitted', 'Transaction submitted')),
     ($startSit.Replace('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', 'No lineup change is ready')),
     ($startSit.Replace('2026-10-10T15:00:00Z', 'UNVERIFIED')),
     ($startSit.Replace('2026-10-10T15:00:00Z', '2026-10-10T14:30:00Z')),
