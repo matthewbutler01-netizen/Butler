@@ -105,6 +105,16 @@ if (-not $noMove.Ready) { throw 'BF-1042 BLOCKED: exact audited no-transaction w
 $badNoMove = Get-V04AutoPilotWatchState -DashboardHtml ($noMoveHtml.Replace('BF-629: NO_TRANSACTION_TO_REVALIDATE', 'BF-629: BLOCKED'))
 if ($badNoMove.Ready) { throw 'BF-1044 BLOCKED: unproven no-transaction lineage passed.' }
 
+# BF-1046: BF-677 can authorize a *manual* recheck of an old NO MOVE
+# record. Superseded lineage cannot support a CURRENT Auto-Pilot watch.
+foreach ($superseded in @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED', 'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED')) {
+    $oldNoMove = Get-V04AutoPilotWatchState -DashboardHtml ($noMoveHtml.Replace('LATEST_EVIDENCE_LINEAGE_VERIFIED', $superseded))
+    if ($oldNoMove.Ready -or $oldNoMove.EvidenceStatus -cne 'STALE' -or
+        $oldNoMove.StartSit -cne 'REFRESH' -or $oldNoMove.Waivers -cne 'DO NOT ACT') {
+        throw 'BF-1046 BLOCKED: superseded NO MOVE was mislabeled current.'
+    }
+}
+
 # BF-1045: malformed or duplicated summary cards must never select
 # the first plausible lineup/waiver value by accident.
 foreach ($badCards in @(
