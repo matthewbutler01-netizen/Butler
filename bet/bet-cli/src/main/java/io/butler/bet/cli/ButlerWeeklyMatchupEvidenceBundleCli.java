@@ -11,13 +11,18 @@ import io.butler.bet.intelligence.LeagueRosterStrengthTierAnalyzer;
 import io.butler.bet.intelligence.WeeklyMatchupWorkspaceAnalyzer;
 import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
+import io.butler.bet.sleeper.SleeperClient;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * BF-849 read-only Weekly Matchup composition.
@@ -27,7 +32,8 @@ import java.util.concurrent.Future;
 public final class ButlerWeeklyMatchupEvidenceBundleCli {
     static final String MATCHUP_CONTEXT = "MATCHUP_CONTEXT";
     static final String MATCHUP = "MATCHUP";
-    static final int EVIDENCE_WORKERS = 4;
+    static final String WEEK_FRESHNESS = "WEEK_FRESHNESS";
+    static final int EVIDENCE_WORKERS = 5;
 
     private static final Path DATABASE_PATH = Path.of("butler.db");
     private static final String SOURCE = "sleeper";
@@ -55,6 +61,16 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             String leagueId = args[0].trim();
             Database database = initializedDatabase();
             MatchupContext context = loadPersistedContext(database, leagueId);
+            // BF-1054: passive Matchup now makes one bounded read-only *public*
+            // Sleeper season/week request. The saved matchup is never rewritten
+            // on GET and this probe never sends private league/roster identity.
+            Future<String> weekFuture = executor.submit(() -> {
+                try {
+                    return new SleeperClient().getNflState(Duration.ofSeconds(4));
+                } catch (Exception e) {
+                    return "";
+                }
+            });
 
             Future<LeagueRosterStrengthTierAnalyzer.RosterStrengthReport> strengthFuture = executor.submit(() ->
                 new LeagueRosterStrengthTierAnalyzer(database).analyze(leagueId));
@@ -84,8 +100,10 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             String positionalPressure = ButlerMyTeamEvidenceBundleCli.capture(() ->
                 ButlerLeaguePositionalPressureCli.print(pressure));
             String matchup = renderMatchup(matchupFuture);
+            String weekProof = renderWeekFreshness(context.season(), context.week(), awaitWeekState(weekFuture));
 
             ButlerMyTeamEvidenceBundleCli.emit(MATCHUP_CONTEXT, matchupContext);
+            ButlerMyTeamEvidenceBundleCli.emit(WEEK_FRESHNESS, weekProof);
             if (includeAutoFill) {
                 ButlerMyTeamEvidenceBundleCli.emit(ButlerMyTeamEvidenceBundleCli.AUTOFILL, autoFill);
             }
@@ -94,13 +112,53 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             ButlerMyTeamEvidenceBundleCli.emit(MATCHUP, matchup);
             System.out.println(includeAutoFill
                 ? "Boundary: BF-849 uses persisted Matchup identity/evidence and one explicitly requested BF-623/BF-610 read-only lineup review; no Butler or Sleeper write is executed."
-                : "Boundary: BF-849 passive Matchup uses persisted Butler/Sleeper target, roster-week, and exact matchup evidence only; no provider fetch and no Butler or Sleeper write is executed.");
+                : "Boundary: BF-1054 passive Matchup uses persisted exact pairing plus one bounded public read-only Sleeper NFL week check; no league-specific provider fetch and no Butler or Sleeper write is executed.");
             return 0;
         } catch (Exception e) {
             System.err.println("Error: " + safeMessage(e));
             return 2;
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    // Only public source week, never player identity, injury, lineup or waiver
+    // freshness. A source outage or malformed response is UNKNOWN, not MATCH.
+    static String renderWeekFreshness(int savedSeason, int savedWeek, String providerJson) {
+        String result = "UNVERIFIED";
+        String providerSeason = "-";
+        String providerWeek = "-";
+        try {
+            if (providerJson != null && !providerJson.isBlank() && providerJson.length() <= 8192) {
+                JsonNode source = new ObjectMapper().readTree(providerJson);
+                if (source != null && source.isObject()
+                    && "regular".equals(source.path("season_type").asText())
+                    && source.path("season").asText().matches("20[0-9]{2}")
+                    && source.path("week").isIntegralNumber()
+                    && source.path("week").asInt() >= 1
+                    && source.path("week").asInt() <= 18) {
+                    providerSeason = source.path("season").asText();
+                    providerWeek = Integer.toString(source.path("week").asInt());
+                    result = Integer.parseInt(providerSeason) == savedSeason
+                        && Integer.parseInt(providerWeek) == savedWeek ? "MATCH" : "MISMATCH";
+                }
+            }
+        } catch (Exception ignored) {
+            // No fallbacks based on system time or cached league state.
+        }
+        return "Live public NFL week proof" + System.lineSeparator()
+            + "State: " + result + System.lineSeparator()
+            + "Saved season/week: " + savedSeason + "/" + savedWeek + System.lineSeparator()
+            + "Provider season/week: " + providerSeason + "/" + providerWeek + System.lineSeparator()
+            + "Boundary: public Sleeper NFL state only; no injuries, projections, roster or moves checked.";
+    }
+
+    private static String awaitWeekState(Future<String> future) {
+        try {
+            return future.get(6, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+            future.cancel(true);
+            return "";
         }
     }
 
