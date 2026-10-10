@@ -789,13 +789,23 @@ function Get-V04AutoPilotWatchState {
          $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') -or
         ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
          $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
-         $null -ne $bf631 -and
-         (Test-DecisionRefreshNoTransactionLineage -LineageState $bf631))
+         $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
+    )
+    # BF-1046: BF-677 correctly permits a manual recheck of no-transaction
+    # decisions with superseded lineage; that does NOT make their old summary
+    # a current Auto-Pilot recommendation. Never silently treat an old NO MOVE
+    # decision as a freshly checked roster/waiver state.
+    $outdatedNoMove = (
+        $decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+        @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631
     )
     $result.EvidenceStatus = if ($currentEvidence) {
         'CURRENT'
     }
-    elseif (@('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -ccontains $decisionState) {
+    elseif ($outdatedNoMove -or
+            @('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -ccontains $decisionState) {
         'STALE'
     }
     else {
