@@ -62,14 +62,16 @@ if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'AUTO CSP') {
 }
 # BF-1047: a perfectly rendered Dashboard can still carry an outdated,
 # unknown, or contradictory audited decision. Never report it as PASS/current.
+$page.Csp += "; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
+$validDashboardMarkup = $page.Body
 foreach ($unsafeAudit in @(
-    ($page.Body.Replace('CURRENT_AND_ACTIONABLE', 'STALE_DO_NOT_ACT')),
-    ($page.Body.Replace('CURRENT_AND_ACTIONABLE', 'CURRENT_REFRESH_RECOMMENDED')),
-    ($page.Body.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')),
-    ($page.Body.Replace('BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED', 'BF-631: MARKET_LINEAGE_SUPERSEDED')),
-    ($page.Body.Replace('<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>', '')),
-    ($page.Body.Replace('<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>', '')),
-    ($page.Body.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED</div>', 'BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>'))
+    ($validDashboardMarkup.Replace('CURRENT_AND_ACTIONABLE', 'STALE_DO_NOT_ACT')),
+    ($validDashboardMarkup.Replace('CURRENT_AND_ACTIONABLE', 'CURRENT_REFRESH_RECOMMENDED')),
+    ($validDashboardMarkup.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')),
+    ($validDashboardMarkup.Replace('BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED', 'BF-631: MARKET_LINEAGE_SUPERSEDED')),
+    ($validDashboardMarkup.Replace('<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>', '')),
+    ($validDashboardMarkup.Replace('<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>', '')),
+    ($validDashboardMarkup.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED</div>', 'BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>'))
 )) {
     $page.Body = $unsafeAudit
     $check = Test-ButlerLivePage -Route '/' -Response $page
