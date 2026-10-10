@@ -48,8 +48,12 @@ class SleeperLiveAutoFillLineupRecommendationBf1006Test {
         var report = recommendation(
             database,
             projections,
-            ids -> Map.of(
-                "s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Out")),
+            ids -> {
+                var statuses = new LinkedHashMap<>(allActiveStatuses(ids));
+                statuses.put("s-wr-a",
+                    new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Out"));
+                return Map.copyOf(statuses);
+            },
             allUnlocked()).recommend(rosterReport("bf1006-out-gap"));
 
         assertTrue(report.ready());
@@ -137,8 +141,12 @@ class SleeperLiveAutoFillLineupRecommendationBf1006Test {
         var report = recommendation(
             database,
             projections,
-            ids -> Map.of(
-                "s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Out")),
+            ids -> {
+                var statuses = new LinkedHashMap<>(allActiveStatuses(ids));
+                statuses.put("s-wr-a",
+                    new SleeperPlayerAvailabilityProvider.PlayerAvailability("s-wr-a", "Active", "Out"));
+                return Map.copyOf(statuses);
+            },
             allUnlocked()).recommend(rosterReport("bf1006-out-small-edge"));
 
         assertTrue(report.ready());
