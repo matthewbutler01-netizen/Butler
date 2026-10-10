@@ -28,11 +28,14 @@ if ($proof -match 'Invoke-RestMethod|Invoke-WebRequest|submitTransaction|setFaab
 }
 
 function Test-FreshnessPreview {
-    param([object[]]$Assignments,[object[]]$Holds,[string]$ProjectionCoverage)
+    param([object[]]$Assignments,[object[]]$Holds,[string]$ProjectionCoverage,
+        [string]$ProjectionFetchedAt = 'UNVERIFIED', [string]$SwapStatusFetchedAt = 'UNVERIFIED')
     $AutoFill = [pscustomobject]@{
         Assignments = @($Assignments)
         ProjectionHolds = @($Holds)
         ProjectionCoverage = $ProjectionCoverage
+        ProjectionFetchedAt = $ProjectionFetchedAt
+        SwapStatusFetchedAt = $SwapStatusFetchedAt
     }
     $statusProofCopy = ''
     . ([scriptblock]::Create($proof))
@@ -41,11 +44,13 @@ function Test-FreshnessPreview {
 
 $changed = [pscustomobject]@{ Changed = $true }
 $keep = [pscustomobject]@{ Changed = $false }
-$verified = Test-FreshnessPreview -Assignments @($changed,$keep) -Holds @() -ProjectionCoverage 'FULL'
+$verified = Test-FreshnessPreview -Assignments @($changed,$keep) -Holds @() -ProjectionCoverage 'FULL' -ProjectionFetchedAt '2026-10-10T08:00:00Z' -SwapStatusFetchedAt '2026-10-10T08:01:00Z'
 if ($verified -notmatch '^1 proposed lineup changes have exact player-status checks' -or
     $verified -notmatch 'Full scoreable projection coverage' -or
     $verified -notmatch '0 player holds' -or
     $verified -notmatch 'not availability clearance' -or
+    $verified -notmatch 'projection snapshot retrieved 2026-10-10T08:00:00Z UTC' -or
+    $verified -notmatch 'swap players status map retrieved 2026-10-10T08:01:00Z UTC' -or
     $verified -notmatch 'no Sleeper move was submitted') {
     throw 'BF-1067 BLOCKED: a prepared proposal lost bounded source-check disclaimers.'
 }
@@ -53,6 +58,8 @@ $held = Test-FreshnessPreview -Assignments @($keep) -Holds @('hold 1','hold 2') 
 if ($held -notmatch '^No lineup change is ready' -or
     $held -notmatch 'Partial projection coverage' -or
     $held -notmatch '2 player holds' -or
+    $held -notmatch 'projection fetch time not supplied' -or
+    $held -notmatch 'exact swap status fetch time not verified' -or
     $held -match 'exact player-status checks') {
     throw 'BF-1067 BLOCKED: unchanged lineup was incorrectly labeled as sourced swap.'
 }
