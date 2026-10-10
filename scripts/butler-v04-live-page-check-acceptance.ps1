@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'butler-decision-refresh.ps1')
 
 $path = Join-Path $PSScriptRoot 'butler-v04-live-page-check.ps1'
 $launcher = Join-Path $PSScriptRoot 'butler-v04-live-page-check.cmd'
@@ -42,13 +43,13 @@ $page = [pscustomobject]@{
     Type = 'text/html; charset=utf-8'
     Cache = 'no-store'
     Csp = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"
-    Body = '<html><body><div class="dashboard-summary-row"></div></body></html>'
+    Body = '<html><body><div class="dashboard-summary-row"></div><div>Decision state: CURRENT_AND_ACTIONABLE</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></body></html>'
 }
 $check = Test-ButlerLivePage -Route '/' -Response $page
-if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'NOT NEEDED/GATED') {
+if ($check.Status -cne 'PASS' -or $check.Evidence -cne 'AUDIT CURRENT' -or $check.AutoCheck -cne 'NOT NEEDED/GATED') {
     throw 'BF-1040 BLOCKED: eligible Dashboard baseline was rejected.'
 }
-$page.Body = '<html><body><div class="dashboard-summary-row"></div><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
+$page.Body = $page.Body.Replace('</body>', '<div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body>')
 $page.Csp += "; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
 $check = Test-ButlerLivePage -Route '/' -Response $page
 if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
@@ -59,6 +60,45 @@ $check = Test-ButlerLivePage -Route '/' -Response $page
 if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'AUTO CSP') {
     throw 'BF-1040 BLOCKED: missing nonce CSP incorrectly accepted.'
 }
+# BF-1047: a perfectly rendered Dashboard can still carry an outdated,
+# unknown, or contradictory audited decision. Never report it as PASS/current.
+foreach ($unsafeAudit in @(
+    ($page.Body.Replace('CURRENT_AND_ACTIONABLE', 'STALE_DO_NOT_ACT')),
+    ($page.Body.Replace('CURRENT_AND_ACTIONABLE', 'CURRENT_REFRESH_RECOMMENDED')),
+    ($page.Body.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')),
+    ($page.Body.Replace('BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED', 'BF-631: MARKET_LINEAGE_SUPERSEDED')),
+    ($page.Body.Replace('<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>', '')),
+    ($page.Body.Replace('<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>', '')),
+    ($page.Body.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED</div>', 'BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>'))
+)) {
+    $page.Body = $unsafeAudit
+    $check = Test-ButlerLivePage -Route '/' -Response $page
+    if ($check.Status -cne 'WARN' -or
+        @('AUDIT STALE', 'AUDIT UNVERIFIED') -cnotcontains $check.Evidence -or
+        $check.AutoCheck -cne 'ARMED') {
+        throw 'BF-1047 BLOCKED: a stale or ambiguous Dashboard was reported current.'
+    }
+}
+$page.Body = '<html><body><div class="dashboard-summary-row"></div><div>Decision state: NO_TRANSACTION_TO_ACT_ON</div><div>BF-629: NO_TRANSACTION_TO_REVALIDATE</div><div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></body></html>'
+$page.Csp = "default-src 'none'; frame-ancestors 'none'"
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'PASS' -or $check.Evidence -cne 'AUDIT CURRENT') {
+    throw 'BF-1047 BLOCKED: current audited no-transaction Dashboard was rejected.'
+}
+foreach ($lineage in @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED', 'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED')) {
+    $page.Body = $page.Body.Replace('LATEST_EVIDENCE_LINEAGE_VERIFIED', $lineage)
+    $check = Test-ButlerLivePage -Route '/' -Response $page
+    if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'AUDIT STALE') {
+        throw 'BF-1047 BLOCKED: superseded no-transaction lineage was mislabeled current.'
+    }
+    $page.Body = $page.Body.Replace($lineage, 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
+}
+$page.Body = '<html><body><div class="dashboard-summary-row"></div></body></html>'
+$check = Test-ButlerLivePage -Route '/' -Response $page
+if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'AUDIT UNVERIFIED') {
+    throw 'BF-1047 BLOCKED: Dashboard with no audited evidence was reported current.'
+}
+
 $page.Body = '<html><body>broken manager page</body></html>'
 $check = Test-ButlerLivePage -Route '/' -Response $page
 if ($check.Status -cne 'FAIL' -or $check.Evidence -cne 'PAGE CONTRACT') {
@@ -75,7 +115,7 @@ $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'WATCH INCOMPLETE') {
     throw 'BF-1042 BLOCKED: stale Auto-Pilot watch was mislabeled current.'
 }
-$page.Body = '<html><body>CURRENT WEEKLY WATCH <div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
+$page.Body = '<html><body>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
 $page.Csp = "default-src 'none'; frame-ancestors 'none'; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
 $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
@@ -115,4 +155,4 @@ if ($wrapper.IndexOf('butler-v04-live-page-check.ps1', [System.StringComparison]
     throw 'BF-1040 BLOCKED: one-command Windows launcher missing.'
 }
 Write-Host 'BF-1040 V0.4 LIVE PAGE SMOKE FIXTURES: PASS'
-Write-Host 'Coverage: exact loopback health, request scope, page presence, auto-refresh CSP, Auto-Pilot unavailable warning, GET-only command.'
+Write-Host 'Coverage: exact loopback health, page response/security, current/stale/unknown Dashboard audits, stale no-transaction lineage, auto-refresh CSP, Auto-Pilot watch, GET-only command.'
