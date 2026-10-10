@@ -30,7 +30,7 @@ foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotApprov
 # Auto-Pilot renderer can be exercised without dot-sourcing the entire app.
 function Get-AppCss { return '' }
 
-$fixture = '<div class="butler-refresh-contract" hidden><div>Decision state: CURRENT_AND_ACTIONABLE</div></div><section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
+$fixture = '<div class="butler-refresh-contract" hidden><div>Decision state: CURRENT_AND_ACTIONABLE</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div><section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
 
 $state = Get-V04AutoPilotWatchState -DashboardHtml $fixture
 if (-not $state.Ready) { throw 'BF-1024 BLOCKED: complete Dashboard watch fixture did not become ready.' }
@@ -64,8 +64,45 @@ foreach ($stale in @(
         throw 'BF-1042 BLOCKED: stale watch failed to display its refresh warning.'
     }
 }
-$noMove = Get-V04AutoPilotWatchState -DashboardHtml ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON'))
+# BF-1044: don't trust CURRENT state without unique matching actionability
+# and lineage. Never pass a stale card's specific start/sit or waiver advice
+# through to the rendered Auto-Pilot decision queue.
+foreach ($badProof in @(
+    ($fixture.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')),
+    ($fixture.Replace('BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED', 'BF-631: MARKET_LINEAGE_SUPERSEDED')),
+    ($fixture.Replace('BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED', 'BF-631: UNKNOWN')),
+    ($fixture.Replace('<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>', '')),
+    ($fixture.Replace('<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>', '')),
+    ($fixture.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED</div>', 'BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>'))
+)) {
+    $blocked = Get-V04AutoPilotWatchState -DashboardHtml $badProof
+    if ($blocked.Ready -or $blocked.EvidenceStatus -cne 'UNVERIFIED' -or
+        $blocked.StartSit -cne 'UNAVAILABLE' -or $blocked.Waivers -cne 'UNAVAILABLE') {
+        throw 'BF-1044 BLOCKED: unproven current label created a manager recommendation.'
+    }
+}
+$staleSpecificAdvice = $fixture.Replace('CURRENT_AND_ACTIONABLE', 'STALE_DO_NOT_ACT').
+    Replace('<strong>REFRESH</strong>', '<strong>START 1 / SIT 1</strong>').
+    Replace('<strong>DO NOT ACT</strong>', '<strong>ADD 1 / DROP 1</strong>')
+$masked = Get-V04AutoPilotWatchState -DashboardHtml $staleSpecificAdvice
+if ($masked.Ready -or $masked.EvidenceStatus -cne 'STALE' -or
+    $masked.StartSit -cne 'REFRESH' -or $masked.Waivers -cne 'DO NOT ACT' -or
+    $masked.Attention -cne 'NEEDS REFRESH') {
+    throw 'BF-1044 BLOCKED: stale actionable advice was not masked.'
+}
+$maskedPolicy = Get-V04AutoPilotApprovalPolicy
+$maskedQueue = Get-V04AutoPilotApprovalQueue -WatchState $masked -ApprovalPolicy $maskedPolicy
+$maskedHtml = Get-V04AutoPilotHtml -WatchState $masked -ApprovalPolicy $maskedPolicy -ApprovalQueue $maskedQueue
+if ($maskedHtml -match 'START 1 / SIT 1|ADD 1 / DROP 1|READY FOR MANAGER REVIEW') {
+    throw 'BF-1044 BLOCKED: renderer leaked a stale lineup or waiver recommendation.'
+}
+
+$noMoveHtml = $fixture.Replace('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON').
+    Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: NO_TRANSACTION_TO_REVALIDATE')
+$noMove = Get-V04AutoPilotWatchState -DashboardHtml $noMoveHtml
 if (-not $noMove.Ready) { throw 'BF-1042 BLOCKED: exact audited no-transaction watch should remain reviewable.' }
+$badNoMove = Get-V04AutoPilotWatchState -DashboardHtml ($noMoveHtml.Replace('BF-629: NO_TRANSACTION_TO_REVALIDATE', 'BF-629: BLOCKED'))
+if ($badNoMove.Ready) { throw 'BF-1044 BLOCKED: unproven no-transaction lineage passed.' }
 
 $policy = Get-V04AutoPilotApprovalPolicy
 $queue = Get-V04AutoPilotApprovalQueue -WatchState $state -ApprovalPolicy $policy
