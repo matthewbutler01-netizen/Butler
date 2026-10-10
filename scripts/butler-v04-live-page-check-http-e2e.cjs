@@ -23,8 +23,8 @@ const good = {
   '/team': html('My Team <section>Roster hub Lineup and depth at a glance ' +
     '<section id="roster-starters"><div class="player-row">synthetic player</div></section></section>'),
   '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
-  '/matchup': html('Matchup <section data-butler-week-state="MATCH"></section><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
-  '/matchup/autofill': html('Start/Sit Assistant <section data-butler-week-state="MATCH"></section><section class="panel recommendation-panel start-sit-assistant">Review only</section>'),
+  '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
+  '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
   '/autopilot': html('<section>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span></section>')
 };
@@ -100,6 +100,16 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  await scenario('false-match-badge', {
+    routes: {'/matchup': good['/matchup'].replace(' data-butler-week-season="2026" data-butler-week-number="5"', '')}
+  }, {
+    code:0, output:/\/matchup\s+WARN\s+evidence=PAIRING UNVERIFIED/, allRoutes:true
+  });
+  await scenario('conflicting-pairing', {
+    routes: {'/matchup': good['/matchup'].replace('&middot; Week 5', '&middot; Week 4')}
+  }, {
+    code:1, output:/\/matchup\s+FAIL\s+evidence=PAIRING CONFLICT/, allRoutes:true
   });
   const stale = {
     ...good,
