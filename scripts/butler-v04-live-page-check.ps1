@@ -119,6 +119,50 @@ function Test-ButlerSleeperWeekMatch {
     return [pscustomobject]$result
 }
 
+# BF-1072: the two independent GETs can each display a locally valid
+# source-MATCH week while referring to different saved seasons, weeks or
+# league targets. This synthetic diagnostic cross-check needs no extra HTTP
+# request and must not present two individually passing pages as consistent.
+function Test-ButlerCrossRouteWeek {
+    param(
+        [AllowNull()][string]$MatchupHtml,
+        [AllowNull()][string]$StartSitHtml,
+        [AllowNull()]$MatchupCheck,
+        [AllowNull()]$StartSitCheck
+    )
+
+    if ($null -eq $MatchupCheck -or $null -eq $StartSitCheck -or
+        [string]$MatchupCheck.Status -cne 'PASS' -or
+        [string]$StartSitCheck.Status -cne 'PASS' -or
+        [string]$MatchupCheck.Evidence -cne 'PAIRING VERIFIED' -or
+        [string]$StartSitCheck.Evidence -cne 'PAIRING VERIFIED') {
+        return [pscustomobject]@{ Status = 'SKIP'; Evidence = 'PAGE NOT VERIFIED' }
+    }
+
+    $frames = @()
+    foreach ($html in @($MatchupHtml, $StartSitHtml)) {
+        $targets = [regex]::Matches([string]$html,
+            '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>(?<league>[^<]*?)\s*&middot;\s*Week\s+(?<week>[1-9]|1[0-8])\s*</div>')
+        if ($targets.Count -ne 1) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'CROSS-ROUTE PROOF' }
+        }
+        $frames += [pscustomobject]@{
+            Season = $targets[0].Groups['season'].Value
+            Week = $targets[0].Groups['week'].Value
+            League = [regex]::Replace(
+                [System.Net.WebUtility]::HtmlDecode($targets[0].Groups['league'].Value), '\s+', ' ').Trim()
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($frames[0].League) -or
+        [string]::IsNullOrWhiteSpace($frames[1].League) -or
+        $frames[0].Season -cne $frames[1].Season -or
+        $frames[0].Week -cne $frames[1].Week -or
+        $frames[0].League -cne $frames[1].League) {
+        return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'CROSS-ROUTE CONFLICT' }
+    }
+    return [pscustomobject]@{ Status = 'PASS'; Evidence = 'WEEK/LEAGUE ALIGNED' }
+}
+
 function Test-ButlerLocalHealth {
     param($Response)
     if ($null -eq $Response -or [int]$Response.Status -ne 200 -or
@@ -365,11 +409,17 @@ Write-Host ''
 $failed = 0
 $warned = 0
 $matchupResponse = $null
+$matchupCheck = $null
+$startSitResponse = $null
+$startSitCheck = $null
 foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
         if ($route -ceq '/matchup') { $matchupResponse = $response }
+        if ($route -ceq '/matchup/autofill') { $startSitResponse = $response }
         $check = Test-ButlerLivePage -Route $route -Response $response
+        if ($route -ceq '/matchup') { $matchupCheck = $check }
+        if ($route -ceq '/matchup/autofill') { $startSitCheck = $check }
     }
     catch {
         $check = [pscustomobject]@{ Route = $route; Status = 'FAIL'; Evidence = 'GET ERROR'; AutoCheck = 'N/A' }
@@ -378,6 +428,11 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
     if ($check.Status -ceq 'WARN') { $warned++ }
     Write-Host ("{0,-19} {1,-5} evidence={2,-17} auto={3}" -f $check.Route, $check.Status, $check.Evidence, $check.AutoCheck)
 }
+$weekPair = Test-ButlerCrossRouteWeek -MatchupHtml $(if ($null -ne $matchupResponse) { [string]$matchupResponse.Body } else { '' }) `
+    -StartSitHtml $(if ($null -ne $startSitResponse) { [string]$startSitResponse.Body } else { '' }) `
+    -MatchupCheck $matchupCheck -StartSitCheck $startSitCheck
+if ($weekPair.Status -ceq 'FAIL') { $failed++ }
+Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Cross-route week', $weekPair.Status, $weekPair.Evidence)
 # The optional source check is deliberately separate from default localhost
 # smoke behavior. It never downloads player/league data or repairs evidence.
 if ($CheckSleeperWeek) {
