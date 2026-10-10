@@ -314,6 +314,7 @@ function Resolve-V04AutoPilotOnOpenWeek {
     return [pscustomobject]@{
         WatchState = $watch
         DashboardHtml = $verifiedDashboard
+        MatchupHtml = $verifiedMatchup
     }
 }
 
@@ -1042,6 +1043,118 @@ function Limit-V04AutoPilotToVerifiedWeek {
     return $WatchState
 }
 
+# BF-1074: a Dashboard START/SIT card is not evidence that any lineup
+# change survived exact Sleeper status checks. An actionable Auto-Pilot packet
+# requires a second, independently rendered, read-only Start/Sit review.
+# Fail closed without blocking independently reviewed waiver decisions.
+function Get-V04AutoPilotExactPageFrame {
+    param([AllowEmptyString()][string]$Html = '')
+    $weekMarkers = [regex]::Matches($Html, 'data-butler-week-state=')
+    $seasonMarkers = [regex]::Matches($Html, 'data-butler-week-season=')
+    $numberMarkers = [regex]::Matches($Html, 'data-butler-week-number=')
+    $pairingMarkers = [regex]::Matches($Html, 'data-butler-matchup-season=')
+    if ($weekMarkers.Count -ne 1 -or $seasonMarkers.Count -ne 1 -or
+        $numberMarkers.Count -ne 1 -or $pairingMarkers.Count -ne 1) { return $null }
+    $week = [regex]::Matches($Html,
+        '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>')
+    $pair = [regex]::Matches($Html,
+        '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>(?<league>[^<]*?)\s*&middot;\s*Week\s+(?<week>[1-9]|1[0-8])\s*</div>')
+    if ($week.Count -ne 1 -or $pair.Count -ne 1 -or
+        $week[0].Groups['season'].Value -cne $pair[0].Groups['season'].Value -or
+        $week[0].Groups['week'].Value -cne $pair[0].Groups['week'].Value) { return $null }
+    $league = [regex]::Replace(
+        [System.Net.WebUtility]::HtmlDecode($pair[0].Groups['league'].Value), '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($league)) { return $null }
+    return [pscustomobject]@{
+        Season = $week[0].Groups['season'].Value
+        Week = $week[0].Groups['week'].Value
+        League = $league
+    }
+}
+
+function Limit-V04AutoPilotToSourcedStartSit {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState,
+        [AllowEmptyString()][string]$MatchupHtml = '',
+        [AllowEmptyString()][string]$StartSitHtml = '',
+        [DateTimeOffset]$CheckedAtUtc = [DateTimeOffset]::UtcNow
+    )
+    if (-not [bool]$WatchState.Ready) { return $WatchState }
+
+    # The current week and opponent must match on BOTH routes, not just
+    # independently show a green "MATCH" badge.
+    $matchup = Get-V04AutoPilotExactPageFrame -Html $MatchupHtml
+    $startSit = Get-V04AutoPilotExactPageFrame -Html $StartSitHtml
+    $valid = $null -ne $matchup -and $null -ne $startSit
+    if ($valid) {
+        $valid = $matchup.Season -ceq $startSit.Season -and
+            $matchup.Week -ceq $startSit.Week -and
+            $matchup.League -ceq $startSit.League
+    }
+    if ($valid -and
+        ($StartSitHtml.IndexOf('start-sit-blocker', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+         $StartSitHtml.IndexOf('Butler could not prove a complete weekly lineup recommendation.', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+        $valid = $false
+    }
+    if ($valid) {
+        $proof = [regex]::Matches($StartSitHtml,
+            '(?is)<p\s+class="meta butler-startsit-source-proof"\s+role="status"\s*>(?<text>[^<]*)</p>')
+        if ($proof.Count -ne 1) { $valid = $false }
+    }
+    if ($valid) {
+        $message = [System.Net.WebUtility]::HtmlDecode($proof[0].Groups['text'].Value)
+        # Require the actual BF-1067 sourced-change message. A held swap,
+        # unverified timestamp, no-change decision, or generic Dashboard
+        # signal cannot authorize an Auto-Pilot prepared packet.
+        if ($message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('No Sleeper move was submitted', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            $valid = $false
+        }
+    }
+    if ($valid) {
+        # A source fetch is not clinical clearance. Bound both observation
+        # times; status rows older than two 5-minute Sleeper cache TTLs
+        # cannot be advertised as CURRENT on another page.
+        $iso = '20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z'
+        $status = [regex]::Matches($message, 'swap players status map retrieved (?<time>' + $iso + ') UTC')
+        $projection = [regex]::Matches($message, 'projection snapshot retrieved (?<time>' + $iso + ') UTC')
+        if ($status.Count -ne 1 -or $projection.Count -ne 1) {
+            $valid = $false
+        }
+        else {
+            foreach ($stamp in @(
+                @{ Text = $status[0].Groups['time'].Value; Minutes = 10 },
+                @{ Text = $projection[0].Groups['time'].Value; Minutes = 120 }
+            )) {
+                # DateTimeOffset accepts max 7 fractional digits. Preserve
+                # up to 9 original digits in the evidence but validate the
+                # actual calendar and compare whole-second UTC observations.
+                $wholeSecond = [regex]::Replace($stamp.Text, '\.[0-9]{1,9}Z$', 'Z')
+                $parsed = [DateTimeOffset]::MinValue
+                if (-not [DateTimeOffset]::TryParseExact($wholeSecond,
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+                    $valid = $false
+                    break
+                }
+                $age = $CheckedAtUtc.ToUniversalTime() - $parsed.ToUniversalTime()
+                if ($age -lt [TimeSpan]::FromSeconds(-90) -or
+                    $age -gt [TimeSpan]::FromMinutes($stamp.Minutes)) {
+                    $valid = $false
+                    break
+                }
+            }
+        }
+    }
+    if (-not $valid) {
+        $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
+        # Do not change dashboard/waiver readiness: one source-specific
+        # lineup hold must not invent an unrelated waiver outage.
+    }
+    return $WatchState
+}
+
 function Get-V04AutoPilotApprovalPolicy {
     return [pscustomobject]@{
         Mode = 'MANAGER APPROVAL REQUIRED'
@@ -1585,6 +1698,24 @@ try {
         $resolvedWatch = Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof -InnerPort $InnerPort -League $LeagueId -Root $RepoRoot -RefreshState $RefreshState
         $watchState = $resolvedWatch.WatchState
         $dashboardHtmlForRefresh = [string]$resolvedWatch.DashboardHtml
+
+        # BF-1074: dashboard/matchup source week alone cannot prepare a
+        # player change. Read the actual Start/Sit page once only when the
+        # weekly watch is otherwise ready. All failures withhold ONLY the
+        # Start/Sit proposal, leaving independently checked waivers intact.
+        if ([bool]$watchState.Ready) {
+            $startSitHtmlForReview = ''
+            try {
+                $startSitPage = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup/autofill'
+                if ([int]$startSitPage.StatusCode -eq 200 -and
+                    $startSitPage.ContentType -match '^text/html') {
+                    $startSitHtmlForReview = [string]$startSitPage.Body
+                }
+            }
+            catch { }
+            $watchState = Limit-V04AutoPilotToSourcedStartSit -WatchState $watchState `
+                -MatchupHtml ([string]$resolvedWatch.MatchupHtml) -StartSitHtml $startSitHtmlForReview
+        }
 
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
