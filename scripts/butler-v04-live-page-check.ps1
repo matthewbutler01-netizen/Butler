@@ -207,7 +207,11 @@ function Test-ButlerLivePage {
         }
         $sourceWeekState = $weekProofs[0].Groups['state'].Value
         if ($sourceWeekState -ceq 'MISMATCH' -or $sourceWeekState -ceq 'UNVERIFIED') {
-            if ($body -match '(?i)Promote to lineup|Recommended starter|Start this player|Review Lineup') {
+            # A passive unknown-week Matchup may link to the guarded Start/Sit
+            # page, but must not expose actual player-change advice. A proven
+            # mismatched week may not offer a stale-week review CTA either.
+            if ($body -match '(?i)Promote to lineup|Recommended starter|Start this player' -or
+                ($sourceWeekState -ceq 'MISMATCH' -and $body -match '(?i)>\s*Review Lineup\s*<')) {
                 $result.Status = 'FAIL'
                 $result.Evidence = 'HELD ADVICE'
                 return [pscustomobject]$result
