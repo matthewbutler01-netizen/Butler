@@ -25,6 +25,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SleeperLiveAutoFillLineupRecommendationBf1006Test {
     private static final Instant OBSERVED = Instant.parse("2026-10-03T06:00:00Z");
 
+    // Ordinary healthy-feed fixture: other tests explicitly inject missing,
+    // contradictory, questionable or unavailable status to exercise holds.
+    private static Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability>
+    allActiveStatuses(java.util.Set<String> ids) {
+        return ids.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+            id -> id,
+            id -> new SleeperPlayerAvailabilityProvider.PlayerAvailability(id, "Active", "Healthy")));
+    }
+
     @TempDir
     Path tempDir;
 
@@ -63,7 +72,7 @@ class SleeperLiveAutoFillLineupRecommendationBf1006Test {
         var report = recommendation(
             database,
             projections,
-            ids -> Map.of(),
+            ids -> allActiveStatuses(ids),
             locks("s-wr-b")).recommend(rosterReport("bf1006-locked-bench"));
 
         assertTrue(report.ready());
@@ -83,7 +92,7 @@ class SleeperLiveAutoFillLineupRecommendationBf1006Test {
         var report = recommendation(
             database,
             projections,
-            ids -> Map.of(),
+            ids -> allActiveStatuses(ids),
             locks("s-wr-a")).recommend(rosterReport("bf1006-locked-starter"));
 
         assertTrue(report.ready());
@@ -105,7 +114,7 @@ class SleeperLiveAutoFillLineupRecommendationBf1006Test {
         var report = recommendation(
             database,
             projections,
-            ids -> Map.of(),
+            ids -> allActiveStatuses(ids),
             allUnlocked()).recommend(rosterReport("bf1006-small-edge"));
 
         assertTrue(report.ready());
