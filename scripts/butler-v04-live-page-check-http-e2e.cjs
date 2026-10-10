@@ -23,8 +23,8 @@ const good = {
   '/team': html('My Team <section>Roster hub Lineup and depth at a glance ' +
     '<section id="roster-starters"><div class="player-row">synthetic player</div></section></section>'),
   '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
-  '/matchup': html('Matchup <section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
-  '/matchup/autofill': html('Start/Sit Assistant <section class="panel recommendation-panel start-sit-assistant">Review only</section>'),
+  '/matchup': html('Matchup <section data-butler-week-state="MATCH"></section><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
+  '/matchup/autofill': html('Start/Sit Assistant <section data-butler-week-state="MATCH"></section><section class="panel recommendation-panel start-sit-assistant">Review only</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
   '/autopilot': html('<section>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span></section>')
 };
@@ -130,6 +130,25 @@ async function scenario(name, mutations, expect) {
   await scenario('navigation-only', {
     routes: {'/team':html('My Team navigation only')}
   }, {code:1, output:/\/team\s+FAIL\s+evidence=PAGE CONTENT/, allRoutes:true});
+  await scenario('stale-matchup-no-unsafe-advice', {
+    routes: {
+      '/matchup': good['/matchup'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="MISMATCH"'),
+      '/matchup/autofill': good['/matchup/autofill'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="UNVERIFIED"')
+    }
+  }, {
+    code:0, output:/RESULT: 0 page failure\(s\), 2 watch warning\(s\)/, allRoutes:true
+  });
+  await scenario('missing-week-proof', {
+    routes: {'/matchup': good['/matchup'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="")'}
+  }, {
+    code:1, output:/\/matchup\s+FAIL\s+evidence=WEEK PROOF/, allRoutes:true
+  });
+  await scenario('unverified-week-advice-leak', {
+    routes: {'/matchup/autofill':
+      good['/matchup/autofill'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="UNVERIFIED"').replace('Review only', 'Promote to lineup')}
+  }, {
+    code:1, output:/\/matchup\/autofill\s+FAIL\s+evidence=HELD ADVICE/, allRoutes:true
+  });
   await scenario('old-build-rejected', {feature:'old-v03'}, {
     code:1, output:/BF-1048 BLOCKED/, allRoutes:false
   });
@@ -137,5 +156,5 @@ async function scenario(name, mutations, expect) {
     code:1, output:/\/team\s+FAIL\s+evidence=HTTP SAFETY/, allRoutes:true
   });
   console.log('BF-1050 REAL HTTP v0.4 MANAGER SMOKE: PASS');
-  console.log('Coverage: real loopback GET transport, 7 manager pages, stale/empty roster/unknown opponent, nonce-armed/mismatched CSP, nav-only content, old v0.3 feature rejection, HTTP safety, no POST/Sleeper/provider requests.');
+  console.log('Coverage: GET-only local transport, confirmed/missing/ambiguous/stale-week evidence, blocked Start/Sit advice leaks, nonce-gated CSP, old v0.3 identity rejection, no POST/provider writes.');
 })().catch(err => { console.error(err); process.exitCode = 1; });
