@@ -110,7 +110,10 @@ if ($badNoMove.Ready) { throw 'BF-1044 BLOCKED: unproven no-transaction lineage 
 foreach ($badCards in @(
     ($fixture.Replace('<div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div>', '<div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>START 1 / SIT 1</strong></div>')),
     ($fixture.Replace('<div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div>', '<div class="dashboard-summary-card"><span>Waivers</span><strong> </strong></div>')),
-    ($fixture.Replace('<div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div>', '<div class="dashboard-summary-card"><span>Attention</span><strong></strong></div>'))
+    ($fixture.Replace('<div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div>', '<div class="dashboard-summary-card"><span>Attention</span><strong></strong></div>')),
+    ($fixture.Replace('<div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div>', '')),
+    ($fixture.Replace('<div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div>', '<div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong></strong></div>')),
+    ($fixture.Replace('<div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div>', '<div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Different roster</strong></div>'))
 )) {
     $badCardWatch = Get-V04AutoPilotWatchState -DashboardHtml $badCards
     if ($badCardWatch.Ready) {
