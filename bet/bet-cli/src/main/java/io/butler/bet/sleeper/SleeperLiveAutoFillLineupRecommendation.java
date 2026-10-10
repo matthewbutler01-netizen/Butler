@@ -613,6 +613,22 @@ public final class SleeperLiveAutoFillLineupRecommendation {
                     + "The injury/status source was unavailable; Butler did not prepare a player swap.");
         }
 
+        // BF-1066: a successful HTTP player-map read does not prove that
+        // *every* player in a proposed start/sit change was included. A
+        // projection is not a substitute for exact current availability
+        // evidence for either side of the proposed change. Preserve an
+        // unchanged lineup review, but never prepare a partially sourced swap.
+        if (recommendation.assignments().stream()
+            .filter(AutoFillLineupOptimizer.SlotRecommendation::changed)
+            .anyMatch(assignment ->
+                !hasExactSwapAvailability(assignment, availabilityBySleeperId))) {
+            return RecommendationReport.unavailable(
+                roster.providerSeason(), roster.providerLeg(), scoring,
+                "BF-1066 BLOCKED: current Sleeper player status is missing or ambiguous "
+                    + "for at least one player in a proposed Start/Sit change. "
+                    + "Butler withheld the swap instead of using projection points as availability proof.");
+        }
+
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
         for (String playerId : conditionalHardLegalityUsedPlayerIds) {
             var player = optimizerRoster.stream().filter(p -> playerId.equals(p.playerId())).findFirst().orElse(null);
@@ -734,6 +750,23 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             currentProjectedTotal, projectedGain, recommendation, availabilityExclusions,
             projectionHolds, projectionProvenance(snapshot))
             .withDecisionEvidence(decisionEvidence).withSwapReviews(reviews).withExpertPicks(expertPicks);
+    }
+
+    static boolean hasExactSwapAvailability(
+        AutoFillLineupOptimizer.SlotRecommendation assignment,
+        Map<String, SleeperPlayerAvailabilityProvider.PlayerAvailability> source) {
+        if (!assignment.changed()) return true;
+        for (String id : List.of(assignment.currentPlayerId(), assignment.recommendedPlayerId())) {
+            // Exact empty starter slots are not player identities.
+            if (id == null || id.isBlank() || "0".equals(id)) continue;
+            var status = source.get(id);
+            if (status == null || !id.equals(status.sleeperPlayerId()) ||
+                status.status() == null ||
+                !(status.status().equalsIgnoreCase("Active") || status.confirmedUnavailable())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String expertSummary(List<ExpertPick> picks, String playerId) {
