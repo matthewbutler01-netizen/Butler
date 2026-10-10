@@ -88,6 +88,20 @@ foreach ($needle in @(
 if ($region -match 'Sleeper.*(submit|waiver|transaction)|Set-Faab|Method\s*=\s*POST') {
     throw 'BF-1060 BLOCKED: local week recovery added Sleeper transaction behavior.'
 }
+# BF-1069 must work with the default BF-723 governed install path.
+# An unset override is normal, not evidence of a missing runtime.
+foreach ($requiredDefault in @(
+    "if ([string]::IsNullOrWhiteSpace(`$rawData))",
+    "`$rawData = Join-Path `$localData 'Butler\data'",
+    "elseif (-not [IO.Path]::IsPathRooted(`$rawData))",
+    "Join-Path `$dataDir 'butler.db'",
+    "BF-1069 BLOCKED: runtime data directory override must be absolute."
+)) {
+    if ($runner.IndexOf($requiredDefault, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1069 BLOCKED: default external install data-path guard missing: $requiredDefault"
+    }
+}
+
 foreach ($required in @(
     '[guid]::TryParse($LeagueId',
     'app-league.txt',
