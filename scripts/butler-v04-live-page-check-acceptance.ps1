@@ -88,10 +88,8 @@ foreach ($required in @(
     "http://127.0.0.1:",
     '$request.Method = ''GET''',
     '$request.Proxy = $null',
-    '$request.AllowAutoRedirect = $false',
-    'ScriptNonce'
+    '$request.AllowAutoRedirect = $false'
 )) {
-    if ($required -ceq 'ScriptNonce') { continue }
     if ($source.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1040 BLOCKED: missing safe GET contract $required"
     }
