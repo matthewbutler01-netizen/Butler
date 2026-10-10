@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $workerPath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
+. (Join-Path $PSScriptRoot 'butler-decision-refresh.ps1')
 if (-not (Test-Path -LiteralPath $workerPath -PathType Leaf)) {
     throw "BF-1024 BLOCKED: request worker missing at $workerPath"
 }
@@ -29,7 +30,7 @@ foreach ($functionName in @('Get-V04AutoPilotWatchState','Get-V04AutoPilotApprov
 # Auto-Pilot renderer can be exercised without dot-sourcing the entire app.
 function Get-AppCss { return '' }
 
-$fixture = '<section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
+$fixture = '<div class="butler-refresh-contract" hidden><div>Decision state: CURRENT_AND_ACTIONABLE</div></div><section class="panel"><div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Attention</span><strong>2 NEED ATTENTION</strong></div><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REFRESH</strong></div><div class="dashboard-summary-card"><span>Waivers</span><strong>DO NOT ACT</strong></div><div class="dashboard-summary-card dashboard-summary-team"><span>Roster</span><strong>Hard(CORE)-Dynasty | nuke the whales | roster 6</strong></div></div></section>'
 
 $state = Get-V04AutoPilotWatchState -DashboardHtml $fixture
 if (-not $state.Ready) { throw 'BF-1024 BLOCKED: complete Dashboard watch fixture did not become ready.' }
@@ -37,6 +38,24 @@ if ($state.Attention -cne '2 NEED ATTENTION') { throw 'BF-1024 BLOCKED: Attentio
 if ($state.StartSit -cne 'REFRESH') { throw 'BF-1024 BLOCKED: Start/Sit snapshot mismatch.' }
 if ($state.Waivers -cne 'DO NOT ACT') { throw 'BF-1024 BLOCKED: Waiver snapshot mismatch.' }
 if ($state.Roster -cne 'Hard(CORE)-Dynasty | nuke the whales | roster 6') { throw 'BF-1024 BLOCKED: roster snapshot mismatch.' }
+
+# BF-1042: a complete manager card is NOT a current, approved watch if
+# the governing decision is stale, refresh-required, missing or ambiguous.
+foreach ($stale in @(
+    ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'STALE_DO_NOT_ACT')),
+    ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'CURRENT_REFRESH_RECOMMENDED')),
+    ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'NO_AUDITED_DECISION')),
+    ($fixture.Replace('Decision state: CURRENT_AND_ACTIONABLE', 'Decision state: UNKNOWN')),
+    ($fixture.Replace('<div>Decision state: CURRENT_AND_ACTIONABLE</div>', '')),
+    ($fixture.Replace('</div></div><section', '</div><div>Decision state: CURRENT_AND_ACTIONABLE</div></div><section'))
+)) {
+    $blockedWatch = Get-V04AutoPilotWatchState -DashboardHtml $stale
+    if ($blockedWatch.Ready -or $blockedWatch.StartSit -cne 'REFRESH') {
+        throw 'BF-1042 BLOCKED: stale/ambiguous Dashboard data authorized Auto-Pilot.'
+    }
+}
+$noMove = Get-V04AutoPilotWatchState -DashboardHtml ($fixture.Replace('CURRENT_AND_ACTIONABLE', 'NO_TRANSACTION_TO_ACT_ON'))
+if (-not $noMove.Ready) { throw 'BF-1042 BLOCKED: exact audited no-transaction watch should remain reviewable.' }
 
 $policy = Get-V04AutoPilotApprovalPolicy
 $queue = Get-V04AutoPilotApprovalQueue -WatchState $state -ApprovalPolicy $policy
