@@ -60,6 +60,8 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertEquals(new BigDecimal("15"), report.projectedGain());
         assertTrue(report.recommendation().movesToBench().isEmpty());
         var fill = report.recommendation().assignments().get(1);
+        assertEquals(null, report.swapStatusFetchedAt(),
+            "Legacy exact-status fixture without observed times must not invent a fetch timestamp.");
         assertEquals("0", fill.currentPlayerId());
         assertEquals("s-wr-b", fill.recommendedPlayerId());
         assertEquals(null, fill.currentProjectedPoints());
@@ -226,7 +228,11 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
             ids -> {
                 var statuses = new java.util.LinkedHashMap<>(allActiveStatuses(ids));
                 statuses.put("s-wr-a", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
-                    "s-wr-a", "Commissioner Exempt", null));
+                    "s-wr-a", "Commissioner Exempt", null, null, null,
+                    Instant.parse("2026-10-10T08:00:00Z")));
+                statuses.put("s-wr-b", new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    "s-wr-b", "Active", "Healthy", null, null,
+                    Instant.parse("2026-10-10T08:05:00Z")));
                 return Map.copyOf(statuses);
             })
             .recommend(rosterReport("league-starter-out"));
@@ -241,6 +247,8 @@ class SleeperLiveAutoFillLineupRecommendationBf825Test {
         assertEquals(List.of("s-wr-b"), report.recommendation().promotions().stream()
             .map(player -> player.playerId()).toList());
         assertEquals("Commissioner Exempt", report.availabilityExclusions().getFirst().status());
+        assertEquals(Instant.parse("2026-10-10T08:00:00Z"), report.swapStatusFetchedAt(),
+            "Oldest of both exact swap participants bounds the status-source observation.");
     }
 
     @Test
