@@ -13,6 +13,7 @@ import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
 import io.butler.bet.sleeper.SleeperClient;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -143,6 +144,7 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
                 // BF-1058: ambiguous duplicate source fields cannot certify a current week.
                 JsonNode source = new ObjectMapper()
                     .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+                    .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
                     .readTree(providerJson);
                 if (source != null && source.isObject()
                     && "regular".equals(source.path("season_type").asText())
