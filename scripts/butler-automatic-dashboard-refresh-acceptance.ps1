@@ -24,6 +24,9 @@ if ($ok.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
 foreach ($bad in @(
     $dashboard,
     ($eligible.Replace('Decision state: STALE_DO_NOT_ACT', 'Decision state: NO_TRANSACTION_TO_ACT_ON')),
+    ($eligible.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')),
+    ($eligible.Replace('BF-631: MARKET_LINEAGE_SUPERSEDED', 'BF-631: UNKNOWN')),
+    ($eligible.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: LIVE_ACTIONABLE_VERIFIED</div><div>BF-629: LIVE_ACTIONABLE_VERIFIED')),
     ($eligible.Replace('Audit ID: 11111111-1111-1111-1111-111111111111', 'Audit ID: UNKNOWN')),
     ($eligible.Replace('</body>', '<div>Audit ID: 11111111-1111-1111-1111-111111111111</div></body>')),
     ($eligible.Replace('<body>', '<body><body>')),
@@ -36,6 +39,16 @@ foreach ($bad in @(
     if ($blocked.Nonce -ne '' -or $blocked.Html -cne $bad) {
         throw 'Unsafe Dashboard automatic refresh accepted.'
     }
+}
+
+# A preexisting refresh link is only presentation, never evidence of
+# authorization. Directly recheck the exact audited state and BF fields.
+$prelinkedUnsafe = $dashboard.Replace('<nav class="nav" aria-label="Butler sections">',
+    '<nav class="nav" aria-label="Butler sections"><a href="/refresh">Refresh Butler data</a>').
+    Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED')
+$prelinkedAttempt = Add-AutomaticDashboardRefresh -Html $prelinkedUnsafe -RequestTarget '/' -Token $token
+if ($prelinkedAttempt.Nonce -ne '' -or $prelinkedAttempt.Html -cne $prelinkedUnsafe) {
+    throw 'Preexisting Dashboard refresh link bypassed the exact BF-629 gate.'
 }
 
 $wrong = Add-AutomaticDashboardRefresh -Html $eligible -RequestTarget '/team' -Token $token
