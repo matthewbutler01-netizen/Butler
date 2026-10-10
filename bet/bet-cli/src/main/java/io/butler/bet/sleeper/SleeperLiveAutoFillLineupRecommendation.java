@@ -598,6 +598,21 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             projectedGain = recommendation.projectedTotal().subtract(currentProjectedTotal);
         }
 
+        // BF-1063: a good-looking projected swap is NOT safe to propose
+        // when the current Sleeper injury/availability feed was unreachable.
+        // Prior code preserved holds only for missing-projection players,
+        // but still promoted other candidates whose Out/IR status had not
+        // been checked. Keep no-change partial reviews accessible; never
+        // prepare a start/sit move using an unverified availability snapshot.
+        if (availabilityFailure != null
+            && recommendation.assignments().stream().anyMatch(
+                AutoFillLineupOptimizer.SlotRecommendation::changed)) {
+            return RecommendationReport.unavailable(
+                roster.providerSeason(), roster.providerLeg(), scoring,
+                "BF-1063 BLOCKED: projected lineup changes need current Sleeper availability verification. "
+                    + "The injury/status source was unavailable; Butler did not prepare a player swap.");
+        }
+
         List<String> decisionEvidence = new ArrayList<>(LineupDecisionEvidence.describe(database, roster, recommendation));
         for (String playerId : conditionalHardLegalityUsedPlayerIds) {
             var player = optimizerRoster.stream().filter(p -> playerId.equals(p.playerId())).findFirst().orElse(null);
