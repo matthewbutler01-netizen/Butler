@@ -51,6 +51,13 @@ class ButlerWeeklyMatchupLiveWeekBf1054Test {
         assertTrue(bundle.contains("Future<String> weekFuture"));
         assertTrue(bundle.contains("get(6, TimeUnit.SECONDS)"));
         assertTrue(bundle.contains("emit(WEEK_FRESHNESS, weekProof)"));
+        // BF-1055: a mismatched/offline current week must not query
+        // FantasyPros projections merely because the manager opened Start/Sit.
+        assertTrue(bundle.contains("includeAutoFill && weekVerified"));
+        assertTrue(bundle.contains("weekProof.contains(System.lineSeparator() + \"State: MATCH\""));
+        assertTrue(bundle.contains("RecommendationReport.unavailable("));
+        assertTrue(bundle.contains("Start/Sit is held without querying projections."));
+        assertTrue(renderer.contains("ConvertTo-MatchupWeekHoldHtml -Reason $reason -StartSit $requestAutoFill"));
         assertTrue(renderer.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"WEEK_FRESHNESS\""));
         assertTrue(renderer.contains("if ($weekProof.State -ceq 'MISMATCH')"));
         assertTrue(renderer.contains("New-AutoFillIdleView"));
