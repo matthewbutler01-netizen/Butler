@@ -131,6 +131,36 @@ function ConvertTo-MatchupRosterContextView {
 # BF-1054: one ordinary matchup page visit checks Sleeper's public current
 # NFL week through the single JVM bundle. It does not synchronize a roster,
 # matchup, player injury or projection, and never permits provider writes.
+# BF-1055: never render a saved opponent, saved Start/Sit decision, or
+# a "Review Lineup" action when the authoritative public NFL week disagrees.
+# A Start/Sit page also withholds advice when the week cannot be verified.
+# No Butler database or Sleeper provider write occurs here.
+function ConvertTo-MatchupWeekHoldHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$Reason,
+        [Parameter(Mandatory = $true)][bool]$StartSit
+    )
+
+    $css = Get-AppCss
+    $nav = Get-AppNav -Active 'matchup'
+    $title = if ($StartSit) { 'Butler - Start/Sit Assistant' } else { 'Butler - Weekly Matchup' }
+    $assistantHold = if ($StartSit) {
+        '<section class="panel recommendation-panel start-sit-assistant"><h2>Start/Sit review held</h2><p>Butler will not recommend a starter change until the current NFL week and exact league matchup are verified. No player recommendation is available from the saved week.</p></section>'
+    }
+    else { '' }
+    $safeReason = ConvertTo-HtmlText $Reason
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>$title</title><style>$css</style></head><body><main class="shell">
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Saved weekly pairing held</div></header>
+$nav
+<section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Weekly matchup</div><h1 class="headline">Saved matchup not usable</h1><p class="lede">$safeReason</p></div><span class="status warn">DO NOT ACT</span></div></section>
+$assistantHold
+<section class="panel boundary"><span class="lock">READ ONLY.</span> A saved pairing does not prove this week's opponent or starter recommendation. Butler did not refresh, update, or submit any league or roster data. Synchronize the exact weekly evidence before using matchup or Start/Sit advice.</section>
+</main></body></html>
+"@
+}
+
 function Get-MatchupPublicWeekProof {
     param([Parameter(Mandatory = $true)][string]$Text)
 
@@ -307,8 +337,15 @@ $matchupRoute = @'
                     # A proven source-season/week change overrides all saved
                     # opponent and Start/Sit suggestions. GET never syncs or
                     # changes Sleeper or Butler database records.
-                    if ($weekProof.State -ceq 'MISMATCH') {
-                        $html = ConvertTo-MatchupUnavailableHtml -Roster $rosterView -AutoFill (New-AutoFillIdleView) -Reason 'The saved weekly pairing is outdated relative to the current public Sleeper NFL week. Synchronize weekly matchup evidence before acting.'
+                    if ($weekProof.State -ceq 'MISMATCH' -or
+                        ($requestAutoFill -and $weekProof.State -cne 'MATCH')) {
+                        $reason = if ($weekProof.State -ceq 'MISMATCH') {
+                            'The saved weekly pairing is outdated relative to the current public Sleeper NFL week. No saved opponent or Start/Sit decision is usable until governed weekly evidence is synchronized.'
+                        }
+                        else {
+                            'Sleeper could not verify the current NFL season and week. Start/Sit advice is held rather than presenting a saved-week recommendation as current.'
+                        }
+                        $html = ConvertTo-MatchupWeekHoldHtml -Reason $reason -StartSit $requestAutoFill
                         $html = Add-MatchupPublicWeekNotice -Html $html -Proof $weekProof
                         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
                         continue
