@@ -467,7 +467,11 @@ function ConvertTo-ButlerUserFacingHtml {
             throw "BF-791 BLOCKED: public HTML encoding boundary count was $($bodyEncodingMatches.Count), expected exactly 1."
     }
     $bodyEncodingReplacement = @'
-    if ($ContentType -match '^text/html') {
+    # BF-1127: a first-open module failure already has a standalone safe page.
+    # Never route its PUBLIC_WORKER 503 through optional presentation helpers:
+    # their failure could turn the useful 503 back into a dropped connection.
+    if ($ContentType -match '^text/html' -and
+        -not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')) {
         $bf856PresentationStarted = if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             [System.Diagnostics.Stopwatch]::GetTimestamp()
         } else {
