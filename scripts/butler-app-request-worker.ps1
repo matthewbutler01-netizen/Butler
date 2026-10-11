@@ -1365,8 +1365,13 @@ function Get-V04AutoPilotHtml {
     elseif ($lineupDecisionHeld) {
         'LINEUP ACTION HELD'
     }
-    elseif ([bool]$WatchState.Ready) {
+    # BF-1092: a current Dashboard snapshot is not by itself a verified
+    # lineup. Green requires the actual deep Start/Sit source outcome.
+    elseif ([bool]$WatchState.Ready -and ($sourceChanged -or $sourceNoChange)) {
         'CURRENT SNAPSHOT'
+    }
+    elseif ([bool]$WatchState.Ready) {
+        'LINEUP SOURCE NOT VERIFIED'
     }
     elseif ($evidenceStatus -ceq 'STALE') {
         'EVIDENCE NEEDS REFRESH'
@@ -1380,7 +1385,8 @@ function Get-V04AutoPilotHtml {
     else {
         'WATCH DATA UNAVAILABLE'
     }
-    $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld) { 'good' } else { 'warn' }
+    $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld -and
+        ($sourceChanged -or $sourceNoChange)) { 'good' } else { 'warn' }
     # BF-1086: show actual source observations, never host-clock freshness.
     $lineupSourceTiming = 'Lineup source fetch times not independently verified for this view.'
     if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld -and
