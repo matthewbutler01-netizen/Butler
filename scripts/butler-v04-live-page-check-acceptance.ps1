@@ -233,6 +233,39 @@ if ($workerSource.IndexOf('No Butler or Sleeper write was executed.',
     throw 'BF-1114 BLOCKED: public stop page claimed no local evidence write.'
 }
 
+# BF-1117: an exception while obtaining app CSS/navigation must not
+# prevent an HTTP 500 from providing a safe route back into the app.
+# The minimal HTML fallback executes independently of the app modules.
+$minimalFunction = $workerAst.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -ceq 'Get-ButlerMinimalBlockedPageHtml'
+}, $true)
+if ($null -eq $minimalFunction) {
+    throw 'BF-1117 BLOCKED: independent manager fallback page missing.'
+}
+. ([scriptblock]::Create($minimalFunction.Extent.Text))
+foreach ($case in @(
+    @{ Title = 'My Team unavailable'; Href = '/team'; Label = 'Try My Team again'; Expected = '/team' },
+    @{ Title = '<SECRET_PLAYER>'; Href = 'javascript:alert(1)'; Label = '<secret>'; Expected = '/' },
+    @{ Title = 'Start/Sit unavailable'; Href = '/matchup/autofill'; Label = 'Try Start/Sit again'; Expected = '/matchup/autofill' }
+)) {
+    $html = Get-ButlerMinimalBlockedPageHtml -Title $case.Title -PrimaryHref $case.Href -PrimaryLabel $case.Label
+    if ($html.IndexOf('<!doctype html><html lang="en">', [StringComparison]::Ordinal) -lt 0 -or
+        $html.IndexOf('No Sleeper transaction was submitted by this page', [StringComparison]::Ordinal) -lt 0 -or
+        $html.IndexOf('href="' + $case.Expected + '"', [StringComparison]::Ordinal) -lt 0 -or
+        $html.IndexOf('javascript:', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $html.IndexOf('<SECRET_PLAYER>', [StringComparison]::Ordinal) -ge 0 -or
+        $html.IndexOf('&lt;secret&gt;', [StringComparison]::Ordinal) -ge 0) {
+        # Invalid links fall back to a fixed label. We never reflect it.
+        throw 'BF-1117 BLOCKED: fallback page missing safety, route or escaping contract.'
+    }
+}
+if ($workerSource.IndexOf('Get-ButlerMinimalBlockedPageHtml -Title $failure.Title -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel',
+        [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1117 BLOCKED: outer app failure is not routed to independent safe HTML.'
+}
+
 # BF-1102: exact independently sourced Matchup week must align with
 # the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
 $bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
