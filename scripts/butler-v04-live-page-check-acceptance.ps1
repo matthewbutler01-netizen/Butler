@@ -224,12 +224,32 @@ $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'WATCH INCOMPLETE') {
     throw 'BF-1042 BLOCKED: stale Auto-Pilot watch was mislabeled current.'
 }
-$page.Body = '<html><body>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
+$page.Body = '<html><body><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
 $page.Csp = "default-src 'none'; frame-ancestors 'none'; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
 $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
     throw 'BF-1040 BLOCKED: eligible Auto-Pilot nonce or healthy watch was rejected.'
 }
+
+# BF-1084: do not accept a green keyword floating in a footer when
+# the actual watch badge is a held/warning state, and reject duplicate
+# contradictory watch headers even if one of them says current.
+$goodAutoPilot = $page.Body
+foreach ($bad in @(
+    ($goodAutoPilot.Replace(
+        '<span class="status good">CURRENT SNAPSHOT</span>',
+        '<span class="status warn">LINEUP ACTION HELD</span><p>CURRENT SNAPSHOT</p>')),
+    ($goodAutoPilot + $goodAutoPilot),
+    ($goodAutoPilot.Replace('class="status good"','class="status warn"')),
+    ($goodAutoPilot.Replace('class="autopilot-watch-head"','class="other-banner"'))
+)) {
+    $page.Body = $bad
+    $result = Test-ButlerLivePage -Route '/autopilot' -Response $page
+    if ($result.Status -cne 'WARN' -or $result.Evidence -cne 'WATCH INCOMPLETE') {
+        throw 'BF-1084 BLOCKED: duplicate or non-current actual Auto-Pilot watch passed the diagnostic.'
+    }
+}
+$page.Body = $goodAutoPilot
 
 # BF-1049: menu labels can appear on a normal-looking shell even when the
 # actual roster/matchup/waiver evidence did not render. Require page-specific
