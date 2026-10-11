@@ -12,6 +12,13 @@ const path = require('node:path');
 const ps = path.join(__dirname, 'butler-v04-live-page-check.ps1');
 const feature = 'v04-audited-onopen-freshness-bf1048';
 const csp = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+const observed = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+const currentProof = '<p class="meta butler-startsit-source-proof" role="status">' +
+  '1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. ' +
+  'Full scoreable projection coverage; 0 player holds. Recheck injury updates before kickoff. ' +
+  'A projection is not availability clearance and no Sleeper move was submitted. ' +
+  'Sources: projection snapshot retrieved ' + observed + ' UTC; swap players status map retrieved ' +
+  observed + ' UTC. This records a source fetch, not an injury report publication time.</p>';
 const audited = '<div>Decision state: CURRENT_AND_ACTIONABLE</div>' +
   '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
   '<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>';
@@ -24,7 +31,7 @@ const good = {
     '<section id="roster-starters"><div class="player-row">synthetic player</div></section></section>'),
   '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
-  '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only</section>'),
+  '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
   '/autopilot': html('<section>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span></section>')
 };
@@ -104,6 +111,35 @@ async function scenario(name, mutations, expect) {
   // return OS success when every locally observable requirement passes.
   await scenario('strict-all-pages-ready', {strict:true}, {
     code:0, output:/READINESS GATE: LOCAL PAGE CHECKS PASS ONLY; PUBLIC NFL WEEK NOT REQUESTED/, allRoutes:true
+  });
+  await scenario('strict-decorative-startsit-panel', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace(currentProof, '')}
+  }, {
+    code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
+  });
+  await scenario('strict-expired-player-availability', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace(
+      'swap players status map retrieved ' + observed + ' UTC',
+      'swap players status map retrieved 2025-01-01T10:00:00Z UTC')}
+  }, {
+    code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
+  });
+  await scenario('strict-incomplete-projection-coverage', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace(
+      'Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros')}
+  }, {
+    code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
+  });
+  await scenario('strict-unverified-player-status', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace(
+      'swap players status map retrieved ' + observed + ' UTC',
+      'exact swap status fetch time not verified')}
+  }, {
+    code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
   });
   await scenario('strict-missing-matchup-proof', {
     strict:true,
