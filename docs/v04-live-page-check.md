@@ -20,6 +20,12 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1117: a manager failure screen survives a broken CSS/navigation renderer
+
+The primary manager error template calls app CSS/navigation helpers. If those helpers fail (for example while local modules are unavailable), attempting to display the **error screen itself** can throw and close the connection without a useful page. The outer manager error path now catches an error rendering its normal blocked-page template and supplies a **minimal self-contained HTTP 500 page** with clear content, accessible focus styles and an exact fixed GET retry/Dashboard link. It does not call the core, a provider, local evidence recovery, or another helper that relies on the broken style/nav layer. Unknown/unsafe links are reduced to Dashboard and untrusted copy is HTML-encoded; no exception text appears in public markup. HTTP 500 and the BF-1112 fixed failure-layer header remain unchanged, making both the person and the one-click diagnostic aware of the failure.
+
+Windows acceptance executes the pure fallback from the actual worker AST and covers valid route links, unsafe hrefs and HTML escaping. This improves failure containment but is **not** a fix for missing backend evidence or an authorization to act on an unverified recommendation.
+
 ## BF-1116: trade and history failures do not expose raw exceptions
 
 The original Decision History and Trade Analyzer 400 error pages still inserted `$_.Exception.Message` directly into HTML. Because these routes can process selection/query state and local evidence reads, a raw exception might contain private file locations, player names or other internal context. Both 400 pages now use **fixed, route-specific guidance** instead. Existing navigation back to Decision History or Trade Analyzer, safe HTML escaping, and 400 status are preserved. The BF-973 Windows parity acceptance now explicitly rejects raw exception-message templates for both routes. This is an error display change only: no new data read, no extra provider transaction, no auto-retry and no deployment.
