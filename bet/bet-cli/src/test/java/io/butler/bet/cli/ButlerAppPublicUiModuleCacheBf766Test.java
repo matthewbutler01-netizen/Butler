@@ -90,6 +90,33 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void firstOpenPublicWorker503BypassesOptionalPresentationWithoutWeakeningNormalPages() throws Exception {
+        // BF-1127: rendering a fail-closed first-open 503 must not depend on
+        // optional UI presentation helpers after a module import has failed.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int sendBoundary = wrapper.indexOf("$bodyEncodingReplacement = @'");
+        int gate = wrapper.indexOf("if ($ContentType -match '^text/html' -and", sendBoundary);
+        int exception = wrapper.indexOf(
+            "-not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')", gate);
+        int present = wrapper.indexOf("ConvertTo-ButlerUserFacingHtml -Html $Body", exception);
+        int accessible = wrapper.indexOf("Add-ButlerAccessibility -Html $Body", present);
+        int encode = wrapper.indexOf("$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)", accessible);
+
+        assertTrue(sendBoundary >= 0 && gate > sendBoundary && exception > gate);
+        assertTrue(present > exception && accessible > present && encode > accessible,
+            "BF-1127 only the safe public-worker 503 may skip optional HTML presentation");
+        assertTrue(wrapper.contains("if (-not $bf890AcceptanceDiagnostic)"),
+            "normal HTML responses must retain their existing presentation controls");
+        assertTrue(wrapper.contains("-StatusCode 503 -StatusText 'Service Unavailable'"));
+        assertTrue(wrapper.contains("-FailureLayer 'PUBLIC_WORKER'"));
+        assertTrue(worker.contains("function Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(worker.contains("No Sleeper transaction was submitted by this page."));
+        assertFalse(wrapper.contains("submitTransaction"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
