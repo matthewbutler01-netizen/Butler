@@ -390,6 +390,21 @@ $noChange = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page -Requ
 if ($noChange.Status -cne 'PASS') {
     throw 'BF-1079 BLOCKED: current zero-change lineup with no holds was treated as a fake pending transaction.'
 }
+# BF-1096: an apparently valid no-change preview must not override
+# contradictory holds, coverage or a quietly embedded proposed swap.
+foreach ($badKeep in @(
+    $noChangeProof.Replace('0 player holds.', '0 player holds. 10 player holds.'),
+    $noChangeProof.Replace('Full scoreable projection coverage;', 'Full scoreable projection coverage; Full scoreable projection coverage;'),
+    $noChangeProof.Replace('No lineup change is ready.', '0 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time.'),
+    $noChangeProof.Replace('Sources:', '1 proposed lineup changes. Sources:'),
+    $noChangeProof.Replace('No lineup change is ready.', 'Perhaps No lineup change is ready.')
+)) {
+    $page.Body = $startSitFrame + $badKeep + '</section></body></html>'
+    $heldKeep = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page -RequireStartSitProvenance
+    if ($heldKeep.Status -cne 'WARN' -or $heldKeep.Evidence -cne 'START/SIT SOURCE HOLD') {
+        throw 'BF-1096 BLOCKED: contradictory no-change source was certified.'
+    }
+}
 foreach ($bad in @(
     '',
     ($readyProof + $readyProof),
@@ -402,6 +417,15 @@ foreach ($bad in @(
     ($readyProof.Replace('swap players status map retrieved ' + $utc + ' UTC', 'swap players status map retrieved 2024-01-01T10:00:00Z UTC')),
     ($readyProof.Replace('projection snapshot retrieved ' + $utc + ' UTC', 'projection snapshot retrieved 2024-01-01T10:00:00Z UTC')),
     ($readyProof.Replace('projection snapshot retrieved ' + $utc + ' UTC', 'projection snapshot retrieved 2026-02-30T10:00:00Z UTC')),
+    # BF-1096: the strict gate must reject contradictory or duplicative
+    # counts even when it also contains one superficially valid phrase.
+    ($readyProof.Replace('0 player holds.', '0 player holds. 10 player holds.')),
+    ($readyProof.Replace('0 player holds.', '0 player holds. 1 player hold.')),
+    ($readyProof.Replace('Full scoreable projection coverage;', 'Full scoreable projection coverage; Full scoreable projection coverage;')),
+    ($readyProof.Replace('1 proposed lineup changes', '1 proposed lineup changes. 2 proposed lineup changes')),
+    ($readyProof.Replace('1 proposed lineup changes', '0 proposed lineup changes')),
+    ($readyProof.Replace('1 proposed lineup changes', '01 proposed lineup changes')),
+    ($readyProof.Replace('1 proposed lineup changes', 'changed 1 proposed lineup changes')),
     ($readyProof.Replace('no Sleeper move was submitted', 'Sleeper move submitted'))
 )) {
     $page.Body = $startSitFrame + $bad + '</section></body></html>'
