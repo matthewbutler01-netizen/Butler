@@ -119,12 +119,14 @@ function Get-TradeSelectionSet {
 function Invoke-AppCoreGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][string]$RequestTarget
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [ValidateRange(1000, 180000)][int]$TimeoutMs = 180000
     )
 
     $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$Port$RequestTarget")
     $request.Method = 'GET'
-    $request.Timeout = 180000
+    $request.Timeout = $TimeoutMs
+    $request.ReadWriteTimeout = $TimeoutMs
     $request.Proxy = $null
     $response = $null
     try {
@@ -1714,7 +1716,10 @@ try {
         if ([bool]$watchState.Ready) {
             $startSitHtmlForReview = ''
             try {
-                $startSitPage = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup/autofill'
+                # BF-1076: this optional deeper review must not hold the
+                # Auto-Pilot page for the 180-second core default during a
+                # source outage. Timeouts block only the lineup proposal.
+                $startSitPage = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup/autofill' -TimeoutMs 12000
                 if ([int]$startSitPage.StatusCode -eq 200 -and
                     $startSitPage.ContentType -match '^text/html') {
                     $startSitHtmlForReview = [string]$startSitPage.Body
