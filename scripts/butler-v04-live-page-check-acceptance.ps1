@@ -60,7 +60,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit', 'Test-ButlerCrossRouteOnOpen')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -131,6 +131,39 @@ Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'none' -Status 'WARN' -Eviden
 Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'positive' -Duplicate -Status 'WARN' -Evidence 'START/SIT SOURCE UNKNOWN'
 Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'positive' -OtherUnverified -Status 'SKIP' -Evidence 'PAGE NOT VERIFIED'
 Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof $sourcePositive.Replace('1 proposed lineup changes','0 proposed lineup changes') -Status 'WARN' -Evidence 'START/SIT SOURCE UNKNOWN'
+
+# BF-1097: on-open eligibility must be independently supported by
+# audited Dashboard HTML. The diagnostic never executes a browser refresh.
+$bf1097Audit = '11111111-1111-1111-1111-111111111111'
+$bf1097Dash = '<html><body><nav class="nav" aria-label="Butler sections"></nav>' +
+    '<div>Decision state: STALE_DO_NOT_ACT</div>' +
+    '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
+    '<div>BF-631: MARKET_LINEAGE_SUPERSEDED</div>' +
+    '<div>Audit ID: ' + $bf1097Audit + '</div></body></html>'
+$bf1097Pilot = '<html><body>CURRENT WEEKLY WATCH</body></html>'
+$bf1097Token = 'a' * 64
+$bf1097Armed = Add-AutomaticAutoPilotRefresh -Html $bf1097Pilot -DashboardHtml $bf1097Dash -RequestTarget '/autopilot' -Token $bf1097Token
+if ([string]::IsNullOrWhiteSpace([string]$bf1097Armed.Nonce)) {
+    throw 'BF-1097 BLOCKED: valid stale Dashboard did not authorize synthetic on-open fixture.'
+}
+$bf1097DashCheck = [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUDIT STALE' }
+$bf1097ArmedCheck = [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH INCOMPLETE'; AutoCheck = 'ARMED' }
+$bf1097UnarmedCheck = [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH INCOMPLETE'; AutoCheck = 'NOT NEEDED/GATED' }
+$bf1097CurrentDash = $bf1097Dash.Replace('STALE_DO_NOT_ACT', 'CURRENT_AND_ACTIONABLE').
+    Replace('MARKET_LINEAGE_SUPERSEDED', 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
+function Assert-Bf1097OnOpen {
+    param([string]$Dashboard,[string]$Pilot,$PilotCheck,[string]$Expected,[string]$Evidence)
+    $actual = Test-ButlerCrossRouteOnOpen -DashboardHtml $Dashboard -AutoPilotHtml $Pilot -DashboardCheck $bf1097DashCheck -AutoPilotCheck $PilotCheck
+    if ($actual.Status -cne $Expected -or $actual.Evidence -cne $Evidence) {
+        throw "BF-1097 BLOCKED: expected $Expected/$Evidence, got $($actual.Status)/$($actual.Evidence)."
+    }
+}
+Assert-Bf1097OnOpen -Dashboard $bf1097Dash -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'PASS' -Evidence 'ON-OPEN ARMED'
+Assert-Bf1097OnOpen -Dashboard $bf1097Dash -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO MISSING'
+Assert-Bf1097OnOpen -Dashboard $bf1097CurrentDash -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'PASS' -Evidence 'ON-OPEN GATED'
+Assert-Bf1097OnOpen -Dashboard $bf1097CurrentDash -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT SOURCE UNKNOWN'
+Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'SKIP' -Evidence 'PROOF UNAVAILABLE'
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
