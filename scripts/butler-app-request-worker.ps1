@@ -1793,7 +1793,8 @@ function Send-HttpResponse {
 
         [string]$Bf857Timing,
         [string]$ScriptNonce,
-        [string]$FailureLayer = ''
+        [string]$FailureLayer = '',
+        [switch]$SkipOptionalHtmlPresentation
     )
 
     $scriptPolicy = ''
@@ -2343,15 +2344,18 @@ try {
         # reports a safe failure-layer enum; show a useful retry screen
         # instead of reflecting exception details into browser HTML.
         $failure = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase $failurePhase
+        $bf1129MinimalFallback = $false
         try {
             $errorHtml = Get-ButlerBlockedPageHtml -Title $failure.Title -Message $failure.Message -Active $failure.Active -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel -SecondaryHref $failure.SecondaryHref -SecondaryLabel $failure.SecondaryLabel
         }
         catch {
-            # BF-1117: CSS or nav helpers might themselves be broken. Avoid
-            # recursive error-page rendering; use an independent safe page.
+            # BF-1117/BF-1129: optional CSS/navigation already failed.
+            # This independent, accessible error page must not be sent back
+            # through optional HTML presentation, which could also fail.
             $errorHtml = Get-ButlerMinimalBlockedPageHtml -Title $failure.Title -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel
+            $bf1129MinimalFallback = $true
         }
-        Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml -FailureLayer $failurePhase
+        Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml -FailureLayer $failurePhase -SkipOptionalHtmlPresentation:$bf1129MinimalFallback
     }
 }
 finally {
