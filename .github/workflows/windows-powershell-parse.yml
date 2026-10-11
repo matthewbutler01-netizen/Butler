@@ -65,10 +65,14 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1129-minimal-500-acceptance.ps1'
           if (-not $?) { exit 1 }
-          & '.\scripts\butler-bf1130-core-down-manager-500-acceptance.ps1'
-          if (-not $?) { exit 1 }
-          & '.\scripts\butler-bf1132-synthetic-manager-success-acceptance.ps1'
-          if (-not $?) { exit 1 }
+          # BF-1133: each real-worker test runs in a fresh PowerShell process.
+          # BF-766 deliberately caches parsed modules globally per runspace;
+          # carrying the previous test's deleted temporary module paths into
+          # the next fixture would falsely report HTTP 503 instead of 200.
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1130-core-down-manager-500-acceptance.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1132-synthetic-manager-success-acceptance.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1055-matchup-stale-hold-acceptance.ps1'
