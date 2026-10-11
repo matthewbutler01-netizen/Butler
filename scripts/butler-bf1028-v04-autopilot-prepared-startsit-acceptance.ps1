@@ -125,13 +125,13 @@ foreach ($required in @(
 # BF-1106: verified lineup count is visible in the proof panel,
 # manager queue and direct Start/Sit navigation. A false count or a held
 # Dashboard card alone must never advertise a sourced lineup change.
-if ($readyHtml.IndexOf('1 sourced lineup change need your review.', [StringComparison]::Ordinal) -lt 0 -or
+if ($readyHtml.IndexOf('1 sourced lineup change needs your review.', [StringComparison]::Ordinal) -lt 0 -or
     $readyHtml.IndexOf('verified current lineup proposal: 1 sourced lineup change.', [StringComparison]::Ordinal) -lt 0 -or
     $readyHtml.IndexOf('href="/matchup/autofill">Open the sourced Start/Sit recommendations</a>', [StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1106 BLOCKED: Auto-Pilot lost concrete sourced change count or one-click manager review.'
 }
-if ($rawHtml.IndexOf('sourced lineup change need your review.', [StringComparison]::Ordinal) -ge 0 -or
-    $blockedHtml.IndexOf('sourced lineup change need your review.', [StringComparison]::Ordinal) -ge 0) {
+if ($rawHtml.IndexOf('sourced lineup change needs your review.', [StringComparison]::Ordinal) -ge 0 -or
+    $blockedHtml.IndexOf('sourced lineup change needs your review.', [StringComparison]::Ordinal) -ge 0) {
     throw 'BF-1106 BLOCKED: unverified or held lineup acquired sourced count.'
 }
 $multiWatch = [pscustomobject]@{
