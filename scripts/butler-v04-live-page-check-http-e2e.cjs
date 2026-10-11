@@ -129,7 +129,7 @@ async function scenario(name, mutations, expect) {
     httpStatus: {'/team':500, '/waivers':503}
   }, {
     code:1,
-    output:/\\/team[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500[\\s\\S]*\\/waivers[^\\r\\n]*FAIL[^\\r\\n]*HTTP 503/,
+    output:/[/]team[^\r\n]*FAIL[^\r\n]*HTTP 500[\s\S]*[/]waivers[^\r\n]*FAIL[^\r\n]*HTTP 503/,
     allRoutes:true
   });
   // BF-1102: the on-screen Auto-Pilot season/week must agree with the
