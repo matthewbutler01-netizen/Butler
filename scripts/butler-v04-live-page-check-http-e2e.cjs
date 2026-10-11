@@ -33,7 +33,7 @@ const good = {
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
-  '/autopilot': html('<section>CURRENT WEEKLY WATCH <span>CURRENT SNAPSHOT</span></section>')
+  '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div></section>')
 };
 const expectedGet = ['/health','/','/team','/waivers','/matchup','/matchup/autofill','/league','/autopilot'];
 async function scenario(name, mutations, expect) {
@@ -163,6 +163,23 @@ async function scenario(name, mutations, expect) {
   await scenario('strict-unverified-autopilot', {
     strict:true,
     routes:{'/autopilot':good['/autopilot'].replace('CURRENT SNAPSHOT', 'LINEUP SOURCE NOT VERIFIED')}
+  }, {
+    code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
+  });
+  // BF-1084: decorative "CURRENT SNAPSHOT" in a footer or script
+  // cannot outvote the explicitly held watch-header status.
+  await scenario('strict-decorative-autopilot-current', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(
+      '<span class="status good">CURRENT SNAPSHOT</span>',
+      '<span class="status warn">LINEUP ACTION HELD</span><p>CURRENT SNAPSHOT</p>')}
+  }, {
+    code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
+  });
+  await scenario('strict-duplicate-autopilot-badge', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(
+      '</section>', '</section>' + good['/autopilot'])}
   }, {
     code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
   });
