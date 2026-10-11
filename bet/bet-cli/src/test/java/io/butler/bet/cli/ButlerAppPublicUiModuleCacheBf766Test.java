@@ -64,6 +64,32 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void invalidFirstOpenUiModulesReturnAUsefulFailClosed503() throws Exception {
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int loadStart = wrapper.indexOf("try {\n        foreach ($bf766ModuleSpec in $bf766ModuleSpecs)");
+        int moduleLoad = wrapper.indexOf(". $bf766Module", loadStart);
+        int recover = wrapper.indexOf("catch {\n        # No response headers have been written", moduleLoad);
+        int response = wrapper.indexOf("Send-HttpResponse -Stream $stream -StatusCode 503", recover);
+        int exit = wrapper.indexOf("\n        return\n    }", response);
+        int workerEntry = wrapper.indexOf("$worker = [scriptblock]::Create($implementation)");
+
+        assertTrue(loadStart >= 0 && moduleLoad > loadStart && recover > moduleLoad);
+        assertTrue(response > recover && exit > response && workerEntry > exit,
+            "BF-1125 UI module failures must respond and stop before routing");
+        String safeCatch = wrapper.substring(recover, exit);
+        assertTrue(safeCatch.contains("Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(safeCatch.contains("-FailureLayer 'PUBLIC_WORKER'"));
+        assertFalse(safeCatch.contains("$_.Exception.Message"));
+        assertFalse(safeCatch.contains("$LeagueId"));
+        assertFalse(safeCatch.contains("submitTransaction"));
+        assertTrue(worker.contains("function Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(worker.contains("function Send-HttpResponse"));
+        assertTrue(worker.contains("BF-1112 BLOCKED: invalid local response failure layer"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
