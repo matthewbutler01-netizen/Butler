@@ -60,13 +60,43 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteWatchWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit', 'Test-ButlerCrossRouteOnOpen')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerLocalGetFailureCategory', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteWatchWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit', 'Test-ButlerCrossRouteOnOpen')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
     }, $true)
     if ($null -eq $node) { throw "BF-1040 BLOCKED: missing smoke function $name" }
     . ([scriptblock]::Create($node.Extent.Text))
+}
+
+# BF-1107: a failed live route must report only the failure class, not
+# private HTTP error body, exception text, URL, roster, or audit material.
+# These tests exercise the same function imported from the production AST.
+$bf1107Private = 'secret roster/player/league diagnostic material'
+foreach ($probe in @(
+    @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::Timeout); Expected = 'GET TIMEOUT' },
+    @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::ConnectFailure); Expected = 'CONNECT FAILED' },
+    @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::ReceiveFailure); Expected = 'RECEIVE FAILED' },
+    @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::ProtocolError); Expected = 'HTTP ERROR' },
+    @{ Failure = [System.Exception]::new($bf1107Private); Expected = 'GET ERROR' },
+    @{ Failure = [System.Exception]::new('wrapper', [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::Timeout)); Expected = 'GET TIMEOUT' }
+)) {
+    $actual = Get-ButlerLocalGetFailureCategory -Failure $probe.Failure
+    if ($actual -cne $probe.Expected -or $actual.Contains($bf1107Private)) {
+        throw 'BF-1107 BLOCKED: transport classification was incorrect or revealed private diagnostic material.'
+    }
+}
+if ((Get-ButlerLocalGetFailureCategory -Failure $null) -cne 'GET ERROR') {
+    throw 'BF-1107 BLOCKED: missing transport error was not bounded.'
+}
+foreach ($required in @(
+    '$routeResponseObtained = $true',
+    "Evidence = if ($routeResponseObtained) { 'PAGE CHECK ERROR' } else { Get-ButlerLocalGetFailureCategory -Failure $_ }",
+    '$request.AllowAutoRedirect = $false'
+)) {
+    if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1107 BLOCKED: GET status and page-parse errors are not safely separated.'
+    }
 }
 
 # BF-1102: exact independently sourced Matchup week must align with
