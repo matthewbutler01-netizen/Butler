@@ -33,7 +33,9 @@ const good = {
   '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
-  '/league': html('League <section>League intelligence Governed guidance</section>'),
+  '/league': html('League <section class="panel"><div class="eyebrow">League hub</div>' +
+    '<div class="league-franchise-board"><div class="empty">Not current</div></div>' +
+    '<details class="league-governance"><summary>View governed league actions</summary></details></section>'),
   '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
     '<div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' +
     '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div></section>')
@@ -121,6 +123,19 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1108: BF-909 replaced the original League intelligence / Governed
+  // guidance copy with structural League Hub sections. An old placeholder
+  // or a partial/missing governance section must NOT pass as live League.
+  await scenario('retired-league-headings', {
+    routes:{'/league':html('League League intelligence Governed guidance')}
+  }, {
+    code:1, output:/[/]league[^\\r\\n]*FAIL[^\\r\\n]*PAGE CONTENT/, allRoutes:true
+  });
+  await scenario('missing-league-governance', {
+    routes:{'/league':good['/league'].replace('class="league-governance"', 'class="old-governance"')}
+  }, {
+    code:1, output:/[/]league[^\\r\\n]*FAIL[^\\r\\n]*PAGE CONTENT/, allRoutes:true
   });
   // BF-1107: the Windows user's real readiness run reported GET ERROR for
   // My Team and Waivers. Diagnose HTTP server failures separately from
