@@ -128,6 +128,39 @@ async function scenario(name, mutations, expect) {
   }, {
     code:2, output:/Cross-route lineup\s+WARN\s+evidence=LINEUP CARD MISSING/, allRoutes:true
   });
+  // BF-1095: independently passing cards cannot contradict the actual
+  // Start/Sit source paragraph and still pass one-click strict readiness.
+  const noChangeProof = '<p class="meta butler-startsit-source-proof" role="status">' +
+    'No lineup change is ready. Full scoreable projection coverage; 0 player holds. ' +
+    'Recheck before kickoff. Sources: projection snapshot retrieved ' +
+    observed + ' UTC; exact swap status fetch time not verified.</p>';
+  await scenario('strict-source-nochange-vs-dashboard-review', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace(currentProof,noChangeProof)}
+  }, {
+    code:2, output:/Source lineup\s+WARN\s+evidence=START\/SIT DECISION DRIFT/, allRoutes:true
+  });
+  const noChangeDashboard = good['/'].replace(
+    '<span>Start/Sit</span><strong>REVIEW</strong>',
+    '<span>Start/Sit</span><strong>NO CHANGE</strong>');
+  const noChangePilot = good['/autopilot'].replace(
+    '<span>Start/Sit</span><strong>REVIEW</strong>',
+    '<span>Start/Sit</span><strong>NO CHANGE VERIFIED</strong>').replace(
+    '<span class="status good">READY FOR MANAGER REVIEW</span>',
+    '<span class="status good">NO ACTION REQUIRED</span>');
+  await scenario('strict-source-change-vs-keep-lineup', {
+    strict:true,
+    routes:{'/':noChangeDashboard,'/autopilot':noChangePilot}
+  }, {
+    code:2, output:/Source lineup\s+WARN\s+evidence=START\/SIT DECISION DRIFT/, allRoutes:true
+  });
+  await scenario('strict-all-three-no-change', {
+    strict:true,
+    routes:{'/':noChangeDashboard,'/autopilot':noChangePilot,
+            '/matchup/autofill':good['/matchup/autofill'].replace(currentProof,noChangeProof)}
+  }, {
+    code:0, output:/Source lineup\s+PASS\s+evidence=START\/SIT ALIGNED/, allRoutes:true
+  });
   // BF-1078: the same local GETs under the real-league strict mode only
   // return OS success when every locally observable requirement passes.
   await scenario('strict-all-pages-ready', {strict:true}, {
