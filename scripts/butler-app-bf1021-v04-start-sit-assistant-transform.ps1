@@ -162,7 +162,11 @@ $summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTi
 if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'Start/Sit decision summary card is missing.'
 }
-$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p><p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p>')
+# BF-1105: move the real source-proof paragraph into a legible,
+# labelled evidence block without duplicating the one exact proof marker
+# used by Auto-Pilot and localhost diagnostics. This is descriptive UI,
+# never a claim of injury clearance or authorization for Sleeper writes.
+$function = $function.Replace($summaryOld, '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionActionCopy)</p><div class=`"startsit-source-context`"><strong class=`"startsit-source-heading`">EVIDENCE BEHIND THIS ADVICE</strong><p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p><p class=`"startsit-source-caution`">Retrieval times are not injury clearance. Confirm player availability before kickoff.</p></div>')
 
 $function = $function.Replace(
     '<h3>Review queue</h3>',
@@ -246,7 +250,14 @@ if ($cssTerminator -lt 0) {
 $css = @'
 /* BF-1021 v0.4 Start/Sit Assistant. */
 .start-sit-assistant{padding:22px}.start-sit-assistant>.manager-head{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line)}.start-sit-assistant>.manager-head .eyebrow{font-size:11px;letter-spacing:.11em}.start-sit-assistant>.manager-head h2{font-size:clamp(24px,2.2vw,32px);line-height:1.1}.start-sit-assistant .grid.four{gap:10px}.start-sit-assistant .grid.four>.summary-card:nth-child(1){border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .grid.four>.summary-card:nth-child(3){border-color:color-mix(in srgb,var(--good) 55%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(3) h3{color:var(--good);letter-spacing:.06em}.start-sit-assistant .grid.four>.summary-card:nth-child(4){border-color:color-mix(in srgb,var(--danger) 50%,var(--line))}.start-sit-assistant .grid.four>.summary-card:nth-child(4) h3{color:var(--danger);letter-spacing:.06em}.start-sit-assistant .autofill-summary{margin-top:14px}.start-sit-assistant .lineup-row.changed{border-color:color-mix(in srgb,var(--turf) 55%,var(--line));background:color-mix(in srgb,var(--turf) 7%,var(--surface-2))}.start-sit-assistant .lineup-choice small{font-size:10px;text-transform:uppercase;letter-spacing:.05em}.start-sit-assistant .lineup-swap-compare{font-size:11px}.start-sit-assistant .review-queue{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
-.start-sit-assistant .butler-startsit-source-proof{display:block;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--turf);border-radius:8px;background:var(--surface-2);color:inherit;line-height:1.5;font-size:13px}
+/* BF-1105: real Start/Sit proof and swap labels stay readable on mobile and desktop. */
+.start-sit-assistant .startsit-source-context{margin-top:14px;padding:16px;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:11px;background:var(--surface-2);color:var(--ink)}
+.start-sit-assistant .startsit-source-heading{display:block;color:var(--ink);font-weight:800;font-size:14px;line-height:1.5;letter-spacing:.035em}
+.start-sit-assistant .butler-startsit-source-proof{display:block;margin-top:9px;padding:0;border:0;border-radius:0;background:transparent;color:var(--ink);line-height:1.65;font-size:14px;overflow-wrap:anywhere}
+.start-sit-assistant .startsit-source-caution{color:var(--muted);font-size:13px;line-height:1.6;margin:10px 0 0;overflow-wrap:anywhere}
+.start-sit-assistant .lineup-choice small{font-size:12px;font-weight:700}
+.start-sit-assistant .lineup-swap-compare{font-size:14px;line-height:1.55}
+.start-sit-assistant .review-queue li{font-size:14px;line-height:1.6;overflow-wrap:anywhere}
 @media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
 '@
 
@@ -276,6 +287,9 @@ foreach ($required in @(
     'Start with direct Start/Sit signals.',
     'start/sit signal',
     'butler-startsit-source-proof',
+    'startsit-source-context',
+    'EVIDENCE BEHIND THIS ADVICE',
+    'Retrieval times are not injury clearance.',
     'Recheck injury updates before kickoff',
     '$holdQueueItems'
 )) {
