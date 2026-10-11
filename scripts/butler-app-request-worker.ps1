@@ -1187,6 +1187,9 @@ function Get-V04AutoPilotApprovalQueue {
     elseif ($startSitSignal -ceq 'BLOCKED - CHECK START/SIT') {
         'Open Start/Sit Assistant and review exact current injuries and projections. This packet is withheld until its own source check is verified; pressing Refresh is not a substitute.'
     }
+    elseif ($startSitSignal -match '(?i)DO NOT ACT') {
+        'The current lineup decision explicitly holds action. Open Start/Sit Assistant for the reason; Butler will not prepare a swap from this signal.'
+    }
     elseif ($startSitSignal -match '(?i)REFRESH|EVIDENCE|BLOCK|HOLD') {
         'Refresh or resolve the current evidence state before Butler prepares a lineup change.'
     }
@@ -1233,8 +1236,16 @@ function Get-V04AutoPilotHtml {
     } else { 'UNVERIFIED' }
     $lineupSourceHeld = [bool]$WatchState.Ready -and
         [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT'
+    # BF-1083: a fresh Dashboard audit can coexist with a deliberate
+    # REFRESH/DO NOT ACT/HOLD lineup signal. Do not render that state as
+    # an all-green "CURRENT SNAPSHOT" while the prepared packet is blocked.
+    $lineupDecisionHeld = [bool]$WatchState.Ready -and
+        [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT'
     $snapshotStatus = if ($lineupSourceHeld) {
         'LINEUP SOURCE NOT VERIFIED'
+    }
+    elseif ($lineupDecisionHeld) {
+        'LINEUP ACTION HELD'
     }
     elseif ([bool]$WatchState.Ready) {
         'CURRENT SNAPSHOT'
@@ -1251,7 +1262,7 @@ function Get-V04AutoPilotHtml {
     else {
         'WATCH DATA UNAVAILABLE'
     }
-    $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupSourceHeld) { 'good' } else { 'warn' }
+    $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld) { 'good' } else { 'warn' }
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
