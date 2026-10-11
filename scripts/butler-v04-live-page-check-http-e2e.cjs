@@ -65,7 +65,7 @@ async function scenario(name, mutations, expect) {
     child = await new Promise((resolve,reject) => {
       const runner = cp.spawn('powershell.exe',
         ['-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',
-          ps,'-Port',String(port),'-TimeoutSeconds','5'],
+          ps,'-Port',String(port),'-TimeoutSeconds','5', ...(mutations.strict ? ['-RequireReady'] : [])],
         { windowsHide:true, stdio:['ignore','pipe','pipe'] });
       let stdout='', stderr='', settled=false;
       runner.stdout.on('data', b => { stdout += b.toString(); });
@@ -83,8 +83,7 @@ async function scenario(name, mutations, expect) {
     await new Promise(resolve => server.close(resolve));
   }
   const output = child.stdout + '\n' + child.stderr;
-  if (expect.code === 0) assert.equal(child.code, 0, name + '\n' + output);
-  else assert.notEqual(child.code, 0, name + ' erroneously succeeded\n' + output);
+  assert.equal(child.code, expect.code, name + ' wrong readiness exit code\n' + output);
   assert.match(output, expect.output, name + ' missing evidence status');
   for (const entry of requests) {
     assert.equal(entry.method,'GET', name + ' attempted a write');
@@ -101,6 +100,36 @@ async function scenario(name, mutations, expect) {
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
   });
+  // BF-1078: the same local GETs under the real-league strict mode only
+  // return OS success when every locally observable requirement passes.
+  await scenario('strict-all-pages-ready', {strict:true}, {
+    code:0, output:/READINESS GATE: LOCAL PAGE\/EXTERNAL WEEK CHECKS PASS/, allRoutes:true
+  });
+  await scenario('strict-missing-matchup-proof', {
+    strict:true,
+    routes:{'/matchup':good['/matchup'].replace(' data-butler-week-season="2026" data-butler-week-number="5"', '')}
+  }, {
+    code:2, output:/READINESS GATE: BLOCKED BY WARNINGS/, allRoutes:true
+  });
+  await scenario('strict-held-startsit', {
+    strict:true,
+    routes:{'/matchup/autofill':good['/matchup/autofill'].replace('Review only',
+      '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> SOURCE UNVERIFIED</div>')}
+  }, {
+    code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT BLOCKED/, allRoutes:true
+  });
+  await scenario('strict-incomplete-roster', {
+    strict:true,
+    routes:{'/team':good['/team'].replace('<div class="player-row">synthetic player</div>', '')}
+  }, {
+    code:2, output:/\/team\s+WARN\s+evidence=ROSTER NOT SHOWN/, allRoutes:true
+  });
+  await scenario('strict-unverified-autopilot', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace('CURRENT SNAPSHOT', 'LINEUP SOURCE NOT VERIFIED')}
+  }, {
+    code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
+  });
   await scenario('false-match-badge', {
     routes: {'/matchup': good['/matchup'].replace(' data-butler-week-season="2026" data-butler-week-number="5"', '')}
   }, {
@@ -110,6 +139,12 @@ async function scenario(name, mutations, expect) {
     routes: {'/matchup': good['/matchup'].replace('&middot; Week 5', '&middot; Week 4')}
   }, {
     code:1, output:/\/matchup\s+FAIL\s+evidence=PAIRING CONFLICT/, allRoutes:true
+  });
+  await scenario('strict-conflicting-pairing', {
+    strict:true,
+    routes: {'/matchup': good['/matchup'].replace('&middot; Week 5', '&middot; Week 4')}
+  }, {
+    code:1, output:/READINESS GATE: FAILED/, allRoutes:true
   });
   // BF-1073: exact opponent/week verification must never clear a held
   // lineup review. Health/projection outages are manager WARN, not PASS.
