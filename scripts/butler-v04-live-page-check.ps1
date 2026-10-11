@@ -469,6 +469,25 @@ function Test-ButlerLivePage {
             return [pscustomobject]$result
         }
     }
+    # BF-1109: a League Hub can be structurally healthy while its governed
+    # franchise rankings are explicitly unavailable. Do not report a ready
+    # league simply because the empty-state panel rendered. The source view
+    # emits one of these two mutually exclusive card/empty variants.
+    if ($Route -ceq '/league') {
+        $franchiseCard = [regex]::IsMatch($body,
+            '(?is)<div class="league-franchise-board">\\s*<article class="league-franchise-card">')
+        $franchiseEmpty = [regex]::IsMatch($body,
+            '(?is)<div class="league-franchise-board">\\s*<div class="empty">')
+        if ($franchiseCard -eq $franchiseEmpty) {
+            $result.Status = 'FAIL'
+            $result.Evidence = 'FRANCHISE CONTENT'
+            return [pscustomobject]$result
+        }
+        if ($franchiseEmpty) {
+            $result.Status = 'WARN'
+            $result.Evidence = 'LEAGUE RANKINGS HOLD'
+        }
+    }
     if ($Route -ceq '/team' -and
         $body.IndexOf('<div class="player-row">', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         $result.Status = 'WARN'
