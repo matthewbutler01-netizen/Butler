@@ -163,6 +163,54 @@ if ($html -notmatch 'CURRENT SNAPSHOT' -or
     throw 'BF-1075 BLOCKED: supported Start/Sit source never displayed a ready review.'
 }
 
+# BF-1086: on an accepted source read, only the two actual
+# calendar- and age-verified timestamps may appear in Auto-Pilot.
+$timeWatch = [pscustomobject]@{
+    Ready = $true
+    StartSit = 'START 1 / SIT 1'
+    Waivers = 'ADD 1 / DROP 1'
+    Attention = '2 NEED ATTENTION'
+    Roster = 'Test Team'
+    EvidenceStatus = 'CURRENT'
+}
+$timeWatch = Limit-V04AutoPilotToSourcedStartSit -WatchState $timeWatch -MatchupHtml $matchup -StartSitHtml $startSit -CheckedAtUtc $clock
+if ($timeWatch.StartSit -cne 'START 1 / SIT 1' -or
+    $timeWatch.StartSitStatusFetchedAtUtc -cne '2026-10-10T15:00:00Z' -or
+    $timeWatch.StartSitProjectionFetchedAtUtc -cne '2026-10-10T14:59:00.123456789Z') {
+    throw 'BF-1086 BLOCKED: exact sourced timestamps were missing or replaced by the local clock.'
+}
+$timeQueue = Get-V04AutoPilotApprovalQueue -WatchState $timeWatch -ApprovalPolicy $policy
+$timedHtml = Get-V04AutoPilotHtml -WatchState $timeWatch -ApprovalPolicy $policy -ApprovalQueue $timeQueue
+foreach ($marker in @(
+    'Sleeper status map retrieved 2026-10-10T15:00:00Z UTC',
+    'projections retrieved 2026-10-10T14:59:00.123456789Z UTC',
+    'These are fetch times, not injury report publication times.'
+)) {
+    if ($timedHtml.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1086 BLOCKED: current Start/Sit source observation not visible: $marker"
+    }
+}
+$heldTimeWatch = [pscustomobject]@{
+    Ready = $true
+    StartSit = 'START 1 / SIT 1'
+    Waivers = 'ADD 1 / DROP 1'
+    Attention = '2 NEED ATTENTION'
+    Roster = 'Test Team'
+    EvidenceStatus = 'CURRENT'
+}
+$heldTimeWatch = Limit-V04AutoPilotToSourcedStartSit -WatchState $heldTimeWatch -MatchupHtml $matchup -StartSitHtml ($startSit.Replace('0 player holds','10 player holds')) -CheckedAtUtc $clock
+if ($heldTimeWatch.StartSit -cne 'BLOCKED - CHECK START/SIT' -or
+    $null -ne $heldTimeWatch.PSObject.Properties['StartSitStatusFetchedAtUtc'] -or
+    $null -ne $heldTimeWatch.PSObject.Properties['StartSitProjectionFetchedAtUtc']) {
+    throw 'BF-1086 BLOCKED: held lineup retained apparently verified source retrieval dates.'
+}
+$heldTimeQueue = Get-V04AutoPilotApprovalQueue -WatchState $heldTimeWatch -ApprovalPolicy $policy
+$heldTimedHtml = Get-V04AutoPilotHtml -WatchState $heldTimeWatch -ApprovalPolicy $policy -ApprovalQueue $heldTimeQueue
+if ($heldTimedHtml.IndexOf('Lineup source fetch times not independently verified', [StringComparison]::Ordinal) -lt 0 -or
+    $heldTimedHtml.IndexOf('Sleeper status map retrieved 2026-10-10T15:00:00Z', [StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1086 BLOCKED: a blocked Auto-Pilot page claimed real source retrieval observations.'
+}
+
 # BF-1076: legacy manager GETs keep their original timeout. Only
 # the extra, optional Auto-Pilot player-source check receives a 12s cap.
 $coreGet = @($ast.FindAll({
