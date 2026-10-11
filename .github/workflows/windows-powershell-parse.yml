@@ -4,17 +4,22 @@ on:
   push:
     branches:
       - main
+      - startsit-review-action-summary
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
+      - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
+      - 'gradle/wrapper/gradle-wrapper.properties'
   pull_request:
     branches:
       - main
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
+      - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
+      - 'gradle/wrapper/gradle-wrapper.properties'
 
 concurrency:
   group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
@@ -24,6 +29,58 @@ permissions:
   contents: read
 
 jobs:
+  # Fast focused evidence-freshness gate. Runs independently of the legacy
+  # comprehensive Windows suite (which includes slow SQLite restore tests).
+  # Catches v0.4 regressions promptly without weakening that full suite.
+  v04-freshness-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check v0.4 on-open freshness and safe diagnostic contracts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & '.\scripts\butler-automatic-waiver-refresh-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-automatic-dashboard-refresh-acceptance.ps1'
+          & '.\scripts\butler-automatic-autopilot-refresh-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1055-matchup-stale-hold-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1060-auto-week-recovery-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1061-autopilot-week-recovery-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1067-startsit-freshness-banner-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1068-source-timestamps-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1074-autopilot-sourced-startsit-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-bf1080-real-chromium-onopen-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-v04-live-page-check-http-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-bf1076-optional-read-budget-http-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
+
   powershell-51:
     runs-on: windows-latest
     steps:
@@ -75,6 +132,23 @@ jobs:
           }
           if ($failed) { exit 1 }
           Write-Host ("ASCII-only Windows source gate passed for {0} file(s)." -f $files.Count)
+
+      - name: Exercise waiver recovery and evidence presentation
+        shell: powershell
+        run: |
+          & '.\scripts\butler-stale-evidence-recovery-acceptance.ps1'
+          & '.\scripts\butler-waiver-evidence-display-acceptance.ps1'
+          & '.\scripts\butler-automatic-waiver-refresh-acceptance.ps1'
+          & '.\scripts\butler-automatic-dashboard-refresh-acceptance.ps1'
+          & '.\scripts\butler-automatic-autopilot-refresh-acceptance.ps1'
+          & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
+          & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
+          & '.\scripts\butler-bf972-refresh-outcome-navigation-acceptance.ps1'
+          & '.\scripts\butler-bf1020-v04-dashboard-command-center-acceptance.ps1'
+          & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
+          & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
+          & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
+          & '.\scripts\butler-presentation-closeout-acceptance.ps1'
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell

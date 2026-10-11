@@ -45,8 +45,8 @@ class ButlerRefreshManagerUxBf824Test {
             "function Get-DecisionRefreshSuccessHtml",
             "function Get-DecisionRefreshFailureHtml");
 
-        int title = success.indexOf("Butler is up to date");
-        int status = success.indexOf("UP TO DATE");
+        int title = success.indexOf("Butler refresh finished");
+        int status = success.indexOf("REFRESH FINISHED");
         int noSleeper = success.indexOf("No changes were submitted to Sleeper.");
         int dashboard = success.indexOf("href=\"/\">Return to Dashboard</a>");
         int team = success.indexOf("href=\"/team\">Review My Team</a>");

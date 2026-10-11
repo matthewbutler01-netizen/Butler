@@ -163,7 +163,20 @@ class ButlerAppShellBf675ManualRefreshTest {
 
         assertTrue(shell.contains("[System.Net.IPAddress]::Parse('127.0.0.1')"));
         assertTrue(worker.contains("form-action 'self'"));
-        assertFalse(refresh.contains("<script"));
+        // BF-1039 permits one nonced, same-origin script only for an eligible stale Waiver Board.
+        // The refresh endpoint remains single-use token gated, with no arbitrary commands.
+        assertTrue(refresh.contains("<script nonce=\"$nonce\">"));
+        assertTrue(refresh.contains("if ($RequestTarget -cne '/waivers') { return $result }"));
+        assertTrue(refresh.contains("credentials: 'same-origin'"));
+        assertTrue(refresh.contains("function Add-AutomaticDashboardRefresh"));
+        assertTrue(refresh.contains("$state -ceq 'STALE_DO_NOT_ACT'"));
+        assertTrue(refresh.contains("$state -ceq 'CURRENT_REFRESH_RECOMMENDED'"));
+        assertTrue(refresh.contains("$bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED'"));
+        assertTrue(refresh.contains("function Add-AutomaticAutoPilotRefresh"));
+        assertTrue(refresh.contains("Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'"));
+        assertTrue(refresh.contains("method: 'POST'"));
+        assertTrue(worker.contains("script-src 'nonce-$ScriptNonce'; connect-src 'self'; "));
+        assertTrue(worker.contains("if ($State.ContainsKey('InProgress') -and $State.InProgress)"));
         assertFalse(refresh.contains("javascript:"));
         assertFalse(refresh.contains("Invoke-Expression"));
         assertFalse(shell.contains("Invoke-Expression"));

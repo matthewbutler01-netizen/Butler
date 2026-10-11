@@ -30,7 +30,9 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
         assertTrue(worker.contains("[System.AppDomain]::CurrentDomain.GetData($cacheKey)"));
         assertTrue(worker.contains("[System.AppDomain]::CurrentDomain.SetData($cacheKey"));
         assertTrue(worker.contains("AddSeconds(5).Ticks"));
-        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200)"));
+        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200 -and"));
+        assertTrue(worker.contains("$cached.ContainsKey('EvidenceGeneration')"));
+        assertTrue(worker.contains("Get-EvidenceRefreshGeneration -State $RefreshState"));
         assertTrue(worker.contains("Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId"));
     }
 
@@ -83,7 +85,7 @@ class ButlerAppShellBf693OuterReadSingleFlightTest {
         String block = worker.substring(singleFlight, dispose + "$mutex.Dispose()".length());
         assertTrue(block.contains("catch [System.Threading.AbandonedMutexException]"));
         assertTrue(block.contains("if ($lockTaken)"));
-        assertTrue(block.contains("if ([int]$proxied.StatusCode -eq 200)"));
+        assertTrue(block.contains("if ([int]$proxied.StatusCode -eq 200 -and"));
         assertFalse(block.contains("Start-Sleep"));
         assertFalse(block.contains("create_transaction"));
         assertFalse(block.contains("submitTransaction"));

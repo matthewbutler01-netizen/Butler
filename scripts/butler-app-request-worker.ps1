@@ -119,12 +119,14 @@ function Get-TradeSelectionSet {
 function Invoke-AppCoreGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][string]$RequestTarget
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [ValidateRange(1000, 180000)][int]$TimeoutMs = 180000
     )
 
     $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$Port$RequestTarget")
     $request.Method = 'GET'
-    $request.Timeout = 180000
+    $request.Timeout = $TimeoutMs
+    $request.ReadWriteTimeout = $TimeoutMs
     $request.Proxy = $null
     $response = $null
     try {
@@ -161,7 +163,10 @@ function Test-StartSitRosterDriftResponse {
         [AllowNull()][string]$Body
     )
 
-    if ($RequestTarget -cne '/matchup/autofill' -or [string]::IsNullOrWhiteSpace($Body)) {
+    # Only exact My Team and Start/Sit roster-drift messages authorize the
+    # already-governed BF-723 local evidence repair. Other routes stay read-only.
+    if (@('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
+        [string]::IsNullOrWhiteSpace($Body)) {
         return $false
     }
 
@@ -171,6 +176,148 @@ function Test-StartSitRosterDriftResponse {
         $Body.IndexOf(
             'downstream live evidence before target-roster review',
             [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+}
+
+# BF-1060: only a *rendered, source-verified* mismatched week on the
+# exact weekly manager routes may attempt governed Butler-local repair.
+# Missing/duplicate/unknown week proof and other routes are read-only.
+function Test-AutomaticWeekRecoveryCandidate {
+    param(
+        [Parameter(Mandatory = $true)][string]$RequestTarget,
+        [AllowNull()][string]$Body,
+        [int]$StatusCode = 200
+    )
+    if (@('/matchup', '/matchup/autofill') -cnotcontains $RequestTarget -or
+        $StatusCode -ne 200 -or [string]::IsNullOrWhiteSpace($Body)) {
+        return $false
+    }
+    $markers = [regex]::Matches($Body, 'data-butler-week-state=')
+    $mismatch = [regex]::Matches($Body,
+        '(?s)<section class="panel butler-live-week-status" role="status" data-butler-week-state="MISMATCH"><strong>SAVED MATCHUP OUTDATED</strong>')
+    if ($markers.Count -ne 1 -or $mismatch.Count -ne 1) { return $false }
+    return [regex]::IsMatch($Body, '(?:Saved matchup not usable|Start/Sit review held)') -and
+        $Body.IndexOf('DO NOT ACT', [StringComparison]::Ordinal) -ge 0
+}
+
+# Atomically acquire the SAME evidence-writer claim used by BF-723 and
+# token-gated POST /refresh. A five-minute bounded cooldown stops repeated
+# provider/DB work when a league is offline or provider weeks still conflict.
+function Claim-AutomaticWeekRecovery {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        $now = [DateTime]::UtcNow.Ticks
+        if (($State.ContainsKey('InProgress') -and [bool]$State.InProgress) -or
+            ($State.ContainsKey('AutoWeekRetryAfterUtcTicks') -and
+             [long]$State.AutoWeekRetryAfterUtcTicks -gt $now)) {
+            return $false
+        }
+        $State.AutoWeekRetryAfterUtcTicks = $now + [TimeSpan]::FromMinutes(5).Ticks
+        $State.InProgress = $true
+        return $true
+    }
+    finally {
+        if ($lockTaken) { [Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
+function Invoke-AutomaticWeekRecovery {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$League
+    )
+    $scriptPath = Join-Path $Root 'scripts\butler-current-week-onopen-recovery.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+        throw 'BF-1060 BLOCKED: governed week recovery runner is missing.'
+    }
+    $powershell = Join-Path $PSHOME 'powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) {
+        $powershell = 'powershell.exe'
+    }
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $lines = & $powershell '-NoProfile' '-ExecutionPolicy' 'Bypass' '-File' $scriptPath '-LeagueId' $League 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    $output = (($lines | ForEach-Object { "$_" }) -join "`n")
+    if ($exitCode -ne 0 -or
+        $output.IndexOf('BF-1060 WEEK RECOVERY: COMPLETE', [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1060 BLOCKED: current-week repair not verified.'
+    }
+}
+
+# BF-1061: Auto-Pilot performs the same exact, governed week recovery as
+# Matchup on page-open. Never infer an actionable watch from cached pre-write
+# Dashboard cards: after a completed recovery read BOTH pages from core again
+# and re-run their independent technical/sleeper-week proof gates.
+function Resolve-V04AutoPilotOnOpenWeek {
+    param(
+        [Parameter(Mandatory = $true)]$InitialWatchState,
+        [AllowEmptyString()][string]$DashboardHtml = '',
+        [AllowEmptyString()][string]$MatchupHtml = '',
+        [Parameter(Mandatory = $true)][int]$InnerPort,
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
+    )
+
+    $verifiedDashboard = $DashboardHtml
+    $verifiedMatchup = $MatchupHtml
+    $watch = $InitialWatchState
+    if (Test-AutomaticWeekRecoveryCandidate -RequestTarget '/matchup' -Body $MatchupHtml) {
+        if (Claim-AutomaticWeekRecovery -State $RefreshState) {
+            try {
+                try {
+                    Invoke-AutomaticWeekRecovery -Root $Root -League $League
+                    # A completed local evidence write invalidates every
+                    # warmed manager route. Recompute from the raw core, not
+                    # an old single-flight Dashboard or an old week badge.
+                    $updatedDashboard = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/'
+                    $updatedMatchup = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup'
+                    if ([int]$updatedDashboard.StatusCode -eq 200 -and
+                        $updatedDashboard.ContentType -match '^text/html' -and
+                        [int]$updatedMatchup.StatusCode -eq 200 -and
+                        $updatedMatchup.ContentType -match '^text/html') {
+                        $verifiedDashboard = [string]$updatedDashboard.Body
+                        $verifiedMatchup = [string]$updatedMatchup.Body
+                        $watch = Get-V04AutoPilotWatchState -DashboardHtml $verifiedDashboard
+                    }
+                    else {
+                        # If either independent source cannot be read, do
+                        # not reuse a pre-write READY Dashboard snapshot.
+                        $verifiedDashboard = ''
+                        $verifiedMatchup = ''
+                        $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $InitialWatchState -MatchupHtml ''
+                    }
+                }
+                catch {
+                    # An attempted or partial evidence write is not proof of
+                    # completion; withhold actions until both reads verify.
+                    $verifiedDashboard = ''
+                    $verifiedMatchup = ''
+                    $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $InitialWatchState -MatchupHtml ''
+                }
+            }
+            finally {
+                Complete-DecisionRefreshAttempt -State $RefreshState
+            }
+        }
+    }
+
+    if ([bool]$watch.Ready) {
+        $watch = Limit-V04AutoPilotToVerifiedWeek -WatchState $watch -MatchupHtml $verifiedMatchup
+    }
+    return [pscustomobject]@{
+        WatchState = $watch
+        DashboardHtml = $verifiedDashboard
+        MatchupHtml = $verifiedMatchup
+    }
 }
 
 function Invoke-StartSitRosterDriftAutoRecovery {
@@ -239,7 +386,8 @@ function Invoke-TeamSingleFlightGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [Parameter(Mandatory = $true)][string]$League
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
     )
 
     if ($RequestTarget -cne '/team') {
@@ -262,7 +410,11 @@ function Invoke-TeamSingleFlightGet {
         $cacheKey = "Butler.Team.SingleFlight.$PID.$League"
         $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
         $nowTicks = [DateTime]::UtcNow.Ticks
-        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+        $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
+            $cached.ContainsKey('EvidenceGeneration') -and
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             return [pscustomobject]@{
                 StatusCode = [int]$cached.StatusCode
                 StatusText = [string]$cached.StatusText
@@ -272,8 +424,13 @@ function Invoke-TeamSingleFlightGet {
         }
 
         $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
-        if ([int]$proxied.StatusCode -eq 200) {
+        # If a refresh finished while the core rendered this response, do not
+        # populate a new cache entry with the pre-refresh generation.
+        if ([int]$proxied.StatusCode -eq 200 -and
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState) -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
                 StatusCode = [int]$proxied.StatusCode
                 StatusText = [string]$proxied.StatusText
@@ -307,7 +464,8 @@ function Invoke-ExpensiveReadSingleFlightGet {
     param(
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [Parameter(Mandatory = $true)][string]$League
+        [Parameter(Mandatory = $true)][string]$League,
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState
     )
 
     $routeKey = Get-ExpensiveReadSingleFlightKey -RequestTarget $RequestTarget
@@ -346,7 +504,11 @@ function Invoke-ExpensiveReadSingleFlightGet {
         $cacheKey = "Butler.Expensive.SingleFlight.$PID.$League.$routeKey"
         $cached = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
         $nowTicks = [DateTime]::UtcNow.Ticks
-        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks) {
+        $evidenceGeneration = Get-EvidenceRefreshGeneration -State $RefreshState
+        if ($null -ne $cached -and [long]$cached.ExpiresUtcTicks -gt $nowTicks -and
+            $cached.ContainsKey('EvidenceGeneration') -and
+            [long]$cached.EvidenceGeneration -eq $evidenceGeneration -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             if ($null -ne $bf856Timing) {
                 $bf856Timing.cache_hit = 1.0
                 $bf856Timing.singleflight_total_ms = Get-Bf856ElapsedMs -StartedTicks $bf856SingleFlightStarted
@@ -396,8 +558,13 @@ function Invoke-ExpensiveReadSingleFlightGet {
             $companionSemaphore.Dispose()
         }
 
-        if ([int]$proxied.StatusCode -eq 200) {
+        # If a refresh finished while the core rendered this response, do not
+        # populate a new cache entry with the pre-refresh generation.
+        if ([int]$proxied.StatusCode -eq 200 -and
+            $evidenceGeneration -eq (Get-EvidenceRefreshGeneration -State $RefreshState) -and
+            -not (Test-EvidenceRefreshInProgress -State $RefreshState)) {
             [System.AppDomain]::CurrentDomain.SetData($cacheKey, @{
+                EvidenceGeneration = $evidenceGeneration
                 ExpiresUtcTicks = [DateTime]::UtcNow.AddSeconds(5).Ticks
                 StatusCode = [int]$proxied.StatusCode
                 StatusText = [string]$proxied.StatusText
@@ -626,7 +793,11 @@ function ConvertTo-V04StartSitRouteHtml {
         $result,
         '(?is)<section\b[^>]*class="[^"]*\bstart-sit-assistant\b[^"]*"[^>]*>'
     )
+    # BF-1055: when Sleeper's season/week is mismatched or unverified,
+    # Start/Sit is intentionally withheld, not silently "auto-rechecked".
     if ($assistantPanel.Success -and
+        $result.IndexOf('data-butler-week-state="MISMATCH"', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+        $result.IndexOf('data-butler-week-state="UNVERIFIED"', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
         $result.IndexOf('start-sit-auto-recheck', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
         $autoRecheck = '<p class="meta start-sit-auto-recheck"><strong>Auto-recheck:</strong> This page reruns current read-only lineup evidence every time it loads. Reloading the page is enough; no manual retry is required.</p>'
         $result = $result.Insert($assistantPanel.Index + $assistantPanel.Length, $autoRecheck)
@@ -719,6 +890,7 @@ function Get-V04AutoPilotWatchState {
         StartSit = 'UNAVAILABLE'
         Waivers = 'UNAVAILABLE'
         Roster = 'Manager tools'
+        EvidenceStatus = 'UNVERIFIED'
     }
 
     if ([string]::IsNullOrWhiteSpace($DashboardHtml)) {
@@ -727,17 +899,20 @@ function Get-V04AutoPilotWatchState {
 
     $labels = @('Attention', 'Start/Sit', 'Waivers', 'Roster')
     foreach ($label in $labels) {
-        $match = [regex]::Match(
+        # BF-1045: duplicate or empty summary cards are ambiguous manager
+        # evidence. Never pick the first plausible lineup/waiver signal.
+        $matches = [regex]::Matches(
             $DashboardHtml,
             '(?is)<div\b[^>]*class="[^"]*\bdashboard-summary-card\b[^"]*"[^>]*>\s*<span>\s*' +
                 [regex]::Escape($label) +
                 '\s*</span>\s*<strong>(?<value>.*?)</strong>\s*</div>'
         )
-        if (-not $match.Success) { continue }
+        if ($matches.Count -ne 1) { continue }
 
-        $plain = [regex]::Replace($match.Groups['value'].Value, '<[^>]+>', ' ')
+        $plain = [regex]::Replace($matches[0].Groups['value'].Value, '<[^>]+>', ' ')
         $plain = [System.Net.WebUtility]::HtmlDecode($plain)
         $plain = [regex]::Replace($plain, '\s+', ' ').Trim()
+        if ([string]::IsNullOrWhiteSpace($plain)) { continue }
         switch -CaseSensitive ($label) {
             'Attention' { $result.Attention = $plain }
             'Start/Sit' { $result.StartSit = $plain }
@@ -746,12 +921,267 @@ function Get-V04AutoPilotWatchState {
         }
     }
 
+    # BF-1042: presence of summary cards proves a readable local snapshot,
+    # not that its audited evidence remains current. Auto-Pilot must not show
+    # READY or prepare approval actions from stale/unknown decision evidence.
+    # This is the same unique Dashboard technical state used by BF-677.
+    $decisionState = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Decision state:'
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-629:'
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-631:'
+    # BF-1044: independently prove the actionability and lineage behind a
+    # displayed CURRENT decision. A populated summary card or state label
+    # alone cannot authorize a manager Start/Sit or waiver recommendation.
+    $currentEvidence = (
+        ($decisionState -ceq 'CURRENT_AND_ACTIONABLE' -and
+         $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') -or
+        ($decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+         $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+         $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
+    )
+    # BF-1046: BF-677 correctly permits a manual recheck of no-transaction
+    # decisions with superseded lineage; that does NOT make their old summary
+    # a current Auto-Pilot recommendation. Never silently treat an old NO MOVE
+    # decision as a freshly checked roster/waiver state.
+    $outdatedNoMove = (
+        $decisionState -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+        @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631
+    )
+    $result.EvidenceStatus = if ($currentEvidence) {
+        'CURRENT'
+    }
+    elseif ($outdatedNoMove -or
+            @('STALE_DO_NOT_ACT', 'CURRENT_REFRESH_RECOMMENDED') -ccontains $decisionState) {
+        'STALE'
+    }
+    else {
+        'UNVERIFIED'
+    }
+
+    # Do not leak an apparently actionable lineup or waiver signal from stale
+    # cards when the audited proof fails. Show a clear hold until fresh data
+    # can be read; preserve only non-actionable roster context.
+    if ($result.EvidenceStatus -ceq 'STALE') {
+        $result.Attention = 'NEEDS REFRESH'
+        $result.StartSit = 'REFRESH'
+        $result.Waivers = 'DO NOT ACT'
+    }
+    elseif ($result.EvidenceStatus -ceq 'UNVERIFIED') {
+        $result.Attention = 'UNAVAILABLE'
+        $result.StartSit = 'UNAVAILABLE'
+        $result.Waivers = 'UNAVAILABLE'
+    }
     $result.Ready =
+        $currentEvidence -and
         $result.Attention -cne 'UNAVAILABLE' -and
         $result.StartSit -cne 'UNAVAILABLE' -and
-        $result.Waivers -cne 'UNAVAILABLE'
+        $result.Waivers -cne 'UNAVAILABLE' -and
+        $result.Roster -cne 'Manager tools'
 
     return [pscustomobject]$result
+}
+
+# BF-1057: A current Dashboard decision does not establish that the saved
+# matchup belongs to the *current* public Sleeper NFL week. Reuse the exact
+# read-only Matchup route's BF-1054 source proof before Auto-Pilot presents a
+# prepared Start/Sit or waiver decision. Missing/ambiguous/unverified proof
+# fails closed without inventing a refreshed roster or mutating Sleeper.
+function Limit-V04AutoPilotToVerifiedWeek {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState,
+        [string]$MatchupHtml = ''
+    )
+
+    if (-not [bool]$WatchState.Ready) { return $WatchState }
+
+    $state = 'UNVERIFIED'
+    $markers = [regex]::Matches($MatchupHtml, 'data-butler-week-state=')
+    $proof = [regex]::Matches(
+        $MatchupHtml,
+        '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="(?<state>MATCH|MISMATCH|UNVERIFIED)"[^>]*>'
+    )
+    if ($markers.Count -eq 1 -and $proof.Count -eq 1) {
+        $state = [string]$proof[0].Groups['state'].Value
+    }
+    if ($state -ceq 'MATCH') {
+        # BF-1062: source current-week proof is not confirmation of the
+        # persisted pairing. Confirm the sole rendered matchup header is
+        # for that exact verified season/week; unavailable opponent pages
+        # have no pairing metadata and cannot authorize manager approval.
+        $sourceWeek = [regex]::Matches(
+            $MatchupHtml,
+            '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>'
+        )
+        $pairing = [regex]::Matches(
+            $MatchupHtml,
+            '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>'
+        )
+        if ($markers.Count -eq 1 -and $sourceWeek.Count -eq 1 -and $pairing.Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-week-season=').Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-week-number=').Count -eq 1 -and
+            [regex]::Matches($MatchupHtml, 'data-butler-matchup-season=').Count -eq 1 -and
+            $sourceWeek[0].Groups['season'].Value -ceq $pairing[0].Groups['season'].Value -and
+            $sourceWeek[0].Groups['week'].Value -ceq $pairing[0].Groups['week'].Value) {
+            return $WatchState
+        }
+        $state = 'UNVERIFIED'
+    }
+
+    $WatchState.Ready = $false
+    if ($state -ceq 'MISMATCH') {
+        $WatchState.EvidenceStatus = 'WEEK_MISMATCH'
+        $WatchState.Attention = 'SYNC SAVED WEEK'
+        $WatchState.StartSit = 'DO NOT ACT'
+        $WatchState.Waivers = 'DO NOT ACT'
+    }
+    else {
+        $WatchState.EvidenceStatus = 'WEEK_UNVERIFIED'
+        $WatchState.Attention = 'WEEK NOT VERIFIED'
+        $WatchState.StartSit = 'UNAVAILABLE'
+        $WatchState.Waivers = 'UNAVAILABLE'
+    }
+    return $WatchState
+}
+
+# BF-1074: a Dashboard START/SIT card is not evidence that any lineup
+# change survived exact Sleeper status checks. An actionable Auto-Pilot packet
+# requires a second, independently rendered, read-only Start/Sit review.
+# Fail closed without blocking independently reviewed waiver decisions.
+function Get-V04AutoPilotExactPageFrame {
+    param([AllowEmptyString()][string]$Html = '')
+    $weekMarkers = [regex]::Matches($Html, 'data-butler-week-state=')
+    $seasonMarkers = [regex]::Matches($Html, 'data-butler-week-season=')
+    $numberMarkers = [regex]::Matches($Html, 'data-butler-week-number=')
+    $pairingMarkers = [regex]::Matches($Html, 'data-butler-matchup-season=')
+    if ($weekMarkers.Count -ne 1 -or $seasonMarkers.Count -ne 1 -or
+        $numberMarkers.Count -ne 1 -or $pairingMarkers.Count -ne 1) { return $null }
+    $week = [regex]::Matches($Html,
+        '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>')
+    $pair = [regex]::Matches($Html,
+        '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>(?<league>[^<]*?)\s*&middot;\s*Week\s+(?<week>[1-9]|1[0-8])\s*</div>')
+    if ($week.Count -ne 1 -or $pair.Count -ne 1 -or
+        $week[0].Groups['season'].Value -cne $pair[0].Groups['season'].Value -or
+        $week[0].Groups['week'].Value -cne $pair[0].Groups['week'].Value) { return $null }
+    $league = [regex]::Replace(
+        [System.Net.WebUtility]::HtmlDecode($pair[0].Groups['league'].Value), '\s+', ' ').Trim()
+    if ([string]::IsNullOrWhiteSpace($league)) { return $null }
+    return [pscustomobject]@{
+        Season = $week[0].Groups['season'].Value
+        Week = $week[0].Groups['week'].Value
+        League = $league
+    }
+}
+
+function Limit-V04AutoPilotToSourcedStartSit {
+    param(
+        [Parameter(Mandatory = $true)]$WatchState,
+        [AllowEmptyString()][string]$MatchupHtml = '',
+        [AllowEmptyString()][string]$StartSitHtml = '',
+        [DateTimeOffset]$CheckedAtUtc = [DateTimeOffset]::UtcNow
+    )
+    if (-not [bool]$WatchState.Ready) { return $WatchState }
+
+    # The current week and opponent must match on BOTH routes, not just
+    # independently show a green "MATCH" badge.
+    $matchup = Get-V04AutoPilotExactPageFrame -Html $MatchupHtml
+    $startSit = Get-V04AutoPilotExactPageFrame -Html $StartSitHtml
+    $valid = $null -ne $matchup -and $null -ne $startSit
+    if ($valid) {
+        $valid = $matchup.Season -ceq $startSit.Season -and
+            $matchup.Week -ceq $startSit.Week -and
+            $matchup.League -ceq $startSit.League
+    }
+    if ($valid -and
+        ($StartSitHtml.IndexOf('class="callout callout-danger start-sit-blocker"', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+         $StartSitHtml.IndexOf('Butler could not prove a complete weekly lineup recommendation.', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+        $valid = $false
+    }
+    if ($valid) {
+        $proof = [regex]::Matches($StartSitHtml,
+            '(?is)<p\s+class="meta butler-startsit-source-proof"\s+role="status"\s*>(?<text>[^<]*)</p>')
+        if ($proof.Count -ne 1) { $valid = $false }
+    }
+    if ($valid) {
+        $message = [System.Net.WebUtility]::HtmlDecode($proof[0].Groups['text'].Value)
+        # Require the actual BF-1067 sourced-change message. A held swap,
+        # unverified timestamp, no-change decision, or generic Dashboard
+        # signal cannot authorize an Auto-Pilot prepared packet.
+        # BF-1085: a proposal is not a complete ready-to-review lineup
+        # when ANY player has unresolved projection/availability evidence.
+        # Check the full scoreable projection coverage and exact zero-hold
+        # boundary, not the substring '0 player holds' in '10 player holds'.
+        # BF-1087: an exact sourced-change assertion must begin with a
+        # positive changed-assignment count, and the rendered source must
+        # contain one and only one change count, projection-coverage claim,
+        # and numeric player-hold count. A zero-change, duplicate or
+        # contradictory proof cannot prepare an Auto-Pilot lineup packet.
+        $positiveChanges = [regex]::IsMatch($message,
+            '^[1-9][0-9]* proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time\.')
+        $changeCounts = [regex]::Matches($message, '\b[0-9]+ proposed lineup changes\b')
+        $coverageClaims = [regex]::Matches($message, 'Full scoreable projection coverage')
+        $holdCounts = [regex]::Matches($message, '\b[0-9]+ player holds?\b')
+        if (-not $positiveChanges -or $changeCounts.Count -ne 1 -or
+            $coverageClaims.Count -ne 1 -or $holdCounts.Count -ne 1 -or
+            $holdCounts[0].Value -cne '0 player holds') {
+            $valid = $false
+        }
+        if ($message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -lt 0 -or
+            -not [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -or
+            $message.IndexOf('no Sleeper move was submitted', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            $valid = $false
+        }
+    }
+    if ($valid) {
+        # A source fetch is not clinical clearance. Bound both observation
+        # times; status rows older than two 5-minute Sleeper cache TTLs
+        # cannot be advertised as CURRENT on another page.
+        $iso = '20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z'
+        $status = [regex]::Matches($message, 'swap players status map retrieved (?<time>' + $iso + ') UTC')
+        $projection = [regex]::Matches($message, 'projection snapshot retrieved (?<time>' + $iso + ') UTC')
+        if ($status.Count -ne 1 -or $projection.Count -ne 1) {
+            $valid = $false
+        }
+        else {
+            foreach ($stamp in @(
+                @{ Text = $status[0].Groups['time'].Value; Minutes = 10 },
+                @{ Text = $projection[0].Groups['time'].Value; Minutes = 120 }
+            )) {
+                # DateTimeOffset accepts max 7 fractional digits. Preserve
+                # up to 9 original digits in the evidence but validate the
+                # actual calendar and compare whole-second UTC observations.
+                $wholeSecond = [regex]::Replace($stamp.Text, '\.[0-9]{1,9}Z$', 'Z')
+                $parsed = [DateTimeOffset]::MinValue
+                if (-not [DateTimeOffset]::TryParseExact($wholeSecond,
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) {
+                    $valid = $false
+                    break
+                }
+                $age = $CheckedAtUtc.ToUniversalTime() - $parsed.ToUniversalTime()
+                if ($age -lt [TimeSpan]::FromSeconds(-90) -or
+                    $age -gt [TimeSpan]::FromMinutes($stamp.Minutes)) {
+                    $valid = $false
+                    break
+                }
+            }
+        }
+    }
+    if ($valid) {
+        # BF-1086: propagate ONLY independently validated source timestamps.
+        # Neither is an injury report publication time.
+        $WatchState | Add-Member -NotePropertyName StartSitStatusFetchedAtUtc -NotePropertyValue ([string]$status[0].Groups['time'].Value) -Force
+        $WatchState | Add-Member -NotePropertyName StartSitProjectionFetchedAtUtc -NotePropertyValue ([string]$projection[0].Groups['time'].Value) -Force
+    }
+    if (-not $valid) {
+        $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
+        # Do not change dashboard/waiver readiness: one source-specific
+        # lineup hold must not invent an unrelated waiver outage.
+    }
+    return $WatchState
 }
 
 function Get-V04AutoPilotApprovalPolicy {
@@ -780,6 +1210,12 @@ function Get-V04AutoPilotApprovalQueue {
 
     $startSitNext = if (-not [bool]$WatchState.Ready -or $startSitSignal -ceq 'UNAVAILABLE') {
         'Blocked until the weekly manager snapshot is complete.'
+    }
+    elseif ($startSitSignal -ceq 'BLOCKED - CHECK START/SIT') {
+        'Open Start/Sit Assistant and review exact current injuries and projections. This packet is withheld until its own source check is verified; pressing Refresh is not a substitute.'
+    }
+    elseif ($startSitSignal -match '(?i)DO NOT ACT') {
+        'The current lineup decision explicitly holds action. Open Start/Sit Assistant for the reason; Butler will not prepare a swap from this signal.'
     }
     elseif ($startSitSignal -match '(?i)REFRESH|EVIDENCE|BLOCK|HOLD') {
         'Refresh or resolve the current evidence state before Butler prepares a lineup change.'
@@ -822,8 +1258,52 @@ function Get-V04AutoPilotHtml {
     $startSit = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.StartSit)
     $waivers = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Waivers)
     $roster = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Roster)
-    $snapshotStatus = if ([bool]$WatchState.Ready) { 'CURRENT SNAPSHOT' } else { 'WATCH DATA UNAVAILABLE' }
-    $snapshotClass = if ([bool]$WatchState.Ready) { 'good' } else { 'warn' }
+    $evidenceStatus = if ($null -ne $WatchState.PSObject.Properties['EvidenceStatus']) {
+        [string]$WatchState.EvidenceStatus
+    } else { 'UNVERIFIED' }
+    $lineupSourceHeld = [bool]$WatchState.Ready -and
+        [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT'
+    # BF-1083: a fresh Dashboard audit can coexist with a deliberate
+    # REFRESH/DO NOT ACT/HOLD lineup signal. Do not render that state as
+    # an all-green "CURRENT SNAPSHOT" while the prepared packet is blocked.
+    $lineupDecisionHeld = [bool]$WatchState.Ready -and
+        [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT'
+    $snapshotStatus = if ($lineupSourceHeld) {
+        'LINEUP SOURCE NOT VERIFIED'
+    }
+    elseif ($lineupDecisionHeld) {
+        'LINEUP ACTION HELD'
+    }
+    elseif ([bool]$WatchState.Ready) {
+        'CURRENT SNAPSHOT'
+    }
+    elseif ($evidenceStatus -ceq 'STALE') {
+        'EVIDENCE NEEDS REFRESH'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_MISMATCH') {
+        'SAVED WEEK OUTDATED'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_UNVERIFIED') {
+        'WEEK NOT VERIFIED'
+    }
+    else {
+        'WATCH DATA UNAVAILABLE'
+    }
+    $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld) { 'good' } else { 'warn' }
+    # BF-1086: show actual source observations, never host-clock freshness.
+    $lineupSourceTiming = 'Lineup source fetch times not independently verified for this view.'
+    if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld -and
+        $null -ne $WatchState.PSObject.Properties['StartSitStatusFetchedAtUtc'] -and
+        $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc']) {
+        $sourceStatus = [string]$WatchState.StartSitStatusFetchedAtUtc
+        $sourceProjection = [string]$WatchState.StartSitProjectionFetchedAtUtc
+        $strictUtc = '^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z$'
+        if ($sourceStatus -cmatch $strictUtc -and $sourceProjection -cmatch $strictUtc) {
+            $lineupSourceTiming = 'Sleeper status map retrieved ' + $sourceStatus + ' UTC; projections retrieved ' +
+                $sourceProjection + ' UTC. These are fetch times, not injury report publication times.'
+        }
+    }
+    $lineupSourceTiming = [System.Net.WebUtility]::HtmlEncode($lineupSourceTiming)
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
@@ -846,7 +1326,7 @@ function Get-V04AutoPilotHtml {
     # from the already-governed weekly watch. It never invents a lineup when
     # evidence is incomplete.
     $preparedStartSit = if (-not [bool]$WatchState.Ready -or
-                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD') {
+                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT') {
         [pscustomobject]@{
             State = 'BLOCKED'
             Decision = 'NO RECOMMENDATION PREPARED'
@@ -945,7 +1425,7 @@ function Get-V04AutoPilotHtml {
 <section class="panel autopilot-shell">
 <div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This page now reuses Butler's current manager snapshot so you can see what would need attention before any future automation is allowed to act.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
-<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
+<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><p style="font-size:11px;color:var(--muted);margin:6px 0 0">$lineupSourceTiming</p></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
 <div class="autopilot-grid">
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
@@ -973,9 +1453,15 @@ function Send-HttpResponse {
 
         [hashtable]$DiagnosticTimings,
 
-        [string]$Bf857Timing
+        [string]$Bf857Timing,
+        [string]$ScriptNonce
     )
 
+    $scriptPolicy = ''
+    if (-not [string]::IsNullOrWhiteSpace($ScriptNonce)) {
+        if ($ScriptNonce -cnotmatch '^[0-9a-f]{64}$') { throw 'Invalid script nonce' }
+        $scriptPolicy = "script-src 'nonce-$ScriptNonce'; connect-src 'self'; "
+    }
     $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
     $bf856Header = ''
     if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
@@ -1014,7 +1500,7 @@ function Send-HttpResponse {
         "Content-Length: $($bodyBytes.Length)`r`n" +
         "Cache-Control: no-store`r`n" +
         "X-Content-Type-Options: nosniff`r`n" +
-        "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
+        "Content-Security-Policy: ${scriptPolicy}default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
         $bf856Header +
         $bf857Header +
         "Connection: close`r`n`r`n"
@@ -1038,6 +1524,61 @@ function Get-RefreshTokenSnapshot {
     }
 }
 
+# The local read cache must never survive a completed governed evidence-update attempt.
+# Generation 0 is the startup state; the counter advances even after partial/failed runs.
+function Get-EvidenceRefreshGeneration {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    if (-not $State.ContainsKey('EvidenceGeneration')) { return [long]0 }
+    return [long]$State.EvidenceGeneration
+}
+
+function Test-EvidenceRefreshInProgress {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        return ($State.ContainsKey('InProgress') -and [bool]$State.InProgress)
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
+# GET may invoke only the pre-authorized BF-723 exact roster repair.
+# Share ownership with the POST refresh runner so two independent local
+# evidence writers can never run against Butler's database concurrently.
+function Claim-LocalEvidenceRecovery {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        if ($State.ContainsKey('InProgress') -and $State.InProgress) {
+            throw 'BF-723 BLOCKED: another governed evidence recovery is already running.'
+        }
+        $State.InProgress = $true
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
+function Complete-DecisionRefreshAttempt {
+    param([Parameter(Mandatory = $true)][hashtable]$State)
+
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($State.SyncRoot)
+        $lockTaken = $true
+        $State.EvidenceGeneration = (Get-EvidenceRefreshGeneration -State $State) + [long]1
+        $State.InProgress = $false
+    }
+    finally {
+        if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
+    }
+}
+
 function Consume-RefreshToken {
     param(
         [Parameter(Mandatory = $true)][hashtable]$State,
@@ -1048,6 +1589,7 @@ function Consume-RefreshToken {
     try {
         [System.Threading.Monitor]::Enter($State.SyncRoot)
         $lockTaken = $true
+        if ($State.ContainsKey('InProgress') -and $State.InProgress) { throw 'Butler evidence update already running.' }
         if ([string]::IsNullOrWhiteSpace($SubmittedToken) -or $SubmittedToken -cne [string]$State.Token) {
             throw 'BF-675 BLOCKED: refresh one-use token is missing, expired, replayed, or invalid.'
         }
@@ -1055,6 +1597,7 @@ function Consume-RefreshToken {
         # Invalidate atomically before any Butler write. A concurrent replay sees
         # the replacement token and cannot execute a second refresh.
         $State.Token = New-DecisionRefreshToken
+        $State.InProgress = $true
     }
     finally {
         if ($lockTaken) { [System.Threading.Monitor]::Exit($State.SyncRoot) }
@@ -1102,7 +1645,7 @@ try {
 
     if ($parts[0] -eq 'GET') {
         if ($path -eq '/health') {
-            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","bind":"127.0.0.1"}'
+            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'application/json; charset=utf-8' -Body '{"status":"ok","service":"butler-app-shell","core":"ready","tradeLab":"ready","history":"ready","decisionDetail":"ready","decisionRefresh":"manual-post-ready","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"127.0.0.1"}'
             return
         }
     }
@@ -1122,18 +1665,32 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 405 -StatusText 'Method Not Allowed' -ContentType 'text/plain; charset=utf-8' -Body 'GET only'
             return
         }
+        $refreshOwned = $false
+        $refreshSucceeded = $false
         try {
             $formBody = Read-DecisionRefreshFormBody -Reader $reader -Headers $requestHeaders
             $submittedToken = Get-DecisionRefreshSubmittedToken -Body $formBody
             Consume-RefreshToken -State $RefreshState -SubmittedToken $submittedToken
+            $refreshOwned = $true
 
             $resultText = Invoke-DecisionRefreshRunner -LeagueId $LeagueId -RunnerPath $DecisionRefreshRunner
-            $html = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
-            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+            $responseHtml = Get-DecisionRefreshSuccessHtml -LeagueId $LeagueId -ResultText $resultText
+            $refreshSucceeded = $true
         }
         catch {
-            $errorHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
-            Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+            $responseHtml = Get-DecisionRefreshFailureHtml -Message $_.Exception.Message
+        }
+        finally {
+            # Release the claim and invalidate all local single-flight read caches
+            # BEFORE responding; the browser's redirect must see the updated evidence.
+            # Even a failed runner can have completed earlier local evidence stages.
+            if ($refreshOwned) { Complete-DecisionRefreshAttempt -State $RefreshState }
+        }
+        if ($refreshSucceeded) {
+            Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $responseHtml
+        }
+        else {
+            Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $responseHtml
         }
         return
     }
@@ -1166,6 +1723,7 @@ try {
             return
         }
 
+        $dashboardHtmlForRefresh = ''
         $watchState = [pscustomobject]@{
             Ready = $false
             Attention = 'UNAVAILABLE'
@@ -1174,9 +1732,10 @@ try {
             Roster = 'Manager tools'
         }
         try {
-            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId
+            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId -RefreshState $RefreshState
             if ([int]$dashboard.StatusCode -eq 200 -and $dashboard.ContentType -match '^text/html') {
-                $watchState = Get-V04AutoPilotWatchState -DashboardHtml ([string]$dashboard.Body)
+                $dashboardHtmlForRefresh = [string]$dashboard.Body
+                $watchState = Get-V04AutoPilotWatchState -DashboardHtml $dashboardHtmlForRefresh
             }
         }
         catch {
@@ -1184,11 +1743,51 @@ try {
             # remain visible as unavailable instead of crashing or guessing.
         }
 
+        # BF-1061: even a locally stale Dashboard can have an old weekly
+        # pairing. Check the read-only public week on opening Auto-Pilot;
+        # if exact MISMATCH is proven, the common writer claim permits one
+        # bounded Butler-local pairing recovery and fresh dual-page audit.
+        $matchupHtmlForWeekProof = ''
+        try {
+            $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState
+            if ([int]$matchupPage.StatusCode -eq 200 -and $matchupPage.ContentType -match '^text/html') {
+                $matchupHtmlForWeekProof = [string]$matchupPage.Body
+            }
+        }
+        catch {
+            # No league write or fallback to a guessed current week.
+        }
+        $resolvedWatch = Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof -InnerPort $InnerPort -League $LeagueId -Root $RepoRoot -RefreshState $RefreshState
+        $watchState = $resolvedWatch.WatchState
+        $dashboardHtmlForRefresh = [string]$resolvedWatch.DashboardHtml
+
+        # BF-1074: dashboard/matchup source week alone cannot prepare a
+        # player change. Read the actual Start/Sit page once only when the
+        # weekly watch is otherwise ready. All failures withhold ONLY the
+        # Start/Sit proposal, leaving independently checked waivers intact.
+        if ([bool]$watchState.Ready) {
+            $startSitHtmlForReview = ''
+            try {
+                # BF-1076: this optional deeper review must not hold the
+                # Auto-Pilot page for the 180-second core default during a
+                # source outage. Timeouts block only the lineup proposal.
+                $startSitPage = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup/autofill' -TimeoutMs 12000
+                if ([int]$startSitPage.StatusCode -eq 200 -and
+                    $startSitPage.ContentType -match '^text/html') {
+                    $startSitHtmlForReview = [string]$startSitPage.Body
+                }
+            }
+            catch { }
+            $watchState = Limit-V04AutoPilotToSourcedStartSit -WatchState $watchState `
+                -MatchupHtml ([string]$resolvedWatch.MatchupHtml) -StartSitHtml $startSitHtmlForReview
+        }
+
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $html = Add-ButlerAccessibility -Html $html
-        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
+        $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $autoRefresh.Html -ScriptNonce $autoRefresh.Nonce
         return
     }
 
@@ -1228,10 +1827,10 @@ try {
 
     try {
         $proxied = if ($requestTarget -ceq '/team') {
-            Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+            Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId -RefreshState $RefreshState
         }
         elseif ($requestTarget -ceq '/' -or $requestTarget -ceq '/waivers' -or $requestTarget -ceq '/league' -or $requestTarget -ceq '/matchup') {
-            Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId
+            Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId -RefreshState $RefreshState
         }
         elseif ($requestTarget -ceq '/matchup/autofill') {
             # BF-1031: every Start/Sit page load goes directly to the current
@@ -1244,18 +1843,58 @@ try {
         }
         $body = $proxied.Body
 
-        # BF-1037: exact live-roster drift is a governed local-evidence repair,
-        # not a Sleeper transaction. Start/Sit reloads should repair that stale
-        # local frame automatically and then retry the same read-only route once.
+        # BF-1037/continued: My Team and Start/Sit may encounter the same
+        # exact proven BF-610 roster drift. The BF-723 script rechecks its own
+        # strict authorization before any Butler-local evidence write; it never
+        # submits a Sleeper transaction.
         if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
             try {
-                Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
+                Claim-LocalEvidenceRecovery -State $RefreshState
+                try {
+                    Invoke-StartSitRosterDriftAutoRecovery -Root $RepoRoot
+                }
+                finally {
+                    # Even partial BF-723 evidence recovery may have written to
+                    # Butler's database. Release the shared write claim and
+                    # invalidate old warm reads BEFORE the read-only retry.
+                    Complete-DecisionRefreshAttempt -State $RefreshState
+                }
                 $proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
                 $body = $proxied.Body
             }
             catch {
-                # Preserve the original fail-closed page (including its manual
-                # refresh escape hatch) if bounded automatic local recovery fails.
+                # Preserve the original fail-closed page with its manual path if
+                # exact recovery is unavailable or another refresh owns writes.
+            }
+        }
+
+        # BF-1060: when an ordinary Matchup/Start-Sit page proves a
+        # precise public-week mismatch, try one guarded local evidence sync
+        # *before returning the page*, without requiring a Refresh click.
+        # The Java writer rechecks both live league and public NFL week
+        # before DB writes. Failures keep the original advice-free hold.
+        if (Test-AutomaticWeekRecoveryCandidate -RequestTarget $requestTarget -Body ([string]$body) -StatusCode ([int]$proxied.StatusCode)) {
+            if (Claim-AutomaticWeekRecovery -State $RefreshState) {
+                try {
+                    try {
+                        Invoke-AutomaticWeekRecovery -Root $RepoRoot -League $LeagueId
+                        $retried = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
+                        if ([int]$retried.StatusCode -eq 200 -and
+                            $retried.ContentType -match '^text/html') {
+                            $proxied = $retried
+                            $body = $retried.Body
+                        }
+                    }
+                    catch {
+                        # A failed/partial local repair never returns an
+                        # invented CURRENT badge or stale lineup action.
+                    }
+                }
+                finally {
+                    # Invalidate all four five-second read caches even after
+                    # a partially completed guarded local evidence write.
+                    Complete-DecisionRefreshAttempt -State $RefreshState
+                }
             }
         }
 
@@ -1295,7 +1934,14 @@ try {
         } else {
             $null
         }
-        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing
+        $autoRefresh = @{ Html = $body; Nonce = '' }
+        if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/') {
+            $autoRefresh = Add-AutomaticDashboardRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        }
+        elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
+            $autoRefresh = Add-AutomaticWaiverRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        }
+        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce
     }
     catch {
         $errorHtml = Get-ButlerBlockedPageHtml -Title 'Butler app blocked' -Message $_.Exception.Message -Active 'dashboard' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard' -SecondaryHref '/team' -SecondaryLabel 'Review My Team'

@@ -22,6 +22,11 @@ public final class ButlerAutoFillLineupRecommendationCli {
         }
 
         var recommendation = report.recommendation();
+        // BF-1068: report source-fetch times (UTC), not inferred injury
+        // clearance, health, or guaranteed provider-data publication times.
+        System.out.println("Projection retrieved at (UTC): " + report.projectionObservedAt());
+        System.out.println("Swap player status fetched at (UTC): "
+            + (report.swapStatusFetchedAt() == null ? "UNVERIFIED" : report.swapStatusFetchedAt()));
         System.out.println("Projection source: " + report.sourceName());
         System.out.println("Projection source surface: " + report.sourceSurface());
         System.out.println("Projection provenance: " + report.projectionProvenance());

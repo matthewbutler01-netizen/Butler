@@ -39,7 +39,7 @@ try {
         'Projected difference',
         'Compare this swap',
         'What needs your decision',
-        'Projection hold'
+        'Player holds:'
     )) {
         if ($surface.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1021 BLOCKED: staged Start/Sit marker is missing: $required"

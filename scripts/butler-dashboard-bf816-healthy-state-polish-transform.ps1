@@ -140,7 +140,7 @@ $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
 
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `
     -Old '$primaryExplanationCopy = $whyCopy' `
-    -New '$primaryExplanationCopy = if ([string]$state -ceq "NO_TRANSACTION_TO_ACT_ON") { "The current waiver review completed without a proven add/drop move. This is a valid no-action outcome, not missing recommendation data." } else { $whyCopy }' `
+    -New '$primaryExplanationCopy = if ([string]$state -ceq "NO_TRANSACTION_TO_ACT_ON") { "The current waiver review completed without a recommended add/drop move. This is a valid no-action outcome, not missing recommendation data." } else { $whyCopy }' `
     -Contract 'no-move waiver explanation'
 
 $dashboardBlock = Replace-ExactlyOnce -Text $dashboardBlock `

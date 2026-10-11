@@ -32,27 +32,27 @@ if ($anchorMatches -ne 1) {
 
 $decisionPrelude = @'
     $waiverDecisionTitle = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "Review Butler's proven add/drop move" }
+        "CURRENT_AND_ACTIONABLE" { "Review Butler's recommended add/drop move" }
         "CURRENT_REFRESH_RECOMMENDED" { "Refresh before relying on this waiver move" }
         "TRANSACTION_ALREADY_COMPLETE" { "Waiver move already complete" }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "Waiver move already pending" }
         "STALE_DO_NOT_ACT" { "Do not act on the saved waiver move" }
-        "NO_TRANSACTION_TO_ACT_ON" { "Waiver review complete; no move proven" }
+        "NO_TRANSACTION_TO_ACT_ON" { "Waiver review complete; no move recommended" }
         "NO_AUDITED_DECISION" { "No waiver decision available" }
         default { "Waiver decision needs review" }
     }
     $waiverDecisionCopy = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "Butler has one currently governed add/drop pair. Review the exact players and supporting evidence before deciding whether to act." }
+        "CURRENT_AND_ACTIONABLE" { "Butler has one recommended add/drop pair for review. Review the exact players and supporting evidence before deciding whether to act." }
         "CURRENT_REFRESH_RECOMMENDED" { "A governed add/drop pair exists, but Butler requires fresher evidence before you rely on it." }
         "TRANSACTION_ALREADY_COMPLETE" { "The governed transaction is already complete. No duplicate waiver action is needed." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "The governed transaction is already pending. Do not submit the same move again." }
-        "STALE_DO_NOT_ACT" { "The saved waiver move no longer passes Butler's current safety frame. Wait for a new governed decision." }
-        "NO_TRANSACTION_TO_ACT_ON" { "Butler completed the current waiver review and did not prove one clear add/drop move. No waiver action is needed from this evidence frame." }
+        "STALE_DO_NOT_ACT" { "The saved waiver move no longer passes Butler's current checks. Check the available recovery options before taking action." }
+        "NO_TRANSACTION_TO_ACT_ON" { "Butler completed the current waiver review and did not identify one clear add/drop recommendation. No waiver action is needed from this evidence frame." }
         "NO_AUDITED_DECISION" { "Butler does not have a saved governed waiver decision for the current evidence frame." }
         default { "Butler cannot prove a waiver action from the current governed evidence frame." }
     }
     $waiverDecisionStatus = switch ([string]$current.State) {
-        "CURRENT_AND_ACTIONABLE" { "MOVE PROVEN" }
+        "CURRENT_AND_ACTIONABLE" { "READY FOR REVIEW" }
         "CURRENT_REFRESH_RECOMMENDED" { "REFRESH" }
         "TRANSACTION_ALREADY_COMPLETE" { "COMPLETE" }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "PENDING" }
@@ -70,6 +70,22 @@ $decisionPrelude = @'
         default { "warn" }
     }
 
+    $waiverEvidenceHtml = ""
+    if ($pair.Active) {
+        $savedExplanation = Get-GovernedExplanationView -Summary $Summary
+        if ($savedExplanation.Ready) {
+            $explanationDisplay = [string]$savedExplanation.ExplanationText
+            # Replace only the known leading policy identifier, preserving the saved evidence.
+            $explanationDisplay = $explanationDisplay -replace '^BF-\d+(?:/BF-\d+)*\s+produced\b', 'Butler produced'
+            $waiverEvidenceHtml = @"
+<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
+"@
+        }
+        else {
+            $waiverEvidenceHtml = '<p class="waiver-pair-note">Saved explanation unavailable. Review the decision record before acting.</p>'
+        }
+    }
+
     $waiverPairHtml = ""
     if ($pair.Active) {
         $pairLead = if ([string]$current.State -ceq "CURRENT_AND_ACTIONABLE") {
@@ -84,7 +100,19 @@ $decisionPrelude = @'
   <article class="waiver-action-card drop"><div class="waiver-action-label">DROP</div><div class="waiver-action-name">$(ConvertTo-HtmlText $pair.Drop.Name)</div><div class="waiver-action-meta">$(ConvertTo-HtmlText $pair.Drop.Position) &middot; NFL $(ConvertTo-HtmlText $pair.Drop.Team) &middot; Sleeper $(ConvertTo-HtmlText $pair.Drop.SleeperId)</div></article>
 </div>
 <div class="waiver-pair-note"><strong>$(ConvertTo-HtmlText $pairLead).</strong> This is Butler's already-audited exact pair; it is not inferred from board order.</div>
+<p class="waiver-pair-note">Review the source season and scoring coverage in the decision evidence before acting. A recommendation does not guarantee future points.</p>
 "@
+    }
+
+    $waiverPairHtml += $waiverEvidenceHtml
+    # Metadata only: the protected POST revalidates eligibility before writing.
+    if (($current.State -ceq 'STALE_DO_NOT_ACT' -and
+         $current.Bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED', 'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $current.Bf631) -or
+        ($current.State -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+         $current.Bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+         $current.Bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED')) {
+        $waiverPairHtml += '<span hidden data-butler-auto-waiver="' + (ConvertTo-HtmlText ([string]$current.AuditId)) + '"></span>'
     }
 
     $waiverNextActionCopy = switch ([string]$current.State) {
@@ -92,8 +120,8 @@ $decisionPrelude = @'
         "CURRENT_REFRESH_RECOMMENDED" { "Refresh the governed evidence before relying on the saved pair. Do not act from the stale frame." }
         "TRANSACTION_ALREADY_COMPLETE" { "No waiver action is needed. Use History if you want to review the completed decision record." }
         "TRANSACTION_PENDING_DO_NOT_DUPLICATE" { "Do not submit a duplicate move. Wait for the pending transaction state to resolve." }
-        "STALE_DO_NOT_ACT" { "Take no waiver action from this saved result. Wait for Butler to produce a new governed frame." }
-        "NO_TRANSACTION_TO_ACT_ON" { "Hold. No add/drop move is proven right now; use the review pool below only as context, not as a ranking." }
+        "STALE_DO_NOT_ACT" { "Do not act on this saved move. Open the refresh check to see whether Butler can update its evidence; some blocked states require a different next step." }
+        "NO_TRANSACTION_TO_ACT_ON" { "Hold. No add/drop move is recommended right now; use the review pool below only as context, not as a ranking." }
         default { "Review the current governed evidence before making a waiver decision." }
     }
 
@@ -131,7 +159,7 @@ $header
   <div class="board-disclaimer">Status, injury, depth, and market attention are descriptive only. Market attention is not Butler's score. Newcomers remain nonnumeric. If shown, <strong>Current governed ADD</strong> and <strong>Paired audited DROP</strong> come only from the already-audited exact transaction; they do not alter BF-616 order.</div>
   <details><summary>Technical and audit details</summary><div class="tech"><div>BF-623 target: $(ConvertTo-HtmlText $target.Human)</div><div>Raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>Raw comparison identity: $(ConvertTo-HtmlText $target.RawComparison)</div><div>BF-623 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-623 role: $(ConvertTo-HtmlText $target.Role)</div><div>Current decision state: $(ConvertTo-HtmlText $current.State)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div><div>Current ADD Sleeper ID: $(ConvertTo-HtmlText $current.SleeperId)</div><div>Paired ADD Sleeper ID: $(ConvertTo-HtmlText $pair.AddSleeperId)</div><div>Paired DROP Sleeper ID: $(ConvertTo-HtmlText $pair.DropSleeperId)</div><div>BF-629 current gate: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-631 current gate: $(ConvertTo-HtmlText $current.Bf631)</div><div>Audited BF-603 / BF-602: $(ConvertTo-HtmlText $current.AuditedLineageRaw)</div><div>Bundle BF-603 / BF-602: $(ConvertTo-HtmlText $current.BundleLineageRaw)</div><div>BF-603 / BF-602: $(ConvertTo-HtmlText $lineage)</div><div>BF-614 methodology: $(ConvertTo-HtmlText $methodology)</div><div>BF-615: $(ConvertTo-HtmlText $bf615)</div><div>BF-616: $(ConvertTo-HtmlText $bf616)</div><div>BF-617: $(ConvertTo-HtmlText $bf617)</div><div>Parsed shortlist: $($candidates.Count)</div></div></details>
 </section>
-<section class="panel boundary"><span class="lock">READ ONLY &middot; MANAGER DECISION SUPPORT.</span> Butler surfaces the existing governed waiver state and exact audited pair when available. It does not rerank BF-616, invent player values, choose a new add or drop, set FAAB, refresh evidence automatically, or submit a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">READ ONLY &middot; MANAGER DECISION SUPPORT.</span> Butler surfaces the existing governed waiver state and exact audited pair when available. It does not rerank BF-616, invent player values, choose a new add or drop, set FAAB or submit a Sleeper transaction. Opening this page may refresh eligible Butler-local evidence automatically.</section>
 </main></body></html>
 "@
 }
@@ -145,8 +173,8 @@ foreach ($required in @(
     'Butler waiver decision',
     'What to do now',
     'Authorized review pool',
-    'Review Butler''s proven add/drop move',
-    'Waiver review complete; no move proven',
+    'Review Butler''s recommended add/drop move',
+    'Waiver review complete; no move recommended',
     'Refresh before relying on this waiver move',
     'READ ONLY &middot; MANAGER DECISION SUPPORT.',
     'Current governed ADD',

@@ -29,6 +29,9 @@ class ButlerAppShellBf697HealthFastPathTest {
         assertTrue(detailLoad > healthBranch, "Decision detail must load after /health fast-path");
         assertTrue(refreshLoad > healthBranch, "Decision refresh must load after /health fast-path");
         assertTrue(worker.contains("\"service\":\"butler-app-shell\""));
+        // BF-1048: a frozen v0.3 instance must not masquerade as this v0.4
+        // tested capability just because its loopback health endpoint replies.
+        assertTrue(worker.contains("\"featureSet\":\"v04-audited-onopen-freshness-bf1048\""));
     }
 
     @Test

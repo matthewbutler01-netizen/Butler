@@ -86,6 +86,18 @@ public final class SleeperClient {
         return get("state/nfl");
     }
 
+    /**
+     * A bounded read-only current-week probe for the passive manager Matchup.
+     * Never uses the caller's league identity, roster, or any credential.
+     */
+    public String getNflState(Duration timeout) throws IOException, InterruptedException {
+        Objects.requireNonNull(timeout, "timeout must not be null");
+        if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(MAX_PREWARM_TIMEOUT) > 0) {
+            throw new IllegalArgumentException("NFL state probe timeout must be >0 and <=5 seconds");
+        }
+        return get("state/nfl", timeout);
+    }
+
     public String getLeagueUsers(String leagueId) throws IOException, InterruptedException {
         return get("league/" + encodePath(leagueId) + "/users");
     }
