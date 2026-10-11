@@ -498,13 +498,13 @@ async function scenario(name, mutations, expect) {
   // BF-1098: a healthy-looking older v0.4 instance is not the
   // current sourced-onopen development build. Refuse even with HTTP 200.
   await scenario('old-v04-readiness-rejected', {omitReadiness:true}, {
-    code:1, output:/BF-1048 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1110 BLOCKED/, allRoutes:false
   });
   await scenario('wrong-v04-readiness-rejected', {readiness:'unverified-old-v04'}, {
-    code:1, output:/BF-1048 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1110 BLOCKED/, allRoutes:false
   });
   await scenario('old-build-rejected', {feature:'old-v03'}, {
-    code:1, output:/BF-1048 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1110 BLOCKED/, allRoutes:false
   });
   await scenario('incorrect-security', {csp:"default-src 'self'"}, {
     code:1, output:/\/team\s+FAIL\s+evidence=HTTP SAFETY/, allRoutes:true
