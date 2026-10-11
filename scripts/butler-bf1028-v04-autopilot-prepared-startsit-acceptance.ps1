@@ -168,6 +168,55 @@ foreach ($required in @(
         throw "BF-1099 BLOCKED: sourced no-change UI falsely implies a player-status lookup: $required"
     }
 }
+# BF-1100: source-blocked Auto-Pilot should show the actual known
+# reason and a useful safe route, not a generic Refresh instruction.
+foreach ($fixture in @(
+    @{ Status = 'CURRENT'; Ready = $true; Signal = 'REFRESH'; Reason = 'source-hold'; Message = 'current-week Start/Sit source check did not verify'; Href = '/matchup/autofill'; Label = 'Review Start/Sit evidence' },
+    @{ Status = 'STALE'; Ready = $false; Signal = 'REFRESH'; Reason = 'stale-evidence'; Message = 'Dashboard decision evidence needs an update'; Href = '/'; Label = 'Check Dashboard freshness' },
+    @{ Status = 'WEEK_MISMATCH'; Ready = $false; Signal = 'DO NOT ACT'; Reason = 'week-mismatch'; Message = 'saved matchup does not match'; Href = '/matchup'; Label = 'Check weekly matchup' },
+    @{ Status = 'WEEK_UNVERIFIED'; Ready = $false; Signal = 'UNAVAILABLE'; Reason = 'week-unverified'; Message = 'current NFL week or exact saved matchup could not'; Href = '/matchup'; Label = 'Check weekly matchup' },
+    @{ Status = 'UNVERIFIED'; Ready = $false; Signal = 'UNAVAILABLE'; Reason = 'snapshot-unavailable'; Message = 'current manager snapshot is incomplete'; Href = '/'; Label = 'Open Dashboard' }
+)) {
+    $heldWatch = [pscustomobject]@{
+        Ready = [bool]$fixture.Ready
+        Attention = 'UNAVAILABLE'
+        StartSit = [string]$fixture.Signal
+        Waivers = 'UNAVAILABLE'
+        Roster = 'Manager tools'
+        EvidenceStatus = [string]$fixture.Status
+    }
+    $heldQueue = Get-V04AutoPilotApprovalQueue -WatchState $heldWatch -ApprovalPolicy $policy
+    $heldPage = Get-V04AutoPilotHtml -WatchState $heldWatch -ApprovalPolicy $policy -ApprovalQueue $heldQueue
+    foreach ($required in @(
+        ('data-butler-lineup-proof="held" data-butler-lineup-reason="' + $fixture.Reason + '"'),
+        [string]$fixture.Message,
+        ('href="' + $fixture.Href + '">' + $fixture.Label + '</a>'),
+        'SOURCE CHECK REQUIRED',
+        'NO RECOMMENDATION PREPARED'
+    )) {
+        if ($heldPage.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+            throw "BF-1100 BLOCKED: held $($fixture.Reason) missing exact status or next step: $required"
+        }
+    }
+    if ($heldPage.IndexOf('SOURCED LINEUP CHANGE', [StringComparison]::Ordinal) -ge 0 -or
+        $heldPage.IndexOf('SOURCED NO CHANGE', [StringComparison]::Ordinal) -ge 0) {
+        throw "BF-1100 BLOCKED: held $($fixture.Reason) presented a sourced green label."
+    }
+    if ([regex]::Matches($heldPage, 'data-butler-lineup-reason=').Count -ne 1) {
+        throw 'BF-1100 BLOCKED: ambiguous or missing actionable reason.'
+    }
+}
+foreach ($known in @(
+    @{ Page = $readyHtml; Reason = 'verified-change'; Snippet = 'A sourced change is ready for your review' },
+    @{ Page = $keepHtml; Reason = 'verified-no-change'; Snippet = 'complete projection frame supports keeping the current lineup' }
+)) {
+    if ($known.Page.IndexOf('data-butler-lineup-reason="' + $known.Reason + '"', [StringComparison]::Ordinal) -lt 0 -or
+        $known.Page.IndexOf($known.Snippet, [StringComparison]::Ordinal) -lt 0 -or
+        $known.Page.IndexOf('href="/matchup/autofill">Review Start/Sit evidence</a>', [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1100 BLOCKED: sourced result $($known.Reason) lost its evidence/action."
+    }
+}
+
 # Team/league names are HTML-encoded; presentation must not add writes.
 if ($readyHtml -match '<form|type="submit"|onclick=|data-action=') {
     throw 'BF-1099 BLOCKED: source panel introduced write-capable UI.'
