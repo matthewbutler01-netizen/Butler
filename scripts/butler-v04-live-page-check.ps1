@@ -453,7 +453,13 @@ function Test-ButlerLivePage {
         '/waivers' { @('waiver-decision-hero', 'Butler waiver decision') }
         '/matchup' { @('Weekly matchup', 'hero-panel') }
         '/matchup/autofill' { @('recommendation-panel start-sit-assistant') }
-        '/league' { @('League intelligence', 'Governed guidance') }
+        '/league' {
+            # BF-1108: BF-909's actual manager-first League Hub replaced
+            # the older BF-835 headings. Require real franchise and governed
+            # action containers, not old copy or sidebar navigation labels.
+            @('class="league-franchise-board"', 'class="league-governance"',
+              'View governed league actions', 'League hub')
+        }
         default { @() }
     }
     foreach ($required in $requiredContent) {
