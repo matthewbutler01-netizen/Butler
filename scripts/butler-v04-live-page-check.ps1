@@ -175,6 +175,41 @@ function Test-ButlerCrossRouteWeek {
     return [pscustomobject]@{ Status = 'PASS'; Evidence = 'WEEK/LEAGUE ALIGNED' }
 }
 
+# BF-1102: three user-visible routes must agree on the SAME sourced
+# NFL week. This read-only check compares the already-fetched Matchup and
+# Auto-Pilot pages; it never guesses today's week from a local calendar.
+function Test-ButlerCrossRouteWatchWeek {
+    param(
+        [AllowNull()][string]$MatchupHtml,
+        [AllowNull()][string]$AutoPilotHtml,
+        [AllowNull()]$MatchupCheck,
+        [AllowNull()]$AutoPilotCheck
+    )
+    if ($null -eq $MatchupCheck -or $null -eq $AutoPilotCheck -or
+        [string]$MatchupCheck.Status -cne 'PASS' -or
+        [string]$MatchupCheck.Evidence -cne 'PAIRING VERIFIED' -or
+        [string]$AutoPilotCheck.Status -cne 'PASS' -or
+        [string]$AutoPilotCheck.Evidence -cne 'WATCH CURRENT') {
+        return [pscustomobject]@{ Status = 'SKIP'; Evidence = 'PAGE NOT VERIFIED' }
+    }
+    $matchup = [regex]::Matches([string]$MatchupHtml,
+        '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>')
+    $markers = [regex]::Matches([string]$AutoPilotHtml, 'data-butler-watch-week-state=')
+    $watch = [regex]::Matches([string]$AutoPilotHtml,
+        '(?is)<span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL (?<season>20[0-9]{2}) season - Week (?<week>[1-9]|1[0-8]) verified against the public Sleeper week\.</span>')
+    if ($matchup.Count -ne 1) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WEEK SOURCE UNKNOWN' }
+    }
+    if ($markers.Count -ne 1 -or $watch.Count -ne 1) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH WEEK MISSING' }
+    }
+    if ($matchup[0].Groups['season'].Value -cne $watch[0].Groups['season'].Value -or
+        $matchup[0].Groups['week'].Value -cne $watch[0].Groups['week'].Value) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH WEEK DRIFT' }
+    }
+    return [pscustomobject]@{ Status = 'PASS'; Evidence = 'WATCH WEEK ALIGNED' }
+}
+
 # BF-1094: compare two already-fetched localhost decisions. A green
 # Dashboard and a green Auto-Pilot may still show different lineup signals
 # when a local roster/weekly evidence update occurred between requests.
@@ -713,6 +748,11 @@ $weekPair = Test-ButlerCrossRouteWeek -MatchupHtml $(if ($null -ne $matchupRespo
     -MatchupCheck $matchupCheck -StartSitCheck $startSitCheck
 if ($weekPair.Status -ceq 'FAIL') { $failed++ }
 Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Cross-route week', $weekPair.Status, $weekPair.Evidence)
+$watchWeekPair = Test-ButlerCrossRouteWatchWeek -MatchupHtml $(if ($null -ne $matchupResponse) { [string]$matchupResponse.Body } else { '' }) `
+    -AutoPilotHtml $(if ($null -ne $autoPilotResponse) { [string]$autoPilotResponse.Body } else { '' }) `
+    -MatchupCheck $matchupCheck -AutoPilotCheck $autoPilotCheck
+if ($watchWeekPair.Status -ceq 'WARN') { $warned++ }
+Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Auto-Pilot week', $watchWeekPair.Status, $watchWeekPair.Evidence)
 $lineupPair = Test-ButlerCrossRouteLineup -DashboardHtml $(if ($null -ne $dashboardResponse) { [string]$dashboardResponse.Body } else { '' }) `
     -AutoPilotHtml $(if ($null -ne $autoPilotResponse) { [string]$autoPilotResponse.Body } else { '' }) `
     -DashboardCheck $dashboardCheck -AutoPilotCheck $autoPilotCheck
