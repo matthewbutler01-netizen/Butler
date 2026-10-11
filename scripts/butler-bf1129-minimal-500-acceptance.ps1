@@ -8,7 +8,7 @@ $workerPath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
 $cachePath = Join-Path $PSScriptRoot 'butler-app-request-worker-cache.ps1'
 $workerSource = [IO.File]::ReadAllText($workerPath, [Text.Encoding]::ASCII)
 $cacheSource = [IO.File]::ReadAllText($cachePath, [Text.Encoding]::ASCII)
-$match = [regex]::Match($cacheSource, "(?s)\\$bodyEncodingReplacement = @'\\r?\\n(?<block>.*?)\\r?\\n'@")
+$match = [regex]::Match($cacheSource, '(?s)\$bodyEncodingReplacement = @''\r?\n(?<block>.*?)\r?\n''@')
 if (-not $match.Success) {
     throw 'BF-1129 BLOCKED: HTML presentation stage missing.'
 }
