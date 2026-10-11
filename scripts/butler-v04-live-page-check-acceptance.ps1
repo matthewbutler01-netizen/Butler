@@ -172,6 +172,55 @@ finally {
     $invalidMemory.Dispose()
 }
 
+# BF-1113: the failing public page is still navigable, but must never
+# reflect a raw exception, local Windows path, player name, or token.
+# Parse the actual worker helper, not a duplicated test implementation.
+$recoveryFunction = $workerAst.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -ceq 'Get-ButlerManagerFailureSpec'
+}, $true)
+if ($null -eq $recoveryFunction) {
+    throw 'BF-1113 BLOCKED: route-specific manager failure helper missing.'
+}
+. ([scriptblock]::Create($recoveryFunction.Extent.Text))
+$bf1113Private = 'PRIVATE_LEAGUE_PLAYER_TOKEN C:\\Secret\\Butler\\database.db'
+foreach ($expected in @(
+    @{ Route = '/'; Href = '/'; Title = 'Dashboard unavailable' },
+    @{ Route = '/team'; Href = '/team'; Title = 'My Team unavailable' },
+    @{ Route = '/waivers'; Href = '/waivers'; Title = 'Waiver Board unavailable' },
+    @{ Route = '/matchup'; Href = '/matchup'; Title = 'Matchup unavailable' },
+    @{ Route = '/matchup/autofill'; Href = '/matchup/autofill'; Title = 'Start/Sit unavailable' },
+    @{ Route = '/league'; Href = '/league'; Title = 'League unavailable' },
+    @{ Route = '/team?account=secret'; Href = '/'; Title = 'Butler page unavailable' },
+    @{ Route = $bf1113Private; Href = '/'; Title = 'Butler page unavailable' }
+)) {
+    foreach ($phase in @('CORE_READ', 'PUBLIC_WORKER')) {
+        $result = Get-ButlerManagerFailureSpec -RequestTarget $expected.Route -FailurePhase $phase
+        if ($result.Title -cne $expected.Title -or
+            $result.PrimaryHref -cne $expected.Href -or
+            @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league') -cnotcontains $result.PrimaryHref -or
+            $result.Message.IndexOf($bf1113Private, [StringComparison]::Ordinal) -ge 0 -or
+            $result.Message.IndexOf('secret', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw 'BF-1113 BLOCKED: manager recovery failed route or privacy contract.'
+        }
+        if ($phase -ceq 'CORE_READ' -and
+            $result.Message.IndexOf('local Butler engine', [StringComparison]::Ordinal) -lt 0) {
+            throw 'BF-1113 BLOCKED: missing concrete local engine failure message.'
+        }
+    }
+}
+foreach ($phase in @('CORE_READ', 'PUBLIC_WORKER')) {
+    $unknown = Get-ButlerManagerFailureSpec -RequestTarget '/team' -FailurePhase $phase
+    $errorMarkup = $workerSource.Substring($workerSource.IndexOf('# BF-1113: raw exception messages'))
+    if ($errorMarkup.IndexOf('Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase $failurePhase',
+            [StringComparison]::Ordinal) -lt 0 -or
+        $errorMarkup.IndexOf('-Message $_.Exception.Message',
+            [StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-1113 BLOCKED: public manager catch still reflects exception messages.'
+    }
+}
+
 # BF-1102: exact independently sourced Matchup week must align with
 # the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
 $bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
