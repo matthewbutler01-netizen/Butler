@@ -177,7 +177,7 @@ $html = Get-V04AutoPilotHtml -WatchState $state -ApprovalPolicy $policy -Approva
 foreach ($required in @(
     'CURRENT WEEKLY WATCH',
     'What Butler sees right now',
-    'CURRENT SNAPSHOT',
+    'LINEUP ACTION HELD',
     '2 NEED ATTENTION',
     'REFRESH',
     'DO NOT ACT',
