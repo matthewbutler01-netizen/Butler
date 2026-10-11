@@ -73,7 +73,7 @@ if ($begin -lt 0 -or $end -le $begin) { throw 'BF-1074 BLOCKED: Auto-Pilot route
 $route = $source.Substring($begin, $end - $begin)
 foreach ($required in @(
     'if ([bool]$watchState.Ready)',
-    'Invoke-AppCoreGet -Port $InnerPort -RequestTarget ''/matchup/autofill''',
+    'Invoke-AppCoreGet -Port $InnerPort -RequestTarget ''/matchup/autofill'' -TimeoutMs 12000',
     'Limit-V04AutoPilotToSourcedStartSit -WatchState $watchState',
     '-MatchupHtml ([string]$resolvedWatch.MatchupHtml)',
     '-StartSitHtml $startSitHtmlForReview',
@@ -131,6 +131,26 @@ if ($html -notmatch 'CURRENT SNAPSHOT' -or
     $html -notmatch 'READY FOR MANAGER REVIEW' -or
     $html -match 'LINEUP SOURCE NOT VERIFIED') {
     throw 'BF-1075 BLOCKED: supported Start/Sit source never displayed a ready review.'
+}
+
+# BF-1076: legacy manager GETs keep their original timeout. Only
+# the extra, optional Auto-Pilot player-source check receives a 12s cap.
+$coreGet = @($ast.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -ceq 'Invoke-AppCoreGet'
+}, $true))
+if ($coreGet.Count -ne 1) {
+    throw 'BF-1076 BLOCKED: exact inner core GET definition missing.'
+}
+$coreSource = $coreGet[0].Extent.Text
+if ($coreSource.IndexOf('[ValidateRange(1000, 180000)][int]$TimeoutMs = 180000', [StringComparison]::Ordinal) -lt 0 -or
+    $coreSource.IndexOf('$request.Timeout = $TimeoutMs', [StringComparison]::Ordinal) -lt 0 -or
+    $coreSource.IndexOf('$request.ReadWriteTimeout = $TimeoutMs', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1076 BLOCKED: optional core HTTP read has no finite bounded transfer and connection timeout.'
+}
+if ([regex]::Matches($route, 'Invoke-AppCoreGet -Port \$InnerPort -RequestTarget ''/matchup/autofill'' -TimeoutMs 12000').Count -ne 1) {
+    throw 'BF-1076 BLOCKED: optional sourced lineup read may delay Auto-Pilot for the full 180-second default.'
 }
 
 Write-Host 'BF-1074 AUTO-PILOT SOURCED START/SIT: PASS'
