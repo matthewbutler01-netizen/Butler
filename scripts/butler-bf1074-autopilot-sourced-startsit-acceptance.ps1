@@ -43,6 +43,15 @@ foreach ($bad in @(
     ($startSit.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"')),
     ($startSit + $startSit),
     ($startSit.Replace($proof, '')),
+    # BF-1085: player holds are not separate manager moves but they MUST
+    # prevent a claimed fully sourced / ready-to-review Auto-Pilot lineup.
+    ($startSit.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros')),
+    ($startSit.Replace('Full scoreable projection coverage', 'UNVERIFIED scoreable projection coverage')),
+    ($startSit.Replace('0 player holds', '1 player hold')),
+    ($startSit.Replace('0 player holds', '2 player holds')),
+    ($startSit.Replace('0 player holds', '10 player holds')),
+    ($startSit.Replace('0 player holds', '100 player holds')),
+    ($startSit.Replace('0 player holds', 'player holds unverified')),
     ($startSit.Replace('no Sleeper move was submitted', 'Transaction submitted')),
     ($startSit.Replace('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', 'No lineup change is ready')),
     ($startSit.Replace('2026-10-10T15:00:00Z', 'UNVERIFIED')),
@@ -174,5 +183,5 @@ if ([regex]::Matches($route, 'Invoke-AppCoreGet -Port \$InnerPort -RequestTarget
     throw 'BF-1076 BLOCKED: optional sourced lineup read may delay Auto-Pilot for the full 180-second default.'
 }
 
-Write-Host 'BF-1074 AUTO-PILOT SOURCED START/SIT: PASS'
-Write-Host 'Coverage: exact source/season/week/league, hold, UTC recency, invalid dates, duplicate proof, read-only route and independent waiver.'
+Write-Host 'BF-1074/BF-1085 AUTO-PILOT SOURCED START/SIT: PASS'
+Write-Host 'Coverage: exact source/season/week/league, full projection coverage, zero holds (including 10/100), UTC recency, invalid dates, duplicate proof, read-only route and independent waivers.'
