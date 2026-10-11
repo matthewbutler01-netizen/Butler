@@ -58,19 +58,19 @@ class ButlerManagerRecoveryPagesBf884Test {
             assertTrue(transform.contains(marker), "BF-884 missing manager recovery copy for " + marker);
         }
 
-        assertTrue(transform.contains("-Detail $_.Exception.Message"));
-        assertTrue(transform.contains("$teamFailureParts = New-Object System.Collections.Generic.List[string]"));
-        assertTrue(transform.contains("ExceptionType={0}"));
-        assertTrue(transform.contains("ExceptionMessage={0}"));
-        assertTrue(transform.contains("ErrorId={0}"));
-        assertTrue(transform.contains("Stack={0}"));
-        assertTrue(transform.contains("BF-908 diagnostic marker: My Team failed without an exposed PowerShell error record."));
-        assertTrue(transform.contains("BF-908 My Team runtime failure: {0}"));
-        assertTrue(transform.contains("-Detail $teamFailure -Active \"team\""));
-        assertTrue(transform.contains("$playerDetailFailure = [string]$_"));
-        assertTrue(transform.contains("$playerDetailFailure = [string]$_.Exception"));
-        assertTrue(transform.contains("Player Detail failed without diagnostic text."));
-        assertTrue(transform.contains("-Detail $playerDetailFailure -Active \"team\""));
+        // BF-1120: recovery views do not echo the source exception,
+        // My Team stack or selected player's details into public HTML.
+        assertTrue(transform.contains("UNVERIFIED_SOURCE"));
+        assertTrue(transform.contains("BF-908 My Team runtime failure: unverified local read, error details omitted"));
+        assertTrue(transform.contains("Read-only source information could not be verified."));
+        assertTrue(transform.contains("-Detail \"UNVERIFIED_SOURCE\" -Active \"team\""));
+        assertTrue(transform.contains("Player Detail unavailable"));
+        assertFalse(transform.contains("-Detail $_.Exception.Message"));
+        assertFalse(transform.contains("ExceptionMessage={0}"));
+        assertFalse(transform.contains("Stack={0}"));
+        assertFalse(transform.contains("-Detail $teamFailure"));
+        assertFalse(transform.contains("$playerDetailFailure = [string]$_"));
+        assertFalse(transform.contains("-Detail $playerDetailFailure"));
         assertTrue(transform.contains("STOPPED SAFELY"));
     }
 
