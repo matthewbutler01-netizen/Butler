@@ -20,6 +20,10 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1114: public stop-page copy must not deny guarded local recovery
+
+The generic blocked-page footer used to claim **"No Butler or Sleeper write was executed."** That was too broad: an ordinary GET may first trigger the existing narrowly governed BF-723 **Butler-local evidence** recovery, which can write to the local database before a later stage fails and returns a safe error page. The footer now makes only the supported statement: this page did **not submit a Sleeper transaction**, and guarded **local** evidence recovery may have been attempted. Managers are told to check current source status before acting. This is a text/accuracy correction, with Windows source acceptance, not a new recovery action or a waiver/lineup transaction.
+
 ## BF-1113: safe, route-specific manager recovery screens
 
 An unhandled exception in the ordinary public manager-page worker used to be rendered through `Get-ButlerBlockedPageHtml` with **the raw exception message**. Some exception messages may include a local source/database path, private league identity, player names, or internal error context. That is inappropriate in a browser error screen and does not make the actual problem easier to repair.
