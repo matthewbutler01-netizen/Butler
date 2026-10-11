@@ -91,7 +91,7 @@ if ((Get-ButlerLocalGetFailureCategory -Failure $null) -cne 'GET ERROR') {
 }
 foreach ($required in @(
     '$routeResponseObtained = $true',
-    "Evidence = if ($routeResponseObtained) { 'PAGE CHECK ERROR' } else { Get-ButlerLocalGetFailureCategory -Failure $_ }",
+    '$category = Get-ButlerLocalGetFailureCategory -Failure $_',
     '$request.AllowAutoRedirect = $false'
 )) {
     if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
