@@ -175,6 +175,12 @@ foreach ($heldSignal in @('REFRESH','DO NOT ACT','HOLD FOR EVIDENCE','BLOCKED BY
     }
 }
 $heldView.StartSit = 'START 1 / SIT 1'
+# BF-1090: the previous raw summary is deliberately insufficient. Pass
+# through the exact sourced gate before expecting a ready proposal.
+$heldView = Limit-V04AutoPilotToSourcedStartSit -WatchState $heldView -MatchupHtml $matchup -StartSitHtml $startSit -CheckedAtUtc $clock
+if ([string]$heldView.StartSitReviewOutcome -cne 'VERIFIED_CHANGE') {
+    throw 'BF-1090 BLOCKED: verified changed recommendation has no typed outcome.'
+}
 $queue = Get-V04AutoPilotApprovalQueue -WatchState $heldView -ApprovalPolicy $policy
 $html = Get-V04AutoPilotHtml -WatchState $heldView -ApprovalPolicy $policy -ApprovalQueue $queue
 if ($html -notmatch 'CURRENT SNAPSHOT' -or
