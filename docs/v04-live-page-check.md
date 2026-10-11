@@ -20,6 +20,14 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1125: failed per-route UI module imports now return HTTP 503
+
+The BF-1124 cached-wrapper boundary only protects **the initial source read and compiled-worker preparation**. Once a worker has started, it separately imports the two or five required UI modules per route. Missing module files, parse errors, or invalid cached module state could still throw **before the normal manager response** and leave a first-open browser with a reset socket / `GET ERROR` instead of actionable information.
+
+BF-1125 adds a narrowly scoped exception boundary **around that per-route module load loop**, after request headers have been read and before any page response is sent. It returns the independent BF-1117 safe fallback HTML through the existing canonical response writer with HTTP **503 Service Unavailable** and BF-1112's allowlisted `PUBLIC_WORKER` failure layer, then immediately stops that request. The response reveals no internal exception, private player/league/path/token, or raw source body. It does not suppress the canonical core read/refresh failure semantics, and it never retries, launches another process or writes to Sleeper. GET `/health` continues to bypass module loads entirely, which is why **health-only probing remains insufficient**: the full readiness check must GET each actual manager page.
+
+A Java regression checks that every module initialization failure reaches this safe pre-route stop, that it invokes only the pure fallback HTML and the standard HTTP 503 sender, and that no secret-bearing exception message is interpolated. The Windows suite and the actual connected Windows app still require verification. The failure being reported is **not** evidence that the underlying module has been repaired.
+
 ## BF-1124: a broken cached public worker now returns a useful HTTP 503
 
 The persistent public-worker cache compiles/loads staged source before the canonical request worker starts. Six initialization errors previously **closed the accepted client and threw**, meaning the readiness checker could only report a generic `GET ERROR` and the browser often received a connection reset/empty response. This was a real failure mode independent of the read-only core's page content. The cached wrapper now contains an initialization-only exception boundary that preserves the client socket until it can return a **small, fixed HTTP 503 Service Unavailable** response, then closes the connection.
