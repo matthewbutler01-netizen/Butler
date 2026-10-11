@@ -147,8 +147,12 @@ try {
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $proxied.Body -Bf857Timing $proxied.Bf857Timing
     }
     catch {
-        $message = [System.Net.WebUtility]::HtmlEncode($_.Exception.Message)
-        $errorHtml = "<!doctype html><html><body><h1>Butler inner core unavailable</h1><pre>$message</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+        # BF-1118: a failed inner-core GET may include a local database path,
+        # private player/league identity or raw runner stderr in its exception.
+        # Do not surface that message through the outer loopback HTTP proxy.
+        # An earlier public GET may also have attempted governed Butler-local
+        # evidence recovery, so never claim all local writes were impossible.
+        $errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butler core unavailable</title></head><body><main><h1>Butler inner core unavailable</h1><p>The local Butler read could not finish. Return to the Dashboard and review current evidence before acting. No Sleeper transaction was submitted by this page.</p><p><a href="/">Return to Dashboard</a></p></main></body></html>'
         Send-HttpResponse -Stream $stream -StatusCode 502 -StatusText 'Bad Gateway' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
     }
 }
