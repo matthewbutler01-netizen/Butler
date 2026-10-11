@@ -23,6 +23,39 @@ if ($renderer -lt 0 -or
     $source.IndexOf('<p class=`"meta butler-startsit-source-proof`"', $renderer + 1, [StringComparison]::Ordinal) -ge 0) {
     throw 'BF-1067 BLOCKED: Start/Sit did not render exactly one accessible, escaped source proof.'
 }
+# BF-1105: the one safely escaped source proof must be readable in a
+# dedicated block rather than hidden as muted decision-card microcopy.
+$renderBinding = @($source -split "[\r\n]+" | Where-Object {
+    $_.StartsWith('$function = $function.Replace($summaryOld, ', [StringComparison]::Ordinal)
+})
+if ($renderBinding.Count -ne 1) {
+    throw 'BF-1105 BLOCKED: unique Start/Sit summary binding missing.'
+}
+$display = [string]$renderBinding[0]
+foreach ($required in @(
+    '<div class=`"startsit-source-context`">',
+    '<strong class=`"startsit-source-heading`">EVIDENCE BEHIND THIS ADVICE</strong>',
+    '<p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p>',
+    '<p class=`"startsit-source-caution`">Retrieval times are not injury clearance.'
+)) {
+    if ($display.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1105 BLOCKED: manager-facing source evidence missing: $required"
+    }
+}
+foreach ($css in @(
+    '.start-sit-assistant .startsit-source-context{margin-top:14px;padding:16px',
+    '.start-sit-assistant .startsit-source-heading{display:block;color:var(--ink);font-weight:800;font-size:14px',
+    '.start-sit-assistant .butler-startsit-source-proof{display:block;margin-top:9px;padding:0;',
+    'color:var(--ink);line-height:1.65;font-size:14px',
+    '.start-sit-assistant .lineup-choice small{font-size:12px;font-weight:700}',
+    '.start-sit-assistant .lineup-swap-compare{font-size:14px;line-height:1.55}',
+    '.start-sit-assistant .review-queue li{font-size:14px;line-height:1.6'
+)) {
+    if ($source.IndexOf($css, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1105 BLOCKED: readable Start/Sit styling missing: $css"
+    }
+}
+
 if ($proof -match 'Invoke-RestMethod|Invoke-WebRequest|submitTransaction|setFaab|https://api|Method\s*=\s*POST') {
     throw 'BF-1067 BLOCKED: view-only proof introduced provider or transaction behavior.'
 }
