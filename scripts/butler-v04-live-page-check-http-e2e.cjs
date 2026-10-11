@@ -26,7 +26,7 @@ const audited = '<div>Decision state: CURRENT_AND_ACTIONABLE</div>' +
 function html(body) { return '<!doctype html><html><body>' + body + '</body></html>'; }
 
 const good = {
-  '/': html('<div class="dashboard-summary-row">Weekly command center</div>' + audited),
+  '/': html('<div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' + audited),
   '/team': html('My Team <section>Roster hub Lineup and depth at a glance ' +
     '<section id="roster-starters"><div class="player-row">synthetic player</div></section></section>'),
   '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
@@ -34,6 +34,7 @@ const good = {
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
   '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
+    '<div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' +
     '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div></section>')
 };
 const expectedGet = ['/health','/','/team','/waivers','/matchup','/matchup/autofill','/league','/autopilot'];
@@ -107,6 +108,25 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1094: cross-page contracts check the displayed decision, not just
+  // individual HTTP/CSP/source provenance status. A Dashboard vs Auto-Pilot
+  // disagreement must block strict local readiness without leaking names.
+  await scenario('strict-cross-route-lineup-drift', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(
+      '<span>Start/Sit</span><strong>REVIEW</strong>',
+      '<span>Start/Sit</span><strong>NO CHANGE VERIFIED</strong>')}
+  }, {
+    code:2, output:/Cross-route lineup\s+WARN\s+evidence=LINEUP SIGNAL DRIFT/, allRoutes:true
+  });
+  await scenario('strict-cross-route-lineup-duplicate', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(
+      '<div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div>',
+      '<div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div>'.repeat(2))}
+  }, {
+    code:2, output:/Cross-route lineup\s+WARN\s+evidence=LINEUP CARD MISSING/, allRoutes:true
   });
   // BF-1078: the same local GETs under the real-league strict mode only
   // return OS success when every locally observable requirement passes.
