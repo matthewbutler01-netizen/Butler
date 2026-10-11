@@ -185,7 +185,11 @@ if ($null -eq $worker) {
     catch {
         # No response headers have been written at this pre-route phase.
         # Do not copy module/exception text, paths, league, player or tokens.
-        $bf1125FailureHtml = Get-ButlerMinimalBlockedPageHtml -Title 'Butler page unavailable' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard'
+        # BF-1131: select a retry target only from the already-fixed route
+        # allowlist; arbitrary paths and query parameters fall back to '/'.
+        # The spec never contains the original exception or private context.
+        $bf1131Retry = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase 'PUBLIC_WORKER'
+        $bf1125FailureHtml = Get-ButlerMinimalBlockedPageHtml -Title $bf1131Retry.Title -PrimaryHref $bf1131Retry.PrimaryHref -PrimaryLabel $bf1131Retry.PrimaryLabel
         Send-HttpResponse -Stream $stream -StatusCode 503 -StatusText 'Service Unavailable' -ContentType 'text/html; charset=utf-8' -Body $bf1125FailureHtml -FailureLayer 'PUBLIC_WORKER'
         return
     }
