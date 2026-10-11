@@ -1424,6 +1424,49 @@ function Get-V04AutoPilotHtml {
         else { 'SOURCE CHECK REQUIRED' }
     $sourceProofTone = if ($sourceChanged -or $sourceNoChange) { 'good' } else { 'warn' }
 
+    # BF-1100: a generic SOURCE CHECK REQUIRED badge does not tell the
+    # manager which verified condition is holding the recommendation. Use
+    # only the existing governed watch status: no new player or provider
+    # read, no guessed injury reason, and never interpret a page GET as
+    # clearance to set or change a Sleeper lineup.
+    $sourceReasonCode = 'source-hold'
+    $sourceReason = 'The complete current-week Start/Sit source check did not verify. No lineup swap is prepared.'
+    $sourceNextHref = '/matchup/autofill'
+    $sourceNextLabel = 'Review Start/Sit evidence'
+    if ($sourceChanged) {
+        $sourceReasonCode = 'verified-change'
+        $sourceReason = 'A sourced change is ready for your review, not submission. Confirm player status again before kickoff.'
+    }
+    elseif ($sourceNoChange) {
+        $sourceReasonCode = 'verified-no-change'
+        $sourceReason = 'The complete projection frame supports keeping the current lineup. Recheck injury news before kickoff.'
+    }
+    elseif ($evidenceStatus -ceq 'STALE') {
+        $sourceReasonCode = 'stale-evidence'
+        $sourceReason = 'The Dashboard decision evidence needs an update. Butler can refresh on open only when the existing audited rules permit it.'
+        $sourceNextHref = '/'
+        $sourceNextLabel = 'Check Dashboard freshness'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_MISMATCH') {
+        $sourceReasonCode = 'week-mismatch'
+        $sourceReason = 'The saved matchup does not match the verified current NFL week. No lineup change is prepared.'
+        $sourceNextHref = '/matchup'
+        $sourceNextLabel = 'Check weekly matchup'
+    }
+    elseif ($evidenceStatus -ceq 'WEEK_UNVERIFIED') {
+        $sourceReasonCode = 'week-unverified'
+        $sourceReason = 'The current NFL week or exact saved matchup could not be independently verified. Lineup actions remain held.'
+        $sourceNextHref = '/matchup'
+        $sourceNextLabel = 'Check weekly matchup'
+    }
+    elseif (-not [bool]$WatchState.Ready) {
+        $sourceReasonCode = 'snapshot-unavailable'
+        $sourceReason = 'The current manager snapshot is incomplete. Check the Dashboard before reviewing a lineup change.'
+        $sourceNextHref = '/'
+        $sourceNextLabel = 'Open Dashboard'
+    }
+    $sourceReason = [System.Net.WebUtility]::HtmlEncode($sourceReason)
+
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
     $waiverPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Waivers)
@@ -1506,6 +1549,7 @@ function Get-V04AutoPilotHtml {
 .autopilot-source-copy{min-width:220px;flex:1 1 300px}
 .autopilot-source-copy .eyebrow{margin-bottom:5px}
 .autopilot-source-copy p{color:var(--muted);font-size:12px;line-height:1.55;margin:7px 0 0;overflow-wrap:anywhere}
+.autopilot-source-copy .autopilot-source-reason{font-size:13px;line-height:1.55;color:var(--ink);font-weight:600}
 .autopilot-source-proof a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--turf-deep);font-size:12px;font-weight:800;text-decoration:none}
 .autopilot-source-proof a:hover,.autopilot-source-proof a:focus-visible{border-color:var(--turf)}
 .autopilot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
@@ -1559,7 +1603,7 @@ function Get-V04AutoPilotHtml {
 <div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This page now reuses Butler's current manager snapshot so you can see what would need attention before any future automation is allowed to act.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
 <div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
-<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="$sourceProofState"><div class="autopilot-source-copy"><div class="eyebrow">LINEUP EVIDENCE</div><span class="status $sourceProofTone">$sourceProofLabel</span><p>$lineupSourceTiming</p><p>Source fetch times are not injury clearance. Check player status again before kickoff.</p></div><a href="/matchup/autofill">Review Start/Sit evidence</a></div>
+<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="$sourceProofState" data-butler-lineup-reason="$sourceReasonCode"><div class="autopilot-source-copy"><div class="eyebrow">LINEUP EVIDENCE</div><span class="status $sourceProofTone">$sourceProofLabel</span><p class="autopilot-source-reason">$sourceReason</p><p>$lineupSourceTiming</p><p>Source fetch times are not injury clearance. Check player status again before kickoff.</p></div><a href="$sourceNextHref">$sourceNextLabel</a></div>
 <div class="autopilot-grid">
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
