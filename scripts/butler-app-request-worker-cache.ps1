@@ -45,7 +45,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # BF-1124: the cached wrapper can fail BEFORE the request worker begins
-# (missing/invalid staged module, parsed worker, or runspace cache state).
+# (missing compiled worker source, invalid compiled transforms, or corrupt
+# runspace cache state). Per-route module import failures are BF-1125 below.
 # Previously those exceptions closed the socket and appeared to the user as
 # GET ERROR. Reply with a constant local 503 instead; never copy exception
 # messages, file paths, league IDs or tokens to the browser or diagnostics.
