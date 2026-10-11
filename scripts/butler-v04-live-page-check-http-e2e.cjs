@@ -65,7 +65,11 @@ async function scenario(name, mutations, expect) {
     // printing server response bodies or private diagnostics.
     const failureStatus = mutations.httpStatus && mutations.httpStatus[req.url];
     if (Number.isInteger(failureStatus)) {
-      res.writeHead(failureStatus, {'Content-Type':'text/plain; charset=utf-8'});
+      const errorHeaders = {'Content-Type':'text/plain; charset=utf-8'};
+      if (mutations.httpLayer && mutations.httpLayer[req.url]) {
+        errorHeaders['X-Butler-Failure-Layer'] = mutations.httpLayer[req.url];
+      }
+      res.writeHead(failureStatus, errorHeaders);
       res.end('SENSITIVE_LOCAL_ERROR_BODY: roster, league and audit data');
       return;
     }
@@ -172,6 +176,26 @@ async function scenario(name, mutations, expect) {
   }, {
     code:1,
     output:/[/]team[^\r\n]*FAIL[^\r\n]*HTTP 500[\s\S]*[/]waivers[^\r\n]*FAIL[^\r\n]*HTTP 503/,
+    allRoutes:true
+  });
+  // BF-1112: real HttpWebRequest must classify an originating core 5xx,
+  // a failed internal core read and a public-worker exception without
+  // exposing any backend response body or arbitrary header value.
+  await scenario('manager-failure-layers', {
+    httpStatus:{'/team':500, '/waivers':503, '/matchup/autofill':502},
+    httpLayer:{'/team':'CORE_HTTP', '/waivers':'CORE_READ',
+               '/matchup/autofill':'PUBLIC_WORKER'}
+  }, {
+    code:1,
+    output:/[/]team[^\r\n]*HTTP 500 CORE_HTTP[\s\S]*[/]waivers[^\r\n]*HTTP 503 CORE_READ[\s\S]*[/]matchup[/]autofill[^\r\n]*HTTP 502 PUBLIC_WORKER/,
+    allRoutes:true
+  });
+  await scenario('reject-untrusted-failure-layer', {
+    httpStatus:{'/team':500},
+    httpLayer:{'/team':'PRIVATE_ROSTER_LEAGUE_ID_NOT_FOR_REPORT'}
+  }, {
+    code:1,
+    output:/[/]team[^\r\n]*HTTP 500\s+auto=N[/]A/,
     allRoutes:true
   });
   // BF-1102: the on-screen Auto-Pilot season/week must agree with the
