@@ -64,15 +64,20 @@ const path = require('node:path');
     let stdout = '', stderr = '';
     child.stdout.on('data', b => { stdout += b.toString('utf8'); });
     child.stderr.on('data', b => { stderr += b.toString('utf8'); });
-    const result = await Promise.race([
-      new Promise((resolve,reject) => {
-        child.once('error',reject);
-        child.once('close',(code,signal) => resolve({code,signal}));
-      }),
-      new Promise((_,reject) => setTimeout(() => {
-        child.kill();reject(new Error('BF-1076 process exceeded finite 12-second test deadline'));
-      }, 12000))
-    ]);
+    const result = await new Promise((resolve,reject) => {
+      const watchdog = setTimeout(() => {
+        child.kill();
+        reject(new Error('BF-1076 process exceeded finite 12-second test deadline'));
+      }, 12000);
+      child.once('error',error => {
+        clearTimeout(watchdog);
+        reject(error);
+      });
+      child.once('close',(code,signal) => {
+        clearTimeout(watchdog);
+        resolve({code,signal});
+      });
+    });
     assert.equal(result.code,0,'BF-1076 Windows PowerShell failed\n'+stdout+'\n'+stderr);
     assert.match(stdout,/BF-1076 HEALTHY GET PASS/);
     assert.match(stdout,/BF-1076 BOUNDED GET TIMEOUT PASS/);
