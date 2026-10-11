@@ -20,7 +20,7 @@ if not exist "%butlerReportDir%" (
   exit /b 1
 )
 set "butlerReport=%butlerReportDir%\v04-real-league-readiness-latest.txt"
-call "%~dp0butler-v04-live-page-check.cmd" -CheckSleeperWeek -TimeoutSeconds 30 > "%butlerReport%" 2>&1
+call "%~dp0butler-v04-live-page-check.cmd" -CheckSleeperWeek -RequireReady -TimeoutSeconds 30 > "%butlerReport%" 2>&1
 set "butlerExit=%ERRORLEVEL%"
 echo.
 type "%butlerReport%"
@@ -29,7 +29,7 @@ echo Local diagnostic report: "%butlerReport%"
 if not "%butlerExit%"=="0" (
   echo RESULT: BLOCKED. This is a test failure, NOT a reason to use stale lineup advice.
 ) else (
-  echo RESULT: Check completed. Every WARN still needs review; a PASS is not proof of injury clearance.
+  echo RESULT: Local pages and public NFL week passed the strict gate. Browser refresh and injury clearance still require real-world review.
 )
 echo.
 echo Opening the report in Notepad so you can review or share the output.
