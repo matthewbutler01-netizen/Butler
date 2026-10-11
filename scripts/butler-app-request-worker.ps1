@@ -1441,6 +1441,18 @@ function Get-V04AutoPilotHtml {
         $sourceReasonCode = 'verified-no-change'
         $sourceReason = 'The complete projection frame supports keeping the current lineup. Recheck injury news before kickoff.'
     }
+    elseif ($null -ne $WatchState.PSObject.Properties['StartSitReadIssue'] -and
+            [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT' -and
+            [string]$WatchState.StartSitReadIssue -ceq 'TIMEOUT') {
+        $sourceReasonCode = 'source-timeout'
+        $sourceReason = 'The Start/Sit evidence request exceeded its 12-second safety limit. The lineup is held; review the page when the source responds.'
+    }
+    elseif ($null -ne $WatchState.PSObject.Properties['StartSitReadIssue'] -and
+            [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT' -and
+            [string]$WatchState.StartSitReadIssue -ceq 'UNAVAILABLE') {
+        $sourceReasonCode = 'source-unavailable'
+        $sourceReason = 'The Start/Sit evidence page did not return a usable response. Butler is holding the lineup; check the source page before acting.'
+    }
     elseif ($evidenceStatus -ceq 'STALE') {
         $sourceReasonCode = 'stale-evidence'
         $sourceReason = 'The Dashboard decision evidence needs an update. Butler can refresh on open only when the existing audited rules permit it.'
@@ -1945,19 +1957,37 @@ try {
         # Start/Sit proposal, leaving independently checked waivers intact.
         if ([bool]$watchState.Ready) {
             $startSitHtmlForReview = ''
+            $startSitReadIssue = ''
             try {
                 # BF-1076: this optional deeper review must not hold the
                 # Auto-Pilot page for the 180-second core default during a
                 # source outage. Timeouts block only the lineup proposal.
                 $startSitPage = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup/autofill' -TimeoutMs 12000
                 if ([int]$startSitPage.StatusCode -eq 200 -and
-                    $startSitPage.ContentType -match '^text/html') {
+                    $startSitPage.ContentType -match '^text/html' -and
+                    -not [string]::IsNullOrWhiteSpace([string]$startSitPage.Body)) {
                     $startSitHtmlForReview = [string]$startSitPage.Body
                 }
+                else {
+                    $startSitReadIssue = 'UNAVAILABLE'
+                }
             }
-            catch { }
+            catch [System.Net.WebException] {
+                # BF-1101: only this exact WebException status proves a
+                # deadline expiry. Never leak the exception, player names,
+                # league context or raw HTTP body into Auto-Pilot.
+                $startSitReadIssue = if ($_.Exception.Status -eq
+                    [System.Net.WebExceptionStatus]::Timeout) { 'TIMEOUT' } else { 'UNAVAILABLE' }
+            }
+            catch {
+                $startSitReadIssue = 'UNAVAILABLE'
+            }
             $watchState = Limit-V04AutoPilotToSourcedStartSit -WatchState $watchState `
                 -MatchupHtml ([string]$resolvedWatch.MatchupHtml) -StartSitHtml $startSitHtmlForReview
+            if ($startSitReadIssue -ne '' -and
+                [string]$watchState.StartSit -ceq 'BLOCKED - CHECK START/SIT') {
+                $watchState | Add-Member -NotePropertyName StartSitReadIssue -NotePropertyValue $startSitReadIssue -Force
+            }
         }
 
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
