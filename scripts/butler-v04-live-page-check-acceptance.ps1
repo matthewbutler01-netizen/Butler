@@ -99,6 +99,79 @@ foreach ($required in @(
     }
 }
 
+# BF-1112: exercise the real public worker response writer with an in-memory
+# stream. Neither the read-only readiness report nor its failure-layer header
+# may echo body/player/league data. No network or provider is contacted.
+$workerSourcePath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
+$workerSource = [IO.File]::ReadAllText($workerSourcePath)
+$workerTokens = $null
+$workerErrors = $null
+$workerAst = [System.Management.Automation.Language.Parser]::ParseFile(
+    $workerSourcePath, [ref]$workerTokens, [ref]$workerErrors)
+if (@($workerErrors).Count -ne 0) { throw 'BF-1112 BLOCKED: worker source failed parse.' }
+$sendFunction = $workerAst.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -ceq 'Send-HttpResponse'
+}, $true)
+if ($null -eq $sendFunction) { throw 'BF-1112 BLOCKED: public response function missing.' }
+. ([scriptblock]::Create($sendFunction.Extent.Text))
+$script:bf856RouteTimingEnabled = $false
+$script:bf857CoreTimingEnabled = $false
+foreach ($required in @(
+    "-FailureLayer 'CORE_HTTP'",
+    '-FailureLayer $failurePhase',
+    "$" + "failurePhase = 'CORE_READ'",
+    "$" + "failurePhase = 'PUBLIC_WORKER'"
+)) {
+    if ($workerSource.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1112 BLOCKED: public manager route does not identify failure origin.'
+    }
+}
+foreach ($case in @(
+    @{ Code = 500; Layer = 'CORE_HTTP'; Header = 'CORE_HTTP' },
+    @{ Code = 503; Layer = 'CORE_READ'; Header = 'CORE_READ' },
+    @{ Code = 500; Layer = 'PUBLIC_WORKER'; Header = 'PUBLIC_WORKER' },
+    @{ Code = 200; Layer = 'CORE_HTTP'; Header = '' },
+    @{ Code = 500; Layer = ''; Header = '' }
+)) {
+    $memory = [System.IO.MemoryStream]::new()
+    try {
+        Send-HttpResponse -Stream $memory -StatusCode $case.Code -StatusText 'Local response' -ContentType 'text/html; charset=utf-8' -Body 'PRIVATE_ROSTER_LEAGUE_PLAYER_BODY' -FailureLayer $case.Layer
+        $bytes = [Text.Encoding]::ASCII.GetString($memory.ToArray())
+        $boundary = $bytes.IndexOf("`r`n`r`n", [StringComparison]::Ordinal)
+        if ($boundary -lt 0) { throw 'BF-1112 BLOCKED: worker response missing HTTP header boundary.' }
+        $headersOnly = $bytes.Substring(0, $boundary)
+        $line = 'X-Butler-Failure-Layer: '
+        $expected = if ($case.Header -ne '') { $line + $case.Header } else { '' }
+        $actualHeaderPresent = $headersOnly.Contains($line)
+        if ($headersOnly.Contains('PRIVATE_ROSTER_LEAGUE_PLAYER_BODY') -or
+            ($expected -eq '' -and $actualHeaderPresent) -or
+            ($expected -ne '' -and (-not $headersOnly.Contains($expected)))) {
+            throw 'BF-1112 BLOCKED: worker failure header omitted, untrusted or leaked private body.'
+        }
+    }
+    finally {
+        $memory.Dispose()
+    }
+}
+$invalidMemory = [System.IO.MemoryStream]::new()
+try {
+    $invalidRejected = $false
+    try {
+        Send-HttpResponse -Stream $invalidMemory -StatusCode 500 -StatusText 'Error' -ContentType 'text/plain' -Body 'private' -FailureLayer 'PRIVATE_LEAGUE_IDENTIFIER'
+    }
+    catch {
+        $invalidRejected = $_.Exception.Message -match 'BF-1112 BLOCKED: invalid local response failure layer'
+    }
+    if (-not $invalidRejected -or $invalidMemory.Length -ne 0) {
+        throw 'BF-1112 BLOCKED: invalid failure layer reached the HTTP wire.'
+    }
+}
+finally {
+    $invalidMemory.Dispose()
+}
+
 # BF-1102: exact independently sourced Matchup week must align with
 # the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
 $bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
