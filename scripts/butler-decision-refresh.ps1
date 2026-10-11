@@ -275,7 +275,7 @@ function Add-AutomaticGovernedRefreshHtml {
         [string]$Token
     )
     $result = @{ Html = $Html; Nonce = '' }
-    if (@('/', '/waivers', '/autopilot') -cnotcontains $Route -or
+    if (@('/', '/waivers', '/autopilot', '/matchup/autofill') -cnotcontains $Route -or
         $Token -cnotmatch '^[0-9a-f]{64}$' -or
         $AuditId -cnotmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
         return $result
@@ -293,7 +293,7 @@ function Add-AutomaticGovernedRefreshHtml {
     $nonce = New-DecisionRefreshToken
     # Dashboard and Auto-Pilot share one cooldown per audited decision so
     # navigating between the two cannot silently trigger duplicate refreshes.
-    $cooldownRoute = if ($Route -ceq '/autopilot') { '/' } else { $Route }
+    $cooldownRoute = if (@('/autopilot', '/matchup/autofill') -ccontains $Route) { '/' } else { $Route }
     $markup = @"
 <div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
 <script nonce="$nonce">
@@ -405,6 +405,32 @@ function Add-AutomaticDashboardRefresh {
 # an independent refresh authorization. On eligible stale evidence, its page
 # can update the Butler-local watch on open and return to Auto-Pilot. The same
 # five-minute audit cooldown is shared with Dashboard; Sleeper stays read-only.
+# BF-1104: source-based manager pages may only recheck Butler evidence
+# under the independently audited Dashboard state, just as Auto-Pilot does.
+# No inference from a Start/Sit blocker alone authorizes a local POST.
+function Add-AutomaticSourcedManagerRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if (@('/autopilot', '/matchup/autofill') -cnotcontains $RequestTarget -or
+        [string]::IsNullOrWhiteSpace($DashboardHtml)) { return $result }
+    try {
+        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
+        $proof = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token $Token
+        if ([string]::IsNullOrWhiteSpace([string]$proof.Nonce)) { return $result }
+        $auditId = Get-DecisionRefreshTechnicalField -Html $governed -Label 'Audit ID:'
+        return Add-AutomaticGovernedRefreshHtml -Html $Html -Route $RequestTarget -AuditId $auditId -Token $Token
+    }
+    catch {
+        # Missing or conflicting proof never creates an automatic write.
+        return $result
+    }
+}
+
 function Add-AutomaticAutoPilotRefresh {
     param(
         [string]$Html,
@@ -413,22 +439,34 @@ function Add-AutomaticAutoPilotRefresh {
         [string]$Token
     )
     $result = @{ Html = $Html; Nonce = '' }
-    if ($RequestTarget -cne '/autopilot' -or
-        [string]::IsNullOrWhiteSpace($DashboardHtml)) { return $result }
+    if ($RequestTarget -cne '/autopilot') { return $result }
+    return Add-AutomaticSourcedManagerRefresh -Html $Html -RequestTarget $RequestTarget -DashboardHtml $DashboardHtml -Token $Token
+}
 
-    try {
-        # BF-677 must prove state, live actionability, evidence lineage and
-        # any nine-step plan policy before emitting its exact refresh link.
-        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
-        $proof = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token $Token
-        if ([string]::IsNullOrWhiteSpace([string]$proof.Nonce)) { return $result }
-
-        $auditId = Get-DecisionRefreshTechnicalField -Html $governed -Label 'Audit ID:'
-        return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/autopilot' -AuditId $auditId -Token $Token
+# BF-1104: Start/Sit is already fetched read-only on each open. Only a
+# uniquely blocked source page is worth checking against Dashboard
+# eligibility. A verified healthy page does not trigger a second read or POST.
+function Test-AutomaticStartSitRefreshCandidate {
+    param([string]$Html,[string]$RequestTarget)
+    if ($RequestTarget -cne '/matchup/autofill') { return $false }
+    if ([regex]::Matches([string]$Html,
+        '<section\b[^>]*class="[^"]*\bstart-sit-assistant\b[^"]*"').Count -ne 1) {
+        return $false
     }
-    catch {
-        # Missing, ambiguous, or structurally invalid Dashboard proof never
-        # authorizes an Auto-Pilot local evidence write.
+    return [regex]::Matches([string]$Html,
+        'class="callout callout-danger start-sit-blocker"').Count -eq 1
+}
+
+function Add-AutomaticStartSitRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if (-not (Test-AutomaticStartSitRefreshCandidate -Html $Html -RequestTarget $RequestTarget)) {
         return $result
     }
+    return Add-AutomaticSourcedManagerRefresh -Html $Html -RequestTarget $RequestTarget -DashboardHtml $DashboardHtml -Token $Token
 }
