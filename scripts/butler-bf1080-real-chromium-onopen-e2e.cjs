@@ -45,7 +45,7 @@ function locateBrowser() {
 const browser = locateBrowser();
 
 function pageFor(config, refreshed) {
-  if (refreshed) {
+  if (refreshed && !config.remainStale) {
     return {html:'<!doctype html><html><body><main id="bf1080-refreshed">Fresh after local post</main></body></html>',nonce:''};
   }
   const page = data[config.page];
@@ -154,6 +154,14 @@ async function scenario(name,config) {
       assert.ok(paths.filter(p=>p===config.route).length >= 2,
         name+' browser did not navigate back after local POST');
     }
+    if (config.remainStale) {
+      assert.ok(refreshed,name+' did not perform its initial refresh');
+      assert.equal(posts.length,1,name+' caused a repeated refresh after redirect');
+      assert.match(dom,/Butler checked this decision recently/,
+        name+' failed real-browser sessionStorage cooldown after navigation');
+      assert.ok(paths.filter(p=>p===config.route).length>=2,
+        name+' never revisited stale route after successful refresh');
+    }
     if (config.reject) {
       assert.equal(refreshed,false,name+' policy rejection mutated fixture evidence');
       assert.match(dom,/Automatic update stopped/,name+' did not display failed-policy status');
@@ -185,6 +193,11 @@ async function scenario(name,config) {
   });
   await scenario('waiver-clickless-refresh',{
     page:'waivers',route:'/waivers',post:true,complete:true
+  });
+  // BF-1081: an update may finish without immediately clearing the
+  // upstream stale audit. The browser must not POST in a reload loop.
+  await scenario('dashboard-session-cooldown',{
+    page:'dashboard',route:'/',post:true,remainStale:true
   });
   await scenario('autopilot-clickless-refresh',{
     page:'autopilot',route:'/autopilot',post:true,complete:true
