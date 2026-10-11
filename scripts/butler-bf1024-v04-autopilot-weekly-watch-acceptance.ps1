@@ -50,6 +50,19 @@ $allowWatch = Limit-V04AutoPilotToVerifiedWeek -WatchState $allowWatch -MatchupH
 if (-not $allowWatch.Ready -or $allowWatch.StartSit -cne 'START 1 / SIT 1') {
     throw 'BF-1057 BLOCKED: uniquely sourced matching NFL week failed to preserve audited manager review.'
 }
+# BF-1102: the Auto-Pilot week badge must come only from independently
+# confirmed Sleeper MATCH plus the single aligned saved pairing.
+if ([string]$allowWatch.VerifiedWeekSeason -cne '2026' -or
+    [string]$allowWatch.VerifiedWeekNumber -cne '5') {
+    throw 'BF-1102 BLOCKED: source-verified season/week was not retained.'
+}
+$allowPolicy = Get-V04AutoPilotApprovalPolicy
+$allowQueue = Get-V04AutoPilotApprovalQueue -WatchState $allowWatch -ApprovalPolicy $allowPolicy
+$allowHtml = Get-V04AutoPilotHtml -WatchState $allowWatch -ApprovalPolicy $allowPolicy -ApprovalQueue $allowQueue
+if ($allowHtml.IndexOf('data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1102 BLOCKED: current verified week did not appear on Auto-Pilot.'
+}
+
 $blockedFixtures = @(
     [pscustomobject]@{ Html = $weekMatch.Replace('MATCH', 'MISMATCH'); Status = 'WEEK_MISMATCH'; Banner = 'SAVED WEEK OUTDATED' },
     [pscustomobject]@{ Html = $weekMatch.Replace('MATCH', 'UNVERIFIED'); Status = 'WEEK_UNVERIFIED'; Banner = 'WEEK NOT VERIFIED' },
@@ -67,6 +80,12 @@ $blockedFixtures = @(
 foreach ($case in $blockedFixtures) {
     $blocked = Get-V04AutoPilotWatchState -DashboardHtml $actionableFixture
     $blocked = Limit-V04AutoPilotToVerifiedWeek -WatchState $blocked -MatchupHtml $case.Html
+    # A stale, contradicted, missing, or duplicated week must not quietly
+    # label the Auto-Pilot watch with last week's saved pairing.
+    if ($null -ne $blocked.PSObject.Properties['VerifiedWeekSeason'] -or
+        $null -ne $blocked.PSObject.Properties['VerifiedWeekNumber']) {
+        throw 'BF-1102 BLOCKED: unverified pairing gained a verified week marker.'
+    }
     if ($blocked.Ready -or $blocked.EvidenceStatus -cne $case.Status -or
         $blocked.StartSit -cmatch 'START 1 / SIT 1' -or $blocked.Waivers -cmatch 'ADD 1 / DROP 1') {
         throw 'BF-1057 BLOCKED: absent, forged, conflicting or stale week proof leaked a manager recommendation.'
@@ -74,6 +93,10 @@ foreach ($case in $blockedFixtures) {
     $blockedPolicy = Get-V04AutoPilotApprovalPolicy
     $blockedQueue = Get-V04AutoPilotApprovalQueue -WatchState $blocked -ApprovalPolicy $blockedPolicy
     $blockedHtml = Get-V04AutoPilotHtml -WatchState $blocked -ApprovalPolicy $blockedPolicy -ApprovalQueue $blockedQueue
+    if ($blockedHtml.IndexOf('data-butler-watch-week-state="UNVERIFIED">NFL week not independently verified for this view.', [StringComparison]::Ordinal) -lt 0 -or
+        $blockedHtml.IndexOf('data-butler-watch-week-state="MATCH"', [StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-1102 BLOCKED: unverified matchup displayed a confirmed week.'
+    }
     if ($blockedHtml -notmatch [regex]::Escape($case.Banner) -or
         $blockedHtml -match 'READY FOR MANAGER REVIEW|START 1 / SIT 1|ADD 1 / DROP 1') {
         throw 'BF-1057 BLOCKED: Auto-Pilot renderer failed to withhold unsafe stale-week advice.'
