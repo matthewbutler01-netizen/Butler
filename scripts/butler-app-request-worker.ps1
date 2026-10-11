@@ -830,6 +830,79 @@ function ConvertTo-V04StartSitRouteHtml {
     return $result
 }
 
+# BF-1113: fail-closed, manager-first recovery when the outer worker
+# cannot deliver a requested page. No raw exception (including user league,
+# private filesystem paths or tokens) may appear in public HTML. Retry
+# navigates only to an exact known GET route and never executes a write.
+function Get-ButlerManagerFailureSpec {
+    param(
+        [AllowNull()][string]$RequestTarget,
+        [AllowNull()][string]$FailurePhase
+    )
+
+    $spec = [ordered]@{
+        Title = 'Butler page unavailable'
+        Active = 'dashboard'
+        PrimaryHref = '/'
+        PrimaryLabel = 'Return to Dashboard'
+        SecondaryHref = '/team'
+        SecondaryLabel = 'Review My Team'
+    }
+    switch -CaseSensitive ($RequestTarget) {
+        '/' {
+            $spec.Title = 'Dashboard unavailable'
+            $spec.PrimaryLabel = 'Try Dashboard again'
+        }
+        '/team' {
+            $spec.Title = 'My Team unavailable'
+            $spec.Active = 'team'
+            $spec.PrimaryHref = '/team'
+            $spec.PrimaryLabel = 'Try My Team again'
+            $spec.SecondaryHref = '/'
+            $spec.SecondaryLabel = 'Dashboard'
+        }
+        '/waivers' {
+            $spec.Title = 'Waiver Board unavailable'
+            $spec.Active = 'waivers'
+            $spec.PrimaryHref = '/waivers'
+            $spec.PrimaryLabel = 'Try Waiver Board again'
+            $spec.SecondaryHref = '/'
+            $spec.SecondaryLabel = 'Dashboard'
+        }
+        '/matchup' {
+            $spec.Title = 'Matchup unavailable'
+            $spec.Active = 'matchup'
+            $spec.PrimaryHref = '/matchup'
+            $spec.PrimaryLabel = 'Try Matchup again'
+            $spec.SecondaryHref = '/'
+            $spec.SecondaryLabel = 'Dashboard'
+        }
+        '/matchup/autofill' {
+            $spec.Title = 'Start/Sit unavailable'
+            $spec.Active = 'matchup'
+            $spec.PrimaryHref = '/matchup/autofill'
+            $spec.PrimaryLabel = 'Try Start/Sit again'
+            $spec.SecondaryHref = '/team'
+            $spec.SecondaryLabel = 'Review My Team'
+        }
+        '/league' {
+            $spec.Title = 'League unavailable'
+            $spec.Active = 'league'
+            $spec.PrimaryHref = '/league'
+            $spec.PrimaryLabel = 'Try League again'
+            $spec.SecondaryHref = '/'
+            $spec.SecondaryLabel = 'Dashboard'
+        }
+    }
+    $spec.Message = if ($FailurePhase -ceq 'CORE_READ') {
+        'The local Butler engine could not return this page. The current roster, matchup and recommendation have not been verified here. Retry the page after the engine is available.'
+    }
+    else {
+        'Butler could not finish showing this page. No lineup or waiver advice is available from this response. Retry the page or return to the Dashboard.'
+    }
+    return [pscustomobject]$spec
+}
+
 function Get-ButlerBlockedPageHtml {
     param(
         [Parameter(Mandatory = $true)][string]$Title,
@@ -2242,7 +2315,12 @@ try {
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce -FailureLayer 'CORE_HTTP'
     }
     catch {
-        $errorHtml = Get-ButlerBlockedPageHtml -Title 'Butler app blocked' -Message $_.Exception.Message -Active 'dashboard' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard' -SecondaryHref '/team' -SecondaryLabel 'Review My Team'
+        # BF-1113: raw exception messages can embed a private league ID,
+        # full local path, player name or token. The diagnostic already
+        # reports a safe failure-layer enum; show a useful retry screen
+        # instead of reflecting exception details into browser HTML.
+        $failure = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase $failurePhase
+        $errorHtml = Get-ButlerBlockedPageHtml -Title $failure.Title -Message $failure.Message -Active $failure.Active -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel -SecondaryHref $failure.SecondaryHref -SecondaryLabel $failure.SecondaryLabel
         Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml -FailureLayer $failurePhase
     }
 }
