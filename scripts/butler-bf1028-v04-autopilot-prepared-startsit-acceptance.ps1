@@ -71,6 +71,9 @@ $rawWatch = [pscustomobject]@{
     Waivers = 'NO MOVE'; Roster = 'Test Team'
 }
 $rawQueue = Get-V04AutoPilotApprovalQueue -WatchState $rawWatch -ApprovalPolicy $policy
+if ($rawQueue.StartSitNext.IndexOf('not been independently verified', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1091 BLOCKED: unverified source queue copy falsely advertised a ready proposal.'
+}
 $rawHtml = Get-V04AutoPilotHtml -WatchState $rawWatch -ApprovalPolicy $policy -ApprovalQueue $rawQueue
 if ($rawHtml.IndexOf('NO RECOMMENDATION PREPARED', [StringComparison]::Ordinal) -lt 0 -or
     $rawHtml.IndexOf('LINEUP SOURCE NOT VERIFIED', [StringComparison]::Ordinal) -lt 0 -or
@@ -79,6 +82,9 @@ if ($rawHtml.IndexOf('NO RECOMMENDATION PREPARED', [StringComparison]::Ordinal) 
     throw 'BF-1090 BLOCKED: a raw Dashboard card incorrectly passed deep source verification.'
 }
 $readyQueue = Get-V04AutoPilotApprovalQueue -WatchState $readyWatch -ApprovalPolicy $policy
+if ($readyQueue.StartSitNext.IndexOf('verified current lineup proposal', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1091 BLOCKED: checked proposal no longer offers an appropriate manager review.'
+}
 $readyHtml = Get-V04AutoPilotHtml -WatchState $readyWatch -ApprovalPolicy $policy -ApprovalQueue $readyQueue
 
 foreach ($required in @(
