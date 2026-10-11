@@ -103,7 +103,7 @@ async function scenario(name, mutations, expect) {
   // BF-1078: the same local GETs under the real-league strict mode only
   // return OS success when every locally observable requirement passes.
   await scenario('strict-all-pages-ready', {strict:true}, {
-    code:0, output:/READINESS GATE: LOCAL PAGE\/EXTERNAL WEEK CHECKS PASS/, allRoutes:true
+    code:0, output:/READINESS GATE: LOCAL PAGE CHECKS PASS ONLY; PUBLIC NFL WEEK NOT REQUESTED/, allRoutes:true
   });
   await scenario('strict-missing-matchup-proof', {
     strict:true,
