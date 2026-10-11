@@ -1108,7 +1108,13 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # Require the actual BF-1067 sourced-change message. A held swap,
         # unverified timestamp, no-change decision, or generic Dashboard
         # signal cannot authorize an Auto-Pilot prepared packet.
+        # BF-1085: a proposal is not a complete ready-to-review lineup
+        # when ANY player has unresolved projection/availability evidence.
+        # Check the full scoreable projection coverage and exact zero-hold
+        # boundary, not the substring '0 player holds' in '10 player holds'.
         if ($message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -lt 0 -or
+            $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -lt 0 -or
+            -not [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -or
             $message.IndexOf('no Sleeper move was submitted', [StringComparison]::Ordinal) -lt 0 -or
             $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
             $valid = $false
