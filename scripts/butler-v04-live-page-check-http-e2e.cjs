@@ -113,8 +113,8 @@ async function scenario(name, mutations, expect) {
   const output = child.stdout + '\n' + child.stderr;
   assert.equal(child.code, expect.code, name + ' wrong readiness exit code\n' + output);
   assert.match(output, expect.output, name + ' missing evidence status');
-  assert.doesNotMatch(output,/SENSITIVE_LOCAL_ERROR_BODY|roster, league and audit data/,
-    name + ' leaked HTTP response body');
+  assert.doesNotMatch(output,/SENSITIVE_LOCAL_ERROR_BODY|roster, league and audit data|PRIVATE_ROSTER_LEAGUE_ID_NOT_FOR_REPORT/,
+    name + ' leaked HTTP response body or untrusted failure-layer header');
   for (const entry of requests) {
     assert.equal(entry.method,'GET', name + ' attempted a write');
     assert.ok(expectedGet.includes(entry.url), name + ' requested unapproved route');
