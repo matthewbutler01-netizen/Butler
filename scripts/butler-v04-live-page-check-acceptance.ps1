@@ -270,6 +270,51 @@ foreach ($fixture in @(
     }
 }
 
+# BF-1079: opt-in actual readiness must not mistake the Start/Sit
+# decision shell for sourced, recent or otherwise usable player guidance.
+# Keep ordinary non-strict page-content tests backwards compatible.
+$utc = [DateTimeOffset]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
+$startSitFrame = '<html><body>Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">'
+$readyProof = '<p class="meta butler-startsit-source-proof" role="status">1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. Full scoreable projection coverage; 0 player holds. no Sleeper move was submitted. Sources: projection snapshot retrieved ' + $utc + ' UTC; swap players status map retrieved ' + $utc + ' UTC.</p>'
+$page.Body = $startSitFrame + $readyProof + '</section></body></html>'
+$strict = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page -RequireStartSitProvenance
+if ($strict.Status -cne 'PASS' -or $strict.Evidence -cne 'PAIRING VERIFIED') {
+    throw 'BF-1079 BLOCKED: current, sourced exact-player preview did not pass strict readiness.'
+}
+$noChangeProof = '<p class="meta butler-startsit-source-proof" role="status">No lineup change is ready. Full scoreable projection coverage; 0 player holds. If availability cannot be verified, Butler holds the move. Sources: projection snapshot retrieved ' + $utc + ' UTC; exact swap status fetch time not verified.</p>'
+$page.Body = $startSitFrame + $noChangeProof + '</section></body></html>'
+$noChange = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page -RequireStartSitProvenance
+if ($noChange.Status -cne 'PASS') {
+    throw 'BF-1079 BLOCKED: current zero-change lineup with no holds was treated as a fake pending transaction.'
+}
+foreach ($bad in @(
+    '',
+    ($readyProof + $readyProof),
+    ($readyProof.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros')),
+    ($readyProof.Replace('0 player holds', '2 player holds')),
+    ($readyProof.Replace('recorded fetch time', 'unknown time')),
+    ($readyProof.Replace('swap players status map retrieved ' + $utc + ' UTC', 'exact swap status fetch time not verified')),
+    ($readyProof.Replace('swap players status map retrieved ' + $utc + ' UTC', 'swap players status map retrieved 2024-01-01T10:00:00Z UTC')),
+    ($readyProof.Replace('projection snapshot retrieved ' + $utc + ' UTC', 'projection snapshot retrieved 2024-01-01T10:00:00Z UTC')),
+    ($readyProof.Replace('projection snapshot retrieved ' + $utc + ' UTC', 'projection snapshot retrieved 2026-02-30T10:00:00Z UTC')),
+    ($readyProof.Replace('no Sleeper move was submitted', 'Sleeper move submitted'))
+)) {
+    $page.Body = $startSitFrame + $bad + '</section></body></html>'
+    $held = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page -RequireStartSitProvenance
+    if ($held.Status -cne 'WARN' -or $held.Evidence -cne 'START/SIT SOURCE HOLD') {
+        throw 'BF-1079 BLOCKED: unsourced, stale, incomplete or duplicate lineup proof was certified.'
+    }
+}
+$page.Body = $startSitFrame + 'safe no proof</section></body></html>'
+$legacy = Test-ButlerLivePage -Route '/matchup/autofill' -Response $page
+if ($legacy.Status -cne 'PASS' -or $legacy.Evidence -cne 'PAIRING VERIFIED') {
+    throw 'BF-1079 BLOCKED: new opt-in strict mode unexpectedly changed the legacy page diagnostic.'
+}
+if ($source.IndexOf('Test-ButlerLivePage -Route $route -Response $response -RequireStartSitProvenance:$RequireReady',
+    [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1079 BLOCKED: real one-click readiness did not enable the source-provenance check.'
+}
+
 # BF-1072: independently valid route pages cannot describe different
 # leagues/weeks while the all-pages smoke claims everything agrees.
 $verified = [pscustomobject]@{ Status = 'PASS'; Evidence = 'PAIRING VERIFIED' }
