@@ -6,13 +6,41 @@ $path = Join-Path $PSScriptRoot 'butler-v04-live-page-check.ps1'
 $launcher = Join-Path $PSScriptRoot 'butler-v04-live-page-check.cmd'
 $doubleClick = Join-Path $PSScriptRoot 'butler-v04-live-page-check-open.cmd'
 $publicWeekCheck = Join-Path $PSScriptRoot 'butler-v04-week-check-open.cmd'
-foreach ($requiredPath in @($path, $launcher, $doubleClick, $publicWeekCheck)) {
+$realLeagueCheck = Join-Path $PSScriptRoot 'butler-v04-real-league-readiness-open.cmd'
+foreach ($requiredPath in @($path, $launcher, $doubleClick, $publicWeekCheck, $realLeagueCheck)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) { throw "BF-1040 BLOCKED: missing $requiredPath" }
 }
 $source = [IO.File]::ReadAllText($path)
 $wrapper = [IO.File]::ReadAllText($launcher)
 $doubleClickWrapper = [IO.File]::ReadAllText($doubleClick)
 $publicWeekWrapper = [IO.File]::ReadAllText($publicWeekCheck)
+$realLeagueWrapper = [IO.File]::ReadAllText($realLeagueCheck)
+# BF-1077: no user PowerShell required, a single private local diagnostics
+# text report is captured without storing player/roster HTML, tokens or data.
+foreach ($required in @(
+    'call "%~dp0butler-v04-live-page-check.cmd" -CheckSleeperWeek -TimeoutSeconds 30',
+    'v04-real-league-readiness-latest.txt',
+    'set "butlerReportDir=%LOCALAPPDATA%\Butler\diagnostics"',
+    '> "%butlerReport%" 2>&1',
+    'type "%butlerReport%"',
+    'start "" notepad.exe "%butlerReport%"',
+    'exit /b %butlerExit%',
+    'may invoke Butler'
+)) {
+    if ($realLeagueWrapper.IndexOf($required, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
+        throw "BF-1077 BLOCKED: one-click real league report contract missing: $required"
+    }
+}
+foreach ($forbidden in @(
+    'taskkill', 'Stop-Process', 'git reset', 'git checkout',
+    'Invoke-RestMethod', 'POST /refresh', 'submitTransaction',
+    '.db', '.sqlite', 'app-league.txt', 'start butler-app'
+)) {
+    if ($realLeagueWrapper.IndexOf($forbidden, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        throw "BF-1077 BLOCKED: one-click report may modify local runtime or reveal private evidence: $forbidden"
+    }
+}
+
 foreach ($required in @('butler-v04-live-page-check.cmd', '-CheckSleeperWeek', 'pause >nul')) {
     if ($publicWeekWrapper.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1053 BLOCKED: optional public NFL week launcher is missing: $required"
