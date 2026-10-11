@@ -58,8 +58,25 @@ $readyWatch = [pscustomobject]@{
     Ready = $true
     Attention = 'READY'
     StartSit = 'START 1 / SIT 1'
+    StartSitReviewOutcome = 'VERIFIED_CHANGE'
+    StartSitStatusFetchedAtUtc = '2026-10-10T15:00:00Z'
+    StartSitProjectionFetchedAtUtc = '2026-10-10T14:59:00Z'
     Waivers = 'NO MOVE'
     Roster = 'Hard(CORE)-Dynasty | nuke the whales | roster 6'
+}
+# BF-1090: a populated/green Dashboard summary cannot create an
+# approval packet until the independent source-gate outcome is present.
+$rawWatch = [pscustomobject]@{
+    Ready = $true; Attention = 'READY'; StartSit = 'START 1 / SIT 1'
+    Waivers = 'NO MOVE'; Roster = 'Test Team'
+}
+$rawQueue = Get-V04AutoPilotApprovalQueue -WatchState $rawWatch -ApprovalPolicy $policy
+$rawHtml = Get-V04AutoPilotHtml -WatchState $rawWatch -ApprovalPolicy $policy -ApprovalQueue $rawQueue
+if ($rawHtml.IndexOf('NO RECOMMENDATION PREPARED', [StringComparison]::Ordinal) -lt 0 -or
+    $rawHtml.IndexOf('LINEUP SOURCE NOT VERIFIED', [StringComparison]::Ordinal) -lt 0 -or
+    $rawHtml.IndexOf('READY FOR MANAGER REVIEW', [StringComparison]::Ordinal) -ge 0 -or
+    $rawHtml.IndexOf('<span class="status good">CURRENT SNAPSHOT</span>', [StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1090 BLOCKED: a raw Dashboard card incorrectly passed deep source verification.'
 }
 $readyQueue = Get-V04AutoPilotApprovalQueue -WatchState $readyWatch -ApprovalPolicy $policy
 $readyHtml = Get-V04AutoPilotHtml -WatchState $readyWatch -ApprovalPolicy $policy -ApprovalQueue $readyQueue
