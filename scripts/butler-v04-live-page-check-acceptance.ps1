@@ -292,6 +292,8 @@ foreach ($bad in @(
     ($readyProof + $readyProof),
     ($readyProof.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros')),
     ($readyProof.Replace('0 player holds', '2 player holds')),
+    ($readyProof.Replace('0 player holds', '10 player holds')),
+    ($readyProof.Replace('0 player holds', '100 player holds')),
     ($readyProof.Replace('recorded fetch time', 'unknown time')),
     ($readyProof.Replace('swap players status map retrieved ' + $utc + ' UTC', 'exact swap status fetch time not verified')),
     ($readyProof.Replace('swap players status map retrieved ' + $utc + ' UTC', 'swap players status map retrieved 2024-01-01T10:00:00Z UTC')),
