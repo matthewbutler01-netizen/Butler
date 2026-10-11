@@ -57,6 +57,14 @@ async function scenario(name, mutations, expect) {
       }));
       return;
     }
+    // BF-1107: exercise real HttpWebRequest exception responses without
+    // printing server response bodies or private diagnostics.
+    const failureStatus = mutations.httpStatus && mutations.httpStatus[req.url];
+    if (Number.isInteger(failureStatus)) {
+      res.writeHead(failureStatus, {'Content-Type':'text/plain; charset=utf-8'});
+      res.end('SENSITIVE_LOCAL_ERROR_BODY: roster, league and audit data');
+      return;
+    }
     const page = { ...good, ...(mutations.routes || {}) };
     const content = page[req.url];
     res.writeHead(200, {
@@ -97,6 +105,8 @@ async function scenario(name, mutations, expect) {
   const output = child.stdout + '\n' + child.stderr;
   assert.equal(child.code, expect.code, name + ' wrong readiness exit code\n' + output);
   assert.match(output, expect.output, name + ' missing evidence status');
+  assert.doesNotMatch(output,/SENSITIVE_LOCAL_ERROR_BODY|roster, league and audit data/,
+    name + ' leaked HTTP response body');
   for (const entry of requests) {
     assert.equal(entry.method,'GET', name + ' attempted a write');
     assert.ok(expectedGet.includes(entry.url), name + ' requested unapproved route');
@@ -111,6 +121,16 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1107: the Windows user's real readiness run reported GET ERROR for
+  // My Team and Waivers. Diagnose HTTP server failures separately from
+  // timeouts; do not print response bodies or user-specific exception text.
+  await scenario('manager-http-failures', {
+    httpStatus: {'/team':500, '/waivers':503}
+  }, {
+    code:1,
+    output:/\\/team[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500[\\s\\S]*\\/waivers[^\\r\\n]*FAIL[^\\r\\n]*HTTP 503/,
+    allRoutes:true
   });
   // BF-1102: the on-screen Auto-Pilot season/week must agree with the
   // independently read Matchup. Duplicate/missing/old week labels warn.
