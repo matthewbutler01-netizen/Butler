@@ -49,6 +49,8 @@ jobs:
           & '.\scripts\butler-automatic-dashboard-refresh-acceptance.ps1'
           & '.\scripts\butler-automatic-autopilot-refresh-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-automatic-startsit-refresh-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
