@@ -60,7 +60,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -68,6 +68,34 @@ foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-B
     if ($null -eq $node) { throw "BF-1040 BLOCKED: missing smoke function $name" }
     . ([scriptblock]::Create($node.Extent.Text))
 }
+
+# BF-1094: compare the two verified GETs without printing team or player
+# names. Healthy aligned signals pass; drift or duplication is a warning.
+$verifiedDash = [pscustomobject]@{ Status = 'PASS'; Evidence = 'AUDIT CURRENT' }
+$verifiedPilot = [pscustomobject]@{ Status = 'PASS'; Evidence = 'WATCH CURRENT' }
+function Test-Bf1094Lineup {
+    param([string]$DashSignal, [string]$PilotSignal, [string]$Expected,
+          [string]$ExpectedEvidence, [switch]$Duplicate,
+          [switch]$UnknownWatch)
+    $dashHtml = '<div class="dashboard-summary-card"><span>Start/Sit</span><strong>' +
+        $DashSignal + '</strong></div>'
+    $pilotCard = '<div class="autopilot-watch-card"><span>Start/Sit</span><strong>' +
+        $PilotSignal + '</strong></div>'
+    $pilotHtml = if ($Duplicate) { $pilotCard + $pilotCard } else { $pilotCard }
+    $watch = if ($UnknownWatch) { [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH INCOMPLETE' } }
+        else { $verifiedPilot }
+    $result = Test-ButlerCrossRouteLineup -DashboardHtml $dashHtml -AutoPilotHtml $pilotHtml -DashboardCheck $verifiedDash -AutoPilotCheck $watch
+    if ($result.Status -cne $Expected -or $result.Evidence -cne $ExpectedEvidence) {
+        throw "BF-1094 BLOCKED: cross-route lineup expected $Expected/$ExpectedEvidence, got $($result.Status)/$($result.Evidence)."
+    }
+}
+Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'REVIEW' -Expected 'PASS' -ExpectedEvidence 'LINEUP ALIGNED'
+Test-Bf1094Lineup -DashSignal 'NO CHANGE' -PilotSignal 'NO CHANGE VERIFIED' -Expected 'PASS' -ExpectedEvidence 'LINEUP ALIGNED'
+Test-Bf1094Lineup -DashSignal 'START 1 / SIT 1' -PilotSignal 'START 1 / SIT 1' -Expected 'PASS' -ExpectedEvidence 'LINEUP ALIGNED'
+Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'NO CHANGE VERIFIED' -Expected 'WARN' -ExpectedEvidence 'LINEUP SIGNAL DRIFT'
+Test-Bf1094Lineup -DashSignal 'NO CHANGE' -PilotSignal 'REVIEW' -Expected 'WARN' -ExpectedEvidence 'LINEUP SIGNAL DRIFT'
+Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'REVIEW' -Expected 'WARN' -ExpectedEvidence 'LINEUP CARD MISSING' -Duplicate
+Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'NO CHANGE VERIFIED' -Expected 'SKIP' -ExpectedEvidence 'PAGE NOT VERIFIED' -UnknownWatch
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
