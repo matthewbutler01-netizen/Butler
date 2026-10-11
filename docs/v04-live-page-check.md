@@ -20,6 +20,18 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1107: actionable local GET failure categories (read-only)
+
+The first real Windows v0.4 readiness run reached the app health endpoint but reported `GET ERROR` for My Team and Waivers. That blanket label cannot distinguish a server-side HTTP 500 from a network timeout, refused connection, or diagnostic page-check failure. The revised tester now emits **status-only**, sanitized categories while retaining the exact same seven GET routes and exit/freeze rules:
+
+- `HTTP 500`, `HTTP 503`, or another 4xx/5xx: Butler served an HTTP error on that route; investigate the development app worker/logs, **not** a browser refresh or Sleeper move.
+- `GET TIMEOUT`: the page did not finish within the requested per-route deadline.
+- `CONNECT FAILED`, `CONNECTION CLOSED`, `RECEIVE FAILED`, `SEND FAILED`: local transport broke. Recheck the existing running app/port before investigating provider freshness.
+- `PAGE CHECK ERROR`: the GET returned, but the diagnostic could not inspect its response safely.
+- `WARN AUDIT UNVERIFIED`: the page responded, but its audited Dashboard decision does not independently demonstrate a current actionable state. Never interpret this as lineup or waiver readiness.
+
+The tester **never echoes** the error exception message, response body, roster, league, player, token, audit ID, or local filesystem path into the shareable report. It still does not send any POST, auto-start an app, deploy a release, alter Sleeper, or validate external injury/projection freshness. Offline Windows fixtures and a synthetic loopback HTTP regression cover status categorization, a 500 on `/team`, a 503 on `/waivers`, and rejection of a sensitive error response body. The actual user's route errors require a **new run of the updated test checkout** before a root cause can be assigned.
+
 ## Boundaries and remaining checks
 
 The diagnostic itself never POSTs and never creates/cancels/submits waivers, lineups, trades, or FAAB changes. **Important:** an ordinary My Team or Start/Sit GET may independently trigger Butler's existing narrowly governed BF-723 Butler-local evidence recovery when exact roster drift is proven. That is app behavior, not a new diagnostic write endpoint.
