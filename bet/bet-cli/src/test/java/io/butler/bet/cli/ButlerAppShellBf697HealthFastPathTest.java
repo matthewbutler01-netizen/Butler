@@ -32,6 +32,11 @@ class ButlerAppShellBf697HealthFastPathTest {
         // BF-1048: a frozen v0.3 instance must not masquerade as this v0.4
         // tested capability just because its loopback health endpoint replies.
         assertTrue(worker.contains("\"featureSet\":\"v04-audited-onopen-freshness-bf1048\""));
+        // BF-1110: old cached draft request workers that still advertise
+        // BF-1098 must not be accepted by the newest read-only diagnostic.
+        assertTrue(worker.contains("\"liveCheckContract\":\"v04-current-page-proof-bf1110\""));
+        String checker = source("scripts/butler-v04-live-page-check.ps1");
+        assertTrue(checker.contains("$health.liveCheckContract -ceq 'v04-current-page-proof-bf1110'"));
     }
 
     @Test
