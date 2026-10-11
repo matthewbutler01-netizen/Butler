@@ -19,14 +19,14 @@ if ([regex]::Matches($workerSource, [regex]::Escape($originalLine)).Count -ne 1)
 $stagedSource = $workerSource.Replace($originalLine, $match.Groups['block'].Value.TrimEnd())
 $tokens = $null
 $parseErrors = $null
-$stagedAst = [Management.Automation.Language.Parser]::ParseInput(
+$stagedAst = [System.Management.Automation.Language.Parser]::ParseInput(
     $stagedSource, [ref]$tokens, [ref]$parseErrors)
 if (@($parseErrors).Count -ne 0) {
     throw 'BF-1129 BLOCKED: staged public response writer does not parse.'
 }
 $sendAst = $stagedAst.Find({
     param($node)
-    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
     $node.Name -ceq 'Send-HttpResponse'
 }, $true)
 if ($null -eq $sendAst) { throw 'BF-1129 BLOCKED: staged HTTP response writer missing.' }
