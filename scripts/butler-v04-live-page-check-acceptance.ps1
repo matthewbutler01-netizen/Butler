@@ -221,11 +221,31 @@ Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
-    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","bind":"127.0.0.1"}'
+    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","bind":"127.0.0.1"}'
 }
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1040 BLOCKED: exact Butler loopback health was rejected.'
 }
+# BF-1110: the original BF-1098 health contract was shared by many
+# v0.4 draft workers; an earlier running cached worker must NOT be mistaken
+# for a worker containing the current page-proof capabilities.
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1110 BLOCKED: previous v0.4 worker passed the current runtime gate.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"wrong-worker","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1110 BLOCKED: unrelated live worker marker passed.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","bind":"127.0.0.1"}'
+if (-not (Test-ButlerLocalHealth -Response $health)) {
+    throw 'BF-1110 BLOCKED: current worker not accepted after old-worker rejections.'
+}
+$workerSource = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'))
+if ($workerSource.IndexOf('"liveCheckContract":"v04-current-page-proof-bf1110"', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1110 BLOCKED: production worker health does not advertise the current runtime capability.'
+}
+
 # BF-1098: older v0.4 still advertises the original featureSet,
 # but lacks sourced cross-page and on-open safeguards. Never certify it
 # using today's strict real-league readiness diagnostic.
