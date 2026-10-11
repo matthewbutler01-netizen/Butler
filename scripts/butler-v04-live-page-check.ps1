@@ -499,6 +499,11 @@ if ($warned -gt 0) {
     }
 }
 if ($RequireReady) {
-    Write-Host 'READINESS GATE: LOCAL PAGE/EXTERNAL WEEK CHECKS PASS. Browser refresh completion and current injuries are not certified.'
+    if ($CheckSleeperWeek) {
+        Write-Host 'READINESS GATE: LOCAL PAGE AND PUBLIC NFL WEEK CHECKS PASS. Browser refresh completion and current injuries are not certified.'
+    }
+    else {
+        Write-Host 'READINESS GATE: LOCAL PAGE CHECKS PASS ONLY; PUBLIC NFL WEEK NOT REQUESTED. Browser refresh completion and current injuries are not certified.'
+    }
 }
 Write-Host 'BF-1040 LIVE PAGE CHECK: COMPLETE'
