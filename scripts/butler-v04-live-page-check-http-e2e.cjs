@@ -34,7 +34,7 @@ const good = {
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section class="panel"><div class="eyebrow">League hub</div>' +
-    '<div class="league-franchise-board"><div class="empty">Not current</div></div>' +
+    '<div class="league-franchise-board"><article class="league-franchise-card">Current synthetic team</article></div>' +
     '<details class="league-governance"><summary>View governed league actions</summary></details></section>'),
   '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
     '<div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' +
@@ -123,6 +123,23 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1109: a genuinely rendered League Hub without provider-backed
+  // franchise rankings is not certified ready. It is a WARN in default
+  // mode and a blocking exit 2 in the strict real-league gate.
+  await scenario('strict-league-rankings-unavailable', {
+    strict:true,
+    routes:{'/league':good['/league'].replace(
+      '<article class="league-franchise-card">Current synthetic team</article>',
+      '<div class="empty">Franchise rankings unavailable</div>')}
+  }, {
+    code:2, output:/[/]league[^\r\n]*WARN[^\r\n]*LEAGUE RANKINGS HOLD/, allRoutes:true
+  });
+  await scenario('malformed-league-franchise-board', {
+    routes:{'/league':good['/league'].replace(
+      '<article class="league-franchise-card">Current synthetic team</article>', '')}
+  }, {
+    code:1, output:/[/]league[^\r\n]*FAIL[^\r\n]*FRANCHISE CONTENT/, allRoutes:true
   });
   // BF-1108: BF-909 replaced the original League intelligence / Governed
   // guidance copy with structural League Hub sections. An old placeholder
