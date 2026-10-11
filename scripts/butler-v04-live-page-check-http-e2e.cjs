@@ -12,6 +12,7 @@ const path = require('node:path');
 const ps = path.join(__dirname, 'butler-v04-live-page-check.ps1');
 const feature = 'v04-audited-onopen-freshness-bf1048';
 const readiness = 'v04-sourced-onopen-bf1098';
+const liveCheck = 'v04-current-page-proof-bf1110';
 const csp = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
 const observed = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const currentProof = '<p class="meta butler-startsit-source-proof" role="status">' +
@@ -55,6 +56,7 @@ async function scenario(name, mutations, expect) {
         status:'ok',service:'butler-app-shell',
         featureSet: mutations.feature || feature,
         ...(mutations.omitReadiness ? {} : {readinessContract: mutations.readiness || readiness}),
+        ...(mutations.omitLiveCheck ? {} : {liveCheckContract: mutations.liveCheck || liveCheck}),
         bind:'127.0.0.1'
       }));
       return;
@@ -123,6 +125,14 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1110: do not run the current readiness diagnostic against an
+  // older, cached v0.4 request-worker that only passed BF-1098 health.
+  await scenario('stale-v04-runtime', {omitLiveCheck:true}, {
+    code:1, output:/BF-1110 BLOCKED/, allRoutes:false
+  });
+  await scenario('wrong-v04-runtime', {liveCheck:'previous-worker'}, {
+    code:1, output:/BF-1110 BLOCKED/, allRoutes:false
   });
   // BF-1109: a genuinely rendered League Hub without provider-backed
   // franchise rankings is not certified ready. It is a WARN in default
