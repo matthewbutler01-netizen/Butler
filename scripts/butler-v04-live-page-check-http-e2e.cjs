@@ -130,12 +130,12 @@ async function scenario(name, mutations, expect) {
   await scenario('retired-league-headings', {
     routes:{'/league':html('League League intelligence Governed guidance')}
   }, {
-    code:1, output:/[/]league[^\\r\\n]*FAIL[^\\r\\n]*PAGE CONTENT/, allRoutes:true
+    code:1, output:/[/]league[^\r\n]*FAIL[^\r\n]*PAGE CONTENT/, allRoutes:true
   });
   await scenario('missing-league-governance', {
     routes:{'/league':good['/league'].replace('class="league-governance"', 'class="old-governance"')}
   }, {
-    code:1, output:/[/]league[^\\r\\n]*FAIL[^\\r\\n]*PAGE CONTENT/, allRoutes:true
+    code:1, output:/[/]league[^\r\n]*FAIL[^\r\n]*PAGE CONTENT/, allRoutes:true
   });
   // BF-1107: the Windows user's real readiness run reported GET ERROR for
   // My Team and Waivers. Diagnose HTTP server failures separately from
