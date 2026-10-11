@@ -95,15 +95,27 @@ function Test-ButlerSleeperWeekMatch {
             $weekText -cnotmatch '^(?:[1-9]|1[0-8])$') {
             return [pscustomobject]$result
         }
-        # The app's BF-840 exact weekly-matchup renderer only shows a week
-        # after it proves the roster/league matchup. Never infer the week
-        # from a sidebar or a fake "Week 5" label in generic page text.
-        $matches = [regex]::Matches($MatchupHtml,
-            '(?is)<div class="target" data-butler-matchup-season="(?<season>20[0-9]{2})">[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
-        if ($matches.Count -ne 1) { return [pscustomobject]$result }
-        $localWeek = [int]$matches[0].Groups['week'].Value
-        $localSeason = $matches[0].Groups['season'].Value
-        if ($localWeek -eq [int]$weekText -and $localSeason -ceq $season) {
+        # BF-1077: external NFL state cannot certify a saved matchup merely
+        # because a plausible Week label happens to match. Require the exact
+        # independently verified source-week metadata and rendered opponent
+        # frame to agree before comparing that frame with Sleeper.
+        if ([regex]::Matches($MatchupHtml, 'data-butler-week-state=').Count -ne 1 -or
+            [regex]::Matches($MatchupHtml, 'data-butler-week-season=').Count -ne 1 -or
+            [regex]::Matches($MatchupHtml, 'data-butler-week-number=').Count -ne 1 -or
+            [regex]::Matches($MatchupHtml, 'data-butler-matchup-season=').Count -ne 1) {
+            return [pscustomobject]$result
+        }
+        $sourceWeek = [regex]::Matches($MatchupHtml,
+            '(?is)<section\b[^>]*class="[^"]*\bbutler-live-week-status\b[^"]*"[^>]*data-butler-week-state="MATCH"[^>]*data-butler-week-season="(?<season>20[0-9]{2})"[^>]*data-butler-week-number="(?<week>[1-9]|1[0-8])"[^>]*>')
+        $savedWeek = [regex]::Matches($MatchupHtml,
+            '(?is)<div\b[^>]*class="target"[^>]*data-butler-matchup-season="(?<season>20[0-9]{2})"[^>]*>[^<]*\bWeek\s+(?<week>[1-9]|1[0-8])\s*</div>')
+        if ($sourceWeek.Count -ne 1 -or $savedWeek.Count -ne 1 -or
+            $sourceWeek[0].Groups['season'].Value -cne $savedWeek[0].Groups['season'].Value -or
+            $sourceWeek[0].Groups['week'].Value -cne $savedWeek[0].Groups['week'].Value) {
+            return [pscustomobject]$result
+        }
+        if ($season -ceq $sourceWeek[0].Groups['season'].Value -and
+            $weekText -ceq $sourceWeek[0].Groups['week'].Value) {
             $result.Status = 'PASS'
             $result.Evidence = 'WEEK MATCH'
         }
@@ -112,8 +124,7 @@ function Test-ButlerSleeperWeekMatch {
         }
     }
     catch {
-        # An incomplete or malformed provider response is not evidence of
-        # the live week. Never guess from the current calendar date.
+        # Failed/malformed source reads do not justify a live week claim.
         return [pscustomobject]$result
     }
     return [pscustomobject]$result
@@ -421,10 +432,12 @@ Write-Host ''
 $failed = 0
 $warned = 0
 $matchupResponse = $null
+$localCheckStarted = [System.Diagnostics.Stopwatch]::StartNew()
 $matchupCheck = $null
 $startSitResponse = $null
 $startSitCheck = $null
 foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
+    $routeTimer = [Diagnostics.Stopwatch]::StartNew()
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
         if ($route -ceq '/matchup') { $matchupResponse = $response }
@@ -438,7 +451,8 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
     }
     if ($check.Status -ceq 'FAIL') { $failed++ }
     if ($check.Status -ceq 'WARN') { $warned++ }
-    Write-Host ("{0,-19} {1,-5} evidence={2,-17} auto={3}" -f $check.Route, $check.Status, $check.Evidence, $check.AutoCheck)
+    $routeTimer.Stop()
+    Write-Host ("{0,-19} {1,-5} evidence={2,-17} auto={3} get_ms={4}" -f $check.Route, $check.Status, $check.Evidence, $check.AutoCheck, [int][Math]::Round($routeTimer.Elapsed.TotalMilliseconds))
 }
 $weekPair = Test-ButlerCrossRouteWeek -MatchupHtml $(if ($null -ne $matchupResponse) { [string]$matchupResponse.Body } else { '' }) `
     -StartSitHtml $(if ($null -ne $startSitResponse) { [string]$startSitResponse.Body } else { '' }) `
@@ -462,7 +476,8 @@ if ($CheckSleeperWeek) {
     Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Sleeper NFL week', $weekCheck.Status, $weekCheck.Evidence)
 }
 Write-Host ''
-Write-Host ("RESULT: {0} page failure(s), {1} watch warning(s)." -f $failed, $warned)
+$localCheckStarted.Stop()
+Write-Host ("RESULT: {0} page failure(s), {1} watch warning(s). Local GET checks + optional public-week lookup: {2} ms." -f $failed, $warned, [int][Math]::Round($localCheckStarted.Elapsed.TotalMilliseconds))
 Write-Host 'A page may respond normally but have stale/unknown audited evidence. WARN never certifies current decisions.'
 Write-Host 'Local audited labels do NOT prove source freshness. Optional public week matching cannot verify player injury/projection or roster synchronization.'
 Write-Host 'This does not test actual browser refresh completion.'
