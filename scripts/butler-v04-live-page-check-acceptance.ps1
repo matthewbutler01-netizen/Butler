@@ -18,7 +18,7 @@ $realLeagueWrapper = [IO.File]::ReadAllText($realLeagueCheck)
 # BF-1077: no user PowerShell required, a single private local diagnostics
 # text report is captured without storing player/roster HTML, tokens or data.
 foreach ($required in @(
-    'call "%~dp0butler-v04-live-page-check.cmd" -CheckSleeperWeek -TimeoutSeconds 30',
+    'call "%~dp0butler-v04-live-page-check.cmd" -CheckSleeperWeek -RequireReady -TimeoutSeconds 30',
     'v04-real-league-readiness-latest.txt',
     'set "butlerReportDir=%LOCALAPPDATA%\Butler\diagnostics"',
     '> "%butlerReport%" 2>&1',
@@ -347,6 +347,25 @@ foreach ($required in @(
     if ($source.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1053 BLOCKED: opt-in bounded public NFL week contract missing: $required"
     }
+}
+
+# BF-1078: default synthetic diagnostics still distinguish FAIL from
+# WARN without changing their exit behavior; real-league readiness is
+# stricter and signals WARN as OS exit 2, not a false 0/SUCCESS.
+foreach ($required in @(
+    '[switch]$RequireReady',
+    'if ($RequireReady)',
+    "Write-Host 'READINESS GATE: BLOCKED BY WARNINGS. No lineup/waiver advice certified.'",
+    'exit 2',
+    'if ($failed -gt 0)'
+)) {
+    if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1078 BLOCKED: optional fail-closed readiness exit contract missing: $required"
+    }
+}
+if ($realLeagueWrapper.IndexOf('-CheckSleeperWeek -RequireReady -TimeoutSeconds 30',
+    [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1078 BLOCKED: real-league one-click diagnostic did not opt into strict readiness.'
 }
 
 # BF-1077: diagnostic must measure local GET time without writing response
