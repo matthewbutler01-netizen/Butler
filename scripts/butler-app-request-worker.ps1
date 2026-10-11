@@ -1112,6 +1112,21 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # when ANY player has unresolved projection/availability evidence.
         # Check the full scoreable projection coverage and exact zero-hold
         # boundary, not the substring '0 player holds' in '10 player holds'.
+        # BF-1087: an exact sourced-change assertion must begin with a
+        # positive changed-assignment count, and the rendered source must
+        # contain one and only one change count, projection-coverage claim,
+        # and numeric player-hold count. A zero-change, duplicate or
+        # contradictory proof cannot prepare an Auto-Pilot lineup packet.
+        $positiveChanges = [regex]::IsMatch($message,
+            '^[1-9][0-9]* proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time\.')
+        $changeCounts = [regex]::Matches($message, '\b[0-9]+ proposed lineup changes\b')
+        $coverageClaims = [regex]::Matches($message, 'Full scoreable projection coverage')
+        $holdCounts = [regex]::Matches($message, '\b[0-9]+ player holds?\b')
+        if (-not $positiveChanges -or $changeCounts.Count -ne 1 -or
+            $coverageClaims.Count -ne 1 -or $holdCounts.Count -ne 1 -or
+            $holdCounts[0].Value -cne '0 player holds') {
+            $valid = $false
+        }
         if ($message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -lt 0 -or
             $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -lt 0 -or
             -not [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -or
