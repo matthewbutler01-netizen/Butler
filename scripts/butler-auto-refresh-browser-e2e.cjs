@@ -29,9 +29,11 @@ function extractScript(page) {
   assert.equal(scripts[0][1], page.Nonce, 'nonce mismatch');
   return scripts[0][2];
 }
-for (const route of ['dashboard', 'waivers', 'autopilot']) {
+for (const route of ['dashboard', 'waivers', 'autopilot', 'startsit']) {
   assert.ok(extractScript(data[route]).includes("fetch('/refresh'"));
 }
+assert.equal(data.blockedStartSit.Nonce, '');
+assert.doesNotMatch(data.blockedStartSit.Html, /<script\b/i);
 assert.equal(data.blockedAutopilot.Nonce, '');
 assert.doesNotMatch(data.blockedAutopilot.Html, /<script\b/i);
 
@@ -194,8 +196,43 @@ async function visit(route, options = {}) {
     assert.equal(call.settings.credentials, 'same-origin');
     assert.equal(call.settings.body, 'token=' + data.token);
   }
+  // BF-1104: a blocked Start/Sit page can recheck the current audited
+  // Dashboard decision on open. Its cooldown is shared with Dashboard
+  // and Auto-Pilot, so navigating between them never repeats the POST.
+  storage.clear();
+  calls.length = 0;
+  now += 300001;
+  x = await visit('startsit');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].route, 'startsit');
+  assert.equal(calls[0].settings.body, 'token=' + data.token);
+  assert.deepEqual(x.redirected, ['/matchup/autofill']);
+  const sharedKey = 'butler-auto-refresh:/:' + data.audit;
+  assert.equal(storage.get(sharedKey), 's:' + String(now));
+  x = await visit('dashboard');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(x.redirected, []);
+  x = await visit('autopilot');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(x.redirected, []);
+
+  // If the blocked Start/Sit source recovery fails, only a later page
+  // visit after the bounded failure lock is allowed to try again.
+  now += 300001;
+  x = await visit('startsit', { network: 'throw' });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(x.redirected, []);
+  assert.equal(storage.get(sharedKey), 'f:' + String(now));
+  x = await visit('dashboard');
+  assert.equal(calls.length, 2);
+  now += 60001;
+  x = await visit('dashboard');
+  assert.equal(calls.length, 3);
+  assert.deepEqual(x.redirected, ['/']);
+  assert.equal(storage.get(sharedKey), 's:' + String(now));
+
   console.log('BF-1043 REAL RENDERED AUTO-REFRESH BROWSER EXECUTION: PASS');
-  console.log('Coverage: clickless update, shared 5-minute success cooldown, 1-minute failed/pending lock, later-visit recovery after rejected/offline calls, in-flight de-duplication, legacy key migration, independent waiver audits and token-only POST intent.');
+  console.log('Coverage: clickless Dashboard/Waivers/Auto-Pilot/blocked Start-Sit refresh, shared success/failure cooldown across manager pages, later-visit recovery, pending lock, legacy migration, no healthy Start/Sit script, token-only POST.');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
