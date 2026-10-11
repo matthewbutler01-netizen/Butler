@@ -60,7 +60,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -96,6 +96,41 @@ Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'NO CHANGE VERIFIED' -Expect
 Test-Bf1094Lineup -DashSignal 'NO CHANGE' -PilotSignal 'REVIEW' -Expected 'WARN' -ExpectedEvidence 'LINEUP SIGNAL DRIFT'
 Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'REVIEW' -Expected 'WARN' -ExpectedEvidence 'LINEUP CARD MISSING' -Duplicate
 Test-Bf1094Lineup -DashSignal 'REVIEW' -PilotSignal 'NO CHANGE VERIFIED' -Expected 'SKIP' -ExpectedEvidence 'PAGE NOT VERIFIED' -UnknownWatch
+
+# BF-1095: independently green manager pages must agree with the actual
+# Start/Sit source decision, not just their summary card values.
+$sourcePositive = '<p class="meta butler-startsit-source-proof" role="status">1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. Full scoreable projection coverage; 0 player holds. no Sleeper move was submitted. Sources: projection snapshot retrieved 2026-10-11T04:58:00Z UTC; swap players status map retrieved 2026-10-11T04:59:00Z UTC.</p>'
+$sourceKeep = '<p class="meta butler-startsit-source-proof" role="status">No lineup change is ready. Full scoreable projection coverage; 0 player holds. Recheck before kickoff. Sources: projection snapshot retrieved 2026-10-11T04:58:00Z UTC.</p>'
+$sourcePass = [pscustomobject]@{ Status = 'PASS'; Evidence = 'PAIRING VERIFIED' }
+$lineupPass = [pscustomobject]@{ Status = 'PASS'; Evidence = 'LINEUP ALIGNED' }
+$pilotPass = [pscustomobject]@{ Status = 'PASS'; Evidence = 'WATCH CURRENT' }
+function Assert-Bf1095Decision {
+    param([string]$PilotSignal,[string]$Proof,[string]$Status,[string]$Evidence,
+          [switch]$Duplicate,[switch]$OtherUnverified)
+    $card = '<div class="autopilot-watch-card"><span>Start/Sit</span><strong>' +
+        $PilotSignal + '</strong></div>'
+    $pilotHtml = if ($Duplicate) { $card + $card } else { $card }
+    $start = if ($Proof -ceq 'positive') { $sourcePositive }
+        elseif ($Proof -ceq 'keep') { $sourceKeep }
+        elseif ($Proof -ceq 'none') { '' }
+        else { $Proof }
+    $sourceResult = if ($OtherUnverified) {
+        [pscustomobject]@{ Status = 'WARN'; Evidence = 'START/SIT SOURCE HOLD' }
+    } else { $sourcePass }
+    $actual = Test-ButlerCrossRouteStartSit -AutoPilotHtml $pilotHtml -StartSitHtml $start -AutoPilotCheck $pilotPass -StartSitCheck $sourceResult -LineupPair $lineupPass
+    if ($actual.Status -cne $Status -or $actual.Evidence -cne $Evidence) {
+        throw "BF-1095 BLOCKED: expected $Status/$Evidence, got $($actual.Status)/$($actual.Evidence)."
+    }
+}
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'positive' -Status 'PASS' -Evidence 'START/SIT ALIGNED'
+Assert-Bf1095Decision -PilotSignal 'START 1 / SIT 1' -Proof 'positive' -Status 'PASS' -Evidence 'START/SIT ALIGNED'
+Assert-Bf1095Decision -PilotSignal 'NO CHANGE VERIFIED' -Proof 'keep' -Status 'PASS' -Evidence 'START/SIT ALIGNED'
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'keep' -Status 'WARN' -Evidence 'START/SIT DECISION DRIFT'
+Assert-Bf1095Decision -PilotSignal 'NO CHANGE VERIFIED' -Proof 'positive' -Status 'WARN' -Evidence 'START/SIT DECISION DRIFT'
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'none' -Status 'WARN' -Evidence 'START/SIT SOURCE UNKNOWN'
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'positive' -Duplicate -Status 'WARN' -Evidence 'START/SIT SOURCE UNKNOWN'
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof 'positive' -OtherUnverified -Status 'SKIP' -Evidence 'PAGE NOT VERIFIED'
+Assert-Bf1095Decision -PilotSignal 'REVIEW' -Proof $sourcePositive.Replace('1 proposed lineup changes','0 proposed lineup changes') -Status 'WARN' -Evidence 'START/SIT SOURCE UNKNOWN'
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
