@@ -11,6 +11,7 @@ const path = require('node:path');
 
 const ps = path.join(__dirname, 'butler-v04-live-page-check.ps1');
 const feature = 'v04-audited-onopen-freshness-bf1048';
+const readiness = 'v04-sourced-onopen-bf1098';
 const csp = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
 const observed = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const currentProof = '<p class="meta butler-startsit-source-proof" role="status">' +
@@ -50,7 +51,9 @@ async function scenario(name, mutations, expect) {
       res.writeHead(200, {'Content-Type':'application/json; charset=utf-8'});
       res.end(JSON.stringify({
         status:'ok',service:'butler-app-shell',
-        featureSet: mutations.feature || feature, bind:'127.0.0.1'
+        featureSet: mutations.feature || feature,
+        ...(mutations.omitReadiness ? {} : {readinessContract: mutations.readiness || readiness}),
+        bind:'127.0.0.1'
       }));
       return;
     }
@@ -406,6 +409,14 @@ async function scenario(name, mutations, expect) {
       good['/matchup/autofill'].replace('data-butler-week-state="MATCH"', 'data-butler-week-state="UNVERIFIED"').replace('Review only', 'Promote to lineup')}
   }, {
     code:1, output:/\/matchup\/autofill\s+FAIL\s+evidence=HELD ADVICE/, allRoutes:true
+  });
+  // BF-1098: a healthy-looking older v0.4 instance is not the
+  // current sourced-onopen development build. Refuse even with HTTP 200.
+  await scenario('old-v04-readiness-rejected', {omitReadiness:true}, {
+    code:1, output:/BF-1048 BLOCKED/, allRoutes:false
+  });
+  await scenario('wrong-v04-readiness-rejected', {readiness:'unverified-old-v04'}, {
+    code:1, output:/BF-1048 BLOCKED/, allRoutes:false
   });
   await scenario('old-build-rejected', {feature:'old-v03'}, {
     code:1, output:/BF-1048 BLOCKED/, allRoutes:false
