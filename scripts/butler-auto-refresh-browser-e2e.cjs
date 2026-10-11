@@ -63,6 +63,7 @@ async function visit(route, options = {}) {
     fetch: async (url, settings) => {
       calls.push({ route, url, settings });
       if (network === 'throw') { throw new Error('offline synthetic fixture'); }
+      if (network === 'pending') { return new Promise(() => {}); }
       return { ok: network === 'ok' };
     },
     window: { location: { replace: href => redirected.push(href) } }
@@ -158,6 +159,35 @@ async function visit(route, options = {}) {
   assert.deepEqual(x.redirected, ['/']);
   assert.ok(storage.has('butler-auto-refresh:/:' + audit2));
 
+  // A previous legacy numeric timestamp must still suppress a loop for
+  // five minutes. Pending requests also lock a second same-audit visit
+  // without claiming that the first request succeeded.
+  const audit3 = '33333333-3333-3333-3333-333333333333';
+  data.audit3 = {
+    Html: data.dashboard.Html.replaceAll(data.audit, audit3),
+    Nonce: data.dashboard.Nonce
+  };
+  const thirdKey = 'butler-auto-refresh:/:' + audit3;
+  x = await visit('audit3', { network: 'pending' });
+  assert.equal(calls.length, 9);
+  assert.deepEqual(x.redirected, []);
+  assert.equal(storage.get(thirdKey), 'p:' + String(now));
+  x = await visit('audit3');
+  assert.equal(calls.length, 9);
+  assert.match(x.text, /could not complete the last update/);
+  now += 60001;
+  x = await visit('audit3');
+  assert.equal(calls.length, 10);
+  assert.deepEqual(x.redirected, ['/']);
+  assert.equal(storage.get(thirdKey), 's:' + String(now));
+
+  // Version migration: old 5-minute timestamp is interpreted as a
+  // successful cooldown; a second POST must NOT be sent immediately.
+  storage.set(thirdKey, String(now));
+  x = await visit('audit3');
+  assert.equal(calls.length, 10);
+  assert.match(x.text, /checked this decision recently/);
+
   for (const call of calls) {
     assert.equal(call.url, '/refresh');
     assert.equal(call.settings.method, 'POST');
@@ -165,7 +195,7 @@ async function visit(route, options = {}) {
     assert.equal(call.settings.body, 'token=' + data.token);
   }
   console.log('BF-1043 REAL RENDERED AUTO-REFRESH BROWSER EXECUTION: PASS');
-  console.log('Coverage: clickless update, shared 5-minute success cooldown, 1-minute failure/pending cooldown, later-visit recovery for rejected or offline calls, Waiver independence, audit rotation, same-origin token-only POST intent.');
+  console.log('Coverage: clickless update, shared 5-minute success cooldown, 1-minute failed/pending lock, later-visit recovery after rejected/offline calls, in-flight de-duplication, legacy key migration, independent waiver audits and token-only POST intent.');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
