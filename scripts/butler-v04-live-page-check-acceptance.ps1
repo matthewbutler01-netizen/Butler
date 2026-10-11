@@ -266,6 +266,70 @@ if ($workerSource.IndexOf('Get-ButlerMinimalBlockedPageHtml -Title $failure.Titl
     throw 'BF-1117 BLOCKED: outer app failure is not routed to independent safe HTML.'
 }
 
+# BF-1124: a public worker that cannot even initialize must return an
+# explicit privacy-safe HTTP 503, not drop the connection as generic GET ERROR.
+# Exercise the actual cached-worker wrapper fallback using loopback TCP only.
+$cachePath = Join-Path $PSScriptRoot 'butler-app-request-worker-cache.ps1'
+$cacheTokens = $null
+$cacheErrors = $null
+$cacheAst = [System.Management.Automation.Language.Parser]::ParseFile(
+    $cachePath, [ref]$cacheTokens, [ref]$cacheErrors)
+if (@($cacheErrors).Count -ne 0) {
+    throw 'BF-1124 BLOCKED: cached request-worker wrapper does not parse on Windows PowerShell 5.1.'
+}
+$cacheFallback = $cacheAst.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -ceq 'Send-ButlerWorkerInitializationFailure'
+}, $true)
+if ($null -eq $cacheFallback) {
+    throw 'BF-1124 BLOCKED: cached public worker lacks safe initialization failure handler.'
+}
+. ([scriptblock]::Create($cacheFallback.Extent.Text))
+$cacheSource = [IO.File]::ReadAllText($cachePath)
+foreach ($required in @(
+    'X-Butler-Failure-Layer: PUBLIC_WORKER',
+    'Send-ButlerWorkerInitializationFailure -Client $Client',
+    'Cache-Control: no-store',
+    'frame-ancestors',
+    'return'
+)) {
+    if ($cacheSource.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1124 BLOCKED: cache initialization does not guarantee safe HTTP failure.'
+    }
+}
+$cacheListener = [System.Net.Sockets.TcpListener]::new(
+    [System.Net.IPAddress]::Loopback, 0)
+$cacheClient = $null
+$cacheAccepted = $null
+try {
+    $cacheListener.Start()
+    $cachePort = ([System.Net.IPEndPoint]$cacheListener.LocalEndpoint).Port
+    $cacheClient = [System.Net.Sockets.TcpClient]::new()
+    $cacheClient.Connect('127.0.0.1', $cachePort)
+    $cacheAccepted = $cacheListener.AcceptTcpClient()
+    Send-ButlerWorkerInitializationFailure -Client $cacheAccepted
+    $cacheReader = [System.IO.StreamReader]::new(
+        $cacheClient.GetStream(), [System.Text.Encoding]::UTF8)
+    try { $cacheWire = $cacheReader.ReadToEnd() }
+    finally { $cacheReader.Dispose() }
+    if ($cacheWire.IndexOf('HTTP/1.1 503 Service Unavailable', [StringComparison]::Ordinal) -ne 0 -or
+        $cacheWire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
+        $cacheWire.IndexOf('Content-Security-Policy: default-src', [StringComparison]::Ordinal) -lt 0 -or
+        $cacheWire.IndexOf('Current roster and recommendations are not verified', [StringComparison]::Ordinal) -lt 0 -or
+        $cacheWire.IndexOf('No Sleeper transaction was submitted by this page', [StringComparison]::Ordinal) -lt 0 -or
+        $cacheWire.IndexOf('href="/"', [StringComparison]::Ordinal) -lt 0 -or
+        $cacheWire.IndexOf('Exception.Message', [StringComparison]::Ordinal) -ge 0 -or
+        $cacheWire.IndexOf('BF-765 BLOCKED', [StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-1124 BLOCKED: failed public worker did not emit bounded private-data-safe HTTP 503.'
+    }
+}
+finally {
+    if ($null -ne $cacheAccepted) { $cacheAccepted.Dispose() }
+    if ($null -ne $cacheClient) { $cacheClient.Dispose() }
+    $cacheListener.Stop()
+}
+
 # BF-1102: exact independently sourced Matchup week must align with
 # the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
 $bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
