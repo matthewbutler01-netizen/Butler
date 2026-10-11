@@ -2171,6 +2171,26 @@ try {
         elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
             $autoRefresh = Add-AutomaticWaiverRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
+        elseif ($proxied.StatusCode -eq 200 -and
+                $requestTarget -ceq '/matchup/autofill' -and
+                (Test-AutomaticStartSitRefreshCandidate -Html ([string]$body) -RequestTarget $requestTarget)) {
+            # BF-1104: only a uniquely blocked Start/Sit source causes this
+            # optional, bounded Dashboard check. A verified Start/Sit page
+            # never gets a second expensive read. The same Dashboard proof,
+            # one-use token, server preflight and shared audit cooldown used
+            # by Auto-Pilot gate the local evidence update.
+            try {
+                $refreshDashboard = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/' -TimeoutMs 12000
+                if ([int]$refreshDashboard.StatusCode -eq 200 -and
+                    $refreshDashboard.ContentType -match '^text/html') {
+                    $autoRefresh = Add-AutomaticStartSitRefresh -Html ([string]$body) -RequestTarget $requestTarget -DashboardHtml ([string]$refreshDashboard.Body) -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+                }
+            }
+            catch {
+                # A failed optional Dashboard read must not mask the
+                # actual source-blocked Start/Sit page or attempt a write.
+            }
+        }
         Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce
     }
     catch {
