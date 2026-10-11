@@ -475,9 +475,9 @@ function Test-ButlerLivePage {
     # emits one of these two mutually exclusive card/empty variants.
     if ($Route -ceq '/league') {
         $franchiseCard = [regex]::IsMatch($body,
-            '(?is)<div class="league-franchise-board">\\s*<article class="league-franchise-card">')
+            '(?is)<div class="league-franchise-board">\s*<article class="league-franchise-card">')
         $franchiseEmpty = [regex]::IsMatch($body,
-            '(?is)<div class="league-franchise-board">\\s*<div class="empty">')
+            '(?is)<div class="league-franchise-board">\s*<div class="empty">')
         if ($franchiseCard -eq $franchiseEmpty) {
             $result.Status = 'FAIL'
             $result.Evidence = 'FRANCHISE CONTENT'
