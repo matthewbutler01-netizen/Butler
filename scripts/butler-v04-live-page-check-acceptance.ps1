@@ -240,7 +240,7 @@ foreach ($bad in @(
     ($goodAutoPilot.Replace(
         '<span class="status good">CURRENT SNAPSHOT</span>',
         '<span class="status warn">LINEUP ACTION HELD</span><p>CURRENT SNAPSHOT</p>')),
-    ($goodAutoPilot + $goodAutoPilot),
+    ($goodAutoPilot.Replace('<div id="butler-auto-refresh-status"></div>', '<div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>Duplicate</h2></div><span class="status good">CURRENT SNAPSHOT</span></div><div id="butler-auto-refresh-status"></div>')),
     ($goodAutoPilot.Replace('class="status good"','class="status warn"')),
     ($goodAutoPilot.Replace('class="autopilot-watch-head"','class="other-banner"'))
 )) {
