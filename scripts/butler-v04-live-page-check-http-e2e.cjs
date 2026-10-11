@@ -33,7 +33,8 @@ const good = {
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
-  '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div></section>')
+  '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
+    '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div></section>')
 };
 const expectedGet = ['/health','/','/team','/waivers','/matchup','/matchup/autofill','/league','/autopilot'];
 async function scenario(name, mutations, expect) {
@@ -166,6 +167,20 @@ async function scenario(name, mutations, expect) {
   }, {
     code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
   });
+  // BF-1093: actual prepared packet must agree with the weekly watch.
+  const packet = '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div>';
+  for (const [name, page] of [
+    ['strict-missing-autopilot-packet', good['/autopilot'].replace(packet, '')],
+    ['strict-held-autopilot-packet', good['/autopilot'].replace(
+      '<span class="status good">READY FOR MANAGER REVIEW</span>',
+      '<span class="status warn">BLOCKED</span>')],
+    ['strict-duplicate-autopilot-packet', good['/autopilot'].replace(packet, packet + packet)],
+    ['strict-decorative-autopilot-packet', good['/autopilot'].replace('class="autopilot-prepared-head"', 'class="footer-packet"')]
+  ]) {
+    await scenario(name, {strict:true, routes:{'/autopilot':page}}, {
+      code:2, output:/\/autopilot\s+WARN\s+evidence=WATCH INCOMPLETE/, allRoutes:true
+    });
+  }
   // BF-1084: decorative "CURRENT SNAPSHOT" in a footer or script
   // cannot outvote the explicitly held watch-header status.
   await scenario('strict-decorative-autopilot-current', {
