@@ -143,7 +143,13 @@ if ($null -eq $worker) {
         )
     }
 
-    foreach ($bf766ModuleSpec in $bf766ModuleSpecs) {
+    # BF-1125: UI modules are loaded before any route response. If a
+    # module is missing, malformed or invalid in this runspace, return one
+    # bounded fail-closed HTTP page instead of silently resetting the TCP
+    # connection. This catches the page-load errors the early cached-wrapper
+    # BF-1124 boundary cannot reach (the compiled worker is already running).
+    try {
+        foreach ($bf766ModuleSpec in $bf766ModuleSpecs) {
         $bf766PathCacheName = $bf766ModuleSpec.CacheName + 'Path'
         $bf766Module = Get-Variable -Name $bf766ModuleSpec.CacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
         $bf766CachedPath = Get-Variable -Name $bf766PathCacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
@@ -172,7 +178,15 @@ if ($null -eq $worker) {
             throw "BF-766 BLOCKED: cached $($bf766ModuleSpec.Name) module state is invalid or belongs to a different path."
         }
 
-        . $bf766Module
+            . $bf766Module
+        }
+    }
+    catch {
+        # No response headers have been written at this pre-route phase.
+        # Do not copy module/exception text, paths, league, player or tokens.
+        $bf1125FailureHtml = Get-ButlerMinimalBlockedPageHtml -Title 'Butler page unavailable' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard'
+        Send-HttpResponse -Stream $stream -StatusCode 503 -StatusText 'Service Unavailable' -ContentType 'text/html; charset=utf-8' -Body $bf1125FailureHtml -FailureLayer 'PUBLIC_WORKER'
+        return
     }
 '@
 
