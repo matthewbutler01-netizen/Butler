@@ -20,6 +20,18 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1112: distinguish core and public-worker failures without private data
+
+A local diagnostic can classify an error as `HTTP 500`, but that alone does not reveal whether the **inner read-only Butler core returned the failure** or the **outer public app worker failed while obtaining/formatting the page**. The latest public app now attaches `X-Butler-Failure-Layer` to failed HTTP responses using only one of three exact, internal enum values:
+
+- `CORE_HTTP`: the inner Butler core responded with an HTTP error, and the public shell preserved its status.
+- `CORE_READ`: the outer shell could not finish the routed core read (which includes bounded read/lock failures).
+- `PUBLIC_WORKER`: the public shell obtained a core response but failed in subsequent page processing.
+
+The **read-only loopback diagnostic** appends one of those identifiers to its existing `HTTP 4xx/5xx` status **only if it matches the hard-coded allowlist**. A missing header retains `HTTP 500` instead of inventing a source. Unknown/malicious headers are ignored, never copied. The worker refuses to emit invalid header values and never sends the header on success responses. No exception message, stack trace, URL, browser content, private Sleeper/league/roster data, or raw HTTP error page is written into the shareable readiness report. The check performs no POST, launch, process kill, provider transaction or read outside its established scope.
+
+Windows PowerShell acceptance exercises the exact public response writer using only in-memory streams; synthetic loopback HTTP tests cover all three layers, missing legacy headers, rejected untrusted header values and private-body leak detection. This improves isolation of real failures but does **not** repair or certify a running app, prove current provider data, or authorize an unverified lineup change.
+
 ## BF-1110: reject a running older v0.4 manager worker
 
 The v0.4 readiness checker previously accepted the fixed BF-1098 `readinessContract` marker from any earlier v0.4 worker. That was sufficient to exclude the frozen v0.3 release, but **not** sufficient to know that the currently running draft worker has the BF-1107/1108/1109 page-proof capabilities. A source checkout can move ahead while an older PowerShell worker stays loaded in a persistent runspace.
