@@ -20,6 +20,14 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1109: League rankings cannot appear ready when evidence is empty
+
+A modern League Hub may correctly render all its panels while explicitly withholding governed franchise rankings because current asset coverage is unavailable. The earlier page checker treated that empty state as an unconditional `PASS PAGE RESPONSE`, which could make a strict seven-route readiness run look all-green despite missing league evidence.
+
+The diagnostic now checks the **actual mutually exclusive BF-909 franchise-board render variants**. A real `league-franchise-card` is a structurally valid board; the explicit `league-franchise-board` plus nested `empty` fallback is `WARN LEAGUE RANKINGS HOLD`; an unrecognizable/blank board is `FAIL FRANCHISE CONTENT`. A strict `-RequireReady` run treats the empty rankings WARN as a blocking exit 2, without pretending that rankings were verified. This reports local displayed evidence only; it is not proof of Sleeper data freshness or accurate player values.
+
+PowerShell fixture and synthetic HTTP cases cover all three variants. No extra data request, roster/waiver action, refresh POST, or release update is introduced.
+
 ## BF-1108: current League Hub structural readiness check
 
 Source review revealed a stale diagnostic assertion: the BF-1049 local smoke still demanded the retired headings `League intelligence` and `Governed guidance`, even though BF-909 replaced that layout with the **League hub**, **franchise board**, and expandable **governed league actions**. This mismatch could mark a valid modern League Hub `FAIL PAGE CONTENT`.
