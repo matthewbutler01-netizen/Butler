@@ -416,8 +416,15 @@ function Test-ButlerLivePage {
         }
     }
     if ($Route -ceq '/autopilot') {
-        if ([string]$Response.Body -match 'WATCH DATA UNAVAILABLE|EVIDENCE NEEDS REFRESH' -or
-            [string]$Response.Body -notmatch 'CURRENT SNAPSHOT') {
+        # BF-1084: a random "CURRENT SNAPSHOT" string elsewhere in the HTML
+        # is not evidence that the actual Auto-Pilot watch badge is green.
+        # Require the exact one rendered watch-header badge from Butler,
+        # so explicit lineup holds and duplicated/conflicting badges warn.
+        $watchHeads = [regex]::Matches($body,
+            '(?is)<div\s+class="autopilot-watch-head">(?:(?!</div>\s*</div>).)*?<span\s+class="status\s+(?<tone>good|warn)">(?<label>[^<]+)</span>\s*</div>')
+        if ($watchHeads.Count -ne 1 -or
+            $watchHeads[0].Groups['tone'].Value -cne 'good' -or
+            $watchHeads[0].Groups['label'].Value -cne 'CURRENT SNAPSHOT') {
             $result.Status = 'WARN'
             $result.Evidence = 'WATCH INCOMPLETE'
         }
