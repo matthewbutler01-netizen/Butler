@@ -436,7 +436,8 @@ $page.Body = $goodAutoPilot
 # renderer, not pre-BF-909 League intelligence / Governed guidance headings.
 $leagueRenderer = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-bf909-league-hub-transform.ps1'))
 foreach ($marker in @('class="league-franchise-board"', 'class="league-governance"',
-                     'View governed league actions', 'League hub')) {
+                     'View governed league actions', 'League hub',
+                     'class="league-franchise-card"', 'class="empty"')) {
     if ($leagueRenderer.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
         throw 'BF-1108 BLOCKED: current League renderer and local smoke disagree.'
     }
@@ -471,7 +472,9 @@ foreach ($fixture in @(
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant <section data-butler-week-state="MISMATCH"></section><section class="panel recommendation-panel start-sit-assistant">Recommended starter</section></body></html>'; Expected = 'FAIL'; Evidence = 'HELD ADVICE' },
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant <section class="panel recommendation-panel start-sit-assistant">safe</section></body></html>'; Expected = 'FAIL'; Evidence = 'WEEK PROOF' },
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
-    @{ Route = '/league'; Body = '<html><body>League <section class="panel"><div class="eyebrow">League hub</div><div class="league-franchise-board"><div class="empty">Rankings not current</div></div><details class="league-governance"><summary>View governed league actions</summary></details></section></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/league'; Body = '<html><body>League <section class="panel"><div class="eyebrow">League hub</div><div class="league-franchise-board"><article class="league-franchise-card">Current franchise</article></div><details class="league-governance"><summary>View governed league actions</summary></details></section></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/league'; Body = '<html><body>League <section class="panel"><div class="eyebrow">League hub</div><div class="league-franchise-board"><div class="empty">Rankings not current</div></div><details class="league-governance"><summary>View governed league actions</summary></details></section></body></html>'; Expected = 'WARN'; Evidence = 'LEAGUE RANKINGS HOLD' },
+    @{ Route = '/league'; Body = '<html><body>League <section class="panel"><div class="eyebrow">League hub</div><div class="league-franchise-board"></div><details class="league-governance"><summary>View governed league actions</summary></details></section></body></html>'; Expected = 'FAIL'; Evidence = 'FRANCHISE CONTENT' },
     @{ Route = '/league'; Body = '<html><body>League League intelligence Governed guidance</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
     @{ Route = '/league'; Body = '<html><body>League <div class="eyebrow">League hub</div><div class="league-franchise-board"></div><summary>View governed league actions</summary></body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
     @{ Route = '/league'; Body = '<html><body>League <div class="eyebrow">League hub</div><details class="league-governance"><summary>View governed league actions</summary></details></body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
