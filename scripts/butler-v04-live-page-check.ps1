@@ -411,6 +411,10 @@ function Test-ButlerLocalHealth {
             $health.service -ceq 'butler-app-shell' -and
             $health.featureSet -ceq 'v04-audited-onopen-freshness-bf1048' -and
             $health.readinessContract -ceq 'v04-sourced-onopen-bf1098' -and
+            # BF-1110: a pre-1107/1108 worker can still answer the old
+            # BF-1098 feature gate after tests update their checkout.
+            # Do not certify that old cached worker as today's v0.4 runtime.
+            $health.liveCheckContract -ceq 'v04-current-page-proof-bf1110' -and
             $health.bind -ceq '127.0.0.1'
     }
     catch { return $false }
@@ -769,7 +773,7 @@ foreach ($candidate in $ports) {
     catch { }
 }
 if ($live.Count -ne 1) {
-    throw 'BF-1048 BLOCKED: expected exactly one *v0.4 audited-freshness* Butler on 18080/8080. An older frozen v0.3 app cannot pass this gate. Launch the v0.4 test checkout, or specify its exact -Port. No outside host was contacted.'
+    throw 'BF-1110 BLOCKED: expected exactly one current v0.4 manager-proof worker on 18080/8080. An older release or an already-running pre-BF1110 v0.4 worker cannot pass. Run the updated draft v0.4 instance, or specify its exact -Port. No outside host was contacted.'
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)
