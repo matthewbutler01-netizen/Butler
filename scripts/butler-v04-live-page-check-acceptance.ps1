@@ -224,7 +224,7 @@ $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'WARN' -or $check.Evidence -cne 'WATCH INCOMPLETE') {
     throw 'BF-1042 BLOCKED: stale Auto-Pilot watch was mislabeled current.'
 }
-$page.Body = '<html><body><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
+$page.Body = '<html><body><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div><div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div><div id="butler-auto-refresh-status"></div><script nonce="' + ('a' * 64) + '">safe diagnostic</script></body></html>'
 $page.Csp = "default-src 'none'; frame-ancestors 'none'; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
 $check = Test-ButlerLivePage -Route '/autopilot' -Response $page
 if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
@@ -249,6 +249,24 @@ foreach ($bad in @(
     $result = Test-ButlerLivePage -Route '/autopilot' -Response $page
     if ($result.Status -cne 'WARN' -or $result.Evidence -cne 'WATCH INCOMPLETE') {
         throw "BF-1084 BLOCKED: case $bf1084Case got $($result.Status)/$($result.Evidence), expected WARN/WATCH INCOMPLETE."
+    }
+}
+$page.Body = $goodAutoPilot
+
+# BF-1093: positive strict readiness must have a real, unique and
+# consistent prepared-review status, not just a green watch title.
+$preparedCard = '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div>'
+foreach ($bad in @(
+    $goodAutoPilot.Replace($preparedCard, ''),
+    $goodAutoPilot.Replace('READY FOR MANAGER REVIEW</span>', 'BLOCKED</span>'),
+    $goodAutoPilot.Replace('class="status good">READY FOR MANAGER REVIEW', 'class="status warn">BLOCKED'),
+    $goodAutoPilot.Replace($preparedCard, $preparedCard + $preparedCard),
+    $goodAutoPilot.Replace('class="autopilot-prepared-head"', 'class="footer-comment"')
+)) {
+    $page.Body = $bad
+    $test = Test-ButlerLivePage -Route '/autopilot' -Response $page
+    if ($test.Status -cne 'WARN' -or $test.Evidence -cne 'WATCH INCOMPLETE') {
+        throw 'BF-1093 BLOCKED: conflicting, missing, duplicate or decorative Auto-Pilot packet passed.'
     }
 }
 $page.Body = $goodAutoPilot
