@@ -1105,6 +1105,43 @@ function Limit-V04AutoPilotToSourcedStartSit {
     }
     if ($valid) {
         $message = [System.Net.WebUtility]::HtmlDecode($proof[0].Groups['text'].Value)
+
+        # BF-1088: verified "keep starters" is not a proposed lineup swap.
+        # The audited Dashboard must independently say NO CHANGE, and the
+        # complete zero-hold Start/Sit proof must have a recent projection.
+        if ($message.IndexOf('No lineup change is ready.', [StringComparison]::Ordinal) -ge 0) {
+            $validNoChange = [string]$WatchState.StartSit -ceq 'NO CHANGE' -and
+                $message.StartsWith('No lineup change is ready. Full scoreable projection coverage; 0 player holds.',
+                    [StringComparison]::Ordinal) -and
+                [regex]::Matches($message, '\b[0-9]+ player holds?\b').Count -eq 1 -and
+                [regex]::Matches($message, 'Full scoreable projection coverage').Count -eq 1 -and
+                $message.IndexOf('proposed lineup changes', [StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+                $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -lt 0
+            $projectionNoChange = [regex]::Matches($message,
+                'projection snapshot retrieved (?<time>20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z) UTC')
+            if ($validNoChange -and $projectionNoChange.Count -eq 1) {
+                $projectionTime = [string]$projectionNoChange[0].Groups['time'].Value
+                $wholeSecond = [regex]::Replace($projectionTime, '\.[0-9]{1,9}Z$', 'Z')
+                $observed = [DateTimeOffset]::MinValue
+                $validNoChange = [DateTimeOffset]::TryParseExact($wholeSecond, "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$observed)
+                if ($validNoChange) {
+                    $age = $CheckedAtUtc.ToUniversalTime() - $observed.ToUniversalTime()
+                    $validNoChange = $age -ge [TimeSpan]::FromSeconds(-90) -and
+                        $age -le [TimeSpan]::FromMinutes(120)
+                }
+            }
+            else { $validNoChange = $false }
+            if ($validNoChange) {
+                $WatchState.StartSit = 'NO CHANGE VERIFIED'
+                $WatchState | Add-Member -NotePropertyName StartSitReviewOutcome -NotePropertyValue 'VERIFIED_NO_CHANGE' -Force
+                $WatchState | Add-Member -NotePropertyName StartSitProjectionFetchedAtUtc -NotePropertyValue $projectionTime -Force
+                return $WatchState
+            }
+            $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
+            return $WatchState
+        }
         # Require the actual BF-1067 sourced-change message. A held swap,
         # unverified timestamp, no-change decision, or generic Dashboard
         # signal cannot authorize an Auto-Pilot prepared packet.
@@ -1211,6 +1248,9 @@ function Get-V04AutoPilotApprovalQueue {
     $startSitNext = if (-not [bool]$WatchState.Ready -or $startSitSignal -ceq 'UNAVAILABLE') {
         'Blocked until the weekly manager snapshot is complete.'
     }
+    elseif ($startSitSignal -ceq 'NO CHANGE VERIFIED') {
+        'No lineup swap is recommended from the verified projection frame. Recheck injury updates before kickoff.'
+    }
     elseif ($startSitSignal -ceq 'BLOCKED - CHECK START/SIT') {
         'Open Start/Sit Assistant and review exact current injuries and projections. This packet is withheld until its own source check is verified; pressing Refresh is not a substitute.'
     }
@@ -1303,6 +1343,18 @@ function Get-V04AutoPilotHtml {
                 $sourceProjection + ' UTC. These are fetch times, not injury report publication times.'
         }
     }
+    # BF-1088: show verified projections without claiming swap-status proof
+    # when the actual checked lineup did not propose any change.
+    if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld -and
+        $null -ne $WatchState.PSObject.Properties['StartSitReviewOutcome'] -and
+        [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_NO_CHANGE' -and
+        $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc']) {
+        $noChangeProjection = [string]$WatchState.StartSitProjectionFetchedAtUtc
+        if ($noChangeProjection -cmatch '^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z$') {
+            $lineupSourceTiming = 'Projections retrieved ' + $noChangeProjection +
+                ' UTC. No swap player-status fetch required because no lineup change was proposed. Recheck injuries before kickoff.'
+        }
+    }
     $lineupSourceTiming = [System.Net.WebUtility]::HtmlEncode($lineupSourceTiming)
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
@@ -1325,7 +1377,19 @@ function Get-V04AutoPilotHtml {
     # BF-1028: a prepared Start/Sit review packet is a read-only object derived
     # from the already-governed weekly watch. It never invents a lineup when
     # evidence is incomplete.
-    $preparedStartSit = if (-not [bool]$WatchState.Ready -or
+    $preparedStartSit = if ([bool]$WatchState.Ready -and
+        $null -ne $WatchState.PSObject.Properties['StartSitReviewOutcome'] -and
+        [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_NO_CHANGE' -and
+        [string]$WatchState.StartSit -ceq 'NO CHANGE VERIFIED') {
+        [pscustomobject]@{
+            State = 'NO ACTION REQUIRED'
+            Decision = 'KEEP CURRENT LINEUP'
+            Reason = 'No improvement was proven from the complete, recent projection frame. Check injury news before kickoff; no lineup swap is prepared.'
+            Policy = [string]$ApprovalPolicy.StartSit
+            ReviewHref = '/matchup/autofill'
+        }
+    }
+    elseif (-not [bool]$WatchState.Ready -or
                             [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT') {
         [pscustomobject]@{
             State = 'BLOCKED'
