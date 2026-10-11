@@ -76,7 +76,15 @@ function Get-PlayerWorkflowBlockedHtml {
     $css = Get-AppCss
     $nav = Get-AppNav -Active $Active
     $safeTitle = ConvertTo-HtmlText $Title
-    $safeMessage = ConvertTo-HtmlText $Message
+    # BF-1121: never reflect exception or player/league-identifying text
+    # into a public blocked page. Only fixed internal reason tokens render.
+    $publicMessage = switch -CaseSensitive ($Message) {
+        'PLAYER_DETAIL_UNVERIFIED' { 'Butler could not verify this player detail. Return to Player Search and check the latest source evidence.' }
+        'PLAYER_SEARCH_UNVERIFIED' { 'Butler could not complete this player search. Try Player Search again when local evidence is available.' }
+        'PLAYER_COMPARE_UNVERIFIED' { 'Butler could not verify this comparison. Return to Player Compare and review the selected players.' }
+        default { 'Butler could not verify this page. Do not act on incomplete information.' }
+    }
+    $safeMessage = ConvertTo-HtmlText $publicMessage
     $safePrimaryHref = ConvertTo-HtmlText $PrimaryHref
     $safePrimaryLabel = ConvertTo-HtmlText $PrimaryLabel
     $safeSecondaryHref = ConvertTo-HtmlText $SecondaryHref
@@ -102,7 +110,7 @@ $nav
 <div class="eyebrow">Safe stop</div>
 <div class="statusrow"><div><h1 class="headline">$safeTitle</h1><p class="lede">Butler stopped this request instead of guessing or continuing with an invalid player context.</p></div><span class="status warn">STOPPED SAFELY</span></div>
 <pre class="player-blocked-detail">$safeMessage</pre>
-<p>No provider refresh, Butler write, or Sleeper write was executed.</p>
+<p>No Sleeper transaction was submitted by this page. An earlier guarded Butler-local evidence recovery may have run before the failure.</p>
 <div class="player-blocked-actions"><a href="$safePrimaryHref">$safePrimaryLabel</a><a href="$safeSecondaryHref">$safeSecondaryLabel</a></div>
 </section>
 </main>
@@ -115,20 +123,16 @@ $nav
 
 $core = $core.Insert($helperIndex, $helper)
 
-$detailOld = @'
-$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail $playerDetailFailure -Active "team"
-'@.Trim()
-$detailNew = @'
-$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = Get-PlayerWorkflowBlockedHtml -Title 'Player Detail blocked' -Message $playerDetailFailure -Active 'players' -PrimaryHref '/players' -PrimaryLabel 'Back to Player Search' -SecondaryHref '/team' -SecondaryLabel 'My Team'
-'@.Trim()
+$detailOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "team"'
+$detailNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Detail blocked'' -Message ''PLAYER_DETAIL_UNVERIFIED'' -Active ''players'' -PrimaryHref ''/players'' -PrimaryLabel ''Back to Player Search'' -SecondaryHref ''/team'' -SecondaryLabel ''My Team'''
 $core = Replace-ExactlyOnce -Text $core -Old $detailOld -New $detailNew -Contract 'BF-884 Player Detail recovery override'
 
-$searchOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail $_.Exception.Message -Active "league"'
-$searchNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Search blocked'' -Message $_.Exception.Message -Active ''players'' -PrimaryHref ''/players'' -PrimaryLabel ''Back to Player Search'''
+$searchOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail "UNVERIFIED_SOURCE" -Active "league"'
+$searchNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Search blocked'' -Message ''PLAYER_SEARCH_UNVERIFIED'' -Active ''players'' -PrimaryHref ''/players'' -PrimaryLabel ''Back to Player Search'''
 $core = Replace-ExactlyOnce -Text $core -Old $searchOld -New $searchNew -Contract 'BF-884 Player Search recovery override'
 
-$compareOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "league"'
-$compareNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Compare blocked'' -Message $_.Exception.Message -Active ''compare'' -PrimaryHref ''/compare'' -PrimaryLabel ''Back to Player Compare'' -SecondaryHref ''/players'' -SecondaryLabel ''Player Search'''
+$compareOld = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "league"'
+$compareNew = '$errorHtml = Get-PlayerWorkflowBlockedHtml -Title ''Player Compare blocked'' -Message ''PLAYER_COMPARE_UNVERIFIED'' -Active ''compare'' -PrimaryHref ''/compare'' -PrimaryLabel ''Back to Player Compare'' -SecondaryHref ''/players'' -SecondaryLabel ''Player Search'''
 $core = Replace-ExactlyOnce -Text $core -Old $compareOld -New $compareNew -Contract 'BF-884 Player Compare recovery override'
 
 $tokens = $null
@@ -152,7 +156,7 @@ foreach ($required in @(
     "Get-PlayerWorkflowBlockedHtml -Title 'Player Search blocked'",
     "Get-PlayerWorkflowBlockedHtml -Title 'Player Compare blocked'",
     'STOPPED SAFELY',
-    'No provider refresh, Butler write, or Sleeper write was executed.'
+    'No Sleeper transaction was submitted by this page.'
 )) {
     if ($core.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-976 BLOCKED: installed player-workflow safe-stop marker is missing: $required"
