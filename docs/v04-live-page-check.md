@@ -20,6 +20,14 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1120/BF-1121: fix staged error-page replacements, including later player overrides
+
+Windows acceptance uncovered a real staging dependency: BF-884's manager error-page transform expected the **old** three inner-core error bodies as exact replacement targets. The revised BF-1119 inner-core templates correctly prevented exception disclosure but caused BF-884 to fail closed during construction. BF-1120 updates BF-884's exact source targets to match the current static League/My Team/general core error bodies, while preserving the established styled recovery pages, status codes and safe navigation.
+
+A deeper review found that BF-884 itself and the **later** BF-976 player-workflow transform would take raw errors/stack traces, place them in visible technical details or log unredacted My Team exceptions, including player/league information. BF-1120 now permits recovery technical details only via the fixed `UNVERIFIED_SOURCE` sentinel with constant display text; My Team logs a constant, non-identifying warning. BF-1121 updates BF-976's Player Detail/Search/Compare overrides to use safe tokens and a strict internal token-to-copy mapping, never exception messages. The footer correctly allows for prior Butler-local guarded evidence recovery while stating that the error page did not submit a Sleeper transaction. Explicit safe return links remain.
+
+Java regression tests reject raw exception insertion in both staged layers, while Windows transform acceptance verifies the real exact replacement pipeline. The changes introduce no extra retry, data fetch, refresh POST, source write, Sleeper roster/waiver transaction, release merge or deployment. They protect failure display **only**; they do not prove the underlying connected Sleeper evidence is fresh or that the local Windows app is healthy.
+
 ## BF-1118/BF-1119: inner-core failures do not expose private runner errors
 
 Read-only manager routes pass through an **inner preserved Butler core** and an **inner-core-pool loopback gateway** before reaching the outer worker. Previously, core gateway HTTP 502 and core League/My Team/Dashboard HTTP 500 HTML error pages rendered raw PowerShell exception messages inside `<pre>` tags. Runner failures may embed local database paths, private player/league identifiers or stderr. The gateway also claimed that no Butler or Sleeper write occurred, which was broader than the supported promise because guarded local evidence recovery may already have run.
