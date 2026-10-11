@@ -192,7 +192,7 @@ function Test-ButlerLocalHealth {
 }
 
 function Test-ButlerLivePage {
-    param([string]$Route, $Response)
+    param([string]$Route, $Response, [switch]$RequireStartSitProvenance)
     $result = [ordered]@{ Route = $Route; Status = 'PASS'; Evidence = 'PAGE RESPONSE'; AutoCheck = 'N/A' }
     $marker = switch -CaseSensitive ($Route) {
         '/' { 'dashboard-summary-row' }
@@ -321,6 +321,71 @@ function Test-ButlerLivePage {
         $result.Evidence = 'START/SIT BLOCKED'
     }
 
+    # BF-1079: opt-in release readiness must inspect the actual Start/Sit
+    # decision source, not merely the rendered recommendation-panel shell.
+    # The ordinary GET-only smoke retains its older broad page-contract gate.
+    if ($Route -ceq '/matchup/autofill' -and $RequireStartSitProvenance -and
+        $result.Status -ceq 'PASS') {
+        $proofs = [regex]::Matches($body,
+            '(?is)<p\s+class="meta butler-startsit-source-proof"\s+role="status"\s*>(?<text>[^<]*)</p>')
+        $readyEvidence = $proofs.Count -eq 1
+        if ($readyEvidence) {
+            $message = [System.Net.WebUtility]::HtmlDecode($proofs[0].Groups['text'].Value)
+            # A player hold or partially projected slate can be a valid
+            # recommendation screen, but is not source-complete readiness.
+            $readyEvidence = $message.IndexOf('0 player holds', [StringComparison]::Ordinal) -ge 0 -and
+                $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -ge 0 -and
+                $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -lt 0
+        }
+        if ($readyEvidence) {
+            $hasChanges = $message -match '(?i)\b[1-9][0-9]* proposed lineup changes\b'
+            $noChanges = $message.IndexOf('No lineup change is ready.', [StringComparison]::Ordinal) -ge 0
+            $readyEvidence = ($hasChanges -xor $noChanges)
+            if ($hasChanges) {
+                $readyEvidence = $readyEvidence -and
+                    $message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -ge 0 -and
+                    $message.IndexOf('no Sleeper move was submitted', [StringComparison]::Ordinal) -ge 0
+            }
+        }
+        if ($readyEvidence) {
+            $iso = '20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z'
+            $projection = [regex]::Matches($message,
+                'projection snapshot retrieved (?<time>' + $iso + ') UTC')
+            $status = [regex]::Matches($message,
+                'swap players status map retrieved (?<time>' + $iso + ') UTC')
+            $readyEvidence = $projection.Count -eq 1 -and
+                ((-not $hasChanges) -or $status.Count -eq 1)
+            if ($readyEvidence) {
+                $sourcesToCheck = @(@{ Timestamp = $projection[0].Groups['time'].Value; MaxMinutes = 120 })
+                if ($hasChanges) {
+                    $sourcesToCheck += @{ Timestamp = $status[0].Groups['time'].Value; MaxMinutes = 10 }
+                }
+                foreach ($item in $sourcesToCheck) {
+                    # Keep the 9-digit original fetch evidence in HTML but
+                    # parse whole seconds to validate real calendar dates.
+                    $rounded = [regex]::Replace($item.Timestamp, '\.[0-9]{1,9}Z$', 'Z')
+                    $stamp = [DateTimeOffset]::MinValue
+                    if (-not [DateTimeOffset]::TryParseExact($rounded, "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                        [Globalization.CultureInfo]::InvariantCulture,
+                        [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$stamp)) {
+                        $readyEvidence = $false
+                        break
+                    }
+                    $age = [DateTimeOffset]::UtcNow - $stamp.ToUniversalTime()
+                    if ($age -lt [TimeSpan]::FromSeconds(-90) -or
+                        $age -gt [TimeSpan]::FromMinutes($item.MaxMinutes)) {
+                        $readyEvidence = $false
+                        break
+                    }
+                }
+            }
+        }
+        if (-not $readyEvidence) {
+            $result.Status = 'WARN'
+            $result.Evidence = 'START/SIT SOURCE HOLD'
+        }
+    }
+
     # BF-1047: do not misreport a successfully rendered but stale Dashboard
     # as a fresh team/waiver decision. The old smoke gate only checked HTML
     # shape, so it could say PASS even with outdated or unverified evidence.
@@ -443,7 +508,7 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
         if ($route -ceq '/matchup') { $matchupResponse = $response }
         if ($route -ceq '/matchup/autofill') { $startSitResponse = $response }
-        $check = Test-ButlerLivePage -Route $route -Response $response
+        $check = Test-ButlerLivePage -Route $route -Response $response -RequireStartSitProvenance:$RequireReady
         if ($route -ceq '/matchup') { $matchupCheck = $check }
         if ($route -ceq '/matchup/autofill') { $startSitCheck = $check }
     }
