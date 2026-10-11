@@ -60,7 +60,7 @@ $tokens = $null
 $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors)
 if (@($errors).Count -ne 0) { throw 'BF-1040 BLOCKED: diagnostic does not parse on Windows PowerShell 5.1.' }
-foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit', 'Test-ButlerCrossRouteOnOpen')) {
+foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-ButlerSleeperWeekMatch', 'Test-ButlerLocalHealth', 'Test-ButlerLivePage', 'Test-ButlerCrossRouteWeek', 'Test-ButlerCrossRouteWatchWeek', 'Test-ButlerCrossRouteLineup', 'Test-ButlerCrossRouteStartSit', 'Test-ButlerCrossRouteOnOpen')) {
     $node = $ast.Find({
         param($item)
         $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $item.Name -ceq $name
@@ -68,6 +68,30 @@ foreach ($name in @('Invoke-ButlerLocalGet', 'Get-ButlerPublicNflState', 'Test-B
     if ($null -eq $node) { throw "BF-1040 BLOCKED: missing smoke function $name" }
     . ([scriptblock]::Create($node.Extent.Text))
 }
+
+# BF-1102: exact independently sourced Matchup week must align with
+# the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
+$bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
+$bf1102Badge = '<span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span>'
+$bf1102MatchupCheck = [pscustomobject]@{ Status = 'PASS'; Evidence = 'PAIRING VERIFIED' }
+$bf1102WatchCheck = [pscustomobject]@{ Status = 'PASS'; Evidence = 'WATCH CURRENT' }
+function Assert-Bf1102WatchWeek {
+    param([string]$Matchup,[string]$Watch,[string]$Expected,[string]$Evidence,[switch]$NotCurrent)
+    $check = if ($NotCurrent) {
+        [pscustomobject]@{ Status = 'WARN'; Evidence = 'WATCH INCOMPLETE' }
+    } else { $bf1102WatchCheck }
+    $result = Test-ButlerCrossRouteWatchWeek -MatchupHtml $Matchup -AutoPilotHtml $Watch -MatchupCheck $bf1102MatchupCheck -AutoPilotCheck $check
+    if ($result.Status -cne $Expected -or $result.Evidence -cne $Evidence) {
+        throw "BF-1102 BLOCKED: wanted $Expected/$Evidence; got $($result.Status)/$($result.Evidence)."
+    }
+}
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch $bf1102Badge -Expected 'PASS' -Evidence 'WATCH WEEK ALIGNED'
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch '' -Expected 'WARN' -Evidence 'WATCH WEEK MISSING'
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch ($bf1102Badge + $bf1102Badge) -Expected 'WARN' -Evidence 'WATCH WEEK MISSING'
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch ($bf1102Badge.Replace('Week 5 verified', 'Week 4 verified')) -Expected 'WARN' -Evidence 'WATCH WEEK DRIFT'
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch ($bf1102Badge.Replace('NFL 2026 season', 'NFL 2025 season')) -Expected 'WARN' -Evidence 'WATCH WEEK DRIFT'
+Assert-Bf1102WatchWeek -Matchup ($bf1102Matchup.Replace('data-butler-week-state="MATCH"', 'data-butler-week-state="UNVERIFIED"')) -Watch $bf1102Badge -Expected 'WARN' -Evidence 'WEEK SOURCE UNKNOWN'
+Assert-Bf1102WatchWeek -Matchup $bf1102Matchup -Watch $bf1102Badge -Expected 'SKIP' -Evidence 'PAGE NOT VERIFIED' -NotCurrent
 
 # BF-1094: compare the two verified GETs without printing team or player
 # names. Healthy aligned signals pass; drift or duplication is a warning.
