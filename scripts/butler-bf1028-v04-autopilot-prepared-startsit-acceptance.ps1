@@ -121,6 +121,58 @@ foreach ($required in @(
     }
 }
 
+# BF-1099: the actual manager page must show an immediately readable
+# source-evidence panel. A green watch cannot hide where/when evidence
+# was fetched; a held watch cannot display the green proof label.
+foreach ($check in @(
+    @{ Html = $blockedHtml; State = 'held'; Label = 'SOURCE CHECK REQUIRED'; Time = 'Lineup source fetch times not independently verified for this view.' },
+    @{ Html = $rawHtml; State = 'held'; Label = 'SOURCE CHECK REQUIRED'; Time = 'Lineup source fetch times not independently verified for this view.' },
+    @{ Html = $readyHtml; State = 'verified-change'; Label = 'SOURCED LINEUP CHANGE'; Time = 'Sleeper status map retrieved 2026-10-10T15:00:00Z UTC' }
+)) {
+    $rendered = [string]$check.Html
+    foreach ($required in @(
+        'role="status" aria-label="Start/Sit source evidence"',
+        ('data-butler-lineup-proof="' + [string]$check.State + '"'),
+        [string]$check.Label,
+        [string]$check.Time,
+        'Source fetch times are not injury clearance.',
+        'href="/matchup/autofill">Review Start/Sit evidence</a>'
+    )) {
+        if ($rendered.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+            throw "BF-1099 BLOCKED: source evidence panel missing or incorrect: $required"
+        }
+    }
+    if ([regex]::Matches($rendered, 'data-butler-lineup-proof=').Count -ne 1) {
+        throw 'BF-1099 BLOCKED: duplicate/missing manager evidence panel.'
+    }
+}
+$keepWatch = [pscustomobject]@{
+    Ready = $true
+    Attention = 'READY'
+    StartSit = 'NO CHANGE VERIFIED'
+    StartSitReviewOutcome = 'VERIFIED_NO_CHANGE'
+    StartSitProjectionFetchedAtUtc = '2026-10-10T14:59:00Z'
+    Waivers = 'NO MOVE'
+    Roster = 'Test Team'
+}
+$keepQueue = Get-V04AutoPilotApprovalQueue -WatchState $keepWatch -ApprovalPolicy $policy
+$keepHtml = Get-V04AutoPilotHtml -WatchState $keepWatch -ApprovalPolicy $policy -ApprovalQueue $keepQueue
+foreach ($required in @(
+    'data-butler-lineup-proof="verified-no-change"',
+    'SOURCED NO CHANGE',
+    'Projections retrieved 2026-10-10T14:59:00Z UTC.',
+    'No swap player-status fetch required because no lineup change was proposed.',
+    'NO ACTION REQUIRED'
+)) {
+    if ($keepHtml.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1099 BLOCKED: sourced no-change UI falsely implies a player-status lookup: $required"
+    }
+}
+# Team/league names are HTML-encoded; presentation must not add writes.
+if ($readyHtml -match '<form|type="submit"|onclick=|data-action=') {
+    throw 'BF-1099 BLOCKED: source panel introduced write-capable UI.'
+}
+
 if ($readyHtml -match '<form|type="submit"|onclick=|data-action=') {
     throw 'BF-1028 BLOCKED: prepared Start/Sit review must remain navigation-only.'
 }
