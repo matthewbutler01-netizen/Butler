@@ -70,7 +70,23 @@ function Invoke-Bf1127FirstOpenGet {
     }
 }
 
+# BF-1128: health is a true pre-module-loading control. Test it before and
+# after broken manager GETs so a safe 503 is not mistaken for a dead worker.
+function Assert-Bf1128HealthAvailable {
+    $wire = Invoke-Bf1127FirstOpenGet `
+        -Target '/health' -HistoryPath $missingPath -TradeHostPath $missingPath
+    if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
+        $wire.IndexOf('"status":"ok"', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('"service":"butler-app-shell"', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
+        $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or
+        $wire.Length -gt 16000) {
+        throw 'BF-1128 BLOCKED: worker health path lost independent successful HTTP 200.'
+    }
+}
+
 try {
+    Assert-Bf1128HealthAvailable
     foreach ($case in @(
         @{ Target = '/team'; History = $missingPath; Trade = $validPath },
         @{ Target = '/team'; History = $malformedPath; Trade = $validPath },
@@ -105,10 +121,11 @@ try {
             $wire.Length -gt 16000) {
             throw 'BF-1127 BLOCKED: first-open response is not one bounded 503.'
         }
+        Assert-Bf1128HealthAvailable
     }
 }
 finally {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'BF-1127 PASS: real loopback first-open module failures return safe status-only HTTP 503.'
+Write-Host 'BF-1128 PASS: real loopback worker health remains available before and after safe module-failure HTTP 503.'
