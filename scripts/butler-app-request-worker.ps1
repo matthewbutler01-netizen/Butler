@@ -1696,7 +1696,9 @@ function Send-HttpResponse {
         [hashtable]$DiagnosticTimings,
 
         [string]$Bf857Timing,
-        [string]$ScriptNonce
+        [string]$ScriptNonce,
+        [ValidateSet('CORE_HTTP', 'CORE_READ', 'PUBLIC_WORKER')]
+        [string]$FailureLayer = ''
     )
 
     $scriptPolicy = ''
@@ -1737,6 +1739,14 @@ function Send-HttpResponse {
     if ($bf857CoreTimingEnabled -and -not [string]::IsNullOrWhiteSpace($Bf857Timing)) {
         $bf857Header = 'X-Butler-BF857-Timing: ' + $Bf857Timing + "`r`n"
     }
+    # BF-1112: an intentionally tiny, fixed-enum local failure-layer
+    # header makes core HTTP errors distinguishable from app worker errors.
+    # Never emit exception text, source paths, league/player data or a header
+    # supplied by any HTTP client. Success pages expose no failure layer.
+    $failureHeader = ''
+    if ($StatusCode -ge 400 -and -not [string]::IsNullOrWhiteSpace($FailureLayer)) {
+        $failureHeader = 'X-Butler-Failure-Layer: ' + $FailureLayer + "`r`n"
+    }
     $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" +
         "Content-Type: $ContentType`r`n" +
         "Content-Length: $($bodyBytes.Length)`r`n" +
@@ -1745,6 +1755,7 @@ function Send-HttpResponse {
         "Content-Security-Policy: ${scriptPolicy}default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
         $bf856Header +
         $bf857Header +
+        $failureHeader +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
@@ -2085,6 +2096,9 @@ try {
         return
     }
 
+    # Core routing failures and presentation failures require separate,
+    # private-data-free triage on the real Windows readiness run.
+    $failurePhase = 'CORE_READ'
     try {
         $proxied = if ($requestTarget -ceq '/team') {
             Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId -RefreshState $RefreshState
@@ -2101,6 +2115,7 @@ try {
         else {
             Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget
         }
+        $failurePhase = 'PUBLIC_WORKER'
         $body = $proxied.Body
 
         # BF-1037/continued: My Team and Start/Sit may encounter the same
@@ -2221,11 +2236,11 @@ try {
                 # actual source-blocked Start/Sit page or attempt a write.
             }
         }
-        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce
+        Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $autoRefresh.Html -DiagnosticTimings $bf856Timings -Bf857Timing $bf857Timing -ScriptNonce $autoRefresh.Nonce -FailureLayer 'CORE_HTTP'
     }
     catch {
         $errorHtml = Get-ButlerBlockedPageHtml -Title 'Butler app blocked' -Message $_.Exception.Message -Active 'dashboard' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard' -SecondaryHref '/team' -SecondaryLabel 'Review My Team'
-        Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
+        Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml -FailureLayer $failurePhase
     }
 }
 finally {
