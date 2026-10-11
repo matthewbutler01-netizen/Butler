@@ -48,6 +48,48 @@ function Invoke-ButlerLocalGet {
     }
 }
 
+# BF-1107: status-only transport triage for one-click readiness. Never copy
+# WebException.Message, Response.Body, target URL, player or league data into
+# the user-shareable diagnostic. An HTTP 500 must not look like a timeout.
+function Get-ButlerLocalGetFailureCategory {
+    param([AllowNull()]$Failure)
+    $exception = if ($Failure -is [System.Management.Automation.ErrorRecord]) {
+        $Failure.Exception
+    } else { $Failure }
+    while ($null -ne $exception -and
+           $exception -isnot [System.Net.WebException]) {
+        if ($exception -isnot [System.Exception]) { return 'GET ERROR' }
+        $exception = $exception.InnerException
+    }
+    if ($null -eq $exception) { return 'GET ERROR' }
+    if ($exception.Status -eq [System.Net.WebExceptionStatus]::ProtocolError) {
+        $http = $exception.Response -as [System.Net.HttpWebResponse]
+        try {
+            if ($null -ne $http) {
+                $code = [int]$http.StatusCode
+                if ($code -ge 400 -and $code -le 599) {
+                    return ('HTTP ' + $code)
+                }
+            }
+            return 'HTTP ERROR'
+        }
+        finally {
+            if ($null -ne $exception.Response) { $exception.Response.Close() }
+        }
+    }
+    switch ([string]$exception.Status) {
+        'Timeout' { return 'GET TIMEOUT' }
+        'ConnectFailure' { return 'CONNECT FAILED' }
+        'NameResolutionFailure' { return 'CONNECT FAILED' }
+        'ConnectionClosed' { return 'CONNECTION CLOSED' }
+        'ReceiveFailure' { return 'RECEIVE FAILED' }
+        'SendFailure' { return 'SEND FAILED' }
+        'RequestCanceled' { return 'GET CANCELED' }
+        'ServerProtocolViolation' { return 'BAD HTTP' }
+        default { return 'GET NETWORK' }
+    }
+}
+
 # BF-1053: optional direct read-only check against Sleeper's public NFL
 # current-week endpoint. This request does not include Butler's league ID,
 # owner identity, tokens, roster, or any other private context.
@@ -736,7 +778,14 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
         if ($route -ceq '/matchup/autofill') { $startSitCheck = $check }
     }
     catch {
-        $check = [pscustomobject]@{ Route = $route; Status = 'FAIL'; Evidence = 'GET ERROR'; AutoCheck = 'N/A' }
+        # BF-1107: stable transport category only; never disclose an exception
+        # message or response body in the shareable readiness report.
+        $check = [pscustomobject]@{
+            Route = $route
+            Status = 'FAIL'
+            Evidence = Get-ButlerLocalGetFailureCategory -Failure $_
+            AutoCheck = 'N/A'
+        }
     }
     if ($check.Status -ceq 'FAIL') { $failed++ }
     if ($check.Status -ceq 'WARN') { $warned++ }
