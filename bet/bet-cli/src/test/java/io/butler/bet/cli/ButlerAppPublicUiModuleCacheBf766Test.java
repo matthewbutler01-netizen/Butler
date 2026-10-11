@@ -117,6 +117,36 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void independentManager500DoesNotReenterBrokenPresentationPipeline() throws Exception {
+        // BF-1129: a failed styled error renderer falls back to the small,
+        // independently escaped HTML page; the response writer must not
+        // send that same page back through optional UI presentation.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int responseParam = worker.indexOf("[switch]$SkipOptionalHtmlPresentation");
+        int managerError = worker.indexOf("$bf1129MinimalFallback = $false");
+        int styled = worker.indexOf("$errorHtml = Get-ButlerBlockedPageHtml", managerError);
+        int minimal = worker.indexOf("$errorHtml = Get-ButlerMinimalBlockedPageHtml", styled);
+        int activate = worker.indexOf("$bf1129MinimalFallback = $true", minimal);
+        int send = worker.indexOf("-SkipOptionalHtmlPresentation:$bf1129MinimalFallback", activate);
+        assertTrue(responseParam > 0 && managerError > responseParam && styled > managerError);
+        assertTrue(minimal > styled && activate > minimal && send > activate,
+            "BF-1129 only the independent 500 fallback may set the presentation bypass");
+
+        int gate = wrapper.indexOf("$bf1129SkipMinimal500 = $SkipOptionalHtmlPresentation -and");
+        int code = wrapper.indexOf("$StatusCode -eq 500", gate);
+        int layer = wrapper.indexOf("@('CORE_READ', 'PUBLIC_WORKER') -ccontains $FailureLayer", code);
+        int present = wrapper.indexOf("-not $bf1129SkipMinimal500 -and", layer);
+        int format = wrapper.indexOf("ConvertTo-ButlerUserFacingHtml -Html $Body", present);
+        assertTrue(gate >= 0 && code > gate && layer > code && present > layer && format > present,
+            "BF-1129 bypass must require explicit fallback, exact HTTP 500 and known failure layer");
+        assertTrue(wrapper.contains("-not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')"));
+        assertFalse(wrapper.contains("submitTransaction"));
+        assertFalse(worker.contains("submitTransaction"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
