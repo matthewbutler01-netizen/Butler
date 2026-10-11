@@ -235,6 +235,7 @@ if ($check.Status -cne 'PASS' -or $check.AutoCheck -cne 'ARMED') {
 # the actual watch badge is a held/warning state, and reject duplicate
 # contradictory watch headers even if one of them says current.
 $goodAutoPilot = $page.Body
+$bf1084Case = 0
 foreach ($bad in @(
     ($goodAutoPilot.Replace(
         '<span class="status good">CURRENT SNAPSHOT</span>',
@@ -243,10 +244,11 @@ foreach ($bad in @(
     ($goodAutoPilot.Replace('class="status good"','class="status warn"')),
     ($goodAutoPilot.Replace('class="autopilot-watch-head"','class="other-banner"'))
 )) {
+    $bf1084Case++
     $page.Body = $bad
     $result = Test-ButlerLivePage -Route '/autopilot' -Response $page
     if ($result.Status -cne 'WARN' -or $result.Evidence -cne 'WATCH INCOMPLETE') {
-        throw 'BF-1084 BLOCKED: duplicate or non-current actual Auto-Pilot watch passed the diagnostic.'
+        throw "BF-1084 BLOCKED: case $bf1084Case got $($result.Status)/$($result.Evidence), expected WARN/WATCH INCOMPLETE."
     }
 }
 $page.Body = $goodAutoPilot
