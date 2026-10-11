@@ -68,7 +68,16 @@ function Get-ButlerLocalGetFailureCategory {
             if ($null -ne $http) {
                 $code = [int]$http.StatusCode
                 if ($code -ge 400 -and $code -le 599) {
-                    return ('HTTP ' + $code)
+                    $category = 'HTTP ' + $code
+                    # BF-1112: an allowlisted header emitted by the current
+                    # localhost app narrows a failed GET to its handling
+                    # layer. Do not trust arbitrary HTTP header values or
+                    # include server text, error messages or private evidence.
+                    $layer = [string]$http.Headers['X-Butler-Failure-Layer']
+                    if (@('CORE_HTTP', 'CORE_READ', 'PUBLIC_WORKER') -ccontains $layer) {
+                        $category += ' ' + $layer
+                    }
+                    return $category
                 }
             }
             return 'HTTP ERROR'
