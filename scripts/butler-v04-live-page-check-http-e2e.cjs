@@ -180,6 +180,28 @@ async function scenario(name, mutations, expect) {
   }, {
     code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
   });
+  // BF-1096: an extra contradictory player hold, projection coverage
+  // or change count invalidates the strict release gate, despite a valid
+  // leading phrase and recent timestamps in the same source paragraph.
+  for (const [name, corrupted] of [
+    ['strict-contradictory-holds', currentProof.replace(
+      '0 player holds.', '0 player holds. 10 player holds.')],
+    ['strict-duplicated-coverage', currentProof.replace(
+      'Full scoreable projection coverage;', 'Full scoreable projection coverage; Full scoreable projection coverage;')],
+    ['strict-contradictory-change-count', currentProof.replace(
+      '1 proposed lineup changes', '1 proposed lineup changes. 2 proposed lineup changes')],
+    ['strict-zero-proposed-changes', currentProof.replace(
+      '1 proposed lineup changes', '0 proposed lineup changes')],
+    ['strict-nochange-with-added-proposal', noChangeProof.replace(
+      'Sources:', '1 proposed lineup changes. Sources:')]
+  ]) {
+    await scenario(name, {
+      strict:true,
+      routes:{'/matchup/autofill':good['/matchup/autofill'].replace(currentProof,corrupted)}
+    }, {
+      code:2, output:/\/matchup\/autofill\s+WARN\s+evidence=START\/SIT SOURCE HOLD/, allRoutes:true
+    });
+  }
   await scenario('strict-incomplete-projection-coverage', {
     strict:true,
     routes:{'/matchup/autofill':good['/matchup/autofill'].replace(
