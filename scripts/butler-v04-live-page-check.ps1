@@ -333,7 +333,7 @@ function Test-ButlerLivePage {
             $message = [System.Net.WebUtility]::HtmlDecode($proofs[0].Groups['text'].Value)
             # A player hold or partially projected slate can be a valid
             # recommendation screen, but is not source-complete readiness.
-            $readyEvidence = $message.IndexOf('0 player holds', [StringComparison]::Ordinal) -ge 0 -and
+            $readyEvidence = [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -and
                 $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -ge 0 -and
                 $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -lt 0
         }
