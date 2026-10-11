@@ -54,7 +54,7 @@ class ButlerAppRequestWorkerCacheBf765Test {
         int helper = wrapper.indexOf("function Send-ButlerWorkerInitializationFailure");
         int init = wrapper.indexOf("try {\n$cacheName = 'ButlerBf765PublicRequestWorkerScriptBlock'");
         int fallback = wrapper.indexOf("catch {\n    Send-ButlerWorkerInitializationFailure -Client $Client");
-        int worker = wrapper.indexOf("& $worker \`");
+        int worker = wrapper.indexOf("& $worker ");
 
         assertTrue(helper >= 0 && init > helper && fallback > init && worker > fallback);
         String initialization = wrapper.substring(init, fallback);
