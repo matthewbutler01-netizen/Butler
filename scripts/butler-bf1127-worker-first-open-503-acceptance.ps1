@@ -23,7 +23,8 @@ function Invoke-Bf1127FirstOpenGet {
     param(
         [Parameter(Mandatory = $true)][string]$Target,
         [Parameter(Mandatory = $true)][string]$HistoryPath,
-        [Parameter(Mandatory = $true)][string]$TradeHostPath
+        [Parameter(Mandatory = $true)][string]$TradeHostPath,
+        [ValidateRange(1, 65535)][int]$InnerPort = 9
     )
 
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -46,7 +47,7 @@ function Invoke-Bf1127FirstOpenGet {
         & $cachePath `
             -Client $accepted `
             -LeagueId $privateMarker `
-            -InnerPort 9 `
+            -InnerPort $InnerPort `
             -TradeHost $TradeHostPath `
             -TradeLab $validPath `
             -History $HistoryPath `
