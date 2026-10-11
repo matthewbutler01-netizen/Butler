@@ -20,6 +20,14 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1113: safe, route-specific manager recovery screens
+
+An unhandled exception in the ordinary public manager-page worker used to be rendered through `Get-ButlerBlockedPageHtml` with **the raw exception message**. Some exception messages may include a local source/database path, private league identity, player names, or internal error context. That is inappropriate in a browser error screen and does not make the actual problem easier to repair.
+
+The outer catch for the normal Dashboard, My Team, Waiver Board, Matchup, Start/Sit and League page reads now uses fixed public copy rather than raw exception text. The screen gives a specific **Try this page again** link (exact GET route only) and an existing Dashboard/My Team fallback. An unknown/parameterized route falls back to Dashboard instead of reflecting request parameters in a link. The copy distinguishes an **inner core read failure** from a **public page processing failure** without disclosing the actual exception. The HTTP response remains 500 and BF-1112's fixed-enum `X-Butler-Failure-Layer` remains available to the read-only one-click diagnostic.
+
+This is a **safe display improvement**, not an automatic request retry: Butler does not perform another read, execute `POST /refresh`, modify local evidence, submit a Sleeper change, restart the app or promote bad evidence. Fail-closed manual retry is appropriate while the connected Windows backend is not proven reliable. Offline Windows acceptance imports the actual worker helper and verifies exact route links, unknown-route handling, and absence of exception string reflection.
+
 ## BF-1112: distinguish core and public-worker failures without private data
 
 A local diagnostic can classify an error as `HTTP 500`, but that alone does not reveal whether the **inner read-only Butler core returned the failure** or the **outer public app worker failed while obtaining/formatting the page**. The latest public app now attaches `X-Butler-Failure-Layer` to failed HTTP responses using only one of three exact, internal enum values:
