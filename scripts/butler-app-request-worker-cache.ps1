@@ -467,10 +467,15 @@ function ConvertTo-ButlerUserFacingHtml {
             throw "BF-791 BLOCKED: public HTML encoding boundary count was $($bodyEncodingMatches.Count), expected exactly 1."
     }
     $bodyEncodingReplacement = @'
-    # BF-1127: a first-open module failure already has a standalone safe page.
-    # Never route its PUBLIC_WORKER 503 through optional presentation helpers:
-    # their failure could turn the useful 503 back into a dropped connection.
+    # BF-1127/BF-1129: emergency worker 503 and explicitly marked minimal
+    # manager 500 pages already have accessible, escaped standalone markup.
+    # Neither may depend on optional UI presentation that may have just failed.
+    # Normal HTML, other 500s and successful pages keep all existing helpers.
+    $bf1129SkipMinimal500 = $SkipOptionalHtmlPresentation -and
+        $StatusCode -eq 500 -and
+        @('CORE_READ', 'PUBLIC_WORKER') -ccontains $FailureLayer
     if ($ContentType -match '^text/html' -and
+        -not $bf1129SkipMinimal500 -and
         -not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')) {
         $bf856PresentationStarted = if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             [System.Diagnostics.Stopwatch]::GetTimestamp()
