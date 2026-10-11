@@ -333,6 +333,7 @@ function Test-ButlerLocalHealth {
         return $health.status -ceq 'ok' -and
             $health.service -ceq 'butler-app-shell' -and
             $health.featureSet -ceq 'v04-audited-onopen-freshness-bf1048' -and
+            $health.readinessContract -ceq 'v04-sourced-onopen-bf1098' -and
             $health.bind -ceq '127.0.0.1'
     }
     catch { return $false }
