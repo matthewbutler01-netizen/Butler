@@ -220,11 +220,26 @@ async function scenario(name,config) {
   await scenario('autopilot-clickless-refresh',{
     page:'autopilot',route:'/autopilot',post:true,complete:true
   });
+  // BF-1104: execute real CSP nonce and local token-gated POST from a
+  // uniquely source-blocked Start/Sit page. Healthy Start/Sit never arms.
+  await scenario('startsit-clickless-refresh',{
+    page:'startsit',route:'/matchup/autofill',post:true,complete:true
+  });
+  await scenario('startsit-not-blocked',{
+    page:'blockedStartSit',route:'/matchup/autofill',post:false
+  });
+  await scenario('startsit-session-cooldown',{
+    page:'startsit',route:'/matchup/autofill',post:true,remainStale:true
+  });
   // BF-1082: in one real Chrome tab, Dashboard and Auto-Pilot must
   // share the same audited 5-minute cooldown after navigating between
   // distinct routes; server-side route changes cannot cause a second POST.
   await scenario('dashboard-to-autopilot-shared-cooldown',{
     page:'dashboard',route:'/',nextRoute:'/autopilot',
+    post:true,remainStale:true
+  });
+  await scenario('startsit-to-autopilot-shared-cooldown',{
+    page:'startsit',route:'/matchup/autofill',nextRoute:'/autopilot',
     post:true,remainStale:true
   });
   // A legitimate no-transaction page must never trigger an automatic POST.
