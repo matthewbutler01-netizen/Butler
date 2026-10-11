@@ -220,6 +220,68 @@ if ($heldTimedHtml.IndexOf('Lineup source fetch times not independently verified
     throw 'BF-1086 BLOCKED: a blocked Auto-Pilot page claimed real source retrieval observations.'
 }
 
+# BF-1088: a fully sourced no-change result is healthy but requires NO
+# approval packet, and must not invent a player status fetch for a non-swap.
+$noChangeProof = '<p class="meta butler-startsit-source-proof" role="status">No lineup change is ready. Full scoreable projection coverage; 0 player holds. If availability or a player''s projection cannot be verified, Butler holds the move rather than guessing. Recheck before kickoff. Sources: projection snapshot retrieved 2026-10-10T14:59:00.123456789Z UTC; exact swap status fetch time not verified. This records a source fetch, not an injury report publication time.</p>'
+$noChangeHtml = $startSit.Replace($proof, $noChangeProof)
+function Test-NoChangePacket {
+    param([string]$Page, [string]$DashboardSignal = 'NO CHANGE')
+    $review = [pscustomobject]@{
+        Ready = $true; StartSit = $DashboardSignal; Waivers = 'ADD 1 / DROP 1'
+        Attention = 'ON TRACK'; Roster = 'Test Team'; EvidenceStatus = 'CURRENT'
+    }
+    return (Limit-V04AutoPilotToSourcedStartSit -WatchState $review -MatchupHtml $matchup -StartSitHtml $Page -CheckedAtUtc $clock)
+}
+$verifiedNoChange = Test-NoChangePacket -Page $noChangeHtml
+if ($verifiedNoChange.StartSit -cne 'NO CHANGE VERIFIED' -or
+    $verifiedNoChange.StartSitReviewOutcome -cne 'VERIFIED_NO_CHANGE' -or
+    $verifiedNoChange.StartSitProjectionFetchedAtUtc -cne '2026-10-10T14:59:00.123456789Z' -or
+    $null -ne $verifiedNoChange.PSObject.Properties['StartSitStatusFetchedAtUtc'] -or
+    $verifiedNoChange.Waivers -cne 'ADD 1 / DROP 1') {
+    throw 'BF-1088 BLOCKED: exact recent no-change projection was not handled independently of waiver or swap-status data.'
+}
+$noChangeQueue = Get-V04AutoPilotApprovalQueue -WatchState $verifiedNoChange -ApprovalPolicy $policy
+$noChangeRendered = Get-V04AutoPilotHtml -WatchState $verifiedNoChange -ApprovalPolicy $policy -ApprovalQueue $noChangeQueue
+foreach ($marker in @(
+    'NO ACTION REQUIRED', 'KEEP CURRENT LINEUP',
+    'NO CHANGE VERIFIED', 'No lineup swap is recommended',
+    'Projections retrieved 2026-10-10T14:59:00.123456789Z UTC'
+)) {
+    if ($noChangeRendered.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1088 BLOCKED: verified no-change missing from rendered Auto-Pilot: $marker"
+    }
+}
+if ($noChangeRendered.IndexOf('READY FOR MANAGER REVIEW', [StringComparison]::Ordinal) -ge 0 -or
+    $noChangeRendered.IndexOf('Sleeper status map retrieved', [StringComparison]::Ordinal) -ge 0 -or
+    $noChangeRendered.IndexOf('LINEUP SOURCE NOT VERIFIED', [StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1088 BLOCKED: keeping lineup incorrectly created an actionable swap or fake status-map check.'
+}
+foreach ($bad in @(
+    $noChangeHtml.Replace('0 player holds.', '1 player hold.'),
+    $noChangeHtml.Replace('0 player holds.', '10 player holds. 0 player holds.'),
+    $noChangeHtml.Replace('Full scoreable projection coverage', 'Partial projection coverage'),
+    $noChangeHtml.Replace('Full scoreable projection coverage;', 'Full scoreable projection coverage; Full scoreable projection coverage;'),
+    $noChangeHtml.Replace('No lineup change is ready.', '0 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time.'),
+    $noChangeHtml.Replace('Sources:', '1 proposed lineup changes. Sources:'),
+    $noChangeHtml.Replace('2026-10-10T14:59:00.123456789Z', '2026-10-10T12:30:00Z'),
+    $noChangeHtml.Replace('2026-10-10T14:59:00.123456789Z', '2026-10-10T15:10:00Z'),
+    $noChangeHtml.Replace('2026-10-10T14:59:00.123456789Z', '2026-02-30T14:59:00Z'),
+    $noChangeHtml.Replace('2026-10-10T14:59:00.123456789Z', 'UNVERIFIED'),
+    $noChangeHtml.Replace('Sources:', 'Sources: projection snapshot retrieved 2026-10-10T14:59:00.123456789Z UTC;'),
+    $noChangeHtml.Replace('data-butler-week-number="5"', 'data-butler-week-number="6"')
+)) {
+    $blockedNoChange = Test-NoChangePacket -Page $bad
+    if ($blockedNoChange.StartSit -cne 'BLOCKED - CHECK START/SIT' -or
+        $null -ne $blockedNoChange.PSObject.Properties['StartSitReviewOutcome'] -or
+        $blockedNoChange.Waivers -cne 'ADD 1 / DROP 1') {
+        throw 'BF-1088 BLOCKED: conflicting, stale, or forged no-change evidence was labeled verified.'
+    }
+}
+$contradictedNoChange = Test-NoChangePacket -Page $noChangeHtml -DashboardSignal 'START 1 / SIT 1'
+if ($contradictedNoChange.StartSit -cne 'BLOCKED - CHECK START/SIT') {
+    throw 'BF-1088 BLOCKED: Dashboard swap request was overwritten by a contradictory zero-change proof.'
+}
+
 # BF-1076: legacy manager GETs keep their original timeout. Only
 # the extra, optional Auto-Pilot player-source check receives a 12s cap.
 $coreGet = @($ast.FindAll({
