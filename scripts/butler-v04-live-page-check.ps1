@@ -765,8 +765,10 @@ $autoPilotResponse = $null
 $autoPilotCheck = $null
 foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
     $routeTimer = [Diagnostics.Stopwatch]::StartNew()
+    $routeResponseObtained = $false
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
+        $routeResponseObtained = $true
         if ($route -ceq '/') { $dashboardResponse = $response }
         if ($route -ceq '/autopilot') { $autoPilotResponse = $response }
         if ($route -ceq '/matchup') { $matchupResponse = $response }
@@ -783,7 +785,7 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
         $check = [pscustomobject]@{
             Route = $route
             Status = 'FAIL'
-            Evidence = Get-ButlerLocalGetFailureCategory -Failure $_
+            Evidence = if ($routeResponseObtained) { 'PAGE CHECK ERROR' } else { Get-ButlerLocalGetFailureCategory -Failure $_ }
             AutoCheck = 'N/A'
         }
     }
