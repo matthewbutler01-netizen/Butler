@@ -34,6 +34,45 @@ function Test-Packet {
 if ((Test-Packet -Page $startSit -OtherPage $matchup) -cne 'START 1 / SIT 1') {
     throw 'BF-1074 BLOCKED: valid recent player-status evidence was rejected.'
 }
+# BF-1106: only the independently checked, recent, zero-hold Start/Sit
+# source may give Auto-Pilot an exact proposed change count. Do not infer
+# this from a generic Dashboard START 1 / SIT 1 summary, and never
+# attach a manager-count to an evidence hold.
+$exactWatch = [pscustomobject]@{
+    Ready = $true; StartSit = 'START 1 / SIT 1'
+    Waivers = 'ADD 1 / DROP 1'; EvidenceStatus = 'CURRENT'
+}
+$exact = Limit-V04AutoPilotToSourcedStartSit -WatchState $exactWatch -MatchupHtml $matchup -StartSitHtml $startSit -CheckedAtUtc $clock
+if ([string]$exact.StartSitReviewOutcome -cne 'VERIFIED_CHANGE' -or
+    [int]$exact.StartSitVerifiedChangeCount -ne 1) {
+    throw 'BF-1106 BLOCKED: single independently verified change count lost.'
+}
+$twoPage = $startSit.Replace('1 proposed lineup changes', '2 proposed lineup changes')
+$twoWatch = [pscustomobject]@{
+    Ready = $true; StartSit = 'REVIEW'
+    Waivers = 'ADD 1 / DROP 1'; EvidenceStatus = 'CURRENT'
+}
+$two = Limit-V04AutoPilotToSourcedStartSit -WatchState $twoWatch -MatchupHtml $matchup -StartSitHtml $twoPage -CheckedAtUtc $clock
+if ([string]$two.StartSitReviewOutcome -cne 'VERIFIED_CHANGE' -or
+    [int]$two.StartSitVerifiedChangeCount -ne 2) {
+    throw 'BF-1106 BLOCKED: sourced multi-change count not propagated.'
+}
+foreach ($badSource in @(
+    ($startSit.Replace('0 player holds', '1 player hold')),
+    ($startSit.Replace('2026-10-10T15:00:00Z', '2026-10-10T14:30:00Z')),
+    ($startSit.Replace('1 proposed lineup changes', '1 proposed lineup changes. 2 proposed lineup changes'))
+)) {
+    $badWatch = [pscustomobject]@{
+        Ready = $true; StartSit = 'START 1 / SIT 1'
+        Waivers = 'ADD 1 / DROP 1'; EvidenceStatus = 'CURRENT'
+    }
+    $heldCount = Limit-V04AutoPilotToSourcedStartSit -WatchState $badWatch -MatchupHtml $matchup -StartSitHtml $badSource -CheckedAtUtc $clock
+    if ([string]$heldCount.StartSit -cne 'BLOCKED - CHECK START/SIT' -or
+        $null -ne $heldCount.PSObject.Properties['StartSitVerifiedChangeCount']) {
+        throw 'BF-1106 BLOCKED: a held/ambiguous source supplied a lineup change count.'
+    }
+}
+
 # BF-1089: a valid changed-source page cannot override a separately
 # audited Dashboard that says no change, not reviewed, or unavailable.
 foreach ($contradiction in @('NO CHANGE', 'NOT REVIEWED', 'REFRESH', 'CHECK EVIDENCE', 'DO NOT ACT', 'unknown')) {
