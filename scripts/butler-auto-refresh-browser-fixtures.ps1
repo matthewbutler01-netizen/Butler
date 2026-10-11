@@ -17,12 +17,18 @@ $waivers = '<html><body><span hidden data-butler-auto-waiver="' + $audit + '"></
 $renderedWaivers = Add-AutomaticWaiverRefresh -Html $waivers -RequestTarget '/waivers' -Token $token
 $autoPilot = '<html><body><section>CURRENT WEEKLY WATCH</section></body></html>'
 $renderedAutoPilot = Add-AutomaticAutoPilotRefresh -Html $autoPilot -RequestTarget '/autopilot' -DashboardHtml $dashboard -Token $token
+# BF-1104: independent, blocked Start/Sit page reuses the audited stale
+# Dashboard. A healthy page remains script-free.
+$blockedStartSit = '<html><body><section class="panel recommendation-panel start-sit-assistant"><div class="callout callout-danger start-sit-blocker">Source unavailable</div></section></body></html>'
+$renderedStartSit = Add-AutomaticStartSitRefresh -Html $blockedStartSit -RequestTarget '/matchup/autofill' -DashboardHtml $dashboard -Token $token
+$renderedHealthyStartSit = Add-AutomaticStartSitRefresh -Html ($blockedStartSit.Replace('callout callout-danger start-sit-blocker', 'callout callout-info')) -RequestTarget '/matchup/autofill' -DashboardHtml $dashboard -Token $token
 $noMove = $dashboard.Replace('STALE_DO_NOT_ACT', 'NO_TRANSACTION_TO_ACT_ON').
     Replace('LIVE_ACTIONABLE_VERIFIED', 'NO_TRANSACTION_TO_REVALIDATE').
     Replace('MARKET_LINEAGE_SUPERSEDED', 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
 $renderedBlocked = Add-AutomaticAutoPilotRefresh -Html $autoPilot -RequestTarget '/autopilot' -DashboardHtml $noMove -Token $token
 
-foreach ($fixture in @($renderedDashboard, $renderedWaivers, $renderedAutoPilot)) {
+if ($renderedHealthyStartSit.Nonce -ne '') { throw 'BF-1104 BLOCKED: healthy Start/Sit unexpectedly armed an on-open POST.' }
+foreach ($fixture in @($renderedDashboard, $renderedWaivers, $renderedAutoPilot, $renderedStartSit)) {
     if ($fixture.Nonce -cnotmatch '^[0-9a-f]{64}$') {
         throw 'BF-1043 BLOCKED: eligible renderer failed to emit a nonce.'
     }
@@ -36,5 +42,7 @@ if ($renderedBlocked.Nonce -ne '') {
     dashboard = $renderedDashboard
     waivers = $renderedWaivers
     autopilot = $renderedAutoPilot
+    startsit = $renderedStartSit
+    blockedStartSit = $renderedHealthyStartSit
     blockedAutopilot = $renderedBlocked
 } | ConvertTo-Json -Depth 6 -Compress
