@@ -1155,6 +1155,12 @@ function Limit-V04AutoPilotToSourcedStartSit {
             }
         }
     }
+    if ($valid) {
+        # BF-1086: propagate ONLY independently validated source timestamps.
+        # Neither is an injury report publication time.
+        $WatchState | Add-Member -NotePropertyName StartSitStatusFetchedAtUtc -NotePropertyValue ([string]$status[0].Groups['time'].Value) -Force
+        $WatchState | Add-Member -NotePropertyName StartSitProjectionFetchedAtUtc -NotePropertyValue ([string]$projection[0].Groups['time'].Value) -Force
+    }
     if (-not $valid) {
         $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
         # Do not change dashboard/waiver readiness: one source-specific
@@ -1269,6 +1275,20 @@ function Get-V04AutoPilotHtml {
         'WATCH DATA UNAVAILABLE'
     }
     $snapshotClass = if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld) { 'good' } else { 'warn' }
+    # BF-1086: show actual source observations, never host-clock freshness.
+    $lineupSourceTiming = 'Lineup source fetch times not independently verified for this view.'
+    if ([bool]$WatchState.Ready -and -not $lineupDecisionHeld -and
+        $null -ne $WatchState.PSObject.Properties['StartSitStatusFetchedAtUtc'] -and
+        $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc']) {
+        $sourceStatus = [string]$WatchState.StartSitStatusFetchedAtUtc
+        $sourceProjection = [string]$WatchState.StartSitProjectionFetchedAtUtc
+        $strictUtc = '^20[0-9]{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]{1,9})?Z$'
+        if ($sourceStatus -cmatch $strictUtc -and $sourceProjection -cmatch $strictUtc) {
+            $lineupSourceTiming = 'Sleeper status map retrieved ' + $sourceStatus + ' UTC; projections retrieved ' +
+                $sourceProjection + ' UTC. These are fetch times, not injury report publication times.'
+        }
+    }
+    $lineupSourceTiming = [System.Net.WebUtility]::HtmlEncode($lineupSourceTiming)
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
@@ -1390,7 +1410,7 @@ function Get-V04AutoPilotHtml {
 <section class="panel autopilot-shell">
 <div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This page now reuses Butler's current manager snapshot so you can see what would need attention before any future automation is allowed to act.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
-<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
+<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><p style="font-size:11px;color:var(--muted);margin:6px 0 0">$lineupSourceTiming</p></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
 <div class="autopilot-grid">
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
