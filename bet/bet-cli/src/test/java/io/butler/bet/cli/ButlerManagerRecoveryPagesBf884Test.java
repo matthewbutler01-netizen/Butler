@@ -75,6 +75,22 @@ class ButlerManagerRecoveryPagesBf884Test {
     }
 
     @Test
+    void playerWorkflowOverrideMustNotUndoSafeDetailRedaction() throws Exception {
+        // BF-1121: this later transform runs after BF-884; neither the
+        // raw PowerShell error nor a false no-local-write claim may return.
+        String player = source("scripts/butler-app-bf976-player-workflow-safe-stop-transform.ps1");
+
+        assertTrue(player.contains("PLAYER_DETAIL_UNVERIFIED"));
+        assertTrue(player.contains("PLAYER_SEARCH_UNVERIFIED"));
+        assertTrue(player.contains("PLAYER_COMPARE_UNVERIFIED"));
+        assertTrue(player.contains("No Sleeper transaction was submitted by this page."));
+        assertTrue(player.contains("guarded Butler-local evidence recovery may have run"));
+        assertFalse(player.contains("-Message $_.Exception.Message"));
+        assertFalse(player.contains("$playerDetailFailure = [string]$_"));
+        assertFalse(player.contains("No provider refresh, Butler write, or Sleeper write was executed."));
+    }
+
+    @Test
     void unknownRouteRemains404AndBecomesHtmlRecoveryPage() throws Exception {
         String transform = source("scripts/butler-app-bf884-manager-error-pages-transform.ps1");
 
