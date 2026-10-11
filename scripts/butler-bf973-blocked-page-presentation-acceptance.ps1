@@ -47,7 +47,8 @@ foreach ($rendered in @($historyHtml, $tradeHtml, $appHtml)) {
         '<div class="brand"><h1>BUTLER</h1>',
         '<div class="target">Request stopped safely</div>',
         '<span class="status warn">STOPPED SAFELY</span>',
-        'No Butler or Sleeper write was executed.',
+        'No Sleeper transaction was submitted by this page.',
+        'Butler may have attempted governed local evidence recovery',
         'href="/players">Player Search</a>',
         'href="/compare">Player Compare</a>',
         'href="/history?load=1">History</a>'
@@ -80,11 +81,19 @@ $source = [IO.File]::ReadAllText($workerPath)
 foreach ($required in @(
     '$errorHtml = Get-ButlerBlockedPageHtml -Title ''Decision History blocked'' -Message $_.Exception.Message -Active ''history'' -PrimaryHref ''/history?load=1'' -PrimaryLabel ''Return to Decision History''',
     '$errorHtml = Get-ButlerBlockedPageHtml -Title ''Trade Analyzer blocked'' -Message $_.Exception.Message -Active ''trade'' -PrimaryHref ''/trade'' -PrimaryLabel ''Return to Trade Analyzer''',
-    '$errorHtml = Get-ButlerBlockedPageHtml -Title ''Butler app blocked'' -Message $_.Exception.Message -Active ''dashboard'' -PrimaryHref ''/'' -PrimaryLabel ''Return to Dashboard'' -SecondaryHref ''/team'' -SecondaryLabel ''Review My Team'''
+    '$failure = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase $failurePhase',
+    '$errorHtml = Get-ButlerBlockedPageHtml -Title $failure.Title -Message $failure.Message -Active $failure.Active -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel -SecondaryHref $failure.SecondaryHref -SecondaryLabel $failure.SecondaryLabel'
 )) {
     if ($source.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-973 BLOCKED: worker blocked-page call marker is missing: $required"
     }
+}
+
+if ($source.IndexOf('No Butler or Sleeper write was executed.',
+        [System.StringComparison]::Ordinal) -ge 0 -or
+    $source.IndexOf('-Message $_.Exception.Message -Active ''dashboard''',
+        [System.StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1115 BLOCKED: unsafe generic exception reflection or false no-write claim reintroduced.'
 }
 
 if ($source.IndexOf('<!doctype html><html><body><h1>Butler Decision History blocked</h1>', [System.StringComparison]::Ordinal) -ge 0 -or
