@@ -1697,7 +1697,6 @@ function Send-HttpResponse {
 
         [string]$Bf857Timing,
         [string]$ScriptNonce,
-        [ValidateSet('CORE_HTTP', 'CORE_READ', 'PUBLIC_WORKER')]
         [string]$FailureLayer = ''
     )
 
@@ -1744,6 +1743,10 @@ function Send-HttpResponse {
     # Never emit exception text, source paths, league/player data or a header
     # supplied by any HTTP client. Success pages expose no failure layer.
     $failureHeader = ''
+    if (-not [string]::IsNullOrWhiteSpace($FailureLayer) -and
+        @('CORE_HTTP', 'CORE_READ', 'PUBLIC_WORKER') -cnotcontains $FailureLayer) {
+        throw 'BF-1112 BLOCKED: invalid local response failure layer.'
+    }
     if ($StatusCode -ge 400 -and -not [string]::IsNullOrWhiteSpace($FailureLayer)) {
         $failureHeader = 'X-Butler-Failure-Layer: ' + $FailureLayer + "`r`n"
     }
