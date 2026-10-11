@@ -82,7 +82,7 @@ class ButlerAppCoreRouteUiModuleScopeBf767Test {
         String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
         String fullBlock = between(wrapper,
             "    else {\n        @(\n            [pscustomobject]@{ Name = 'TradeHost'",
-            "\n        )\n    }\n\n    # BF-1125:");
+            "\n        )\n    }");
 
         int tradeHost = fullBlock.indexOf("Name = 'TradeHost'");
         int tradeLab = fullBlock.indexOf("Name = 'TradeLab'");
