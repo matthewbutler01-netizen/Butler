@@ -1166,6 +1166,10 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # contradictory proof cannot prepare an Auto-Pilot lineup packet.
         $positiveChanges = [regex]::IsMatch($message,
             '^[1-9][0-9]* proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time\.')
+        # BF-1106: keep the exact change count only when the separate
+        # recent, full-coverage, zero-hold proof succeeds. This number
+        # cannot come from the Dashboard card or a guessed player roster.
+        $verifiedProposalCountText = ''
         $changeCounts = [regex]::Matches($message, '\b[0-9]+ proposed lineup changes\b')
         $coverageClaims = [regex]::Matches($message, 'Full scoreable projection coverage')
         $holdCounts = [regex]::Matches($message, '\b[0-9]+ player holds?\b')
@@ -1226,6 +1230,13 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # source-age, coverage, and player-hold gate. A Dashboard card alone
         # must never turn into a manager-approval packet.
         $WatchState | Add-Member -NotePropertyName StartSitReviewOutcome -NotePropertyValue 'VERIFIED_CHANGE' -Force
+        # The BF-1087 valid positive count is unique. Present it as a
+        # manager review count only if it fits a realistic roster boundary.
+        $verifiedProposalCountText = [regex]::Match($message,
+            '^(?<count>[1-9][0-9]?) proposed lineup changes have exact player-status checks')
+        if ($verifiedProposalCountText.Success) {
+            $WatchState | Add-Member -NotePropertyName StartSitVerifiedChangeCount -NotePropertyValue ([int]$verifiedProposalCountText.Groups['count'].Value) -Force
+        }
     }
     if (-not $valid) {
         $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
@@ -1280,7 +1291,18 @@ function Get-V04AutoPilotApprovalQueue {
             [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_CHANGE' -and
             $null -ne $WatchState.PSObject.Properties['StartSitStatusFetchedAtUtc'] -and
             $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc']) {
-            'Open Start/Sit Assistant and review the verified current lineup proposal. Manager approval is still required.'
+            # BF-1106: the verified count belongs to the source proof,
+            # not to an unverified Dashboard START/SIT headline.
+            if ($null -ne $WatchState.PSObject.Properties['StartSitVerifiedChangeCount'] -and
+                [string]$WatchState.StartSitVerifiedChangeCount -cmatch '^[1-9][0-9]?$') {
+                $noun = if ([int]$WatchState.StartSitVerifiedChangeCount -eq 1) { 'change' } else { 'changes' }
+                'Open Start/Sit Assistant and review the verified current lineup proposal: ' +
+                    [string]$WatchState.StartSitVerifiedChangeCount + ' sourced lineup ' + $noun +
+                    '. Manager approval is still required.'
+            }
+            else {
+                'Open Start/Sit Assistant and review the verified current lineup proposal. Manager approval is still required.'
+            }
         }
         else {
             'Lineup proposal source has not been independently verified. Open Start/Sit Assistant to check injuries and projections before acting.'
@@ -1440,6 +1462,13 @@ function Get-V04AutoPilotHtml {
     if ($sourceChanged) {
         $sourceReasonCode = 'verified-change'
         $sourceReason = 'A sourced change is ready for your review, not submission. Confirm player status again before kickoff.'
+        if ($null -ne $WatchState.PSObject.Properties['StartSitVerifiedChangeCount'] -and
+            [string]$WatchState.StartSitVerifiedChangeCount -cmatch '^[1-9][0-9]?$') {
+            $changeCount = [int]$WatchState.StartSitVerifiedChangeCount
+            $changeNoun = if ($changeCount -eq 1) { 'change' } else { 'changes' }
+            $sourceReason = [string]$changeCount + ' sourced lineup ' + $changeNoun +
+                ' need your review. Nothing was submitted. Recheck player status before kickoff.'
+        }
     }
     elseif ($sourceNoChange) {
         $sourceReasonCode = 'verified-no-change'
@@ -1639,7 +1668,7 @@ function Get-V04AutoPilotHtml {
 <div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><span class="autopilot-watch-week" role="status" data-butler-watch-week-state="$watchWeekState">$watchWeekText</span></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
 <div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="$sourceProofState" data-butler-lineup-reason="$sourceReasonCode"><div class="autopilot-source-copy"><div class="eyebrow">LINEUP EVIDENCE</div><span class="status $sourceProofTone">$sourceProofLabel</span><p class="autopilot-source-reason">$sourceReason</p><p>$lineupSourceTiming</p><p>Source fetch times are not injury clearance. Check player status again before kickoff.</p></div><a href="$sourceNextHref">$sourceNextLabel</a></div>
 <div class="autopilot-grid">
-<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
+<div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p><p><a href="/matchup/autofill">Open the sourced Start/Sit recommendations</a></p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
 <div class="autopilot-card"><div class="eyebrow">CONTROL</div><h3>Approval rules</h3><p><strong>Default policy:</strong> $approvalMode. Future automation must obey the rules below before any Sleeper write capability is considered.</p></div>
 </div>
