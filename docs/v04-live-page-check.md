@@ -20,6 +20,12 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1123: Matchup and Start/Sit no longer depend on Trade/Player Detail modules at first load
+
+The cached public request worker already scopes exact Dashboard, My Team, Waiver Board and League GETs to **History + DecisionRefresh** module initialization. In source review, `/matchup` and `/matchup/autofill` were still loading **TradeHost + TradeLab + History + Player Detail + DecisionRefresh**, even though these routes read their current matchup/lineup data from the inner core and use only the shared navigation/refresh functions in the public worker. The extra unrelated modules make first-open lineup pages slower and could turn a Trade/Detail module failure into a failed Matchup/Start/Sit response.
+
+The BF-1123 exact-match core-route allowlist now includes `/matchup` and `/matchup/autofill` while keeping the unchanged two-module order, core GET, week proof, guarded local recovery and Start/Sit automatic freshness checks. No new state mutation or provider call was added. **No wildcard, prefix, parameterized path or user-supplied URL** receives the reduced module set: Trade, History, Player Search/Detail, manual refresh and all non-core routes retain the full five-module initialization. Java regression derives the actual allowlisted routes and verifies the tight routing and module boundary. Windows and live real-league testing remain required; this is not proof that first-open source data are fresh.
+
 ## BF-1120/BF-1121: fix staged error-page replacements, including later player overrides
 
 Windows acceptance uncovered a real staging dependency: BF-884's manager error-page transform expected the **old** three inner-core error bodies as exact replacement targets. The revised BF-1119 inner-core templates correctly prevented exception disclosure but caused BF-884 to fail closed during construction. BF-1120 updates BF-884's exact source targets to match the current static League/My Team/general core error bodies, while preserving the established styled recovery pages, status codes and safe navigation.
