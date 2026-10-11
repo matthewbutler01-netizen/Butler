@@ -47,6 +47,15 @@ foreach ($bad in @(
     # prevent a claimed fully sourced / ready-to-review Auto-Pilot lineup.
     ($startSit.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros')),
     ($startSit.Replace('Full scoreable projection coverage', 'UNVERIFIED scoreable projection coverage')),
+    # BF-1087: zero/ambiguous change counts or contradictory claims
+    # cannot turn a held/no-change source into a prepared lineup action.
+    ($startSit.Replace('1 proposed lineup changes', '0 proposed lineup changes')),
+    ($startSit.Replace('1 proposed lineup changes', '01 proposed lineup changes')),
+    ($startSit.Replace('1 proposed lineup changes', '1 proposed lineup changes. 2 proposed lineup changes')),
+    ($startSit.Replace('1 proposed lineup changes', '2 proposed lineup changes. 1 proposed lineup changes')),
+    ($startSit.Replace('0 player holds.', '0 player holds. 2 player holds.')),
+    ($startSit.Replace('0 player holds.', '10 player holds. 0 player holds.')),
+    ($startSit.Replace('Full scoreable projection coverage;', 'Full scoreable projection coverage; Full scoreable projection coverage;')),
     ($startSit.Replace('0 player holds', '1 player hold')),
     ($startSit.Replace('0 player holds', '2 player holds')),
     ($startSit.Replace('0 player holds', '10 player holds')),
