@@ -903,6 +903,29 @@ function Get-ButlerManagerFailureSpec {
     return [pscustomobject]$spec
 }
 
+# BF-1117: the ordinary blocked-page renderer depends on styled core
+# modules. If those modules are the very cause of the failure, still return
+# a tiny, accessible, private-data-free HTTP 500 page. No backend reads.
+function Get-ButlerMinimalBlockedPageHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$Title,
+        [Parameter(Mandatory = $true)][string]$PrimaryHref,
+        [Parameter(Mandatory = $true)][string]$PrimaryLabel
+    )
+
+    if (@('/', '/team', '/waivers', '/matchup',
+          '/matchup/autofill', '/league') -cnotcontains $PrimaryHref) {
+        $PrimaryHref = '/'
+        $PrimaryLabel = 'Return to Dashboard'
+    }
+    $safeTitle = [System.Net.WebUtility]::HtmlEncode($Title)
+    $safeHref = [System.Net.WebUtility]::HtmlEncode($PrimaryHref)
+    $safeLabel = [System.Net.WebUtility]::HtmlEncode($PrimaryLabel)
+    return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butler - Page unavailable</title><style>body{font:16px/1.5 system-ui,Arial,sans-serif;background:#101827;color:#f4f6fa;margin:0;padding:32px}main{max-width:650px;margin:10vh auto;padding:25px;border:1px solid #687b90;border-radius:12px}a{color:#d7f4d4;font-weight:700}a:focus-visible{outline:3px solid white;outline-offset:4px}</style></head><body><main><h1>' +
+        $safeTitle + '</h1><p>The Butler page is temporarily unavailable. Current roster and decision evidence cannot be verified here. No Sleeper transaction was submitted by this page.</p><p><a href="' +
+        $safeHref + '">' + $safeLabel + '</a> or <a href="/">Dashboard</a>.</p></main></body></html>'
+}
+
 function Get-ButlerBlockedPageHtml {
     param(
         [Parameter(Mandatory = $true)][string]$Title,
@@ -2320,7 +2343,14 @@ try {
         # reports a safe failure-layer enum; show a useful retry screen
         # instead of reflecting exception details into browser HTML.
         $failure = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase $failurePhase
-        $errorHtml = Get-ButlerBlockedPageHtml -Title $failure.Title -Message $failure.Message -Active $failure.Active -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel -SecondaryHref $failure.SecondaryHref -SecondaryLabel $failure.SecondaryLabel
+        try {
+            $errorHtml = Get-ButlerBlockedPageHtml -Title $failure.Title -Message $failure.Message -Active $failure.Active -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel -SecondaryHref $failure.SecondaryHref -SecondaryLabel $failure.SecondaryLabel
+        }
+        catch {
+            # BF-1117: CSS or nav helpers might themselves be broken. Avoid
+            # recursive error-page rendering; use an independent safe page.
+            $errorHtml = Get-ButlerMinimalBlockedPageHtml -Title $failure.Title -PrimaryHref $failure.PrimaryHref -PrimaryLabel $failure.PrimaryLabel
+        }
         Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $errorHtml -FailureLayer $failurePhase
     }
 }
