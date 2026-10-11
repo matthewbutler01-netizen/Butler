@@ -221,6 +221,18 @@ foreach ($phase in @('CORE_READ', 'PUBLIC_WORKER')) {
     }
 }
 
+# BF-1114: GET routes can invoke explicitly governed BF-723 local evidence
+# recovery, so a generic error page must not claim that no Butler write
+# happened. The actual promise is: no Sleeper transaction was submitted.
+if ($workerSource.IndexOf('No Butler or Sleeper write was executed.',
+        [StringComparison]::Ordinal) -ge 0 -or
+    $workerSource.IndexOf('No Sleeper transaction was submitted by this page.',
+        [StringComparison]::Ordinal) -lt 0 -or
+    $workerSource.IndexOf('Butler may have attempted governed local evidence recovery',
+        [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1114 BLOCKED: public stop page claimed no local evidence write.'
+}
+
 # BF-1102: exact independently sourced Matchup week must align with
 # the week printed on Auto-Pilot. Missing, stale or duplicated proofs fail.
 $bf1102Matchup = '<section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section>'
