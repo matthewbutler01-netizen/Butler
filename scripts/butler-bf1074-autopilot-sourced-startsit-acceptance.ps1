@@ -19,9 +19,9 @@ $matchup = '<section class="panel butler-live-week-status" role="status" data-bu
 $proof = '<p class="meta butler-startsit-source-proof" role="status">1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time. Full scoreable projection coverage; 0 player holds. no Sleeper move was submitted. Sources: projection snapshot retrieved 2026-10-10T14:59:00.123456789Z UTC; swap players status map retrieved 2026-10-10T15:00:00Z UTC.</p>'
 $startSit = '<style>.start-sit-blocker{border:1px solid red}</style>' + $matchup + '<section class="panel recommendation-panel start-sit-assistant">' + $proof + '</section>'
 function Test-Packet {
-    param([string]$Page,[string]$OtherPage)
+    param([string]$Page,[string]$OtherPage,[string]$DashboardSignal = 'START 1 / SIT 1')
     $watch = [pscustomobject]@{
-        Ready = $true; StartSit = 'START 1 / SIT 1'
+        Ready = $true; StartSit = $DashboardSignal
         Waivers = 'ADD 1 / DROP 1'; EvidenceStatus = 'CURRENT'
     }
     $review = Limit-V04AutoPilotToSourcedStartSit -WatchState $watch -MatchupHtml $OtherPage -StartSitHtml $Page -CheckedAtUtc $clock
@@ -34,6 +34,17 @@ function Test-Packet {
 if ((Test-Packet -Page $startSit -OtherPage $matchup) -cne 'START 1 / SIT 1') {
     throw 'BF-1074 BLOCKED: valid recent player-status evidence was rejected.'
 }
+# BF-1089: a valid changed-source page cannot override a separately
+# audited Dashboard that says no change, not reviewed, or unavailable.
+foreach ($contradiction in @('NO CHANGE', 'NOT REVIEWED', 'REFRESH', 'CHECK EVIDENCE', 'DO NOT ACT', 'unknown')) {
+    if ((Test-Packet -Page $startSit -OtherPage $matchup -DashboardSignal $contradiction) -cne 'BLOCKED - CHECK START/SIT') {
+        throw "BF-1089 BLOCKED: contradictory Dashboard state '$contradiction' authorized a changed lineup."
+    }
+}
+if ((Test-Packet -Page $startSit -OtherPage $matchup -DashboardSignal 'REVIEW') -cne 'REVIEW') {
+    throw 'BF-1089 BLOCKED: real Dashboard REVIEW signal with valid changed lineup was withheld.'
+}
+
 foreach ($bad in @(
     '',
     $matchup,
@@ -280,6 +291,22 @@ foreach ($bad in @(
 $contradictedNoChange = Test-NoChangePacket -Page $noChangeHtml -DashboardSignal 'START 1 / SIT 1'
 if ($contradictedNoChange.StartSit -cne 'BLOCKED - CHECK START/SIT') {
     throw 'BF-1088 BLOCKED: Dashboard swap request was overwritten by a contradictory zero-change proof.'
+}
+
+# BF-1089: a stand-alone, unaudited NO CHANGE or NOT REVIEWED card
+# cannot render an actionable Start/Sit packet merely because Ready is true.
+foreach ($unverified in @('NO CHANGE','NOT REVIEWED')) {
+    $syntheticWatch = [pscustomobject]@{
+        Ready = $true; StartSit = $unverified; Waivers = 'NO MOVE'
+        Attention = 'ON TRACK'; Roster = 'Test Team'; EvidenceStatus = 'CURRENT'
+    }
+    $syntheticQueue = Get-V04AutoPilotApprovalQueue -WatchState $syntheticWatch -ApprovalPolicy $policy
+    $syntheticHtml = Get-V04AutoPilotHtml -WatchState $syntheticWatch -ApprovalPolicy $policy -ApprovalQueue $syntheticQueue
+    if ($syntheticHtml.IndexOf('READY FOR MANAGER REVIEW',[StringComparison]::Ordinal) -ge 0 -or
+        $syntheticHtml.IndexOf('<span class="status good">CURRENT SNAPSHOT</span>',[StringComparison]::Ordinal) -ge 0 -or
+        $syntheticHtml.IndexOf('NO RECOMMENDATION PREPARED',[StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1089 BLOCKED: unverified '$unverified' rendered a green lineup approval packet."
+    }
 }
 
 # BF-1076: legacy manager GETs keep their original timeout. Only
