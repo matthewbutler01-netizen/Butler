@@ -1218,6 +1218,10 @@ function Limit-V04AutoPilotToSourcedStartSit {
         # Neither is an injury report publication time.
         $WatchState | Add-Member -NotePropertyName StartSitStatusFetchedAtUtc -NotePropertyValue ([string]$status[0].Groups['time'].Value) -Force
         $WatchState | Add-Member -NotePropertyName StartSitProjectionFetchedAtUtc -NotePropertyValue ([string]$projection[0].Groups['time'].Value) -Force
+        # BF-1090: proof was accepted by the same narrow current league/week,
+        # source-age, coverage, and player-hold gate. A Dashboard card alone
+        # must never turn into a manager-approval packet.
+        $WatchState | Add-Member -NotePropertyName StartSitReviewOutcome -NotePropertyValue 'VERIFIED_CHANGE' -Force
     }
     if (-not $valid) {
         $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
@@ -1307,13 +1311,32 @@ function Get-V04AutoPilotHtml {
     $evidenceStatus = if ($null -ne $WatchState.PSObject.Properties['EvidenceStatus']) {
         [string]$WatchState.EvidenceStatus
     } else { 'UNVERIFIED' }
+    # BF-1090: the renderer requires proof that its deep Start/Sit
+    # source gate actually completed, not merely a green Dashboard card.
+    $sourceChanged = [bool]$WatchState.Ready -and
+        $null -ne $WatchState.PSObject.Properties['StartSitReviewOutcome'] -and
+        [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_CHANGE' -and
+        $null -ne $WatchState.PSObject.Properties['StartSitStatusFetchedAtUtc'] -and
+        $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc'] -and
+        ([string]$WatchState.StartSit -ceq 'REVIEW' -or
+         [string]$WatchState.StartSit -cmatch '^START [1-9][0-9]* / SIT [1-9][0-9]*$')
+    $sourceNoChange = [bool]$WatchState.Ready -and
+        $null -ne $WatchState.PSObject.Properties['StartSitReviewOutcome'] -and
+        [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_NO_CHANGE' -and
+        [string]$WatchState.StartSit -ceq 'NO CHANGE VERIFIED' -and
+        $null -ne $WatchState.PSObject.Properties['StartSitProjectionFetchedAtUtc']
+    $lineupApprovalIntent = ([string]$WatchState.StartSit -ceq 'REVIEW' -or
+        [string]$WatchState.StartSit -ceq 'NO CHANGE VERIFIED' -or
+        [string]$WatchState.StartSit -cmatch '^START [1-9][0-9]* / SIT [1-9][0-9]*$')
     $lineupSourceHeld = [bool]$WatchState.Ready -and
-        [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT'
+        ([string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT' -or
+         ($lineupApprovalIntent -and -not ($sourceChanged -or $sourceNoChange)))
     # BF-1083: a fresh Dashboard audit can coexist with a deliberate
     # REFRESH/DO NOT ACT/HOLD lineup signal. Do not render that state as
     # an all-green "CURRENT SNAPSHOT" while the prepared packet is blocked.
     $lineupDecisionHeld = [bool]$WatchState.Ready -and
-        ([string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT' -or
+        ($lineupSourceHeld -or
+         [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT' -or
          @('NO CHANGE', 'NOT REVIEWED') -ccontains [string]$WatchState.StartSit)
     $snapshotStatus = if ($lineupSourceHeld) {
         'LINEUP SOURCE NOT VERIFIED'
@@ -1384,10 +1407,7 @@ function Get-V04AutoPilotHtml {
     # BF-1028: a prepared Start/Sit review packet is a read-only object derived
     # from the already-governed weekly watch. It never invents a lineup when
     # evidence is incomplete.
-    $preparedStartSit = if ([bool]$WatchState.Ready -and
-        $null -ne $WatchState.PSObject.Properties['StartSitReviewOutcome'] -and
-        [string]$WatchState.StartSitReviewOutcome -ceq 'VERIFIED_NO_CHANGE' -and
-        [string]$WatchState.StartSit -ceq 'NO CHANGE VERIFIED') {
+    $preparedStartSit = if ($sourceNoChange) {
         [pscustomobject]@{
             State = 'NO ACTION REQUIRED'
             Decision = 'KEEP CURRENT LINEUP'
@@ -1396,9 +1416,7 @@ function Get-V04AutoPilotHtml {
             ReviewHref = '/matchup/autofill'
         }
     }
-    elseif (-not [bool]$WatchState.Ready -or
-                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT' -or
-                            @('NO CHANGE', 'NOT REVIEWED') -ccontains [string]$WatchState.StartSit) {
+    elseif (-not $sourceChanged -or $lineupDecisionHeld) {
         [pscustomobject]@{
             State = 'BLOCKED'
             Decision = 'NO RECOMMENDATION PREPARED'
