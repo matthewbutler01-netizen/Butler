@@ -113,10 +113,10 @@ async function scenario(name, mutations, expect) {
   // automatic Auto-Pilot browser trigger when the same governed Dashboard
   // audit would arm it, and reject an armed trigger on current evidence.
   const autoAudit = '11111111-1111-1111-1111-111111111111';
-  const nonce = 'a'.repeat(64);
+  const bf1097Nonce = 'a'.repeat(64);
   const autoMarker = '<div id="butler-auto-refresh-status"></div>' +
-    '<script nonce="' + nonce + '">window.bf1097Fixture=true;</script>';
-  const autoCsp = csp + "; script-src 'nonce-" + nonce + "'; connect-src 'self'";
+    '<script nonce="' + bf1097Nonce + '">window.bf1097Fixture=true;</script>';
+  const autoCsp = csp + "; script-src 'nonce-" + bf1097Nonce + "'; connect-src 'self'";
   const nav = '<nav class="nav" aria-label="Butler sections"></nav>';
   const currentWithNav = good['/'].replace(audited, nav + audited);
   const staleProof = '<div>Decision state: STALE_DO_NOT_ACT</div>' +
