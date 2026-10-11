@@ -81,10 +81,19 @@ if ($null -eq $worker) {
         throw "BF-789 BLOCKED: companion read proxy is unavailable at $gradle"
     }
 
+    # BF-1123: Matchup and Start/Sit use only the same core GET and
+    # guarded DecisionRefresh presentation path as My Team. Neither route
+    # calls Trade Lab, Trade Host, or Player Detail. Requiring those three
+    # unrelated modules on first open made the two lineup pages slower and
+    # let an unrelated Trade/Detail module failure block valid lineup reads.
+    # Keep this exact-path allowlist: /trade, /players, /history, refresh
+    # confirmation and all parameterized/unknown paths retain full loading.
     $bf767CoreRead = $requestTarget -ceq '/' -or
         $requestTarget -ceq '/team' -or
         $requestTarget -ceq '/waivers' -or
-        $requestTarget -ceq '/league'
+        $requestTarget -ceq '/league' -or
+        $requestTarget -ceq '/matchup' -or
+        $requestTarget -ceq '/matchup/autofill'
 
     $bf766ModuleSpecs = if ($bf767CoreRead) {
         @(
