@@ -83,7 +83,7 @@ async function visit(route, options = {}) {
   assert.equal(calls[0].settings.credentials, 'same-origin');
   assert.equal(calls[0].settings.headers['Content-Type'], 'application/x-www-form-urlencoded');
   assert.equal(calls[0].settings.body, 'token=' + data.token);
-  assert.equal(storage.get('butler-auto-refresh:/:11111111-1111-1111-1111-111111111111'), String(now));
+  assert.equal(storage.get('butler-auto-refresh:/:11111111-1111-1111-1111-111111111111'), 's:' + String(now));
 
   // Moving to Auto-Pilot does not repeat the same audit's update.
   x = await visit('autopilot');
@@ -108,24 +108,41 @@ async function visit(route, options = {}) {
   assert.equal(calls.length, 3);
   assert.deepEqual(x.redirected, ['/autopilot']);
 
-  // Rejected server-side decision does NOT navigate or retry automatically.
+  // BF-1103: a rejected local POST gets a brief failed-attempt lock,
+  // NOT a five-minute success lock, so future visits can self-heal.
   now += 300001;
   x = await visit('dashboard', { network: 'reject' });
   assert.equal(calls.length, 4);
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /Automatic update stopped/);
+  const dashboardKey = 'butler-auto-refresh:/' + ':' + data.audit;
+  assert.equal(storage.get(dashboardKey), 'f:' + String(now));
   x = await visit('autopilot');
   assert.equal(calls.length, 4);
   assert.deepEqual(x.redirected, []);
+  assert.match(x.text, /could not complete the last update/);
+  now += 60001;
+  x = await visit('autopilot');
+  assert.equal(calls.length, 5);
+  assert.deepEqual(x.redirected, ['/autopilot']);
+  assert.equal(storage.get(dashboardKey), 's:' + String(now));
 
-  // A network exception is visible and likewise remains bounded.
+  // A network exception is visible and likewise remains bounded,
+  // with an automatic retry on a LATER page visit, not in the same view.
   now += 300001;
   x = await visit('waivers', { network: 'throw' });
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /Automatic update could not finish/);
+  const waiverKey = 'butler-auto-refresh:/waivers:' + data.audit;
+  assert.equal(storage.get(waiverKey), 'f:' + String(now));
   x = await visit('waivers');
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
+  now += 60001;
+  x = await visit('waivers');
+  assert.equal(calls.length, 7);
+  assert.deepEqual(x.redirected, ['/waivers']);
+  assert.equal(storage.get(waiverKey), 's:' + String(now));
 
   // Separate audit identity authorizes a fresh visit, not a replay.
   // This is still only the local browser intent; the POST server gate must
@@ -137,7 +154,7 @@ async function visit(route, options = {}) {
   };
   data.audit2 = changed;
   x = await visit('audit2');
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 8);
   assert.deepEqual(x.redirected, ['/']);
   assert.ok(storage.has('butler-auto-refresh:/:' + audit2));
 
@@ -148,7 +165,7 @@ async function visit(route, options = {}) {
     assert.equal(call.settings.body, 'token=' + data.token);
   }
   console.log('BF-1043 REAL RENDERED AUTO-REFRESH BROWSER EXECUTION: PASS');
-  console.log('Coverage: clickless update, Dashboard/Auto-Pilot shared audit cooldown, Waiver independence, 5-minute expiry, browser reload, server rejection and network failure, audit rotation, same-origin token-only POST intent.');
+  console.log('Coverage: clickless update, shared 5-minute success cooldown, 1-minute failure/pending cooldown, later-visit recovery for rejected or offline calls, Waiver independence, audit rotation, same-origin token-only POST intent.');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
