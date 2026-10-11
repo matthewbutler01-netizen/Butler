@@ -63,6 +63,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1127-worker-first-open-503-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1129-minimal-500-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1055-matchup-stale-hold-acceptance.ps1'
