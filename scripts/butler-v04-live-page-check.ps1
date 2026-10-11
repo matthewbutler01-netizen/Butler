@@ -175,6 +175,47 @@ function Test-ButlerCrossRouteWeek {
     return [pscustomobject]@{ Status = 'PASS'; Evidence = 'WEEK/LEAGUE ALIGNED' }
 }
 
+# BF-1094: compare two already-fetched localhost decisions. A green
+# Dashboard and a green Auto-Pilot may still show different lineup signals
+# when a local roster/weekly evidence update occurred between requests.
+# Never print the player/league/roster values in the diagnostic.
+function Test-ButlerCrossRouteLineup {
+    param(
+        [AllowNull()][string]$DashboardHtml,
+        [AllowNull()][string]$AutoPilotHtml,
+        [AllowNull()]$DashboardCheck,
+        [AllowNull()]$AutoPilotCheck
+    )
+
+    if ($null -eq $DashboardCheck -or $null -eq $AutoPilotCheck -or
+        [string]$DashboardCheck.Status -cne 'PASS' -or
+        [string]$DashboardCheck.Evidence -cne 'AUDIT CURRENT' -or
+        [string]$AutoPilotCheck.Status -cne 'PASS' -or
+        [string]$AutoPilotCheck.Evidence -cne 'WATCH CURRENT') {
+        return [pscustomobject]@{ Status = 'SKIP'; Evidence = 'PAGE NOT VERIFIED' }
+    }
+
+    $dashCards = [regex]::Matches([string]$DashboardHtml,
+        '(?is)<div\b[^>]*class="[^"]*\bdashboard-summary-card\b[^"]*"[^>]*>\s*<span>\s*Start/Sit\s*</span>\s*<strong>(?<value>[^<]*)</strong>\s*</div>')
+    $pilotCards = [regex]::Matches([string]$AutoPilotHtml,
+        '(?is)<div\b[^>]*class="[^"]*\bautopilot-watch-card\b[^"]*"[^>]*>\s*<span>\s*Start/Sit\s*</span>\s*<strong>(?<value>[^<]*)</strong>\s*</div>')
+    if ($dashCards.Count -ne 1 -or $pilotCards.Count -ne 1) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'LINEUP CARD MISSING' }
+    }
+    $dashboardSignal = [regex]::Replace(
+        [System.Net.WebUtility]::HtmlDecode($dashCards[0].Groups['value'].Value), '\s+', ' ').Trim()
+    $pilotSignal = [regex]::Replace(
+        [System.Net.WebUtility]::HtmlDecode($pilotCards[0].Groups['value'].Value), '\s+', ' ').Trim()
+    $aligned = ($dashboardSignal -ceq 'NO CHANGE' -and $pilotSignal -ceq 'NO CHANGE VERIFIED') -or
+        ($dashboardSignal -ceq 'REVIEW' -and $pilotSignal -ceq 'REVIEW') -or
+        ($dashboardSignal -cmatch '^START [1-9][0-9]* / SIT [1-9][0-9]*$' -and
+         $pilotSignal -ceq $dashboardSignal)
+    if (-not $aligned) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'LINEUP SIGNAL DRIFT' }
+    }
+    return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LINEUP ALIGNED' }
+}
+
 function Test-ButlerLocalHealth {
     param($Response)
     if ($null -eq $Response -or [int]$Response.Status -ne 200 -or
@@ -524,13 +565,21 @@ $localCheckStarted = [System.Diagnostics.Stopwatch]::StartNew()
 $matchupCheck = $null
 $startSitResponse = $null
 $startSitCheck = $null
+$dashboardResponse = $null
+$dashboardCheck = $null
+$autoPilotResponse = $null
+$autoPilotCheck = $null
 foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
     $routeTimer = [Diagnostics.Stopwatch]::StartNew()
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
+        if ($route -ceq '/') { $dashboardResponse = $response }
+        if ($route -ceq '/autopilot') { $autoPilotResponse = $response }
         if ($route -ceq '/matchup') { $matchupResponse = $response }
         if ($route -ceq '/matchup/autofill') { $startSitResponse = $response }
         $check = Test-ButlerLivePage -Route $route -Response $response -RequireStartSitProvenance:$RequireReady
+        if ($route -ceq '/') { $dashboardCheck = $check }
+        if ($route -ceq '/autopilot') { $autoPilotCheck = $check }
         if ($route -ceq '/matchup') { $matchupCheck = $check }
         if ($route -ceq '/matchup/autofill') { $startSitCheck = $check }
     }
@@ -547,6 +596,11 @@ $weekPair = Test-ButlerCrossRouteWeek -MatchupHtml $(if ($null -ne $matchupRespo
     -MatchupCheck $matchupCheck -StartSitCheck $startSitCheck
 if ($weekPair.Status -ceq 'FAIL') { $failed++ }
 Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Cross-route week', $weekPair.Status, $weekPair.Evidence)
+$lineupPair = Test-ButlerCrossRouteLineup -DashboardHtml $(if ($null -ne $dashboardResponse) { [string]$dashboardResponse.Body } else { '' }) `
+    -AutoPilotHtml $(if ($null -ne $autoPilotResponse) { [string]$autoPilotResponse.Body } else { '' }) `
+    -DashboardCheck $dashboardCheck -AutoPilotCheck $autoPilotCheck
+if ($lineupPair.Status -ceq 'WARN') { $warned++ }
+Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Cross-route lineup', $lineupPair.Status, $lineupPair.Evidence)
 # The optional source check is deliberately separate from default localhost
 # smoke behavior. It never downloads player/league data or repairs evidence.
 if ($CheckSleeperWeek) {
