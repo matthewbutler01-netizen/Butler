@@ -20,6 +20,10 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1116: trade and history failures do not expose raw exceptions
+
+The original Decision History and Trade Analyzer 400 error pages still inserted `$_.Exception.Message` directly into HTML. Because these routes can process selection/query state and local evidence reads, a raw exception might contain private file locations, player names or other internal context. Both 400 pages now use **fixed, route-specific guidance** instead. Existing navigation back to Decision History or Trade Analyzer, safe HTML escaping, and 400 status are preserved. The BF-973 Windows parity acceptance now explicitly rejects raw exception-message templates for both routes. This is an error display change only: no new data read, no extra provider transaction, no auto-retry and no deployment.
+
 ## BF-1114: public stop-page copy must not deny guarded local recovery
 
 The generic blocked-page footer used to claim **"No Butler or Sleeper write was executed."** That was too broad: an ordinary GET may first trigger the existing narrowly governed BF-723 **Butler-local evidence** recovery, which can write to the local database before a later stage fails and returns a safe error page. The footer now makes only the supported statement: this page did **not submit a Sleeper transaction**, and guarded **local** evidence recovery may have been attempted. Managers are told to check current source status before acting. This is a text/accuracy correction, with Windows source acceptance, not a new recovery action or a waiver/lineup transaction.
