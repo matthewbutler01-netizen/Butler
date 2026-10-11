@@ -429,7 +429,22 @@ function Test-ButlerLivePage {
             $result.Evidence = 'WATCH INCOMPLETE'
         }
         else {
-            $result.Evidence = 'WATCH CURRENT'
+            # BF-1093: a green weekly watch is not enough by itself.
+            # Require the real prepared-review card to agree that this is
+            # either a sourced review proposal or a verified no-action.
+            # A missing, duplicate or held approval packet is not READY.
+            $preparedHeads = [regex]::Matches($body,
+                '(?is)<div class="autopilot-prepared-head">\s*<div>\s*<div class="eyebrow">PREPARED START/SIT REVIEW</div>\s*<h2>Recommendation packet</h2>\s*</div>\s*<span class="status (?<tone>good|warn)">(?<label>[^<]+)</span>\s*</div>')
+            if ($preparedHeads.Count -ne 1 -or
+                $preparedHeads[0].Groups['tone'].Value -cne 'good' -or
+                @('READY FOR MANAGER REVIEW', 'NO ACTION REQUIRED') -cnotcontains
+                    $preparedHeads[0].Groups['label'].Value) {
+                $result.Status = 'WARN'
+                $result.Evidence = 'WATCH INCOMPLETE'
+            }
+            else {
+                $result.Evidence = 'WATCH CURRENT'
+            }
         }
     }
     # BF-1051: a route can be stale but entitled to an automatic update.
