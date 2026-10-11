@@ -301,14 +301,26 @@ function Add-AutomaticGovernedRefreshHtml {
   const status = document.getElementById('butler-auto-refresh-status');
   const key = 'butler-auto-refresh:${cooldownRoute}:$AuditId';
   try {
-    // Bound reload loops after a completed POST, but allow a later visit to recheck.
+    // BF-1103: completed refreshes stay on a five-minute shared audit
+    // cooldown. A failed/unfinished local POST does NOT count as fresh
+    // evidence for five minutes: permit a new automatic attempt on a
+    // later page visit after one minute, never a background retry.
+    // Legacy timestamp-only values remain five-minute success locks.
     const now = Date.now();
-    const previous = Number(sessionStorage.getItem(key));
-    if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < 300000) {
-      status.textContent = 'Butler checked this decision recently. Review the current status or use Check refresh options.';
+    const prior = sessionStorage.getItem(key);
+    const found = /^([psf]):([0-9]+)$/.exec(prior || '');
+    const kind = found ? found[1] : 's';
+    const previous = Number(found ? found[2] : prior);
+    const cooldown = kind === 's' ? 300000 : 60000;
+    if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < cooldown) {
+      status.textContent = kind === 's'
+        ? 'Butler checked this decision recently. Review the current status or use Check refresh options.'
+        : 'Butler could not complete the last update. It will recheck on a later page visit; Check refresh options is available now.';
       return;
     }
-    sessionStorage.setItem(key, String(now));
+    // Lock concurrent tabs/navigations before sending the POST. If the
+    // browser refuses sessionStorage, fail closed without a write.
+    sessionStorage.setItem(key, 'p:' + String(now));
     status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
     const response = await fetch('/refresh', {
       method: 'POST', credentials: 'same-origin',
@@ -316,12 +328,19 @@ function Add-AutomaticGovernedRefreshHtml {
       body: 'token=$Token'
     });
     if (!response.ok) {
-      status.textContent = 'Automatic update stopped. Use Check refresh options to review the recovery state.';
+      sessionStorage.setItem(key, 'f:' + String(Date.now()));
+      status.textContent = 'Automatic update stopped. Butler can recheck on a later visit or you can use Check refresh options.';
       return;
     }
+    sessionStorage.setItem(key, 's:' + String(Date.now()));
     window.location.replace('$Route');
   } catch (error) {
-    status.textContent = 'Automatic update could not finish. Use Check refresh options; no automatic retry will run.';
+    try {
+      if (sessionStorage.getItem(key) && sessionStorage.getItem(key).indexOf('p:') === 0) {
+        sessionStorage.setItem(key, 'f:' + String(Date.now()));
+      }
+    } catch (ignored) {}
+    status.textContent = 'Automatic update could not finish. Butler can recheck on a later visit; use Check refresh options now.';
   }
 })();
 </script>
