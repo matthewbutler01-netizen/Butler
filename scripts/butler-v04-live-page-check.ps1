@@ -782,10 +782,14 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
     catch {
         # BF-1107: stable transport category only; never disclose an exception
         # message or response body in the shareable readiness report.
+        $category = 'PAGE CHECK ERROR'
+        if (-not $routeResponseObtained) {
+            $category = Get-ButlerLocalGetFailureCategory -Failure $_
+        }
         $check = [pscustomobject]@{
             Route = $route
             Status = 'FAIL'
-            Evidence = if ($routeResponseObtained) { 'PAGE CHECK ERROR' } else { Get-ButlerLocalGetFailureCategory -Failure $_ }
+            Evidence = $category
             AutoCheck = 'N/A'
         }
     }
