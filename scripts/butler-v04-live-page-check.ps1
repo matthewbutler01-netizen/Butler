@@ -425,20 +425,30 @@ function Test-ButlerLivePage {
         $readyEvidence = $proofs.Count -eq 1
         if ($readyEvidence) {
             $message = [System.Net.WebUtility]::HtmlDecode($proofs[0].Groups['text'].Value)
-            # A player hold or partially projected slate can be a valid
-            # recommendation screen, but is not source-complete readiness.
-            $readyEvidence = [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -and
-                $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -ge 0 -and
-                $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -lt 0
-        }
-        if ($readyEvidence) {
-            $hasChanges = $message -match '(?i)\b[1-9][0-9]* proposed lineup changes\b'
-            $noChanges = $message.IndexOf('No lineup change is ready.', [StringComparison]::Ordinal) -ge 0
-            $readyEvidence = ($hasChanges -xor $noChanges)
+            # BF-1096: a loose substring such as "0 player holds" inside
+            # a contradictory or duplicated paragraph does not prove a
+            # completed, zero-hold recommendation. This release gate must
+            # agree with the actual Auto-Pilot source review boundary.
+            $holdCounts = [regex]::Matches($message, '\b[0-9]+ player holds?\b')
+            $coverageClaims = [regex]::Matches($message, 'Full scoreable projection coverage')
+            $changeCounts = [regex]::Matches($message, '\b[0-9]+ proposed lineup changes\b')
+            $hasChanges = [regex]::IsMatch($message,
+                '^[1-9][0-9]* proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time\.')
+            $noChanges = $message.StartsWith(
+                'No lineup change is ready. Full scoreable projection coverage; 0 player holds.',
+                [StringComparison]::Ordinal)
+            $readyEvidence = $holdCounts.Count -eq 1 -and
+                $holdCounts[0].Value -ceq '0 player holds' -and
+                $coverageClaims.Count -eq 1 -and
+                $message.IndexOf('UNVERIFIED', [StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+                ($hasChanges -xor $noChanges)
             if ($hasChanges) {
                 $readyEvidence = $readyEvidence -and
-                    $message.IndexOf('proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time', [StringComparison]::Ordinal) -ge 0 -and
+                    $changeCounts.Count -eq 1 -and
                     $message.IndexOf('no Sleeper move was submitted', [StringComparison]::Ordinal) -ge 0
+            }
+            else {
+                $readyEvidence = $readyEvidence -and $changeCounts.Count -eq 0
             }
         }
         if ($readyEvidence) {
