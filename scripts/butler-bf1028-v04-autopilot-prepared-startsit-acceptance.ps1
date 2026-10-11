@@ -54,6 +54,29 @@ foreach ($required in @(
     }
 }
 
+# BF-1092: a ready Dashboard is never an all-green weekly watch
+# until the independently sourced player recommendation has been checked.
+# Unknown card values and forged no-change labels also fail closed.
+foreach ($untrustedSignal in @(
+    'UNKNOWN SIGNAL', 'NO CHANGE VERIFIED', 'REVIEW', 'START 1 / SIT 1'
+)) {
+    $untrusted = [pscustomobject]@{
+        Ready = $true
+        Attention = 'ON TRACK'
+        StartSit = $untrustedSignal
+        Waivers = 'NO MOVE'
+        Roster = 'Test Team'
+        EvidenceStatus = 'CURRENT'
+    }
+    $untrustedQueue = Get-V04AutoPilotApprovalQueue -WatchState $untrusted -ApprovalPolicy $policy
+    $untrustedHtml = Get-V04AutoPilotHtml -WatchState $untrusted -ApprovalPolicy $policy -ApprovalQueue $untrustedQueue
+    if ($untrustedHtml.IndexOf('<span class="status good">CURRENT SNAPSHOT</span>', [StringComparison]::Ordinal) -ge 0 -or
+        $untrustedHtml.IndexOf('<span class="status warn">LINEUP SOURCE NOT VERIFIED</span>', [StringComparison]::Ordinal) -lt 0 -or
+        $untrustedHtml.IndexOf('NO RECOMMENDATION PREPARED', [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1092 BLOCKED: unsourced '$untrustedSignal' appeared as a green current watch."
+    }
+}
+
 $readyWatch = [pscustomobject]@{
     Ready = $true
     Attention = 'READY'
