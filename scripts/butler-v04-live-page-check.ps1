@@ -216,6 +216,59 @@ function Test-ButlerCrossRouteLineup {
     return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LINEUP ALIGNED' }
 }
 
+# BF-1095: independently passing pages may disagree about whether a
+# lineup swap was actually proposed. This check compares the already
+# fetched Start/Sit proof with the source-checked Auto-Pilot decision.
+function Test-ButlerCrossRouteStartSit {
+    param(
+        [AllowNull()][string]$AutoPilotHtml,
+        [AllowNull()][string]$StartSitHtml,
+        [AllowNull()]$AutoPilotCheck,
+        [AllowNull()]$StartSitCheck,
+        [AllowNull()]$LineupPair
+    )
+    if ($null -eq $AutoPilotCheck -or $null -eq $StartSitCheck -or
+        $null -eq $LineupPair -or
+        [string]$AutoPilotCheck.Status -cne 'PASS' -or
+        [string]$AutoPilotCheck.Evidence -cne 'WATCH CURRENT' -or
+        [string]$StartSitCheck.Status -cne 'PASS' -or
+        [string]$StartSitCheck.Evidence -cne 'PAIRING VERIFIED' -or
+        [string]$LineupPair.Status -cne 'PASS') {
+        return [pscustomobject]@{ Status = 'SKIP'; Evidence = 'PAGE NOT VERIFIED' }
+    }
+    $card = [regex]::Matches([string]$AutoPilotHtml,
+        '(?is)<div\b[^>]*class="[^"]*\bautopilot-watch-card\b[^"]*"[^>]*>\s*<span>\s*Start/Sit\s*</span>\s*<strong>(?<value>[^<]*)</strong>\s*</div>')
+    $proof = [regex]::Matches([string]$StartSitHtml,
+        '(?is)<p\s+class="meta butler-startsit-source-proof"\s+role="status"\s*>(?<text>[^<]*)</p>')
+    if ($card.Count -ne 1 -or $proof.Count -ne 1) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'START/SIT SOURCE UNKNOWN' }
+    }
+    $pilotSignal = [regex]::Replace(
+        [System.Net.WebUtility]::HtmlDecode($card[0].Groups['value'].Value), '\s+', ' ').Trim()
+    $message = [System.Net.WebUtility]::HtmlDecode($proof[0].Groups['text'].Value)
+    $changeCounts = [regex]::Matches($message, '\b[0-9]+ proposed lineup changes\b')
+    $noChange = $message.StartsWith(
+        'No lineup change is ready. Full scoreable projection coverage; 0 player holds.',
+        [StringComparison]::Ordinal) -and $changeCounts.Count -eq 0
+    $changed = [regex]::IsMatch($message,
+        '^[1-9][0-9]* proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time\.') -and
+        $changeCounts.Count -eq 1 -and
+        [regex]::Matches($message, '\b[0-9]+ player holds?\b').Count -eq 1 -and
+        [regex]::IsMatch($message, '(?<![0-9])0 player holds\b') -and
+        $message.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -ge 0
+    if (-not $noChange -and -not $changed) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'START/SIT SOURCE UNKNOWN' }
+    }
+    $pilotNoChange = $pilotSignal -ceq 'NO CHANGE VERIFIED'
+    $pilotChanged = $pilotSignal -ceq 'REVIEW' -or
+        $pilotSignal -cmatch '^START [1-9][0-9]* / SIT [1-9][0-9]*$'
+    if (($noChange -and -not $pilotNoChange) -or
+        ($changed -and -not $pilotChanged)) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'START/SIT DECISION DRIFT' }
+    }
+    return [pscustomobject]@{ Status = 'PASS'; Evidence = 'START/SIT ALIGNED' }
+}
+
 function Test-ButlerLocalHealth {
     param($Response)
     if ($null -eq $Response -or [int]$Response.Status -ne 200 -or
@@ -601,6 +654,11 @@ $lineupPair = Test-ButlerCrossRouteLineup -DashboardHtml $(if ($null -ne $dashbo
     -DashboardCheck $dashboardCheck -AutoPilotCheck $autoPilotCheck
 if ($lineupPair.Status -ceq 'WARN') { $warned++ }
 Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Cross-route lineup', $lineupPair.Status, $lineupPair.Evidence)
+$sourcePair = Test-ButlerCrossRouteStartSit -AutoPilotHtml $(if ($null -ne $autoPilotResponse) { [string]$autoPilotResponse.Body } else { '' }) `
+    -StartSitHtml $(if ($null -ne $startSitResponse) { [string]$startSitResponse.Body } else { '' }) `
+    -AutoPilotCheck $autoPilotCheck -StartSitCheck $startSitCheck -LineupPair $lineupPair
+if ($sourcePair.Status -ceq 'WARN') { $warned++ }
+Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Source lineup', $sourcePair.Status, $sourcePair.Evidence)
 # The optional source check is deliberately separate from default localhost
 # smoke behavior. It never downloads player/league data or repairs evidence.
 if ($CheckSleeperWeek) {
