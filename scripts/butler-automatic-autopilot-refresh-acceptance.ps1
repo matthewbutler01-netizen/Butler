@@ -12,7 +12,11 @@ if ($armed.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
     $armed.Html -notmatch 'id="butler-auto-refresh-status"' -or
     $armed.Html -notmatch "window.location.replace\('/autopilot'\)" -or
     $armed.Html -notmatch "method: 'POST'" -or
-    $armed.Html -notmatch 'now - previous < 300000') {
+    $armed.Html -notmatch 'now - previous < cooldown' -or
+    $armed.Html -notmatch '300000 : 60000' -or
+    $armed.Html -notmatch "setItem\(key, 'p:'" -or
+    $armed.Html -notmatch "setItem\(key, 'f:'" -or
+    $armed.Html -notmatch "setItem\(key, 's:'") {
     throw 'BF-1041 BLOCKED: eligible Auto-Pilot is missing governed, shared-cooldown refresh.'
 }
 
