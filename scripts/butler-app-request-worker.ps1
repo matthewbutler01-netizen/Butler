@@ -1142,6 +1142,12 @@ function Limit-V04AutoPilotToSourcedStartSit {
             $WatchState.StartSit = 'BLOCKED - CHECK START/SIT'
             return $WatchState
         }
+        # BF-1089: only a separately audited Dashboard review signal
+        # can agree with a new proposal. NO CHANGE, NOT REVIEWED, REFRESH
+        # and arbitrary cards must never authorize a changed-lineup packet.
+        $dashboardRequestsReview = [string]$WatchState.StartSit -ceq 'REVIEW' -or
+            [regex]::IsMatch([string]$WatchState.StartSit, '^START [1-9][0-9]* / SIT [1-9][0-9]*$')
+        if (-not $dashboardRequestsReview) { $valid = $false }
         # Require the actual BF-1067 sourced-change message. A held swap,
         # unverified timestamp, no-change decision, or generic Dashboard
         # signal cannot authorize an Auto-Pilot prepared packet.
@@ -1307,7 +1313,8 @@ function Get-V04AutoPilotHtml {
     # REFRESH/DO NOT ACT/HOLD lineup signal. Do not render that state as
     # an all-green "CURRENT SNAPSHOT" while the prepared packet is blocked.
     $lineupDecisionHeld = [bool]$WatchState.Ready -and
-        [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT'
+        ([string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT' -or
+         @('NO CHANGE', 'NOT REVIEWED') -ccontains [string]$WatchState.StartSit)
     $snapshotStatus = if ($lineupSourceHeld) {
         'LINEUP SOURCE NOT VERIFIED'
     }
@@ -1390,7 +1397,8 @@ function Get-V04AutoPilotHtml {
         }
     }
     elseif (-not [bool]$WatchState.Ready -or
-                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT') {
+                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT' -or
+                            @('NO CHANGE', 'NOT REVIEWED') -ccontains [string]$WatchState.StartSit) {
         [pscustomobject]@{
             State = 'BLOCKED'
             Decision = 'NO RECOMMENDATION PREPARED'
