@@ -2149,7 +2149,7 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         }
         catch {
-            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Decision History blocked' -Message $_.Exception.Message -Active 'history' -PrimaryHref '/history?load=1' -PrimaryLabel 'Return to Decision History'
+            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Decision History blocked' -Message 'Butler could not display this history request. Return to Decision History and retry after current evidence is available.' -Active 'history' -PrimaryHref '/history?load=1' -PrimaryLabel 'Return to Decision History'
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
         return
@@ -2166,7 +2166,7 @@ try {
             Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $html
         }
         catch {
-            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Trade Analyzer blocked' -Message $_.Exception.Message -Active 'trade' -PrimaryHref '/trade' -PrimaryLabel 'Return to Trade Analyzer'
+            $errorHtml = Get-ButlerBlockedPageHtml -Title 'Trade Analyzer blocked' -Message 'Butler could not finish this trade review. Reopen the Trade Analyzer and check the selected assets before trying again. No Sleeper trade was submitted.' -Active 'trade' -PrimaryHref '/trade' -PrimaryLabel 'Return to Trade Analyzer'
             Send-HttpResponse -Stream $stream -StatusCode 400 -StatusText 'Bad Request' -ContentType 'text/html; charset=utf-8' -Body $errorHtml
         }
         return
