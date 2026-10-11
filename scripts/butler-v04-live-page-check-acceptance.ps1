@@ -167,10 +167,21 @@ Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
-    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"127.0.0.1"}'
+    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","bind":"127.0.0.1"}'
 }
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1040 BLOCKED: exact Butler loopback health was rejected.'
+}
+# BF-1098: older v0.4 still advertises the original featureSet,
+# but lacks sourced cross-page and on-open safeguards. Never certify it
+# using today's strict real-league readiness diagnostic.
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1098 BLOCKED: pre-BF-1098 v0.4 runtime passed the current strict readiness identity.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"other-build","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1098 BLOCKED: invalid readiness contract passed the current runtime gate.'
 }
 $health.Body = '{"status":"ok","service":"different-app","bind":"127.0.0.1"}'
 if (Test-ButlerLocalHealth -Response $health) {
