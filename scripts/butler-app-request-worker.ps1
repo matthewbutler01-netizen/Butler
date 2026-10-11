@@ -1285,7 +1285,7 @@ function Get-V04AutoPilotHtml {
     # from the already-governed weekly watch. It never invents a lineup when
     # evidence is incomplete.
     $preparedStartSit = if (-not [bool]$WatchState.Ready -or
-                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD') {
+                            [string]$WatchState.StartSit -match '(?i)UNAVAILABLE|REFRESH|EVIDENCE|BLOCK|HOLD|DO NOT ACT') {
         [pscustomobject]@{
             State = 'BLOCKED'
             Decision = 'NO RECOMMENDATION PREPARED'
