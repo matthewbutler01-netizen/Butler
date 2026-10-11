@@ -276,17 +276,27 @@ if ($source.IndexOf('Test-ButlerCrossRouteWeek -MatchupHtml', [StringComparison]
 
 # BF-1053: compare the actual BF-840 rendered matchup header with only
 # Sleeper's small public NFL state payload. No real Internet is used here.
-$matchingMatchup = '<html><body><div class="target" data-butler-matchup-season="2026">Synthetic league &middot; Week 5</div><h1>Team A vs Team B</h1></body></html>'
+$matchingMatchup = '<html><body><section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">Synthetic league &middot; Week 5</div><h1>Team A vs Team B</h1></body></html>'
 $liveWeekFixture = '{"season":"2026","season_type":"regular","week":5,"leg":5,"display_week":5}'
 $matchingWeek = Test-ButlerSleeperWeekMatch -MatchupHtml $matchingMatchup -PublicNflState $liveWeekFixture
 if ($matchingWeek.Status -cne 'PASS' -or $matchingWeek.Evidence -cne 'WEEK MATCH') {
     throw 'BF-1053 BLOCKED: matching external NFL week and exact matchup header were rejected.'
 }
 foreach ($badComparison in @(
-    @{ Html = $matchingMatchup.Replace('Week 5', 'Week 4'); Json = $liveWeekFixture; Expected = 'WEEK MISMATCH' },
-    @{ Html = $matchingMatchup.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"'); Json = $liveWeekFixture; Expected = 'WEEK MISMATCH' },
+    @{ Html = $matchingMatchup.Replace('Week 5', 'Week 4'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace('data-butler-matchup-season="2026"', 'data-butler-matchup-season="2025"'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace('data-butler-week-number="5"', 'data-butler-week-number="4"'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace('data-butler-week-state="MATCH"', 'data-butler-week-state="UNVERIFIED"'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace('data-butler-week-season="2026"', 'data-butler-week-season="2025"'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace(' data-butler-week-number="5"', ''); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace(' data-butler-week-season="2026"', ''); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup.Replace(' data-butler-week-state="MATCH"', ''); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = ($matchingMatchup + '<div data-butler-week-number="5"></div>'); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular","week":6}'; Expected = 'WEEK MISMATCH' },
+    @{ Html = $matchingMatchup; Json = '{"season":"2025","season_type":"regular","week":5}'; Expected = 'WEEK MISMATCH' },
     @{ Html = $matchingMatchup.Replace(' data-butler-matchup-season="2026"', ''); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = '<html><body>Sidebar: Week 5</body></html>'; Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
+    @{ Html = '<html><body><div class="target" data-butler-matchup-season="2026">Synthetic league &middot; Week 5</div></body></html>'; Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = ($matchingMatchup + $matchingMatchup); Json = $liveWeekFixture; Expected = 'WEEK UNVERIFIED' },
     @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"post","week":5}'; Expected = 'WEEK UNVERIFIED' },
     @{ Html = $matchingMatchup; Json = '{"season":"2026","season_type":"regular","week":25}'; Expected = 'WEEK UNVERIFIED' },
@@ -308,6 +318,21 @@ foreach ($required in @(
 )) {
     if ($source.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1053 BLOCKED: opt-in bounded public NFL week contract missing: $required"
+    }
+}
+
+# BF-1077: diagnostic must measure local GET time without writing response
+# bodies, player names, account IDs or any Sleeper payload into the report.
+foreach ($required in @(
+    '$routeTimer = [Diagnostics.Stopwatch]::StartNew()',
+    '$routeTimer.Stop()',
+    'get_ms={4}',
+    '$localCheckStarted.Elapsed.TotalMilliseconds',
+    'data-butler-week-season=',
+    'data-butler-matchup-season='
+)) {
+    if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1077 BLOCKED: one-click GET timing/source proof contract missing: $required"
     }
 }
 
