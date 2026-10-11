@@ -82,6 +82,7 @@ $readyWatch = [pscustomobject]@{
     Attention = 'READY'
     StartSit = 'START 1 / SIT 1'
     StartSitReviewOutcome = 'VERIFIED_CHANGE'
+    StartSitVerifiedChangeCount = 1
     StartSitStatusFetchedAtUtc = '2026-10-10T15:00:00Z'
     StartSitProjectionFetchedAtUtc = '2026-10-10T14:59:00Z'
     Waivers = 'NO MOVE'
@@ -119,6 +120,33 @@ foreach ($required in @(
     if ($readyHtml.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1028 BLOCKED: ready prepared-review marker missing: $required"
     }
+}
+
+# BF-1106: verified lineup count is visible in the proof panel,
+# manager queue and direct Start/Sit navigation. A false count or a held
+# Dashboard card alone must never advertise a sourced lineup change.
+if ($readyHtml.IndexOf('1 sourced lineup change need your review.', [StringComparison]::Ordinal) -lt 0 -or
+    $readyHtml.IndexOf('verified current lineup proposal: 1 sourced lineup change.', [StringComparison]::Ordinal) -lt 0 -or
+    $readyHtml.IndexOf('href="/matchup/autofill">Open the sourced Start/Sit recommendations</a>', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1106 BLOCKED: Auto-Pilot lost concrete sourced change count or one-click manager review.'
+}
+if ($rawHtml.IndexOf('sourced lineup change need your review.', [StringComparison]::Ordinal) -ge 0 -or
+    $blockedHtml.IndexOf('sourced lineup change need your review.', [StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1106 BLOCKED: unverified or held lineup acquired sourced count.'
+}
+$multiWatch = [pscustomobject]@{
+    Ready = $true; Attention = 'READY'; StartSit = 'REVIEW'
+    StartSitReviewOutcome = 'VERIFIED_CHANGE'
+    StartSitVerifiedChangeCount = 2
+    StartSitStatusFetchedAtUtc = '2026-10-10T15:00:00Z'
+    StartSitProjectionFetchedAtUtc = '2026-10-10T14:59:00Z'
+    Waivers = 'NO MOVE'; Roster = 'Test Team'
+}
+$multiQueue = Get-V04AutoPilotApprovalQueue -WatchState $multiWatch -ApprovalPolicy $policy
+$multiHtml = Get-V04AutoPilotHtml -WatchState $multiWatch -ApprovalPolicy $policy -ApprovalQueue $multiQueue
+if ($multiHtml.IndexOf('2 sourced lineup changes need your review.', [StringComparison]::Ordinal) -lt 0 -or
+    $multiHtml.IndexOf('verified current lineup proposal: 2 sourced lineup changes.', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1106 BLOCKED: independently verified multi-change count or pluralization incorrect.'
 }
 
 # BF-1099: the actual manager page must show an immediately readable
