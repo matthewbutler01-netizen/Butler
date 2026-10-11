@@ -1466,8 +1466,9 @@ function Get-V04AutoPilotHtml {
             [string]$WatchState.StartSitVerifiedChangeCount -cmatch '^[1-9][0-9]?$') {
             $changeCount = [int]$WatchState.StartSitVerifiedChangeCount
             $changeNoun = if ($changeCount -eq 1) { 'change' } else { 'changes' }
-            $sourceReason = [string]$changeCount + ' sourced lineup ' + $changeNoun +
-                ' need your review. Nothing was submitted. Recheck player status before kickoff.'
+            $changeVerb = if ($changeCount -eq 1) { 'needs' } else { 'need' }
+            $sourceReason = [string]$changeCount + ' sourced lineup ' + $changeNoun + ' ' + $changeVerb +
+                ' your review. Nothing was submitted. Recheck player status before kickoff.'
         }
     }
     elseif ($sourceNoChange) {
