@@ -67,6 +67,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1130-core-down-manager-500-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1132-synthetic-manager-success-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1055-matchup-stale-hold-acceptance.ps1'
