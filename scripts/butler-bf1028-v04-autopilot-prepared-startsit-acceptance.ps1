@@ -217,6 +217,62 @@ foreach ($known in @(
     }
 }
 
+# BF-1101: an optional failed deep source GET cannot be confused with
+# a verified player status or projection. The display gives useful,
+# bounded transport feedback only when the proposal was already held.
+foreach ($case in @(
+    @{ Issue = 'TIMEOUT'; Expected = 'source-timeout'; Text = 'exceeded its 12-second safety limit' },
+    @{ Issue = 'UNAVAILABLE'; Expected = 'source-unavailable'; Text = 'did not return a usable response' }
+)) {
+    $issueWatch = [pscustomobject]@{
+        Ready = $true
+        Attention = 'ON TRACK'
+        StartSit = 'BLOCKED - CHECK START/SIT'
+        Waivers = 'ADD 1 / DROP 1'
+        Roster = 'Test Team'
+        EvidenceStatus = 'CURRENT'
+        StartSitReadIssue = [string]$case.Issue
+    }
+    $issueQueue = Get-V04AutoPilotApprovalQueue -WatchState $issueWatch -ApprovalPolicy $policy
+    $issueHtml = Get-V04AutoPilotHtml -WatchState $issueWatch -ApprovalPolicy $policy -ApprovalQueue $issueQueue
+    foreach ($required in @(
+        ('data-butler-lineup-proof="held" data-butler-lineup-reason="' + $case.Expected + '"'),
+        [string]$case.Text,
+        'href="/matchup/autofill">Review Start/Sit evidence</a>',
+        'NO RECOMMENDATION PREPARED',
+        'SOURCE CHECK REQUIRED'
+    )) {
+        if ($issueHtml.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+            throw "BF-1101 BLOCKED: $($case.Issue) source issue did not keep the lineup held: $required"
+        }
+    }
+    if ($issueHtml.IndexOf('CURRENT SNAPSHOT', [StringComparison]::Ordinal) -ge 0 -or
+        $issueHtml.IndexOf('SOURCED LINEUP CHANGE', [StringComparison]::Ordinal) -ge 0 -or
+        $issueHtml.IndexOf('SOURCED NO CHANGE', [StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-1101 BLOCKED: failed source fetch was presented as verified.'
+    }
+}
+# A misleading untrusted read annotation cannot override the actual
+# independently sourced recommendation or create an extra provider read.
+$readyWatch | Add-Member -NotePropertyName StartSitReadIssue -NotePropertyValue 'TIMEOUT' -Force
+$sourceStillReady = Get-V04AutoPilotHtml -WatchState $readyWatch -ApprovalPolicy $policy -ApprovalQueue $readyQueue
+if ($sourceStillReady.IndexOf('data-butler-lineup-reason="verified-change"', [StringComparison]::Ordinal) -lt 0 -or
+    $sourceStillReady.IndexOf('data-butler-lineup-reason="source-timeout"', [StringComparison]::Ordinal) -ge 0) {
+    throw 'BF-1101 BLOCKED: transport error label outranked verified source proof.'
+}
+$expectedTransportContract = @(
+    "-TimeoutMs 12000",
+    "StartSitReadIssue -NotePropertyValue",
+    "[System.Net.WebExceptionStatus]::Timeout",
+    "StartSitReadIssue -ceq 'TIMEOUT'",
+    "StartSitReadIssue -ceq 'UNAVAILABLE'"
+)
+foreach ($marker in $expectedTransportContract) {
+    if ($text.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
+        throw "BF-1101 BLOCKED: production bounded deep-read wiring absent: $marker"
+    }
+}
+
 # Team/league names are HTML-encoded; presentation must not add writes.
 if ($readyHtml -match '<form|type="submit"|onclick=|data-action=') {
     throw 'BF-1099 BLOCKED: source panel introduced write-capable UI.'
