@@ -34,7 +34,7 @@ const good = {
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section>League intelligence Governed guidance</section>'),
-  '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
+  '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
     '<div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' +
     '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div></section>')
 };
@@ -111,6 +111,29 @@ async function scenario(name, mutations, expect) {
   // are never sufficient for team/waiver/matchup/StartSit.
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
+  });
+  // BF-1102: the on-screen Auto-Pilot season/week must agree with the
+  // independently read Matchup. Duplicate/missing/old week labels warn.
+  const weekBadge = '<span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span>';
+  await scenario('strict-auto-week-drift', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(
+      'Week 5 verified against the public Sleeper week.',
+      'Week 4 verified against the public Sleeper week.')}
+  }, {
+    code:2, output:/Auto-Pilot week\s+WARN\s+evidence=WATCH WEEK DRIFT/, allRoutes:true
+  });
+  await scenario('strict-auto-week-missing', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(weekBadge, '')}
+  }, {
+    code:2, output:/Auto-Pilot week\s+WARN\s+evidence=WATCH WEEK MISSING/, allRoutes:true
+  });
+  await scenario('strict-auto-week-duplicate', {
+    strict:true,
+    routes:{'/autopilot':good['/autopilot'].replace(weekBadge, weekBadge.repeat(2))}
+  }, {
+    code:2, output:/Auto-Pilot week\s+WARN\s+evidence=WATCH WEEK MISSING/, allRoutes:true
   });
   // BF-1097: the actual one-click localhost checker must catch a missing
   // automatic Auto-Pilot browser trigger when the same governed Dashboard
