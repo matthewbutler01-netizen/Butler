@@ -945,7 +945,7 @@ $nav
 <div class="eyebrow">Safe stop</div>
 <div class="statusrow"><div><h1 class="headline">$safeTitle</h1><p class="lede">Butler stopped this request instead of guessing or continuing with an unsafe state.</p></div><span class="status warn">STOPPED SAFELY</span></div>
 <pre class="blocked-detail">$safeMessage</pre>
-<p>No Butler or Sleeper write was executed.</p>
+<p>No Sleeper transaction was submitted by this page. Butler may have attempted governed local evidence recovery before stopping. Check current source status before acting.</p>
 <div class="blocked-actions"><a href="$safePrimaryHref">$safePrimaryLabel</a><a href="$safeSecondaryHref">$safeSecondaryLabel</a></div>
 </section>
 </main>
