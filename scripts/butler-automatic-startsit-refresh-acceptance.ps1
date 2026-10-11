@@ -75,7 +75,7 @@ if ($invalid.Nonce -ne '' -or $invalid.Html -cne $blocked) {
 $worker = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'))
 foreach ($necessary in @(
     'Test-AutomaticStartSitRefreshCandidate -Html ([string]$body)',
-    "Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/' -TimeoutMs 12000",
+    'Invoke-AppCoreGet -Port $InnerPort -RequestTarget ''/'' -TimeoutMs 12000',
     'Add-AutomaticStartSitRefresh -Html ([string]$body)',
     '-ScriptNonce $autoRefresh.Nonce'
 )) {
