@@ -124,6 +124,27 @@ if ($queue.StartSitNext -notmatch 'Open Start/Sit Assistant' -or
     $html -match 'CURRENT SNAPSHOT') {
     throw 'BF-1075 BLOCKED: incomplete Start/Sit source was incorrectly advertised as a current prepared packet.'
 }
+# BF-1083: a current Dashboard audit is not blanket approval for a
+# deliberately held Start/Sit signal. Status needs warning contrast while
+# an independently actionable waiver can still be reviewed.
+foreach ($heldSignal in @('REFRESH','DO NOT ACT','HOLD FOR EVIDENCE','BLOCKED BY MANAGER','UNAVAILABLE')) {
+    $heldView.StartSit = $heldSignal
+    $queue = Get-V04AutoPilotApprovalQueue -WatchState $heldView -ApprovalPolicy $policy
+    $html = Get-V04AutoPilotHtml -WatchState $heldView -ApprovalPolicy $policy -ApprovalQueue $queue
+    if ($html.IndexOf('<span class="status warn">LINEUP ACTION HELD</span>',
+            [StringComparison]::Ordinal) -lt 0 -or
+        $html.IndexOf('NO RECOMMENDATION PREPARED', [StringComparison]::Ordinal) -lt 0 -or
+        $html.IndexOf('READY FOR MANAGER REVIEW', [StringComparison]::Ordinal) -ge 0 -or
+        $html.IndexOf('<span class="status good">CURRENT SNAPSHOT</span>',
+            [StringComparison]::Ordinal) -ge 0 -or
+        $queue.WaiverNext -notmatch 'Review the current Waiver Board recommendation') {
+        throw "BF-1083 BLOCKED: held lineup '$heldSignal' displayed a green actionable Auto-Pilot."
+    }
+    if ($heldSignal -ceq 'DO NOT ACT' -and
+        $queue.StartSitNext -notmatch 'explicitly holds action') {
+        throw 'BF-1083 BLOCKED: deliberate DO NOT ACT was described as a prepared swap.'
+    }
+}
 $heldView.StartSit = 'START 1 / SIT 1'
 $queue = Get-V04AutoPilotApprovalQueue -WatchState $heldView -ApprovalPolicy $policy
 $html = Get-V04AutoPilotHtml -WatchState $heldView -ApprovalPolicy $policy -ApprovalQueue $queue
