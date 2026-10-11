@@ -55,6 +55,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1028-v04-autopilot-prepared-startsit-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
