@@ -6,6 +6,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,6 +38,43 @@ class ButlerAppCoreRouteUiModuleScopeBf767Test {
         assertFalse(coreBlock.contains("Name = 'TradeLab'"));
         assertFalse(coreBlock.contains("Name = 'Detail'"));
         assertTrue(coreBlock.indexOf("Name = 'History'") < coreBlock.indexOf("Name = 'DecisionRefresh'"));
+    }
+
+    @Test
+    void matchupAndStartSitLoadOnlyCoreUiModulesOnExactReadOnlyGet() throws Exception {
+        // BF-1123: Matchup and Start/Sit share the same read-only core
+        // pipeline as My Team. An unrelated Trade/Detail module must not
+        // be a prerequisite for the first lineup or recommendation page.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String allowlist = between(wrapper, "$bf767CoreRead = ", "$bf766ModuleSpecs = if ($bf767CoreRead)");
+
+        Matcher routes = Pattern.compile("\\$requestTarget -ceq '([^']+)'").matcher(allowlist);
+        Set<String> actual = new LinkedHashSet<>();
+        while (routes.find()) {
+            assertTrue(actual.add(routes.group(1)), "BF-1123 duplicate exact route");
+        }
+        assertEquals(Set.of("/", "/team", "/waivers", "/league",
+                "/matchup", "/matchup/autofill"), actual);
+        assertFalse(allowlist.contains("$path -eq"), "never classify prefix/query matches as exact reads");
+        assertFalse(allowlist.contains("-like"), "no wildcard routes may skip required UI modules");
+
+        String coreBlock = between(wrapper,
+            "$bf766ModuleSpecs = if ($bf767CoreRead) {", "    else {");
+        assertFalse(coreBlock.contains("TradeHost"));
+        assertFalse(coreBlock.contains("TradeLab"));
+        assertFalse(coreBlock.contains("Name = 'Detail'"));
+        assertTrue(coreBlock.contains("Name = 'History'"));
+        assertTrue(coreBlock.contains("Name = 'DecisionRefresh'"));
+
+        // These endpoints still call the current inner core and are
+        // constrained by the existing read-only GET and recovery guard.
+        assertTrue(worker.contains("Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort"));
+        assertTrue(worker.contains("Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget"));
+        assertTrue(worker.contains("Test-AutomaticWeekRecoveryCandidate"));
+        assertTrue(worker.contains("Test-AutomaticStartSitRefreshCandidate"));
+        assertFalse(wrapper.contains("submitTransaction"));
+        assertFalse(wrapper.contains("create_transaction"));
     }
 
     @Test
