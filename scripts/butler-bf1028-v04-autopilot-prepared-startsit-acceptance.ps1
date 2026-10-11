@@ -235,7 +235,7 @@ foreach ($fixture in @(
     }
 }
 foreach ($known in @(
-    @{ Page = $readyHtml; Reason = 'verified-change'; Snippet = 'A sourced change is ready for your review' },
+    @{ Page = $readyHtml; Reason = 'verified-change'; Snippet = '1 sourced lineup change needs your review' },
     @{ Page = $keepHtml; Reason = 'verified-no-change'; Snippet = 'complete projection frame supports keeping the current lineup' }
 )) {
     if ($known.Page.IndexOf('data-butler-lineup-reason="' + $known.Reason + '"', [StringComparison]::Ordinal) -lt 0 -or
