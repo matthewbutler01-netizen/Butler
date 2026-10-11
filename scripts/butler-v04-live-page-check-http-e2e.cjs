@@ -109,6 +109,46 @@ async function scenario(name, mutations, expect) {
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
   });
+  // BF-1097: the actual one-click localhost checker must catch a missing
+  // automatic Auto-Pilot browser trigger when the same governed Dashboard
+  // audit would arm it, and reject an armed trigger on current evidence.
+  const autoAudit = '11111111-1111-1111-1111-111111111111';
+  const nonce = 'a'.repeat(64);
+  const autoMarker = '<div id="butler-auto-refresh-status"></div>' +
+    '<script nonce="' + nonce + '">window.bf1097Fixture=true;</script>';
+  const autoCsp = csp + "; script-src 'nonce-" + nonce + "'; connect-src 'self'";
+  const nav = '<nav class="nav" aria-label="Butler sections"></nav>';
+  const currentWithNav = good['/'].replace(audited, nav + audited);
+  const staleProof = '<div>Decision state: STALE_DO_NOT_ACT</div>' +
+    '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
+    '<div>BF-631: MARKET_LINEAGE_SUPERSEDED</div>' +
+    '<div>Audit ID: ' + autoAudit + '</div>';
+  const staleWithArmedDashboard = good['/'].replace(
+    audited, nav + staleProof + autoMarker);
+  await scenario('strict-current-onopen-gated', {
+    strict:true, routes:{'/':currentWithNav}
+  }, {
+    code:0, output:/Auto-Pilot on-open\s+PASS\s+evidence=ON-OPEN GATED/, allRoutes:true
+  });
+  await scenario('strict-current-onopen-unexpected', {
+    strict:true,csp:autoCsp,
+    routes:{'/':currentWithNav, '/autopilot':good['/autopilot'].replace('</section>',autoMarker+'</section>')}
+  }, {
+    code:2, output:/Auto-Pilot on-open\s+WARN\s+evidence=AUTO-PILOT AUTO UNEXPECTED/, allRoutes:true
+  });
+  await scenario('strict-stale-onopen-missing', {
+    strict:true,csp:autoCsp,
+    routes:{'/':staleWithArmedDashboard}
+  }, {
+    code:2, output:/Auto-Pilot on-open\s+WARN\s+evidence=AUTO-PILOT AUTO MISSING/, allRoutes:true
+  });
+  await scenario('strict-stale-onopen-armed', {
+    strict:true,csp:autoCsp,
+    routes:{'/':staleWithArmedDashboard,
+      '/autopilot':good['/autopilot'].replace('</section>',autoMarker+'</section>')}
+  }, {
+    code:2, output:/Auto-Pilot on-open\s+PASS\s+evidence=ON-OPEN ARMED/, allRoutes:true
+  });
   // BF-1094: cross-page contracts check the displayed decision, not just
   // individual HTTP/CSP/source provenance status. A Dashboard vs Auto-Pilot
   // disagreement must block strict local readiness without leaking names.
