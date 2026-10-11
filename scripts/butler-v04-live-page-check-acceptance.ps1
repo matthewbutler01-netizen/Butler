@@ -432,6 +432,16 @@ foreach ($bad in @(
 }
 $page.Body = $goodAutoPilot
 
+# BF-1108: diagnostic must follow the actual staged BF-909 manager League
+# renderer, not pre-BF-909 League intelligence / Governed guidance headings.
+$leagueRenderer = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-bf909-league-hub-transform.ps1'))
+foreach ($marker in @('class="league-franchise-board"', 'class="league-governance"',
+                     'View governed league actions', 'League hub')) {
+    if ($leagueRenderer.IndexOf($marker, [StringComparison]::Ordinal) -lt 0) {
+        throw 'BF-1108 BLOCKED: current League renderer and local smoke disagree.'
+    }
+}
+
 # BF-1049: menu labels can appear on a normal-looking shell even when the
 # actual roster/matchup/waiver evidence did not render. Require page-specific
 # content, and warn on an empty roster or unconfirmed opponent.
@@ -461,7 +471,10 @@ foreach ($fixture in @(
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant <section data-butler-week-state="MISMATCH"></section><section class="panel recommendation-panel start-sit-assistant">Recommended starter</section></body></html>'; Expected = 'FAIL'; Evidence = 'HELD ADVICE' },
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant <section class="panel recommendation-panel start-sit-assistant">safe</section></body></html>'; Expected = 'FAIL'; Evidence = 'WEEK PROOF' },
     @{ Route = '/matchup/autofill'; Body = '<html><body>Start/Sit Assistant navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
-    @{ Route = '/league'; Body = '<html><body>League League intelligence Governed guidance</body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/league'; Body = '<html><body>League <section class="panel"><div class="eyebrow">League hub</div><div class="league-franchise-board"><div class="empty">Rankings not current</div></div><details class="league-governance"><summary>View governed league actions</summary></details></section></body></html>'; Expected = 'PASS'; Evidence = 'PAGE RESPONSE' },
+    @{ Route = '/league'; Body = '<html><body>League League intelligence Governed guidance</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/league'; Body = '<html><body>League <div class="eyebrow">League hub</div><div class="league-franchise-board"></div><summary>View governed league actions</summary></body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
+    @{ Route = '/league'; Body = '<html><body>League <div class="eyebrow">League hub</div><details class="league-governance"><summary>View governed league actions</summary></details></body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' },
     @{ Route = '/league'; Body = '<html><body>League navigation only</body></html>'; Expected = 'FAIL'; Evidence = 'PAGE CONTENT' }
 )) {
     $page.Body = $fixture.Body
