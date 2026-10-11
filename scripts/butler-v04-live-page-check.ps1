@@ -269,6 +269,59 @@ function Test-ButlerCrossRouteStartSit {
     return [pscustomobject]@{ Status = 'PASS'; Evidence = 'START/SIT ALIGNED' }
 }
 
+# BF-1097: clicking Auto-Pilot should automatically recheck *eligible*
+# stale Dashboard evidence; it must never offer a refresh without the
+# identical governing Dashboard proof. Compare the two existing localhost
+# GETs. Re-run only the pure HTML entitlement helpers with a dummy token;
+# no diagnostic HTTP write, browser script execution, or provider request.
+function Test-ButlerCrossRouteOnOpen {
+    param(
+        [AllowNull()][string]$DashboardHtml,
+        [AllowNull()][string]$AutoPilotHtml,
+        [AllowNull()]$DashboardCheck,
+        [AllowNull()]$AutoPilotCheck
+    )
+    $result = [pscustomobject]@{ Status = 'SKIP'; Evidence = 'PROOF UNAVAILABLE' }
+    if ($null -eq $DashboardCheck -or $null -eq $AutoPilotCheck -or
+        [string]$DashboardCheck.Status -ceq 'FAIL' -or
+        [string]$AutoPilotCheck.Status -ceq 'FAIL') { return $result }
+
+    $scriptMarkers = [regex]::Matches([string]$AutoPilotHtml, 'id="butler-auto-refresh-status"')
+    $armed = $scriptMarkers.Count -eq 1 -and
+        [string]$AutoPilotCheck.AutoCheck -ceq 'ARMED'
+    $eligible = $false
+    try {
+        if ([string]::IsNullOrWhiteSpace($DashboardHtml) -or
+            [regex]::Matches($DashboardHtml,
+                '<nav class="nav" aria-label="Butler sections">').Count -ne 1) {
+            if ($scriptMarkers.Count -gt 0) {
+                return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT SOURCE UNKNOWN' }
+            }
+            return $result
+        }
+        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
+        $entitlement = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token ('a' * 64)
+        $eligible = -not [string]::IsNullOrWhiteSpace([string]$entitlement.Nonce)
+    }
+    catch {
+        if ($scriptMarkers.Count -gt 0) {
+            return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT SOURCE UNKNOWN' }
+        }
+        return $result
+    }
+
+    if ($eligible -and -not $armed) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT AUTO MISSING' }
+    }
+    if (-not $eligible -and $scriptMarkers.Count -gt 0) {
+        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT AUTO UNEXPECTED' }
+    }
+    return [pscustomobject]@{
+        Status = 'PASS'
+        Evidence = if ($eligible) { 'ON-OPEN ARMED' } else { 'ON-OPEN GATED' }
+    }
+}
+
 function Test-ButlerLocalHealth {
     param($Response)
     if ($null -eq $Response -or [int]$Response.Status -ne 200 -or
@@ -669,6 +722,11 @@ $sourcePair = Test-ButlerCrossRouteStartSit -AutoPilotHtml $(if ($null -ne $auto
     -AutoPilotCheck $autoPilotCheck -StartSitCheck $startSitCheck -LineupPair $lineupPair
 if ($sourcePair.Status -ceq 'WARN') { $warned++ }
 Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Source lineup', $sourcePair.Status, $sourcePair.Evidence)
+$autoPair = Test-ButlerCrossRouteOnOpen -DashboardHtml $(if ($null -ne $dashboardResponse) { [string]$dashboardResponse.Body } else { '' }) `
+    -AutoPilotHtml $(if ($null -ne $autoPilotResponse) { [string]$autoPilotResponse.Body } else { '' }) `
+    -DashboardCheck $dashboardCheck -AutoPilotCheck $autoPilotCheck
+if ($autoPair.Status -ceq 'WARN') { $warned++ }
+Write-Host ("{0,-19} {1,-5} evidence={2}" -f 'Auto-Pilot on-open', $autoPair.Status, $autoPair.Evidence)
 # The optional source check is deliberately separate from default localhost
 # smoke behavior. It never downloads player/league data or repairs evidence.
 if ($CheckSleeperWeek) {
