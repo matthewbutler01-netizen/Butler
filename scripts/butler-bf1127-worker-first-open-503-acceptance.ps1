@@ -88,10 +88,12 @@ function Assert-Bf1128HealthAvailable {
 try {
     Assert-Bf1128HealthAvailable
     foreach ($case in @(
-        @{ Target = '/team'; History = $missingPath; Trade = $validPath },
-        @{ Target = '/team'; History = $malformedPath; Trade = $validPath },
-        @{ Target = '/matchup/autofill'; History = $missingPath; Trade = $validPath },
-        @{ Target = '/trade'; History = $validPath; Trade = $missingPath }
+        @{ Target = '/team'; History = $missingPath; Trade = $validPath; Href = '/team'; Title = 'My Team unavailable'; Label = 'Try My Team again' },
+        @{ Target = '/team'; History = $malformedPath; Trade = $validPath; Href = '/team'; Title = 'My Team unavailable'; Label = 'Try My Team again' },
+        @{ Target = '/waivers'; History = $missingPath; Trade = $validPath; Href = '/waivers'; Title = 'Waiver Board unavailable'; Label = 'Try Waiver Board again' },
+        @{ Target = '/league'; History = $missingPath; Trade = $validPath; Href = '/league'; Title = 'League unavailable'; Label = 'Try League again' },
+        @{ Target = '/matchup/autofill'; History = $missingPath; Trade = $validPath; Href = '/matchup/autofill'; Title = 'Start/Sit unavailable'; Label = 'Try Start/Sit again' },
+        @{ Target = '/trade'; History = $validPath; Trade = $missingPath; Href = '/'; Title = 'Butler page unavailable'; Label = 'Return to Dashboard' }
     )) {
         $wire = Invoke-Bf1127FirstOpenGet `
             -Target $case.Target -HistoryPath $case.History -TradeHostPath $case.Trade
@@ -108,6 +110,13 @@ try {
             if ($wire.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
                 throw 'BF-1127 BLOCKED: first-open module failure lost a safe HTTP 503 contract.'
             }
+        }
+        # BF-1131: exact known routes receive a useful safe retry link.
+        # Unknown/non-manager routes get the fixed Dashboard fallback.
+        $primaryLink = '<a href="' + $case.Href + '">' + $case.Label + '</a>'
+        if ($wire.IndexOf('<h1>' + $case.Title + '</h1>', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf($primaryLink, [StringComparison]::Ordinal) -lt 0) {
+            throw 'BF-1131 BLOCKED: first-open error lost its exact safe retry destination.'
         }
         foreach ($forbidden in @(
             $privateMarker, $fixtureRoot, 'BadModule', 'BF-766 BLOCKED',
@@ -128,4 +137,4 @@ finally {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host 'BF-1128 PASS: real loopback worker health remains available before and after safe module-failure HTTP 503.'
+Write-Host 'BF-1131 PASS: safe first-open manager retry links; health survives module failures.'
