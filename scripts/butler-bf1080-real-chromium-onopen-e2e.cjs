@@ -118,10 +118,20 @@ async function scenario(name,config) {
       });
       return;
     }
-    if (req.method !== 'GET' || req.url !== config.route) {
+    if (req.method !== 'GET' ||
+        (req.url !== config.route && req.url !== config.nextRoute)) {
       res.writeHead(405);res.end('GET only');return;
     }
-    const page=pageFor(config,refreshed);
+    // BF-1082: after the Dashboard redirect, follow a local-only
+    // server navigation to Auto-Pilot in the SAME Chrome tab. Both
+    // on-open scripts share the exact audit cooldown key.
+    if (config.nextRoute && refreshed && req.url === config.route) {
+      res.writeHead(302,{'Location':config.nextRoute,'Cache-Control':'no-store'});
+      res.end();return;
+    }
+    const page=(config.nextRoute && req.url === config.nextRoute) ?
+      {html:data.autopilot.Html,nonce:data.autopilot.Nonce} :
+      pageFor(config,refreshed);
     const nonce=(config.badCsp ? '0'.repeat(64) : page.nonce);
     const policy="default-src 'none'; script-src 'nonce-"+nonce+
       "'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'";
@@ -162,6 +172,14 @@ async function scenario(name,config) {
       assert.ok(paths.filter(p=>p===config.route).length>=2,
         name+' never revisited stale route after successful refresh');
     }
+    if (config.nextRoute) {
+      assert.ok(paths.includes(config.nextRoute),
+        name+' never navigated into the second manager page');
+      assert.match(dom,/CURRENT WEEKLY WATCH/,
+        name+' did not show Auto-Pilot after Dashboard navigation');
+      assert.equal(posts.length,1,
+        name+' made an extra automatic refresh on Auto-Pilot from the same audit');
+    }
     if (config.reject) {
       assert.equal(refreshed,false,name+' policy rejection mutated fixture evidence');
       assert.match(dom,/Automatic update stopped/,name+' did not display failed-policy status');
@@ -201,6 +219,13 @@ async function scenario(name,config) {
   });
   await scenario('autopilot-clickless-refresh',{
     page:'autopilot',route:'/autopilot',post:true,complete:true
+  });
+  // BF-1082: in one real Chrome tab, Dashboard and Auto-Pilot must
+  // share the same audited 5-minute cooldown after navigating between
+  // distinct routes; server-side route changes cannot cause a second POST.
+  await scenario('dashboard-to-autopilot-shared-cooldown',{
+    page:'dashboard',route:'/',nextRoute:'/autopilot',
+    post:true,remainStale:true
   });
   // A legitimate no-transaction page must never trigger an automatic POST.
   await scenario('autopilot-not-entitled',{
