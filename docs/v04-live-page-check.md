@@ -20,6 +20,14 @@ If Auto-Pilot says `WATCH DATA UNAVAILABLE` or `EVIDENCE NEEDS REFRESH`, its row
 
 The tool reports **route names, pass/warn/fail categories, automatic-refresh eligibility, and local GET timings in milliseconds**. It does not print roster names, league identifiers, audit IDs, authentication tokens, or raw responses.
 
+## BF-1108: current League Hub structural readiness check
+
+Source review revealed a stale diagnostic assertion: the BF-1049 local smoke still demanded the retired headings `League intelligence` and `Governed guidance`, even though BF-909 replaced that layout with the **League hub**, **franchise board**, and expandable **governed league actions**. This mismatch could mark a valid modern League Hub `FAIL PAGE CONTENT`.
+
+The diagnostic now checks the current production League Hub structure: a rendered `league-franchise-board` container, `league-governance` section, and the visible `League hub` / `View governed league actions` headings. Empty provider rankings remain an honest empty state and do not fabricate a top franchise. Sidebar-only, old placeholder, and missing-governance pages still fail the content gate. Windows PowerShell fixtures validate the exact BF-909 source markers and both legitimate and deficient pages; real localhost HTTP fixtures use the new layout. No additional provider reads, data writes, or lineup/waiver actions are introduced.
+
+This specifically corrects a **diagnostic false positive**; it does not certify the connected League data, repair real HTTP route failures, or lift v0.4's draft hold.
+
 ## BF-1107: actionable local GET failure categories (read-only)
 
 The first real Windows v0.4 readiness run reached the app health endpoint but reported `GET ERROR` for My Team and Waivers. That blanket label cannot distinguish a server-side HTTP 500 from a network timeout, refused connection, or diagnostic page-check failure. The revised tester now emits **status-only**, sanitized categories while retaining the exact same seven GET routes and exit/freeze rules:
