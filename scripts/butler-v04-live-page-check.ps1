@@ -1,7 +1,8 @@
 param(
     [ValidateRange(0, 65535)][int]$Port = 0,
     [ValidateRange(5, 180)][int]$TimeoutSeconds = 120,
-    [switch]$CheckSleeperWeek
+    [switch]$CheckSleeperWeek,
+    [switch]$RequireReady
 )
 
 Set-StrictMode -Version Latest
@@ -481,6 +482,23 @@ Write-Host ("RESULT: {0} page failure(s), {1} watch warning(s). Local GET checks
 Write-Host 'A page may respond normally but have stale/unknown audited evidence. WARN never certifies current decisions.'
 Write-Host 'Local audited labels do NOT prove source freshness. Optional public week matching cannot verify player injury/projection or roster synchronization.'
 Write-Host 'This does not test actual browser refresh completion.'
-if ($failed -gt 0) { exit 1 }
-if ($warned -gt 0) { Write-Host 'Review WARN statuses before treating Auto-Pilot data as current.' }
+if ($failed -gt 0) {
+    Write-Host 'READINESS GATE: FAILED. One or more local page checks were unsafe or broken.'
+    exit 1
+}
+if ($warned -gt 0) {
+    Write-Host 'Review WARN statuses before treating Auto-Pilot data as current.'
+    if ($RequireReady) {
+        # BF-1078: a real-league readiness run must not return OS exit 0
+        # merely because every page returned HTTP 200. Held injuries,
+        # missing league proof, old dashboard lineage and offline public
+        # week checks are not verified ready. Preserve legacy smoke behavior
+        # without -RequireReady.
+        Write-Host 'READINESS GATE: BLOCKED BY WARNINGS. No lineup/waiver advice certified.'
+        exit 2
+    }
+}
+if ($RequireReady) {
+    Write-Host 'READINESS GATE: LOCAL PAGE/EXTERNAL WEEK CHECKS PASS. Browser refresh completion and current injuries are not certified.'
+}
 Write-Host 'BF-1040 LIVE PAGE CHECK: COMPLETE'
