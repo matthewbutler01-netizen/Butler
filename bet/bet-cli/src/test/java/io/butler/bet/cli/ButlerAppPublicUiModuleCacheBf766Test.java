@@ -147,6 +147,34 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void firstOpen503UsesOnlyFixedRouteRetrySpec() throws Exception {
+        // BF-1131: a failed UI module may not reflect arbitrary request-target
+        // strings or secrets back into a browser hyperlink or page heading.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int catchStart = wrapper.indexOf("catch {\n        # No response headers have been written");
+        int helper = wrapper.indexOf(
+            "Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase 'PUBLIC_WORKER'",
+            catchStart);
+        int safe = wrapper.indexOf(
+            "Get-ButlerMinimalBlockedPageHtml -Title $bf1131Retry.Title" +
+            " -PrimaryHref $bf1131Retry.PrimaryHref -PrimaryLabel $bf1131Retry.PrimaryLabel",
+            helper);
+        int send = wrapper.indexOf("Send-HttpResponse -Stream $stream -StatusCode 503", safe);
+        assertTrue(catchStart >= 0 && helper > catchStart && safe > helper && send > safe);
+        assertFalse(wrapper.substring(catchStart, send).contains("$_"), 
+            "BF-1131 no raw module exception may enter the HTTP 503 retry page");
+        assertTrue(worker.contains("switch -CaseSensitive ($RequestTarget)"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/team'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/waivers'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/matchup/autofill'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/league'"));
+        assertTrue(worker.contains("PrimaryHref = '/'"));
+        assertTrue(worker.contains("@('/', '/team', '/waivers', '/matchup',"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
