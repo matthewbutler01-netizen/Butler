@@ -1413,6 +1413,16 @@ function Get-V04AutoPilotHtml {
         }
     }
     $lineupSourceTiming = [System.Net.WebUtility]::HtmlEncode($lineupSourceTiming)
+    # BF-1099: make proof visible at reading size, rather than relying on
+    # a muted 11px timestamp buried beside the watch header. These labels
+    # describe fetch evidence only; they never certify injury clearance.
+    $sourceProofState = if ($sourceChanged) { 'verified-change' }
+        elseif ($sourceNoChange) { 'verified-no-change' }
+        else { 'held' }
+    $sourceProofLabel = if ($sourceChanged) { 'SOURCED LINEUP CHANGE' }
+        elseif ($sourceNoChange) { 'SOURCED NO CHANGE' }
+        else { 'SOURCE CHECK REQUIRED' }
+    $sourceProofTone = if ($sourceChanged -or $sourceNoChange) { 'good' } else { 'warn' }
 
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
@@ -1492,6 +1502,12 @@ function Get-V04AutoPilotHtml {
 .autopilot-watch-card{min-width:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .autopilot-watch-card span{display:block;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
 .autopilot-watch-card strong{display:block;margin-top:5px;color:var(--ink);font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+.autopilot-source-proof{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding:15px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.autopilot-source-copy{min-width:220px;flex:1 1 300px}
+.autopilot-source-copy .eyebrow{margin-bottom:5px}
+.autopilot-source-copy p{color:var(--muted);font-size:12px;line-height:1.55;margin:7px 0 0;overflow-wrap:anywhere}
+.autopilot-source-proof a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 13px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--turf-deep);font-size:12px;font-weight:800;text-decoration:none}
+.autopilot-source-proof a:hover,.autopilot-source-proof a:focus-visible{border-color:var(--turf)}
 .autopilot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
 .autopilot-card{padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
 .autopilot-card .eyebrow{margin-bottom:5px}
@@ -1542,7 +1558,8 @@ function Get-V04AutoPilotHtml {
 <section class="panel autopilot-shell">
 <div class="autopilot-head"><div><div class="eyebrow">AUTO-PILOT</div><h1>Let Butler watch the week for you</h1><p class="lede">Auto-Pilot is being built as Butler's weekly monitoring and approval layer. This page now reuses Butler's current manager snapshot so you can see what would need attention before any future automation is allowed to act.</p></div><span class="status autopilot-preview">PREVIEW ONLY</span></div>
 <div class="autopilot-state"><span class="autopilot-off">AUTOMATION OFF</span><span class="autopilot-state-copy">No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.</span></div>
-<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><p style="font-size:11px;color:var(--muted);margin:6px 0 0">$lineupSourceTiming</p></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
+<div class="autopilot-watch"><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status $snapshotClass">$snapshotStatus</span></div><div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Attention</span><strong>$attention</strong></div><div class="autopilot-watch-card"><span>Start/Sit</span><strong>$startSit</strong></div><div class="autopilot-watch-card"><span>Waivers</span><strong>$waivers</strong></div><div class="autopilot-watch-card"><span>Roster</span><strong>$roster</strong></div></div></div>
+<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="$sourceProofState"><div class="autopilot-source-copy"><div class="eyebrow">LINEUP EVIDENCE</div><span class="status $sourceProofTone">$sourceProofLabel</span><p>$lineupSourceTiming</p><p>Source fetch times are not injury clearance. Check player status again before kickoff.</p></div><a href="/matchup/autofill">Review Start/Sit evidence</a></div>
 <div class="autopilot-grid">
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Start/Sit changes</h3><p><strong>Current input:</strong> $startSit. Butler may prepare a lineup review, but the manager remains the approval boundary.</p></div>
 <div class="autopilot-card"><div class="eyebrow">WATCH</div><h3>Waiver attention</h3><p><strong>Current input:</strong> $waivers. Butler can surface the current waiver posture without placing or canceling a claim.</p></div>
