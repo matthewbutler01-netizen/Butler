@@ -72,9 +72,10 @@ foreach ($required in @(
         throw 'BF-1140 BLOCKED: optional read timeouts were not applied safely.'
     }
 }
+# Two bounded '/' core reads: Auto-Pilot post-recovery and the existing
+# Start/Sit on-open refresh. The read-only watch gets scoped wait/core limits.
 if ([regex]::Matches($source, '-WaitTimeoutMs 3000 -CoreTimeoutMs 12000').Count -ne 2 -or
     [regex]::Matches($source, "-RequestTarget '/matchup' -TimeoutMs 12000").Count -ne 1 -or
-    # One Auto-Pilot replay plus the existing Start/Sit refresh read.
     [regex]::Matches($source, "-RequestTarget '/' -TimeoutMs 12000").Count -ne 2 -or
     $source.IndexOf('Invoke-AutomaticWeekRecovery -Root $Root -League $League',
         [StringComparison]::Ordinal) -lt 0) {
