@@ -73,6 +73,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1132-synthetic-manager-success-acceptance.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1055-matchup-stale-hold-acceptance.ps1'
