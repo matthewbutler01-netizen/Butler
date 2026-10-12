@@ -25,6 +25,9 @@ $root = Join-Path ([IO.Path]::GetTempPath()) ('butler-bf1136-' + [guid]::NewGuid
 New-Item -ItemType Directory -Path $root -Force | Out-Null
 $missingTrade = Join-Path $root 'missing-trade.ps1'
 $readOnlyModules = Join-Path $root 'read-only-ui.ps1'
+# The shared TCP helper also feeds its TradeLab, Detail and Refresh paths
+# through $validPath. Keep all of them on this one safe synthetic stub.
+$validPath = $readOnlyModules
 # These dummy helpers intentionally force no automatic write or provider
 # fetch. The production worker's Auto-Pilot watch still has to render a
 # source-unavailable state without invoking any Trade or Detail module.
