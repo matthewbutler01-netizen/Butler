@@ -105,6 +105,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-package-extract-all-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-v04-start-draft-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-bf1076-optional-read-budget-http-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
@@ -138,6 +140,10 @@ jobs:
             'PREREQUISITE: an updated Butler v0.4 development app must already',
             'be running locally. This zip does NOT install, replace, launch',
             'or stop Butler v0.3 or v0.4.',
+            '',
+            'If NO CURRENT WORKER: this archive cannot start Butler.',
+            'From the updated v0.4 source checkout, double-click',
+            'scripts\butler-v04-start-18080.cmd and keep its window open.',
             '',
             'IMPORTANT: DO NOT double-click the CMD inside the ZIP viewer!',
             'Windows may extract only one file to Temp; then the CMD fails.',

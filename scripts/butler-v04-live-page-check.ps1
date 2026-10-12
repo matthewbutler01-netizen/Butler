@@ -944,16 +944,25 @@ foreach ($candidate in $ports) {
     }
 }
 if ($live.Count -gt 1) {
-    throw 'BF-1146 BLOCKED: MULTIPLE CURRENT WORKERS. More than one checked v0.4 runtime answered locally. Choose its exact -Port; no process was stopped, restarted, or changed.'
+    # BF-M1: a shareable check report must not include the PowerShell throw
+    # location, Windows account name, source path or exception stack.
+    Write-Host 'BF-1146 BLOCKED: MULTIPLE CURRENT WORKERS. More than one current v0.4 runtime answered locally. Select exactly one -Port. No process was changed.'
+    exit 1
 }
 if ($live.Count -eq 0) {
     if ($olderButlerWorkers -gt 0) {
-        throw 'BF-1146 BLOCKED: OLDER BUTLER WORKER. A prior v0.4 draft or frozen Butler instance is running, but it lacks the current bounded local-read contract. Launch the updated v0.4 draft separately; this diagnostic never replaces or stops another release.'
+        Write-Host 'BF-1146 BLOCKED: OLDER BUTLER WORKER. A prior v0.4 draft or frozen Butler instance is running, but it lacks the current bounded local-read contract.'
+        Write-Host 'NEXT STEP: Open the current v0.4 development checkout and launch its scripts\butler-v04-start-18080.cmd separately. Do not replace an occupied port.'
+        exit 1
     }
     if ($unrecognizedServices -gt 0) {
-        throw 'BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE. A listening port is not the current Butler manager. Check the port and launch the updated v0.4 draft separately. No outside host was contacted.'
+        Write-Host 'BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE. A listener is not the current Butler manager. Check the selected port before launching the updated draft.'
+        exit 1
     }
-    throw 'BF-1146 BLOCKED: NO CURRENT WORKER. No checked v0.4 manager answered on the selected local port(s). Start the updated draft and rerun this read-only check; nothing was launched or stopped.'
+    Write-Host 'BF-1146 BLOCKED: NO CURRENT WORKER. No checked v0.4 manager answered on the selected local port(s); no process was started or stopped.'
+    Write-Host 'NEXT STEP: In an updated v0.4 development checkout, double-click scripts\butler-v04-start-18080.cmd. Keep the app window open, then rerun this check.'
+    Write-Host 'The diagnostic ZIP contains only a read-only checker; it cannot install or launch Butler.'
+    exit 1
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)

@@ -62,6 +62,11 @@ async function scenario(name, mutations, expect) {
       res.writeHead(405); res.end('GET only'); return;
     }
     if (req.url === '/health') {
+      if (mutations.healthUnavailable) {
+        res.writeHead(503, {'Content-Type':'text/plain'});
+        res.end('synthetic health unavailable');
+        return;
+      }
       res.writeHead(200, {'Content-Type':'application/json; charset=utf-8'});
       res.end(JSON.stringify({
         status:mutations.omitStatus ? undefined : 'ok',
@@ -129,6 +134,10 @@ async function scenario(name, mutations, expect) {
   const output = child.stdout + '\n' + child.stderr;
   assert.equal(child.code, expect.code, name + ' wrong readiness exit code\n' + output);
   assert.match(output, expect.output, name + ' missing evidence status');
+  if (expect.noPowerShellStack) {
+    assert.doesNotMatch(output,/CategoryInfo|FullyQualifiedErrorId|\bAt [A-Z]:\\/i,
+      name + ' leaked a local PowerShell source path or exception stack');
+  }
   assert.doesNotMatch(output,/SENSITIVE_LOCAL_ERROR_BODY|roster, league and audit data|PRIVATE_ROSTER_LEAGUE_ID_NOT_FOR_REPORT/,
     name + ' leaked HTTP response body or untrusted failure-layer header');
   for (const entry of requests) {
@@ -210,6 +219,14 @@ async function scenario(name, mutations, expect) {
       'Raw Sleeper league / roster: 2026 / 3',
       'Raw Sleeper league / roster: 2026 / 4')}}, {
       code:1, output:/Cross-route target\s+FAIL\s+evidence=TARGET IDENTITY CONFLICT/, allRoutes:true
+    });
+  // BF-M1: unavailable /health is a clean operator action, not a PowerShell
+  // stack trace exposing the user's Windows profile or extracted ZIP path.
+  await scenario('milestone1-no-running-worker',
+    {rosterWaiverOnly:true, healthUnavailable:true}, {
+      code:1,
+      output:/BF-1146 BLOCKED: NO CURRENT WORKER[\s\S]*butler-v04-start-18080\.cmd/,
+      allRoutes:false, noPowerShellStack:true
     });
   await scenario('milestone1-incompatible-worker',
     {rosterWaiverOnly:true, omitLocalRead:true}, {

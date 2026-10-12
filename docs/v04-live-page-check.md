@@ -4,6 +4,8 @@ This check is for the **development v0.4 app** only. The v0.3.0 release is froze
 
 ## Windows quick run
 
+**If you get `BF-1146 BLOCKED: NO CURRENT WORKER`:** the downloaded diagnostic ZIP is only a checker, not Butler itself. Open your **updated v0.4 source checkout**, double-click `scripts\butler-v04-start-18080.cmd`, and keep the application window open. Then reopen the checker. The starter uses the existing guarded `butler-app.cmd -Port 18080` path; it never force-stops another worker and never edits Sleeper. A standalone diagnostic ZIP cannot supply the app or its Java dependencies. Do not run either CMD directly from inside a ZIP; use **Extract All** first.
+
 **No PowerShell typing needed:** with the v0.4 development checkout and app already running, double-click `scripts\butler-v04-live-page-check-open.cmd` in File Explorer. It launches the same GET-only smoke check, keeps the results visible, and pauses before closing. It never launches, stops, or replaces a running Butler app.
 
 Or use this single command from Command Prompt or PowerShell:
