@@ -66,7 +66,14 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
                 // BF-1151: close a real accepted inner-core socket before
                 // sending HTTP headers. Exercise the outer public worker's
                 // lost-response path, not the already-tested closed port 9.
-                if (closeEarly) return;
+                if (closeEarly) {
+                    // BF-1156: reset the accepted TCP socket immediately,
+                    // rather than half-closing with FIN and forcing the real
+                    // HttpWebRequest to wait for a header until its default
+                    // three-minute core deadline in this synthetic test.
+                    client.LingerState = new LingerOption(true, 0);
+                    return;
+                }
                 string body = "<!doctype html><html><head><title>Butler synthetic</title></head>" +
                     "<body><main><h1>Butler synthetic healthy page</h1></main></body></html>";
                 byte[] bytes = Encoding.UTF8.GetBytes(body);
