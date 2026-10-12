@@ -7,6 +7,15 @@ echo Four loopback GETs plus one health GET. Does not start, stop or replace a r
 echo No Sleeper transaction. Page GETs may trigger Butler's existing governed local evidence recovery.
 echo Report includes fixed route/status/timing only; no private roster/player data.
 echo.
+rem Windows File Explorer extracts only the clicked CMD when run INSIDE a ZIP.
+rem Fail with a clear Extract All instruction before calling missing helpers.
+for %%F in (
+  butler-v04-live-page-check.cmd
+  butler-v04-live-page-check.ps1
+  butler-decision-refresh.ps1
+) do (
+  if not exist "%~dp0%%F" goto :missing_package
+)
 if not defined LOCALAPPDATA (
   echo BLOCKED: Windows LocalAppData is unavailable.
   pause
@@ -35,3 +44,20 @@ start "" notepad.exe "%report%"
 echo Press any key to close this test window.
 pause >nul
 exit /b %result%
+:missing_package
+echo.
+echo ================================================================
+echo  EXTRACT ALL FILES FIRST - THE CHECK HAS NOT RUN
+echo ================================================================
+echo Windows cannot run this multi-file diagnostic directly from inside
+echo the ZIP. Opening the CMD inside a ZIP only extracts that one file.
+echo.
+echo 1. Return to the ZIP file in File Explorer.
+echo 2. Right-click the ZIP, choose Extract All, then Extract.
+echo 3. Open the extracted folder with all five files together.
+echo 4. Double-click butler-v04-roster-waiver-first-open.cmd again.
+echo.
+echo No application was started or stopped; no Sleeper data was changed.
+echo Press any key to close this window.
+pause >nul
+exit /b 2
