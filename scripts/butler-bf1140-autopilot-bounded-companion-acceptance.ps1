@@ -81,4 +81,47 @@ if ([regex]::Matches($source, '-WaitTimeoutMs 3000 -CoreTimeoutMs 12000').Count 
         [StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1140 BLOCKED: exact Auto-Pilot read-only/recovery scope drifted.'
 }
+# BF-1142: exercise the actual named two-slot semaphore under contention.
+# Source-only matching cannot prove that a bounded Auto-Pilot GET stops
+# waiting for a busy companion instead of entering the core after a timeout.
+# This stays entirely in-process: no TCP, external service or league data.
+$gateName = 'Local\Butler.Companion.Heavy.{0}' -f $PID
+$occupiedGate = [System.Threading.Semaphore]::new(2, 2, $gateName)
+$heldSlots = 0
+try {
+    for ($slot = 0; $slot -lt 2; $slot++) {
+        if (-not $occupiedGate.WaitOne(0)) {
+            throw 'BF-1142 BLOCKED: could not reserve the two synthetic companion slots.'
+        }
+        $heldSlots++
+    }
+    $beforeCalls = $script:bf1140Calls.Count
+    $expired = $false
+    $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $null = Invoke-ExpensiveReadSingleFlightGet -Port 9 -RequestTarget '/matchup' `
+            -League 'BF1142_BUSY_GATE' -RefreshState $state `
+            -WaitTimeoutMs 1000 -CoreTimeoutMs 12000
+    }
+    catch {
+        if ($_.Exception.Message -ceq 'BF-694 BLOCKED: finite wait for companion heavy read capacity expired.') {
+            $expired = $true
+        }
+        else { throw }
+    }
+    finally { $timer.Stop() }
+    if (-not $expired -or $timer.ElapsedMilliseconds -lt 700 -or
+        $timer.ElapsedMilliseconds -gt 10000 -or
+        $script:bf1140Calls.Count -ne $beforeCalls) {
+        throw 'BF-1142 BLOCKED: busy companion bypassed its bounded wait or reached the local core.'
+    }
+}
+finally {
+    for ($slot = 0; $slot -lt $heldSlots; $slot++) {
+        [void]$occupiedGate.Release()
+    }
+    $occupiedGate.Dispose()
+}
+Write-Host 'BF-1142 PASS: occupied two-slot companion times out without a core request.'
+
 Write-Host 'BF-1140 PASS: bounded Auto-Pilot companion core reads, main-page defaults unchanged.'
