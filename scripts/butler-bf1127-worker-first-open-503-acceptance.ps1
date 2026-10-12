@@ -55,7 +55,7 @@ function Invoke-Bf1127FirstOpenGet {
             -DecisionRefresh $validPath `
             -DecisionRefreshRunner $validPath `
             -RepoRoot $repoRoot `
-            -RefreshState @{ SyncRoot = [object]::new() }
+            -RefreshState @{ SyncRoot = [object]::new(); Token = 'fixture-read-only' }
 
         # The canonical worker closes this accepted connection on exit;
         # closing again is harmless and bounds the client-side ReadToEnd.
