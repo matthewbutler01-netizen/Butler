@@ -150,6 +150,18 @@ try {
         @{ Target = '/team'; Title = 'My Team unavailable'; Retry = 'Try My Team again' },
         @{ Target = '/waivers'; Title = 'Waiver Board unavailable'; Retry = 'Try Waiver Board again' }
     )) {
+        # BF-1155: the preceding successful synthetic GET warmed a
+        # five-second route single-flight cache under this same fake league.
+        # Clear ONLY that test-only cache key, otherwise the dropped-core
+        # probe incorrectly returns a previously cached HTTP 200 without
+        # ever reaching its just-created loopback core.
+        $cacheKey = if ($case.Target -ceq '/team') {
+            "Butler.Team.SingleFlight.$PID.$privateMarker"
+        }
+        else {
+            "Butler.Expensive.SingleFlight.$PID.$privateMarker.WAIVERS"
+        }
+        [System.AppDomain]::CurrentDomain.SetData($cacheKey, $null)
         $core = [ButlerBf1132LocalCoreStub]::new($true)
         try {
             $wire = Invoke-Bf1127FirstOpenGet -Target $case.Target `
@@ -168,7 +180,18 @@ try {
                 $wire.IndexOf($fixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
                 $wire.IndexOf('GET ERROR', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
                 $wire.Length -gt 25000) {
-                throw 'BF-1151 BLOCKED: abruptly closed core did not yield one safe route-specific HTTP 500.'
+                # BF-1155: diagnostics are fixture-local and bounded: route,
+                # known status, known layer and individual boolean guards.
+                # Never show raw HTML, player/league content or exceptions.
+                $statusClass = if ($wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal)) { '500' }
+                    elseif ($wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal)) { '200' }
+                    else { 'OTHER' }
+                $layerClass = if ($wire.IndexOf('X-Butler-Failure-Layer: CORE_READ', [StringComparison]::Ordinal) -ge 0) { 'CORE_READ' }
+                    elseif ($wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -ge 0) { 'PUBLIC_WORKER' }
+                    else { 'OTHER' }
+                throw ('BF-1155 BLOCKED: synthetic core-close {0}: status={1}, layer={2}, title={3}, retry={4}, len={5}' -f
+                    $case.Target, $statusClass, $layerClass,
+                    $wire.Contains($case.Title), $wire.Contains($case.Retry), $wire.Length)
             }
         }
         finally {
