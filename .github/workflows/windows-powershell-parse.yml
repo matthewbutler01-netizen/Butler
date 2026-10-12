@@ -77,6 +77,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1' -BrokenCss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # BF-1143: actual public HTTP Auto-Pilot must degrade safely if
+          # both companion-heavy read slots are occupied (no core/provider).
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1' -BusyGate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1140-autopilot-bounded-companion-acceptance.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\scripts\butler-bf1054-matchup-live-week-acceptance.ps1'
