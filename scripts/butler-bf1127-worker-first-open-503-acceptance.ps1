@@ -79,6 +79,10 @@ function Assert-Bf1128HealthAvailable {
     if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
         $wire.IndexOf('"status":"ok"', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('"service":"butler-app-shell"', [StringComparison]::Ordinal) -lt 0 -or
+        # BF-1135: verify the actual compiled worker, not just source text,
+        # exposes the new public runtime capability required by readiness.
+        $wire.IndexOf('"workerRecoveryContract":"v04-safe-page-recovery-bf1134"', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('"liveCheckContract":"v04-current-page-proof-bf1110"', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
         $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or
         $wire.Length -gt 16000) {
