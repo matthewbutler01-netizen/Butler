@@ -97,6 +97,7 @@ try {
         @{ Target = '/team'; History = $malformedPath; Trade = $validPath; Href = '/team'; Title = 'My Team unavailable'; Label = 'Try My Team again' },
         @{ Target = '/waivers'; History = $missingPath; Trade = $validPath; Href = '/waivers'; Title = 'Waiver Board unavailable'; Label = 'Try Waiver Board again' },
         @{ Target = '/league'; History = $missingPath; Trade = $validPath; Href = '/league'; Title = 'League unavailable'; Label = 'Try League again' },
+        @{ Target = '/autopilot'; History = $missingPath; Trade = $validPath; Href = '/'; Title = 'Butler page unavailable'; Label = 'Return to Dashboard' },
         @{ Target = '/matchup/autofill'; History = $missingPath; Trade = $validPath; Href = '/matchup/autofill'; Title = 'Start/Sit unavailable'; Label = 'Try Start/Sit again' },
         @{ Target = '/trade'; History = $validPath; Trade = $missingPath; Href = '/'; Title = 'Butler page unavailable'; Label = 'Return to Dashboard' }
     )) {
