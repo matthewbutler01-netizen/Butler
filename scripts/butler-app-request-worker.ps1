@@ -1470,6 +1470,10 @@ function Get-V04AutoPilotHtml {
     $evidenceStatus = if ($null -ne $WatchState.PSObject.Properties['EvidenceStatus']) {
         [string]$WatchState.EvidenceStatus
     } else { 'UNVERIFIED' }
+    $localReadBusy = -not [bool]$WatchState.Ready -and
+        $evidenceStatus -ceq 'UNVERIFIED' -and
+        $null -ne $WatchState.PSObject.Properties['LocalReadIssue'] -and
+        [string]$WatchState.LocalReadIssue -ceq 'BUSY'
     # BF-1090: the renderer requires proof that its deep Start/Sit
     # source gate actually completed, not merely a green Dashboard card.
     $sourceChanged = [bool]$WatchState.Ready -and
@@ -1519,6 +1523,9 @@ function Get-V04AutoPilotHtml {
     }
     elseif ($evidenceStatus -ceq 'WEEK_UNVERIFIED') {
         'WEEK NOT VERIFIED'
+    }
+    elseif ($localReadBusy) {
+        'LOCAL DATA BUSY'
     }
     else {
         'WATCH DATA UNAVAILABLE'
@@ -1616,6 +1623,12 @@ function Get-V04AutoPilotHtml {
         $sourceReason = 'The current NFL week or exact saved matchup could not be independently verified. Lineup actions remain held.'
         $sourceNextHref = '/matchup'
         $sourceNextLabel = 'Check weekly matchup'
+    }
+    elseif ($localReadBusy) {
+        $sourceReasonCode = 'local-data-busy'
+        $sourceReason = 'Butler could not read the local snapshot because the manager reader was busy. No lineup change is prepared. Retry Auto-Pilot after the other request finishes.'
+        $sourceNextHref = '/autopilot'
+        $sourceNextLabel = 'Retry Auto-Pilot'
     }
     elseif (-not [bool]$WatchState.Ready) {
         $sourceReasonCode = 'snapshot-unavailable'
@@ -2099,6 +2112,8 @@ try {
         # if any presentation dependency fails. No provider or local retry.
         try {
         $dashboardHtmlForRefresh = ''
+        $dashboardReadBusy = $false
+        $matchupReadBusy = $false
         $watchState = [pscustomobject]@{
             Ready = $false
             Attention = 'UNAVAILABLE'
@@ -2114,8 +2129,13 @@ try {
             }
         }
         catch {
-            # Auto-Pilot is a read-only preview; a snapshot read failure must
-            # remain visible as unavailable instead of crashing or guessing.
+            # BF-1144: expose only a fixed local-capacity category, never a
+            # raw exception, player ID, league context or private core detail.
+            # Other failures remain generic/unverified.
+            $dashboardReadBusy = @(
+                'BF-693 BLOCKED: finite wait for shared ROOT read expired.',
+                'BF-694 BLOCKED: finite wait for companion heavy read capacity expired.'
+            ) -ccontains [string]$_.Exception.Message
         }
 
         # BF-1061: even a locally stale Dashboard can have an old weekly
@@ -2130,10 +2150,25 @@ try {
             }
         }
         catch {
-            # No league write or fallback to a guessed current week.
+            # Missing week proof still blocks every recommendation. A known
+            # local capacity stop may be shown as a fixed retryable message.
+            $matchupReadBusy = @(
+                'BF-693 BLOCKED: finite wait for shared MATCHUP read expired.',
+                'BF-694 BLOCKED: finite wait for companion heavy read capacity expired.'
+            ) -ccontains [string]$_.Exception.Message
         }
         $resolvedWatch = Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof -InnerPort $InnerPort -League $LeagueId -Root $RepoRoot -RefreshState $RefreshState
         $watchState = $resolvedWatch.WatchState
+        # Do not overwrite stronger audited STALE or WEEK_MISMATCH proof.
+        # Incomplete source data remains non-actionable; this only explains
+        # why the read-only preview could not fill its cards this visit.
+        $watchEvidence = if ($null -ne $watchState.PSObject.Properties['EvidenceStatus']) {
+            [string]$watchState.EvidenceStatus
+        } else { 'UNVERIFIED' }
+        if (-not [bool]$watchState.Ready -and $watchEvidence -ceq 'UNVERIFIED' -and
+            ($dashboardReadBusy -or $matchupReadBusy)) {
+            $watchState | Add-Member -NotePropertyName LocalReadIssue -NotePropertyValue 'BUSY' -Force
+        }
         $dashboardHtmlForRefresh = [string]$resolvedWatch.DashboardHtml
 
         # BF-1074: dashboard/matchup source week alone cannot prepare a

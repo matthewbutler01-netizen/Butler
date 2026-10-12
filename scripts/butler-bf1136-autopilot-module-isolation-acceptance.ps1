@@ -76,6 +76,12 @@ try {
         throw 'BF-1143 BLOCKED: busy public Auto-Pilot ignored the bounded two-read companion wait.'
     }
 
+    if ($BusyGate -and (
+        $wire.IndexOf('LOCAL DATA BUSY', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('data-butler-lineup-reason="local-data-busy"', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('href="/autopilot">Retry Auto-Pilot</a>', [StringComparison]::Ordinal) -lt 0)) {
+        throw 'BF-1144 BLOCKED: busy Auto-Pilot failed to explain its safe retry without source claims.'
+    }
     if ($BrokenCss) {
         if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
             $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
@@ -105,6 +111,10 @@ try {
         throw 'BF-1136 BLOCKED: Auto-Pilot depended on Trade/Detail or did not render safely.'
     }
     # No core data means no actionable approvals, even if the route loads.
+    if (-not $BusyGate -and
+        $wire.IndexOf('LOCAL DATA BUSY', [StringComparison]::Ordinal) -ge 0) {
+        throw 'BF-1144 BLOCKED: ordinary disconnected core was mislabeled as semaphore contention.'
+    }
     if ($wire.IndexOf('READY FOR MANAGER REVIEW', [StringComparison]::Ordinal) -ge 0 -or
         $wire.IndexOf('NO ACTION REQUIRED', [StringComparison]::Ordinal) -ge 0) {
         throw 'BF-1136 BLOCKED: Auto-Pilot rendered actionable approval without source evidence.'
@@ -121,7 +131,7 @@ finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
 if ($BusyGate) {
-    Write-Host 'BF-1143 PASS: real HTTP Auto-Pilot degrades safely after bounded companion contention.'
+    Write-Host 'BF-1143/1144 PASS: bounded real HTTP Auto-Pilot contention is safely explained.'
 }
 elseif ($BrokenCss) {
     Write-Host 'BF-1138 PASS: broken Auto-Pilot renderer returns safe HTTP 500 and no private error.'
