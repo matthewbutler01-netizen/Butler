@@ -109,7 +109,16 @@ try {
                 $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or
                 $wire.IndexOf($fixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
                 $wire.Length -gt 25000) {
-                throw 'BF-1132 BLOCKED: successful core GET did not render a safe normal public page.'
+                # BF-1152: report bounded synthetic route and HTTP class only.
+                # Do not print response HTML, private marker, path or exception.
+                $wireClass = if ($wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal)) { 'HTTP 200' }
+                    elseif ($wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal)) { 'HTTP 500' }
+                    else { 'OTHER HTTP' }
+                $layerClass = if ($wire.IndexOf('X-Butler-Failure-Layer: CORE_READ', [StringComparison]::Ordinal) -ge 0) { 'CORE_READ' }
+                    elseif ($wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -ge 0) { 'PUBLIC_WORKER' }
+                    else { 'NO_LAYER_OR_OTHER' }
+                throw ('BF-1152 BLOCKED: synthetic success route {0} responded {1} layer={2} length={3}.' -f
+                    $target, $wireClass, $layerClass, $wire.Length)
             }
         }
         finally {
