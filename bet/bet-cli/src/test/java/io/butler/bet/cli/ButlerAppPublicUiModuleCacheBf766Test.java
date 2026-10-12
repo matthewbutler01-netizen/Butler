@@ -193,6 +193,33 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void autopilotRenderFailureReturnsSafeLocal500InsteadOfDroppedConnection() throws Exception {
+        // BF-1138: Auto-Pilot does not follow the core manager GET catch;
+        // failed CSS/navigation or automatic-refresh rendering must still
+        // return one safe, independent page before headers are written.
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        int route = worker.indexOf("if ($path -eq '/autopilot')");
+        int guard = worker.indexOf("# BF-1138: Auto-Pilot's read-only watch", route);
+        int opening = worker.indexOf("try {", guard);
+        int render = worker.indexOf("Get-V04AutoPilotHtml -WatchState", opening);
+        int refresh = worker.indexOf("Add-AutomaticAutoPilotRefresh -Html $html", render);
+        int fallback = worker.indexOf(
+            "Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable'", refresh);
+        int error = worker.indexOf(
+            "-StatusCode 500 -StatusText 'Internal Server Error'", fallback);
+        int bypass = worker.indexOf("-FailureLayer 'PUBLIC_WORKER' -SkipOptionalHtmlPresentation", error);
+        int returnFromFailure = worker.indexOf("return", bypass);
+        int normalResponse = worker.indexOf("-StatusCode 200 -StatusText 'OK'", returnFromFailure);
+        assertTrue(route >= 0 && guard > route && opening > guard);
+        assertTrue(render > opening && refresh > render && fallback > refresh);
+        assertTrue(error > fallback && bypass > error && returnFromFailure > bypass);
+        assertTrue(normalResponse > returnFromFailure,
+            "BF-1138 the normal HTTP 200 writer must stay outside the error preparation catch");
+        assertFalse(worker.substring(fallback, normalResponse).contains("$_.Exception.Message"));
+        assertFalse(worker.substring(fallback, normalResponse).contains("submitTransaction"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
