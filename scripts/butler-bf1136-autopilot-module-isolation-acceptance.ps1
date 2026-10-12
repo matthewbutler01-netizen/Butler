@@ -45,7 +45,7 @@ try {
         $wire.IndexOf('CURRENT WEEKLY WATCH', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('Auto-Pilot', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('READ ONLY PREVIEW', [StringComparison]::Ordinal) -lt 0 -or
-        $wire.IndexOf('No Sleeper', [StringComparison]::OrdinalIgnoreCase) -lt 0 -or
+        $wire.IndexOf('does not currently run background monitoring or submit a Sleeper transaction', [StringComparison]::OrdinalIgnoreCase) -lt 0 -or
         $wire.IndexOf('Content-Type: text/html', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('Cache-Control: no-store', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
