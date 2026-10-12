@@ -278,8 +278,8 @@ function Resolve-V04AutoPilotOnOpenWeek {
                     # A completed local evidence write invalidates every
                     # warmed manager route. Recompute from the raw core, not
                     # an old single-flight Dashboard or an old week badge.
-                    $updatedDashboard = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/'
-                    $updatedMatchup = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup'
+                    $updatedDashboard = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/' -TimeoutMs 12000
+                    $updatedMatchup = Invoke-AppCoreGet -Port $InnerPort -RequestTarget '/matchup' -TimeoutMs 12000
                     if ([int]$updatedDashboard.StatusCode -eq 200 -and
                         $updatedDashboard.ContentType -match '^text/html' -and
                         [int]$updatedMatchup.StatusCode -eq 200 -and
@@ -465,12 +465,18 @@ function Invoke-ExpensiveReadSingleFlightGet {
         [Parameter(Mandatory = $true)][int]$Port,
         [Parameter(Mandatory = $true)][string]$RequestTarget,
         [Parameter(Mandatory = $true)][string]$League,
-        [Parameter(Mandatory = $true)][hashtable]$RefreshState
+        [Parameter(Mandatory = $true)][hashtable]$RefreshState,
+        # BF-1140: Auto-Pilot is an optional read-only companion. A slow
+        # Dashboard or Matchup must not monopolize its browser GET for the
+        # default three-minute core/mutex deadlines. Other routes retain
+        # historical defaults and single-flight cache semantics.
+        [ValidateRange(1000, 180000)][int]$WaitTimeoutMs = 180000,
+        [ValidateRange(1000, 180000)][int]$CoreTimeoutMs = 180000
     )
 
     $routeKey = Get-ExpensiveReadSingleFlightKey -RequestTarget $RequestTarget
     if ([string]::IsNullOrWhiteSpace($routeKey)) {
-        return Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+        return Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget -TimeoutMs $CoreTimeoutMs
     }
 
     $bf856Timing = New-Bf856RouteTiming -RequestTarget $RequestTarget
@@ -489,7 +495,7 @@ function Invoke-ExpensiveReadSingleFlightGet {
             [long]0
         }
         try {
-            $lockTaken = $mutex.WaitOne(180000)
+            $lockTaken = $mutex.WaitOne($WaitTimeoutMs)
         }
         catch [System.Threading.AbandonedMutexException] {
             $lockTaken = $true
@@ -533,7 +539,7 @@ function Invoke-ExpensiveReadSingleFlightGet {
             } else {
                 [long]0
             }
-            $companionSlotTaken = $companionSemaphore.WaitOne(180000)
+            $companionSlotTaken = $companionSemaphore.WaitOne($WaitTimeoutMs)
             if ($null -ne $bf856Timing) {
                 $bf856Timing.semaphore_wait_ms = Get-Bf856ElapsedMs -StartedTicks $bf856SemaphoreStarted
             }
@@ -546,7 +552,7 @@ function Invoke-ExpensiveReadSingleFlightGet {
             } else {
                 [long]0
             }
-            $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget
+            $proxied = Invoke-AppCoreGet -Port $Port -RequestTarget $RequestTarget -TimeoutMs $CoreTimeoutMs
             if ($null -ne $bf856Timing) {
                 $bf856Timing.core_proxy_ms = Get-Bf856ElapsedMs -StartedTicks $bf856CoreStarted
             }
@@ -2101,7 +2107,7 @@ try {
             Roster = 'Manager tools'
         }
         try {
-            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId -RefreshState $RefreshState
+            $dashboard = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/' -League $LeagueId -RefreshState $RefreshState -WaitTimeoutMs 3000 -CoreTimeoutMs 12000
             if ([int]$dashboard.StatusCode -eq 200 -and $dashboard.ContentType -match '^text/html') {
                 $dashboardHtmlForRefresh = [string]$dashboard.Body
                 $watchState = Get-V04AutoPilotWatchState -DashboardHtml $dashboardHtmlForRefresh
@@ -2118,7 +2124,7 @@ try {
         # bounded Butler-local pairing recovery and fresh dual-page audit.
         $matchupHtmlForWeekProof = ''
         try {
-            $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState
+            $matchupPage = Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort -RequestTarget '/matchup' -League $LeagueId -RefreshState $RefreshState -WaitTimeoutMs 3000 -CoreTimeoutMs 12000
             if ([int]$matchupPage.StatusCode -eq 200 -and $matchupPage.ContentType -match '^text/html') {
                 $matchupHtmlForWeekProof = [string]$matchupPage.Body
             }
