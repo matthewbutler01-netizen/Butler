@@ -192,6 +192,8 @@ foreach ($expected in @(
     @{ Route = '/matchup'; Href = '/matchup'; Title = 'Matchup unavailable' },
     @{ Route = '/matchup/autofill'; Href = '/matchup/autofill'; Title = 'Start/Sit unavailable' },
     @{ Route = '/league'; Href = '/league'; Title = 'League unavailable' },
+    @{ Route = '/autopilot'; Href = '/autopilot'; Title = 'Auto-Pilot unavailable' },
+    @{ Route = '/autopilot?token=secret'; Href = '/'; Title = 'Butler page unavailable' },
     @{ Route = '/team?account=secret'; Href = '/'; Title = 'Butler page unavailable' },
     @{ Route = $bf1113Private; Href = '/'; Title = 'Butler page unavailable' }
 )) {
@@ -199,7 +201,7 @@ foreach ($expected in @(
         $result = Get-ButlerManagerFailureSpec -RequestTarget $expected.Route -FailurePhase $phase
         if ($result.Title -cne $expected.Title -or
             $result.PrimaryHref -cne $expected.Href -or
-            @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league') -cnotcontains $result.PrimaryHref -or
+            @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot') -cnotcontains $result.PrimaryHref -or
             $result.Message.IndexOf($bf1113Private, [StringComparison]::Ordinal) -ge 0 -or
             $result.Message.IndexOf('secret', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
             throw 'BF-1113 BLOCKED: manager recovery failed route or privacy contract.'
