@@ -71,6 +71,11 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
                     // rather than half-closing with FIN and forcing the real
                     // HttpWebRequest to wait for a header until its default
                     // three-minute core deadline in this synthetic test.
+                    // BF-1157: HttpWebRequest is permitted to retry a
+                    // replayable GET after an early reset. Close the fake
+                    // listener too so retries fail fast with connection
+                    // refusal instead of entering an unserved TCP backlog.
+                    listener.Stop();
                     client.LingerState = new LingerOption(true, 0);
                     return;
                 }
