@@ -98,7 +98,9 @@ async function scenario(name, mutations, expect) {
     child = await new Promise((resolve,reject) => {
       const runner = cp.spawn('powershell.exe',
         ['-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',
-          ps,'-Port',String(port),'-TimeoutSeconds','5', ...(mutations.strict ? ['-RequireReady'] : [])],
+          ps,'-Port',String(port),'-TimeoutSeconds','5',
+          ...(mutations.strict ? ['-RequireReady'] : []),
+          ...(mutations.rosterWaiverOnly ? ['-RosterWaiverOnly'] : [])],
         { windowsHide:true, stdio:['ignore','pipe','pipe'] });
       let stdout='', stderr='', settled=false;
       runner.stdout.on('data', b => { stdout += b.toString(); });
@@ -124,7 +126,10 @@ async function scenario(name, mutations, expect) {
     assert.equal(entry.method,'GET', name + ' attempted a write');
     assert.ok(expectedGet.includes(entry.url), name + ' requested unapproved route');
   }
-  if (expect.allRoutes) assert.deepEqual(requests.map(x=>x.url), expectedGet);
+  if (expect.allRoutes) assert.deepEqual(requests.map(x=>x.url),
+    mutations.rosterWaiverOnly
+      ? ['/health','/team','/waivers','/team','/waivers']
+      : expectedGet);
   else assert.deepEqual(requests.map(x=>x.url), ['/health']);
   console.log('BF-1050 HTTP ' + name.toUpperCase() + ': PASS');
 }
@@ -135,6 +140,26 @@ async function scenario(name, mutations, expect) {
   await scenario('healthy', {}, {
     code:0, output:/RESULT: 0 page failure\(s\), 0 watch warning\(s\)/, allRoutes:true
   });
+  // Milestone 1: scope local first-open checks to the two failing pages.
+  // Both must be opened twice, with source/health gates preserved and
+  // no accidental probes of Auto-Pilot, Matchup or any provider endpoint.
+  await scenario('milestone1-first-and-repeat-healthy',
+    {rosterWaiverOnly:true, strict:true}, {
+      code:0, output:/MILESTONE 1 FIRST-OPEN CHECK: PASS \(page contracts only\)/, allRoutes:true
+    });
+  await scenario('milestone1-team-core-unavailable',
+    {rosterWaiverOnly:true, httpStatus:{'/team':500},
+      httpLayer:{'/team':'CORE_READ'}}, {
+      code:1, output:/\/team\s+FAIL\s+evidence=HTTP 500 CORE_READ/, allRoutes:true
+    });
+  await scenario('milestone1-roster-not-shown',
+    {rosterWaiverOnly:true, routes:{'/team': good['/team'].replace('<div class="player-row">synthetic player</div>', '')}}, {
+      code:2, output:/MILESTONE 1 FIRST-OPEN CHECK: HELD/, allRoutes:true
+    });
+  await scenario('milestone1-incompatible-worker',
+    {rosterWaiverOnly:true, omitLocalRead:true}, {
+      code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
+    });
   // BF-1110: do not run the current readiness diagnostic against an
   // older, cached v0.4 request-worker that only passed BF-1098 health.
   await scenario('stale-v04-runtime', {omitLiveCheck:true}, {

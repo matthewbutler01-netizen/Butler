@@ -2,7 +2,10 @@ param(
     [ValidateRange(0, 65535)][int]$Port = 0,
     [ValidateRange(5, 180)][int]$TimeoutSeconds = 120,
     [switch]$CheckSleeperWeek,
-    [switch]$RequireReady
+    [switch]$RequireReady,
+    # Milestone 1: fast, read-only first-open and repeat-open check for
+    # the two actual failing manager routes only. No broad page sweep.
+    [switch]$RosterWaiverOnly
 )
 
 Set-StrictMode -Version Latest
@@ -890,7 +893,22 @@ $dashboardResponse = $null
 $dashboardCheck = $null
 $autoPilotResponse = $null
 $autoPilotCheck = $null
-foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')) {
+$checkedRoutes = @{}
+$routes = if ($RosterWaiverOnly) {
+    # Open both once, then revisit both: the repeated GETs exercise
+    # warmed route caches without modifying server evidence.
+    @('/team', '/waivers', '/team', '/waivers')
+} else {
+    @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', '/league', '/autopilot')
+}
+if ($RosterWaiverOnly -and $CheckSleeperWeek) {
+    throw 'BF-M1 BLOCKED: scoped roster/waiver check does not fetch public NFL week. Run the full real-league check separately.'
+}
+if ($RosterWaiverOnly) {
+    Write-Host 'MILESTONE 1: My Team and Waiver Board first-open + reopen (GET only).'
+    Write-Host 'This checks route response and safety; it cannot certify latest Sleeper roster/injury data.'
+}
+foreach ($route in $routes) {
     $routeTimer = [Diagnostics.Stopwatch]::StartNew()
     $routeResponseObtained = $false
     try {
@@ -923,7 +941,28 @@ foreach ($route in @('/', '/team', '/waivers', '/matchup', '/matchup/autofill', 
     if ($check.Status -ceq 'FAIL') { $failed++ }
     if ($check.Status -ceq 'WARN') { $warned++ }
     $routeTimer.Stop()
+    $phaseLabel = if ($RosterWaiverOnly) {
+        if ($checkedRoutes.ContainsKey($route)) { 'REOPEN' } else { 'FIRST OPEN' }
+    } else { '' }
+    $checkedRoutes[$route] = $true
     Write-Host ("{0,-19} {1,-5} evidence={2,-17} auto={3} get_ms={4}" -f $check.Route, $check.Status, $check.Evidence, $check.AutoCheck, [int][Math]::Round($routeTimer.Elapsed.TotalMilliseconds))
+    if ($RosterWaiverOnly) { Write-Host ('  visit=' + $phaseLabel) }
+}
+if ($RosterWaiverOnly) {
+    $localCheckStarted.Stop()
+    Write-Host ('MILESTONE 1 RESULT: {0} page failure(s), {1} page warning(s); 4 GETs + health in {2} ms.' -f
+        $failed, $warned, [int][Math]::Round($localCheckStarted.Elapsed.TotalMilliseconds))
+    if ($failed -gt 0) {
+        Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: FAIL. A page or reopen could not render safely.'
+        exit 1
+    }
+    if ($warned -gt 0) {
+        Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: HELD. Missing or incomplete roster/waiver evidence; no current-source claim.'
+        exit 2
+    }
+    Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: PASS (page contracts only).'
+    Write-Host 'Live roster, injury freshness, browser automatic updates and Sleeper data remain UNVERIFIED.'
+    exit 0
 }
 $weekPair = Test-ButlerCrossRouteWeek -MatchupHtml $(if ($null -ne $matchupResponse) { [string]$matchupResponse.Body } else { '' }) `
     -StartSitHtml $(if ($null -ne $startSitResponse) { [string]$startSitResponse.Body } else { '' }) `
