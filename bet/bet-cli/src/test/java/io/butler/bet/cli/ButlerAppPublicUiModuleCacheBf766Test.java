@@ -200,11 +200,14 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         assertTrue(acceptance.contains("BF-1134 BLOCKED: canonical worker does not advertise"));
         assertTrue(acceptance.contains("BF-1146 BLOCKED: old worker without bounded local-read capability"));
         assertTrue(acceptance.contains("BF-1146 BLOCKED: unrelated worker local-read capability"));
-        // BF-1149 made this wording more specific for stale/unknown ports.
-        // Preserve the behavioral no-restart guard instead of an outdated
-        // exact message from the old generic health-error exception.
-        assertTrue(diagnostic.contains("this diagnostic never replaces or stops another release"));
-        assertTrue(diagnostic.contains("no process was stopped, restarted, or changed"));
+        // Milestone 1: a blocked /health must exit with fixed privacy-safe
+        // guidance, not throw a PowerShell error that exposes a local path.
+        // Confirm explicit old/multiple-worker guards and no automatic
+        // launch: the one-click diagnostic is read-only, not a starter.
+        assertTrue(diagnostic.contains("Write-Host 'BF-1146 BLOCKED: OLDER BUTLER WORKER."));
+        assertTrue(diagnostic.contains("Write-Host 'BF-1146 BLOCKED: MULTIPLE CURRENT WORKERS."));
+        assertTrue(diagnostic.contains("The diagnostic ZIP contains only a read-only checker; it cannot install or launch Butler."));
+        assertTrue(diagnostic.contains("no process was started or stopped."));
         assertFalse(diagnostic.contains("submitTransaction"));
     }
 
