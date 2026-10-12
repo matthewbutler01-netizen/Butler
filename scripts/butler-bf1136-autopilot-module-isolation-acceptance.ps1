@@ -1,4 +1,4 @@
-param([switch]$BrokenCss)
+param([switch]$BrokenCss, [switch]$BusyGate)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -48,9 +48,33 @@ if ($BrokenCss) {
 }
 [IO.File]::WriteAllText($readOnlyModules, $moduleText, [Text.Encoding]::ASCII)
 
+if ($BrokenCss -and $BusyGate) {
+    throw 'BF-1143 BLOCKED: broken CSS and busy-gate scenarios must run independently.'
+}
+$occupiedGate = $null
+$heldSlots = 0
 try {
+    # BF-1143: hold both real named companion slots while the actual
+    # public Auto-Pilot HTTP worker renders. An offline/contended core
+    # must produce a safe read-only page instead of waiting three minutes.
+    if ($BusyGate) {
+        $gateName = 'Local\Butler.Companion.Heavy.{0}' -f $PID
+        $occupiedGate = [System.Threading.Semaphore]::new(2, 2, $gateName)
+        for ($slot = 0; $slot -lt 2; $slot++) {
+            if (-not $occupiedGate.WaitOne(0)) {
+                throw 'BF-1143 BLOCKED: unable to occupy the synthetic companion gate.'
+            }
+            $heldSlots++
+        }
+    }
+    $openTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $wire = Invoke-Bf1127FirstOpenGet -Target '/autopilot' `
         -HistoryPath $readOnlyModules -TradeHostPath $missingTrade
+    $openTimer.Stop()
+    if ($BusyGate -and ($openTimer.ElapsedMilliseconds -lt 5500 -or
+        $openTimer.ElapsedMilliseconds -gt 20000)) {
+        throw 'BF-1143 BLOCKED: busy public Auto-Pilot ignored the bounded two-read companion wait.'
+    }
 
     if ($BrokenCss) {
         if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
@@ -88,9 +112,18 @@ try {
     }
 }
 finally {
+    if ($null -ne $occupiedGate) {
+        for ($slot = 0; $slot -lt $heldSlots; $slot++) {
+            [void]$occupiedGate.Release()
+        }
+        $occupiedGate.Dispose()
+    }
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
-if ($BrokenCss) {
+if ($BusyGate) {
+    Write-Host 'BF-1143 PASS: real HTTP Auto-Pilot degrades safely after bounded companion contention.'
+}
+elseif ($BrokenCss) {
     Write-Host 'BF-1138 PASS: broken Auto-Pilot renderer returns safe HTTP 500 and no private error.'
 }
 else {
