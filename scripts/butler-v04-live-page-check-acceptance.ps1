@@ -452,7 +452,7 @@ Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
-    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","bind":"127.0.0.1"}'
+    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
 }
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1040 BLOCKED: exact Butler loopback health was rejected.'
@@ -468,13 +468,32 @@ $health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-au
 if (Test-ButlerLocalHealth -Response $health) {
     throw 'BF-1110 BLOCKED: unrelated live worker marker passed.'
 }
-$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","bind":"127.0.0.1"}'
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1110 BLOCKED: current worker not accepted after old-worker rejections.'
 }
 $workerSource = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'))
 if ($workerSource.IndexOf('"liveCheckContract":"v04-current-page-proof-bf1110"', [StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1110 BLOCKED: production worker health does not advertise the current runtime capability.'
+}
+
+# BF-1134: BF-1110 by itself is insufficient after manager worker recovery
+# was hardened. Explicitly reject the previous healthy-but-unsafe runtime,
+# a spoofed contract, and missing scoped recovery capability.
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1134 BLOCKED: old manager without safe worker fallback was certified.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"fake-private-runtime","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1134 BLOCKED: untrusted manager recovery claim was accepted.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
+if (-not (Test-ButlerLocalHealth -Response $health)) {
+    throw 'BF-1134 BLOCKED: safe manager worker rejected by the current identity gate.'
+}
+if ($workerSource.IndexOf('"workerRecoveryContract":"v04-safe-page-recovery-bf1134"', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1134 BLOCKED: canonical worker does not advertise safe recovery capability.'
 }
 
 # BF-1098: older v0.4 still advertises the original featureSet,
