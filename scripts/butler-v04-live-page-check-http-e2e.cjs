@@ -140,15 +140,15 @@ async function scenario(name, mutations, expect) {
     code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('wrong-v04-runtime', {liveCheck:'previous-worker'}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   // BF-1134: a previous BF-1110 worker could still reset connections on
   // first-open manager-module errors. Do not test its pages as current.
   await scenario('pre-recovery-v04-runtime', {omitRecovery:true}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('spoofed-recovery-v04-runtime', {workerRecovery:'unrelated-worker'}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   // BF-1146: a pre-bounded v0.4 draft must fail before manager GETs
   // and cannot claim current local-read recovery just by being healthy.
@@ -542,13 +542,13 @@ async function scenario(name, mutations, expect) {
   // BF-1098: a healthy-looking older v0.4 instance is not the
   // current sourced-onopen development build. Refuse even with HTTP 200.
   await scenario('old-v04-readiness-rejected', {omitReadiness:true}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('wrong-v04-readiness-rejected', {readiness:'unverified-old-v04'}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('old-build-rejected', {feature:'old-v03'}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('incorrect-security', {csp:"default-src 'self'"}, {
     code:1, output:/\/team\s+FAIL\s+evidence=HTTP SAFETY/, allRoutes:true

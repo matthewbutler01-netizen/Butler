@@ -470,7 +470,7 @@ $health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-au
 if (Test-ButlerLocalHealth -Response $health) {
     throw 'BF-1110 BLOCKED: unrelated live worker marker passed.'
 }
-$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","localReadContract":"v04-bounded-local-read-bf1146","bind":"127.0.0.1"}'
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1110 BLOCKED: current worker not accepted after old-worker rejections.'
 }
@@ -490,7 +490,7 @@ $health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-au
 if (Test-ButlerLocalHealth -Response $health) {
     throw 'BF-1134 BLOCKED: untrusted manager recovery claim was accepted.'
 }
-$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","localReadContract":"v04-bounded-local-read-bf1146","bind":"127.0.0.1"}'
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1134 BLOCKED: safe manager worker rejected by the current identity gate.'
 }
