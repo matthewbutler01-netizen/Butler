@@ -893,6 +893,16 @@ function Get-ButlerManagerFailureSpec {
             $spec.SecondaryHref = '/'
             $spec.SecondaryLabel = 'Dashboard'
         }
+        '/autopilot' {
+            # BF-1139: the exact read-only Auto-Pilot watch has a safe retry
+            # destination; never use untrusted queries or partial route text.
+            $spec.Title = 'Auto-Pilot unavailable'
+            $spec.Active = 'dashboard'
+            $spec.PrimaryHref = '/autopilot'
+            $spec.PrimaryLabel = 'Try Auto-Pilot again'
+            $spec.SecondaryHref = '/'
+            $spec.SecondaryLabel = 'Dashboard'
+        }
     }
     $spec.Message = if ($FailurePhase -ceq 'CORE_READ') {
         'The local Butler engine could not return this page. The current roster, matchup and recommendation have not been verified here. Retry the page after the engine is available.'
@@ -914,7 +924,7 @@ function Get-ButlerMinimalBlockedPageHtml {
     )
 
     if (@('/', '/team', '/waivers', '/matchup',
-          '/matchup/autofill', '/league') -cnotcontains $PrimaryHref) {
+          '/matchup/autofill', '/league', '/autopilot') -cnotcontains $PrimaryHref) {
         $PrimaryHref = '/'
         $PrimaryLabel = 'Return to Dashboard'
     }
@@ -2168,7 +2178,7 @@ try {
         catch {
             # No headers have been written. Never reflect the raw exception,
             # player/league context, local paths or a partial approval queue.
-            $blocked = Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard'
+            $blocked = Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/autopilot' -PrimaryLabel 'Try Auto-Pilot again'
             Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $blocked -FailureLayer 'PUBLIC_WORKER' -SkipOptionalHtmlPresentation
             return
         }
