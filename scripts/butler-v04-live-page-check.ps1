@@ -424,6 +424,10 @@ function Test-ButlerLocalHealth {
             # BF-1098 feature gate after tests update their checkout.
             # Do not certify that old cached worker as today's v0.4 runtime.
             $health.liveCheckContract -ceq 'v04-current-page-proof-bf1110' -and
+            # BF-1134: a formerly "healthy" pre-BF-1124 worker can still
+            # reset My Team/Waiver connections on module-load failures.
+            # Never certify it as the currently tested manager runtime.
+            $health.workerRecoveryContract -ceq 'v04-safe-page-recovery-bf1134' -and
             $health.bind -ceq '127.0.0.1'
     }
     catch { return $false }
@@ -782,7 +786,7 @@ foreach ($candidate in $ports) {
     catch { }
 }
 if ($live.Count -ne 1) {
-    throw 'BF-1110 BLOCKED: expected exactly one current v0.4 manager-proof worker on 18080/8080. An older release or an already-running pre-BF1110 v0.4 worker cannot pass. Run the updated draft v0.4 instance, or specify its exact -Port. No outside host was contacted.'
+    throw 'BF-1134 BLOCKED: expected exactly one current v0.4 manager worker on 18080/8080. A frozen release or already-running pre-BF1134 draft lacks the checked safe-page recovery contract. Use the updated draft v0.4 runtime or specify its exact -Port; this diagnostic does not restart any process. No outside host was contacted.'
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)
