@@ -842,7 +842,14 @@ foreach ($candidate in $ports) {
                 $identity = ConvertFrom-Json -InputObject ([string]$health.Body)
             }
             catch { }
-            if ($null -ne $identity -and $identity.status -ceq 'ok' -and
+            # BF-1150: PowerShell StrictMode throws on missing JSON fields.
+            # An unrelated minimal health payload is a responsive wrong
+            # service, not an absent local worker.
+            if ($null -ne $identity -and
+                $null -ne $identity.PSObject.Properties['status'] -and
+                $null -ne $identity.PSObject.Properties['service'] -and
+                $null -ne $identity.PSObject.Properties['bind'] -and
+                $identity.status -ceq 'ok' -and
                 $identity.service -ceq 'butler-app-shell' -and
                 $identity.bind -ceq '127.0.0.1') {
                 $olderButlerWorkers++

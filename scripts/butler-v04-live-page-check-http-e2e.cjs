@@ -55,7 +55,8 @@ async function scenario(name, mutations, expect) {
     if (req.url === '/health') {
       res.writeHead(200, {'Content-Type':'application/json; charset=utf-8'});
       res.end(JSON.stringify({
-        status:'ok',service: mutations.service || 'butler-app-shell',
+        status:mutations.omitStatus ? undefined : 'ok',
+        service: mutations.service || 'butler-app-shell',
         featureSet: mutations.feature || feature,
         ...(mutations.omitReadiness ? {} : {readinessContract: mutations.readiness || readiness}),
         ...(mutations.omitLiveCheck ? {} : {liveCheckContract: mutations.liveCheck || liveCheck}),
@@ -162,6 +163,11 @@ async function scenario(name, mutations, expect) {
   // or let the diagnostic probe manager routes. Only a proven old Butler
   // service is categorized as an older runtime.
   await scenario('unrelated-health-service', {service:'unrelated-local-service'}, {
+    code:1, output:/BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE/, allRoutes:false
+  });
+  // BF-1150: StrictMode-safe identity handling when an unrelated health
+  // responder omits keys entirely. Must not falsely say NO CURRENT WORKER.
+  await scenario('malformed-health-identity', {omitStatus:true}, {
     code:1, output:/BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE/, allRoutes:false
   });
   // BF-1109: a genuinely rendered League Hub without provider-backed
