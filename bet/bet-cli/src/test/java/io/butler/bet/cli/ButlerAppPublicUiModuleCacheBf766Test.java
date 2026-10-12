@@ -175,6 +175,24 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void liveReadinessRejectsPreRecoveryWorkerWithOldHealthMarkers() throws Exception {
+        // BF-1134: a 200 from an outdated cached worker is not proof its
+        // first-open module errors can return safe HTTP 503/500 pages.
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String diagnostic = source("scripts/butler-v04-live-page-check.ps1");
+        String acceptance = source("scripts/butler-v04-live-page-check-acceptance.ps1");
+        String recovery = "v04-safe-page-recovery-bf1134";
+
+        assertTrue(worker.contains("\\"workerRecoveryContract\\":\\"" + recovery + "\\""));
+        assertTrue(diagnostic.contains("$health.workerRecoveryContract -ceq '" + recovery + "'"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: old manager without safe worker fallback"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: untrusted manager recovery claim"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: canonical worker does not advertise"));
+        assertTrue(diagnostic.contains("this diagnostic does not restart any process"));
+        assertFalse(diagnostic.contains("submitTransaction"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 
