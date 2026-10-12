@@ -2076,6 +2076,12 @@ try {
             return
         }
 
+        # BF-1138: Auto-Pilot's read-only watch is a separate public route.
+        # A broken CSS or refresh helper used to throw outside the core GET
+        # catch and close the socket with no HTTP response. Prepare the page
+        # completely before writing headers and return fixed, safe HTTP 500
+        # if any presentation dependency fails. No provider or local retry.
+        try {
         $dashboardHtmlForRefresh = ''
         $watchState = [pscustomobject]@{
             Ready = $false
@@ -2158,6 +2164,14 @@ try {
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $html = Add-ButlerAccessibility -Html $html
         $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
+        }
+        catch {
+            # No headers have been written. Never reflect the raw exception,
+            # player/league context, local paths or a partial approval queue.
+            $blocked = Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/' -PrimaryLabel 'Return to Dashboard'
+            Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $blocked -FailureLayer 'PUBLIC_WORKER' -SkipOptionalHtmlPresentation
+            return
+        }
         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $autoRefresh.Html -ScriptNonce $autoRefresh.Nonce
         return
     }
