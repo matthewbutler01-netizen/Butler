@@ -74,7 +74,8 @@ foreach ($required in @(
 }
 if ([regex]::Matches($source, '-WaitTimeoutMs 3000 -CoreTimeoutMs 12000').Count -ne 2 -or
     [regex]::Matches($source, "-RequestTarget '/matchup' -TimeoutMs 12000").Count -ne 1 -or
-    [regex]::Matches($source, "-RequestTarget '/' -TimeoutMs 12000").Count -ne 1 -or
+    # One Auto-Pilot replay plus the existing Start/Sit refresh read.
+    [regex]::Matches($source, "-RequestTarget '/' -TimeoutMs 12000").Count -ne 2 -or
     $source.IndexOf('Invoke-AutomaticWeekRecovery -Root $Root -League $League',
         [StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1140 BLOCKED: exact Auto-Pilot read-only/recovery scope drifted.'
