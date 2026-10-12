@@ -156,7 +156,11 @@ try {
                 -HistoryPath $validPath -TradeHostPath $validPath -InnerPort $core.Port
             if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
                 $wire.IndexOf('X-Butler-Failure-Layer: CORE_READ', [StringComparison]::Ordinal) -lt 0 -or
-                $wire.IndexOf('<h1>' + $case.Title + '</h1>', [StringComparison]::Ordinal) -lt 0 -or
+                # The normal styled fallback uses <h1 class="headline">, while
+                # emergency minimal fallback uses <h1>. Both must present
+                # the same route-specific title and safe retry destination.
+                $wire.IndexOf($case.Title, [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf('No Sleeper transaction was submitted', [StringComparison]::Ordinal) -lt 0 -or
                 $wire.IndexOf($case.Retry, [StringComparison]::Ordinal) -lt 0 -or
                 $wire.IndexOf('Cache-Control: no-store', [StringComparison]::Ordinal) -lt 0 -or
                 $wire.IndexOf('Content-Length:', [StringComparison]::Ordinal) -lt 0 -or
