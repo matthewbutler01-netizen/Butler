@@ -1,3 +1,4 @@
+param([switch]$BrokenCss)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -38,12 +39,34 @@ function Add-AutomaticAutoPilotRefresh {
     return @{ Html = $Html; Nonce = '' }
 }
 '@
+if ($BrokenCss) {
+    # BF-1138: a throwing UI renderer must not reset the connection or
+    # reveal the dummy private league marker/exception in an error page.
+    $moduleText = $moduleText.Replace(
+        "return 'body{font-family:Arial,sans-serif}'",
+        "throw 'BF1136_PRIVATE_NO_LEAGUE'")
+}
 [IO.File]::WriteAllText($readOnlyModules, $moduleText, [Text.Encoding]::ASCII)
 
 try {
     $wire = Invoke-Bf1127FirstOpenGet -Target '/autopilot' `
         -HistoryPath $readOnlyModules -TradeHostPath $missingTrade
 
+    if ($BrokenCss) {
+        if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
+            $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('<h1>Auto-Pilot unavailable</h1>', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('href="/"', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('No Sleeper transaction was submitted by this page.', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('Cache-Control: no-store', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('Content-Length:', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or
+            $wire.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $wire.Length -gt 16000) {
+            throw 'BF-1138 BLOCKED: Auto-Pilot CSS failure did not return one safe HTTP 500.'
+        }
+    }
+    else {
     if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
         $wire.IndexOf('CURRENT WEEKLY WATCH', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('Auto-Pilot', [StringComparison]::Ordinal) -lt 0 -or
@@ -62,8 +85,14 @@ try {
         $wire.IndexOf('NO ACTION REQUIRED', [StringComparison]::Ordinal) -ge 0) {
         throw 'BF-1136 BLOCKED: Auto-Pilot rendered actionable approval without source evidence.'
     }
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
 }
-Write-Host 'BF-1136 PASS: Auto-Pilot loads without Trade/Detail, and core outage stays non-actionable.'
+if ($BrokenCss) {
+    Write-Host 'BF-1138 PASS: broken Auto-Pilot renderer returns safe HTTP 500 and no private error.'
+}
+else {
+    Write-Host 'BF-1136 PASS: Auto-Pilot loads without Trade/Detail, and core outage stays non-actionable.'
+}
