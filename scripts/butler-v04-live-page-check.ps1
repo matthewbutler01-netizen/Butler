@@ -693,6 +693,13 @@ function Test-ButlerLivePage {
         }
     }
     if ($Route -ceq '/autopilot') {
+        # BF-1145: distinguish a proven bounded local read-contention hold
+        # from an unknown weekly watch. The same exact source proof must
+        # accompany the warning badge; floating text or duplicate attributes
+        # cannot promote a misleading diagnostic. Neither category is ready.
+        $busyReasonMarkers = [regex]::Matches($body, 'data-butler-lineup-reason=')
+        $busySourceProofs = [regex]::Matches($body,
+            '<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="held" data-butler-lineup-reason="local-data-busy">')
         # BF-1084: a random "CURRENT SNAPSHOT" string elsewhere in the HTML
         # is not evidence that the actual Auto-Pilot watch badge is green.
         # Require the exact one rendered watch-header badge from Butler,
@@ -702,6 +709,17 @@ function Test-ButlerLivePage {
         if ($watchHeads.Count -ne 1 -or
             $watchHeads[0].Groups['tone'].Value -cne 'good' -or
             $watchHeads[0].Groups['label'].Value -cne 'CURRENT SNAPSHOT') {
+            $result.Status = 'WARN'
+            $result.Evidence = if ($watchHeads.Count -eq 1 -and
+                $watchHeads[0].Groups['tone'].Value -ceq 'warn' -and
+                $watchHeads[0].Groups['label'].Value -ceq 'LOCAL DATA BUSY' -and
+                $busyReasonMarkers.Count -eq 1 -and $busySourceProofs.Count -eq 1) {
+                'LOCAL READ BUSY'
+            } else { 'WATCH INCOMPLETE' }
+        }
+        elseif ($busyReasonMarkers.Count -gt 0) {
+            # A green badge alongside any busy-source marker contradicts
+            # the read proof and must never pass the strict readiness gate.
             $result.Status = 'WARN'
             $result.Evidence = 'WATCH INCOMPLETE'
         }

@@ -686,6 +686,39 @@ foreach ($bad in @(
 }
 $page.Body = $goodAutoPilot
 
+# BF-1145: only the exact rendered warning and unique held source proof
+# identify bounded local companion contention in the shareable loopback
+# report. Every case stays WARN and strict -RequireReady still exits 2.
+$bf1145Busy = '<html><body>' +
+    '<div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2></div><span class="status warn">LOCAL DATA BUSY</span></div>' +
+    '<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="held" data-butler-lineup-reason="local-data-busy"><a href="/autopilot">Retry Auto-Pilot</a></div>' +
+    '</body></html>'
+$page.Body = $bf1145Busy
+$page.Csp = "default-src 'none'; frame-ancestors 'none'"
+$bf1145Result = Test-ButlerLivePage -Route '/autopilot' -Response $page
+if ($bf1145Result.Status -cne 'WARN' -or $bf1145Result.Evidence -cne 'LOCAL READ BUSY') {
+    throw 'BF-1145 BLOCKED: real bounded-local warning not recognized safely.'
+}
+$bf1145Proof = '<div class="autopilot-source-proof" role="status" aria-label="Start/Sit source evidence" data-butler-lineup-proof="held" data-butler-lineup-reason="local-data-busy">'
+$bf1145Held = '<span class="status warn">LOCAL DATA BUSY</span>'
+foreach ($bad in @(
+    $bf1145Busy.Replace($bf1145Proof, ''),
+    ($bf1145Busy + $bf1145Proof),
+    $bf1145Busy.Replace($bf1145Held, '<span class="status warn">WATCH DATA UNAVAILABLE</span><p>LOCAL DATA BUSY</p>'),
+    $bf1145Busy.Replace($bf1145Held, '<span class="status good">CURRENT SNAPSHOT</span>'),
+    $bf1145Busy.Replace($bf1145Proof, '<p data-butler-lineup-reason="local-data-busy"></p>'),
+    $bf1145Busy.Replace('class="autopilot-watch-head"', 'class="untrusted-footer"')
+)) {
+    $page.Body = $bad
+    $bf1145Rejected = Test-ButlerLivePage -Route '/autopilot' -Response $page
+    if ($bf1145Rejected.Status -cne 'WARN' -or
+        $bf1145Rejected.Evidence -cne 'WATCH INCOMPLETE') {
+        throw 'BF-1145 BLOCKED: spoofed, contradictory or ambiguous local-busy claim was trusted.'
+    }
+}
+$page.Body = $goodAutoPilot
+$page.Csp = "default-src 'none'; frame-ancestors 'none'; script-src 'nonce-" + ('a' * 64) + "'; connect-src 'self'"
+
 # BF-1093: positive strict readiness must have a real, unique and
 # consistent prepared-review status, not just a green watch title.
 $preparedCard = '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div>'
