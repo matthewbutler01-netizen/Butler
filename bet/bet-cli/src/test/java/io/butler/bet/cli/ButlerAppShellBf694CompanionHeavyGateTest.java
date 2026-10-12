@@ -28,7 +28,11 @@ class ButlerAppShellBf694CompanionHeavyGateTest {
         assertTrue(cacheCheck >= 0 && companionCreate > cacheCheck && coreRead > companionCreate);
         assertTrue(block.contains("[System.Threading.Semaphore]::new("));
         assertEquals(2, occurrences(block, "\n            2,"));
-        assertTrue(block.contains("$companionSemaphore.WaitOne(180000)"));
+        // BF-1141: retain the historical three-minute default for normal manager
+        // routes, but allow Auto-Pilot's read-only companion to use a bounded wait.
+        assertTrue(block.contains("[ValidateRange(1000, 180000)][int]$WaitTimeoutMs = 180000"));
+        assertTrue(block.contains("$lockTaken = $mutex.WaitOne($WaitTimeoutMs)"));
+        assertTrue(block.contains("$companionSemaphore.WaitOne($WaitTimeoutMs)"));
         assertTrue(block.contains("BF-694 BLOCKED: finite wait for companion heavy read capacity expired."));
         String companionBlock = block.substring(companionCreate);
         assertFalse(companionBlock.contains("catch [System.Threading.AbandonedMutexException]"));
