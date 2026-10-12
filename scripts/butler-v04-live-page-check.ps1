@@ -825,15 +825,46 @@ function Test-ButlerLivePage {
 
 $ports = if ($Port -gt 0) { @($Port) } else { @(18080, 8080) }
 $live = New-Object System.Collections.Generic.List[int]
+$olderButlerWorkers = 0
+$unrecognizedServices = 0
 foreach ($candidate in $ports) {
     try {
         $health = Invoke-ButlerLocalGet -SelectedPort $candidate -Route '/health' -Seconds 5
-        if (Test-ButlerLocalHealth -Response $health) { $live.Add($candidate) }
+        if (Test-ButlerLocalHealth -Response $health) {
+            $live.Add($candidate)
+        }
+        else {
+            # BF-1149: health is the only read used before choosing a runtime.
+            # Distinguish an old Butler process from another service without
+            # displaying host payloads, ids, exception messages or JSON.
+            $identity = $null
+            try {
+                $identity = ConvertFrom-Json -InputObject ([string]$health.Body)
+            }
+            catch { }
+            if ($null -ne $identity -and $identity.status -ceq 'ok' -and
+                $identity.service -ceq 'butler-app-shell' -and
+                $identity.bind -ceq '127.0.0.1') {
+                $olderButlerWorkers++
+            }
+            else { $unrecognizedServices++ }
+        }
     }
-    catch { }
+    catch {
+        # No active HTTP health response: this port cannot be certified.
+    }
 }
-if ($live.Count -ne 1) {
-    throw 'BF-1146 BLOCKED: expected exactly one current v0.4 manager worker on 18080/8080. A frozen release or earlier v0.4 draft lacks the checked bounded local-read capability. Use the updated draft v0.4 runtime or specify its exact -Port; this diagnostic does not restart any process. No outside host was contacted.'
+if ($live.Count -gt 1) {
+    throw 'BF-1146 BLOCKED: MULTIPLE CURRENT WORKERS. More than one checked v0.4 runtime answered locally. Choose its exact -Port; no process was stopped, restarted, or changed.'
+}
+if ($live.Count -eq 0) {
+    if ($olderButlerWorkers -gt 0) {
+        throw 'BF-1146 BLOCKED: OLDER BUTLER WORKER. A prior v0.4 draft or frozen Butler instance is running, but it lacks the current bounded local-read contract. Launch the updated v0.4 draft separately; this diagnostic never replaces or stops another release.'
+    }
+    if ($unrecognizedServices -gt 0) {
+        throw 'BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE. A listening port is not the current Butler manager. Check the port and launch the updated v0.4 draft separately. No outside host was contacted.'
+    }
+    throw 'BF-1146 BLOCKED: NO CURRENT WORKER. No checked v0.4 manager answered on the selected local port(s). Start the updated draft and rerun this read-only check; nothing was launched or stopped.'
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)

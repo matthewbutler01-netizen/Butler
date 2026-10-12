@@ -55,7 +55,7 @@ async function scenario(name, mutations, expect) {
     if (req.url === '/health') {
       res.writeHead(200, {'Content-Type':'application/json; charset=utf-8'});
       res.end(JSON.stringify({
-        status:'ok',service:'butler-app-shell',
+        status:'ok',service: mutations.service || 'butler-app-shell',
         featureSet: mutations.feature || feature,
         ...(mutations.omitReadiness ? {} : {readinessContract: mutations.readiness || readiness}),
         ...(mutations.omitLiveCheck ? {} : {liveCheckContract: mutations.liveCheck || liveCheck}),
@@ -137,26 +137,32 @@ async function scenario(name, mutations, expect) {
   // BF-1110: do not run the current readiness diagnostic against an
   // older, cached v0.4 request-worker that only passed BF-1098 health.
   await scenario('stale-v04-runtime', {omitLiveCheck:true}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('wrong-v04-runtime', {liveCheck:'previous-worker'}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   // BF-1134: a previous BF-1110 worker could still reset connections on
   // first-open manager-module errors. Do not test its pages as current.
   await scenario('pre-recovery-v04-runtime', {omitRecovery:true}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('spoofed-recovery-v04-runtime', {workerRecovery:'unrelated-worker'}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   // BF-1146: a pre-bounded v0.4 draft must fail before manager GETs
   // and cannot claim current local-read recovery just by being healthy.
   await scenario('pre-bounded-v04-runtime', {omitLocalRead:true}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('spoofed-bounded-v04-runtime', {localRead:'unrelated-worker'}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
+  });
+  // BF-1149: a random service must not be mislabeled as an old Butler
+  // or let the diagnostic probe manager routes. Only a proven old Butler
+  // service is categorized as an older runtime.
+  await scenario('unrelated-health-service', {service:'unrelated-local-service'}, {
+    code:1, output:/BF-1146 BLOCKED: UNRECOGNIZED LOCAL SERVICE/, allRoutes:false
   });
   // BF-1109: a genuinely rendered League Hub without provider-backed
   // franchise rankings is not certified ready. It is a WARN in default
@@ -542,13 +548,13 @@ async function scenario(name, mutations, expect) {
   // BF-1098: a healthy-looking older v0.4 instance is not the
   // current sourced-onopen development build. Refuse even with HTTP 200.
   await scenario('old-v04-readiness-rejected', {omitReadiness:true}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('wrong-v04-readiness-rejected', {readiness:'unverified-old-v04'}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('old-build-rejected', {feature:'old-v03'}, {
-    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED: OLDER BUTLER WORKER/, allRoutes:false
   });
   await scenario('incorrect-security', {csp:"default-src 'self'"}, {
     code:1, output:/\/team\s+FAIL\s+evidence=HTTP SAFETY/, allRoutes:true
