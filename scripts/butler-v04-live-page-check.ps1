@@ -470,6 +470,39 @@ function Test-ButlerLocalHealth {
 # Inspect the uniquely rendered local audit fields already displayed in
 # the real Waiver Board's technical details. This is *local* evidence only,
 # not an independent real-time Sleeper availability/injury certification.
+# Scoped first-open audit: prove both pages describe one exact local target.
+# Never output the raw Sleeper IDs; local proof != fresh source proof.
+function Test-ButlerMilestoneTargetProof {
+    param([string]$Html, [string]$Route)
+    $rawLabel = if ($Route -ceq '/team') {
+        'BF-610 raw Sleeper league / roster:'
+    } else { 'Raw Sleeper league / roster:' }
+    $labels = @('BF-623 target gate:', 'BF-623 role:', $rawLabel)
+    if ($Route -ceq '/team') { $labels += 'BF-610 context state:' }
+    foreach ($label in $labels) {
+        $count = [regex]::Matches($Html, '<div>' + [regex]::Escape($label) + '\s*[^<]*</div>').Count
+        if ($count -gt 1) {
+            return @{ Status='FAIL'; Evidence='TARGET PROOF DUPLICATE'; Identity='' }
+        }
+        if ($count -ne 1) {
+            return @{ Status='WARN'; Evidence='TARGET PROOF MISSING'; Identity='' }
+        }
+    }
+    $gate = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-623 target gate:'
+    $role = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-623 role:'
+    $context = if ($Route -ceq '/team') {
+        Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-610 context state:'
+    } else { 'READY_CONTEXT_ONLY' }
+    $ids = [regex]::Match([string](Get-DecisionRefreshTechnicalField -Html $Html -Label $rawLabel),
+        '^(?<league>[1-9][0-9]*)\s*/\s*(?<roster>[1-9][0-9]*)$')
+    if ($gate -cne 'BOUND_TARGET_LIVE_VERIFIED' -or $role -cne 'OWNER' -or
+        $context -cne 'READY_CONTEXT_ONLY' -or -not $ids.Success) {
+        return @{ Status='WARN'; Evidence='TARGET NOT VERIFIED'; Identity='' }
+    }
+    return @{ Status='PASS'; Evidence='LOCAL TARGET VERIFIED';
+        Identity=($ids.Groups['league'].Value + '/' + $ids.Groups['roster'].Value) }
+}
+
 function Test-ButlerMilestoneWaiverAudit {
     param([AllowNull()][string]$Html)
 
@@ -940,6 +973,7 @@ $dashboardCheck = $null
 $autoPilotResponse = $null
 $autoPilotCheck = $null
 $checkedRoutes = @{}
+$scopedTargets = New-Object System.Collections.ArrayList
 $routes = if ($RosterWaiverOnly) {
     # Open both once, then revisit both: the repeated GETs exercise
     # warmed route caches without modifying server evidence.
@@ -957,6 +991,7 @@ if ($RosterWaiverOnly) {
 foreach ($route in $routes) {
     $routeTimer = [Diagnostics.Stopwatch]::StartNew()
     $routeResponseObtained = $false
+    $verifiedIdentity = ''
     try {
         $response = Invoke-ButlerLocalGet -SelectedPort $selectedPort -Route $route -Seconds $TimeoutSeconds
         $routeResponseObtained = $true
@@ -965,10 +1000,18 @@ foreach ($route in $routes) {
         if ($route -ceq '/matchup') { $matchupResponse = $response }
         if ($route -ceq '/matchup/autofill') { $startSitResponse = $response }
         $check = Test-ButlerLivePage -Route $route -Response $response -RequireStartSitProvenance:$RequireReady
-        if ($RosterWaiverOnly -and $route -ceq '/waivers' -and $check.Status -ceq 'PASS') {
-            $waiverAudit = Test-ButlerMilestoneWaiverAudit -Html ([string]$response.Body)
-            $check.Status = $waiverAudit.Status
-            $check.Evidence = $waiverAudit.Evidence
+        if ($RosterWaiverOnly -and $check.Status -ceq 'PASS') {
+            if ($route -ceq '/waivers') {
+                $waiverAudit = Test-ButlerMilestoneWaiverAudit -Html ([string]$response.Body)
+                $check.Status = $waiverAudit.Status
+                $check.Evidence = $waiverAudit.Evidence
+            }
+            if ($check.Status -ceq 'PASS') {
+                $proof = Test-ButlerMilestoneTargetProof -Html ([string]$response.Body) -Route $route
+                $check.Status = $proof.Status
+                $check.Evidence = $proof.Evidence
+                if ($check.Status -ceq 'PASS') { $verifiedIdentity = $proof.Identity }
+            }
         }
         if ($route -ceq '/') { $dashboardCheck = $check }
         if ($route -ceq '/autopilot') { $autoPilotCheck = $check }
@@ -991,6 +1034,7 @@ foreach ($route in $routes) {
     }
     if ($check.Status -ceq 'FAIL') { $failed++ }
     if ($check.Status -ceq 'WARN') { $warned++ }
+    if ($RosterWaiverOnly) { [void]$scopedTargets.Add($verifiedIdentity) }
     $routeTimer.Stop()
     $phaseLabel = if ($RosterWaiverOnly) {
         if ($checkedRoutes.ContainsKey($route)) { 'REOPEN' } else { 'FIRST OPEN' }
@@ -1000,6 +1044,15 @@ foreach ($route in $routes) {
     if ($RosterWaiverOnly) { Write-Host ('  visit=' + $phaseLabel) }
 }
 if ($RosterWaiverOnly) {
+    if ($failed -eq 0 -and $warned -eq 0) {
+        $distinct = @($scopedTargets | Select-Object -Unique)
+        if ($scopedTargets.Count -ne 4 -or $distinct.Count -ne 1 -or
+            [string]::IsNullOrWhiteSpace([string]$distinct[0])) {
+            $failed++
+            Write-Host 'Cross-route target  FAIL  evidence=TARGET IDENTITY CONFLICT'
+        }
+        else { Write-Host 'Cross-route target  PASS  evidence=LOCAL IDENTITY MATCH' }
+    }
     $localCheckStarted.Stop()
     Write-Host ('MILESTONE 1 RESULT: {0} page failure(s), {1} page warning(s); 4 GETs + health in {2} ms.' -f
         $failed, $warned, [int][Math]::Round($localCheckStarted.Elapsed.TotalMilliseconds))
@@ -1011,7 +1064,7 @@ if ($RosterWaiverOnly) {
         Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: HELD. Missing, stale or conflicting roster/waiver evidence; no current-source claim.'
         exit 2
     }
-    Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: PASS (page contracts and local audit only).'
+    Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: PASS (page contracts, local audit and target identity only).'
     Write-Host 'Live roster, injury freshness, browser automatic updates and Sleeper data remain UNVERIFIED.'
     exit 0
 }
