@@ -107,6 +107,60 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
 
+      # Milestone 1: deliver exactly the same tested, GET-only readiness
+      # scripts as a portable zip. The user can unzip and double-click one
+      # CMD instead of checking out a branch or typing PowerShell.
+      # This does NOT install/start/stop/update a Butler app release.
+      - name: Package tested one-click My Team and Waivers checker
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'butler-v04-roster-waiver-check'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          $allowlist = @(
+            'butler-v04-roster-waiver-first-open.cmd',
+            'butler-v04-live-page-check.cmd',
+            'butler-v04-live-page-check.ps1',
+            'butler-decision-refresh.ps1'
+          )
+          foreach ($name in $allowlist) {
+            $src = Join-Path '.\scripts' $name
+            if (-not (Test-Path -LiteralPath $src -PathType Leaf)) {
+              throw 'M1 BLOCKED: a required read-only diagnostic source is missing.'
+            }
+            Copy-Item -LiteralPath $src -Destination (Join-Path $target $name)
+          }
+          $readme = @(
+            'BUTLER v0.4 - MILESTONE 1: ONE-CLICK READ-ONLY CHECK',
+            '',
+            'PREREQUISITE: an updated Butler v0.4 development app must already',
+            'be running locally. This zip does NOT install, replace, launch',
+            'or stop Butler v0.3 or v0.4.',
+            '',
+            '1. Extract this zip to a normal folder on your Windows computer.',
+            '2. Double-click butler-v04-roster-waiver-first-open.cmd.',
+            '3. Review the report that opens in Notepad.',
+            '4. Share only the report if you want help diagnosing failures.',
+            '',
+            'The check sends loopback GETs only. Its requests can trigger',
+            'Butler existing governed local evidence recovery. No diagnostic',
+            'POST, Sleeper add/drop, lineup submission, merge or deployment.',
+            'PASS verifies local page contracts, audit and target consistency,',
+            'not actual Sleeper freshness, browser script execution or injuries.',
+            'An OLDER WORKER or UNRECOGNIZED SERVICE result means the local',
+            'running application must be updated separately before acceptance.'
+          ) -join [Environment]::NewLine
+          [IO.File]::WriteAllText((Join-Path $target 'README.txt'), $readme, [Text.Encoding]::ASCII)
+          Write-Host 'MILESTONE 1 PORTABLE DIAGNOSTIC: 4 scripts and README, no app/user data.'
+
+      - name: Upload tested one-click My Team and Waivers checker
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: butler-v04-roster-waiver-one-click
+          path: ${{ runner.temp }}/butler-v04-roster-waiver-check/
+          if-no-files-found: error
+          retention-days: 14
+
   powershell-51:
     runs-on: windows-latest
     steps:
