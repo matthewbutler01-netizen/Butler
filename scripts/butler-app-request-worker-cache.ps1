@@ -121,12 +121,17 @@ if ($null -eq $worker) {
     # let an unrelated Trade/Detail module failure block valid lineup reads.
     # Keep this exact-path allowlist: /trade, /players, /history, refresh
     # confirmation and all parameterized/unknown paths retain full loading.
+    # BF-1136 includes only the exact /autopilot GET in that core scope.
     $bf767CoreRead = $requestTarget -ceq '/' -or
         $requestTarget -ceq '/team' -or
         $requestTarget -ceq '/waivers' -or
         $requestTarget -ceq '/league' -or
         $requestTarget -ceq '/matchup' -or
-        $requestTarget -ceq '/matchup/autofill'
+        $requestTarget -ceq '/matchup/autofill' -or
+        # BF-1136: Auto-Pilot renders its own read-only watch from the
+        # public worker and these same shared History/Refresh helpers.
+        # Trade Host/Lab and Player Detail are not its prerequisites.
+        $requestTarget -ceq '/autopilot'
 
     $bf766ModuleSpecs = if ($bf767CoreRead) {
         @(
