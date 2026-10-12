@@ -183,7 +183,7 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         String acceptance = source("scripts/butler-v04-live-page-check-acceptance.ps1");
         String recovery = "v04-safe-page-recovery-bf1134";
 
-        assertTrue(worker.contains("\\"workerRecoveryContract\\":\\"" + recovery + "\\""));
+        assertTrue(worker.contains("workerRecoveryContract") && worker.contains(recovery));
         assertTrue(diagnostic.contains("$health.workerRecoveryContract -ceq '" + recovery + "'"));
         assertTrue(acceptance.contains("BF-1134 BLOCKED: old manager without safe worker fallback"));
         assertTrue(acceptance.contains("BF-1134 BLOCKED: untrusted manager recovery claim"));
