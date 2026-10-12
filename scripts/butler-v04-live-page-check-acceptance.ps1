@@ -79,7 +79,15 @@ foreach ($probe in @(
     @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::ReceiveFailure); Expected = 'RECEIVE FAILED' },
     @{ Failure = [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::ProtocolError); Expected = 'HTTP ERROR' },
     @{ Failure = [System.Exception]::new($bf1107Private); Expected = 'GET ERROR' },
-    @{ Failure = [System.Exception]::new('wrapper', [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::Timeout)); Expected = 'GET TIMEOUT' }
+    @{ Failure = [System.Exception]::new('wrapper', [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::Timeout)); Expected = 'GET TIMEOUT' },
+    # BF-1148: real .NET stream/socket failures must not collapse to GET
+    # ERROR or echo any private exception message into the shared report.
+    @{ Failure = [System.IO.IOException]::new($bf1107Private); Expected = 'RECEIVE FAILED' },
+    @{ Failure = [System.ObjectDisposedException]::new($bf1107Private); Expected = 'CONNECTION CLOSED' },
+    @{ Failure = [System.IO.IOException]::new($bf1107Private, [System.Net.Sockets.SocketException]::new(10054)); Expected = 'CONNECTION RESET' },
+    @{ Failure = [System.Exception]::new('wrapper', [System.Net.Sockets.SocketException]::new(10060)); Expected = 'GET TIMEOUT' },
+    @{ Failure = [System.Exception]::new('wrapper', [System.Net.Sockets.SocketException]::new(10061)); Expected = 'CONNECT FAILED' },
+    @{ Failure = [System.IO.IOException]::new($bf1107Private, [System.Net.WebException]::new($bf1107Private, [System.Net.WebExceptionStatus]::Timeout)); Expected = 'GET TIMEOUT' }
 )) {
     $actual = Get-ButlerLocalGetFailureCategory -Failure $probe.Failure
     if ($actual -cne $probe.Expected -or $actual.Contains($bf1107Private)) {

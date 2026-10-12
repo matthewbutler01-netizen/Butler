@@ -56,12 +56,38 @@ function Get-ButlerLocalGetFailureCategory {
     $exception = if ($Failure -is [System.Management.Automation.ErrorRecord]) {
         $Failure.Exception
     } else { $Failure }
+    # BF-1148: HttpWebRequest.ReadToEnd may surface an IOException,
+    # ObjectDisposedException, or an inner SocketException rather than a
+    # WebException. Those formerly became the unhelpful GET ERROR seen on
+    # a slow/closed local manager page. Classify *types and status codes*
+    # only; never report message text, host, path, player, league or data.
+    $ioObserved = $false
+    $disposedObserved = $false
     while ($null -ne $exception -and
            $exception -isnot [System.Net.WebException]) {
+        if ($exception -is [System.Net.Sockets.SocketException]) {
+            switch ([string]$exception.SocketErrorCode) {
+                'TimedOut' { return 'GET TIMEOUT' }
+                'ConnectionRefused' { return 'CONNECT FAILED' }
+                'NetworkUnreachable' { return 'CONNECT FAILED' }
+                'HostUnreachable' { return 'CONNECT FAILED' }
+                'HostNotFound' { return 'CONNECT FAILED' }
+                'ConnectionReset' { return 'CONNECTION RESET' }
+                'ConnectionAborted' { return 'CONNECTION CLOSED' }
+                'NotConnected' { return 'CONNECTION CLOSED' }
+                default { return 'GET NETWORK' }
+            }
+        }
+        if ($exception -is [System.IO.IOException]) { $ioObserved = $true }
+        if ($exception -is [System.ObjectDisposedException]) { $disposedObserved = $true }
         if ($exception -isnot [System.Exception]) { return 'GET ERROR' }
         $exception = $exception.InnerException
     }
-    if ($null -eq $exception) { return 'GET ERROR' }
+    if ($null -eq $exception) {
+        if ($disposedObserved) { return 'CONNECTION CLOSED' }
+        if ($ioObserved) { return 'RECEIVE FAILED' }
+        return 'GET ERROR'
+    }
     if ($exception.Status -eq [System.Net.WebExceptionStatus]::ProtocolError) {
         $http = $exception.Response -as [System.Net.HttpWebResponse]
         try {
