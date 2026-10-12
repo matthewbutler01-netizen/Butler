@@ -55,7 +55,7 @@ class ButlerAppCoreRouteUiModuleScopeBf767Test {
             assertTrue(actual.add(routes.group(1)), "BF-1123 duplicate exact route");
         }
         assertEquals(Set.of("/", "/team", "/waivers", "/league",
-                "/matchup", "/matchup/autofill"), actual);
+                "/matchup", "/matchup/autofill", "/autopilot"), actual);
         assertFalse(allowlist.contains("$path -eq"), "never classify prefix/query matches as exact reads");
         assertFalse(allowlist.contains("-like"), "no wildcard routes may skip required UI modules");
 
@@ -75,6 +75,28 @@ class ButlerAppCoreRouteUiModuleScopeBf767Test {
         assertTrue(worker.contains("Test-AutomaticStartSitRefreshCandidate"));
         assertFalse(wrapper.contains("submitTransaction"));
         assertFalse(wrapper.contains("create_transaction"));
+    }
+
+    @Test
+    void autopilotFirstOpenDoesNotRequireTradeOrDetailModules() throws Exception {
+        // BF-1136: the /autopilot watch is a read-only public manager route
+        // whose page HTML and decision-policy helpers live in the worker.
+        // The remaining shared UI helpers use only History/DecisionRefresh.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String scope = between(wrapper, "$bf767CoreRead = ",
+            "$bf766ModuleSpecs = if ($bf767CoreRead)");
+        assertTrue(scope.contains("$requestTarget -ceq '/autopilot'"));
+        assertFalse(scope.contains("$path -eq '/autopilot'"));
+        assertFalse(scope.contains("-like '/autopilot*'"));
+        assertTrue(worker.contains("if ($path -eq '/autopilot')"));
+        assertTrue(worker.contains("Get-V04AutoPilotWatchState -DashboardHtml"));
+        assertTrue(worker.contains("Get-V04AutoPilotHtml -WatchState"));
+        assertTrue(worker.contains("Get-V04AutoPilotApprovalQueue -WatchState"));
+        assertTrue(worker.contains("Get-AppCss"));
+        assertTrue(wrapper.contains("Name = 'History'"));
+        assertTrue(wrapper.contains("Name = 'DecisionRefresh'"));
+        assertFalse(wrapper.contains("submitTransaction"));
     }
 
     @Test
