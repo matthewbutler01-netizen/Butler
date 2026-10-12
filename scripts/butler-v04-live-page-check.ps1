@@ -465,6 +465,52 @@ function Test-ButlerLocalHealth {
     catch { return $false }
 }
 
+# Milestone 1: a usable-looking Waiver Board must not pass the scoped
+# first-open gate solely from a pretty title and authorized review pool.
+# Inspect the uniquely rendered local audit fields already displayed in
+# the real Waiver Board's technical details. This is *local* evidence only,
+# not an independent real-time Sleeper availability/injury certification.
+function Test-ButlerMilestoneWaiverAudit {
+    param([AllowNull()][string]$Html)
+
+    $fields = @('Current decision state:', 'BF-629 current gate:', 'BF-631 current gate:')
+    foreach ($field in $fields) {
+        $hits = [regex]::Matches([string]$Html, '<div>' + [regex]::Escape($field) + '\s*[^<]*</div>')
+        if ($hits.Count -gt 1) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER AUDIT DUPLICATE' }
+        }
+        if ($hits.Count -ne 1) {
+            return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WAIVER AUDIT MISSING' }
+        }
+    }
+    $state = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Current decision state:'
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-629 current gate:'
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-631 current gate:'
+    $adds = [regex]::Matches($Html, '<article class="waiver-action-card add">').Count
+    $drops = [regex]::Matches($Html, '<article class="waiver-action-card drop">').Count
+
+    if ($state -ceq 'CURRENT_AND_ACTIONABLE' -and
+        $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        if ($adds -ne 1 -or $drops -ne 1) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER PAIR PROOF' }
+        }
+        return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LOCAL WAIVER AUDIT' }
+    }
+    if ($state -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+        $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        if ($adds -ne 0 -or $drops -ne 0) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER PAIR PROOF' }
+        }
+        return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LOCAL NO MOVE' }
+    }
+    # Pending, completed, stale, incomplete, contradictory and unrecognized
+    # local states are HELD rather than automatically approved. Do not
+    # reflect IDs, raw HTML or server-supplied error messages into reports.
+    return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WAIVER AUDIT HELD' }
+}
+
 function Test-ButlerLivePage {
     param([string]$Route, $Response, [switch]$RequireStartSitProvenance)
     $result = [ordered]@{ Route = $Route; Status = 'PASS'; Evidence = 'PAGE RESPONSE'; AutoCheck = 'N/A' }
@@ -919,6 +965,11 @@ foreach ($route in $routes) {
         if ($route -ceq '/matchup') { $matchupResponse = $response }
         if ($route -ceq '/matchup/autofill') { $startSitResponse = $response }
         $check = Test-ButlerLivePage -Route $route -Response $response -RequireStartSitProvenance:$RequireReady
+        if ($RosterWaiverOnly -and $route -ceq '/waivers' -and $check.Status -ceq 'PASS') {
+            $waiverAudit = Test-ButlerMilestoneWaiverAudit -Html ([string]$response.Body)
+            $check.Status = $waiverAudit.Status
+            $check.Evidence = $waiverAudit.Evidence
+        }
         if ($route -ceq '/') { $dashboardCheck = $check }
         if ($route -ceq '/autopilot') { $autoPilotCheck = $check }
         if ($route -ceq '/matchup') { $matchupCheck = $check }
@@ -957,10 +1008,10 @@ if ($RosterWaiverOnly) {
         exit 1
     }
     if ($warned -gt 0) {
-        Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: HELD. Missing or incomplete roster/waiver evidence; no current-source claim.'
+        Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: HELD. Missing, stale or conflicting roster/waiver evidence; no current-source claim.'
         exit 2
     }
-    Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: PASS (page contracts only).'
+    Write-Host 'MILESTONE 1 FIRST-OPEN CHECK: PASS (page contracts and local audit only).'
     Write-Host 'Live roster, injury freshness, browser automatic updates and Sleeper data remain UNVERIFIED.'
     exit 0
 }

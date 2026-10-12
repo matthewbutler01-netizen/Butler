@@ -33,7 +33,10 @@ const good = {
   '/': html('<div class="dashboard-summary-row"><div class="dashboard-summary-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' + audited),
   '/team': html('My Team <section>Roster hub Lineup and depth at a glance ' +
     '<section id="roster-starters"><div class="player-row">synthetic player</div></section></section>'),
-  '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>'),
+  '/waivers': html('Waiver Board <section class="waiver-decision-hero">Butler waiver decision</section>' +
+    '<details><summary>Technical and audit details</summary><div>Current decision state: NO_TRANSACTION_TO_ACT_ON</div>' +
+    '<div>BF-629 current gate: NO_TRANSACTION_TO_REVALIDATE</div>' +
+    '<div>BF-631 current gate: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></details>'),
   '/matchup': html('Matchup <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="hero-panel">Weekly matchup <h1>Team A vs Team B</h1></section>'),
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section class="panel"><div class="eyebrow">League hub</div>' +
@@ -145,7 +148,7 @@ async function scenario(name, mutations, expect) {
   // no accidental probes of Auto-Pilot, Matchup or any provider endpoint.
   await scenario('milestone1-first-and-repeat-healthy',
     {rosterWaiverOnly:true, strict:true}, {
-      code:0, output:/MILESTONE 1 FIRST-OPEN CHECK: PASS \(page contracts only\)/, allRoutes:true
+      code:0, output:/MILESTONE 1 FIRST-OPEN CHECK: PASS \(page contracts and local audit only\)/, allRoutes:true
     });
   await scenario('milestone1-team-core-unavailable',
     {rosterWaiverOnly:true, httpStatus:{'/team':500},
@@ -155,6 +158,30 @@ async function scenario(name, mutations, expect) {
   await scenario('milestone1-roster-not-shown',
     {rosterWaiverOnly:true, routes:{'/team': good['/team'].replace('<div class="player-row">synthetic player</div>', '')}}, {
       code:2, output:/MILESTONE 1 FIRST-OPEN CHECK: HELD/, allRoutes:true
+    });
+  await scenario('milestone1-stale-waiver-held',
+    {rosterWaiverOnly:true, routes:{'/waivers': good['/waivers'].replace(
+      'Current decision state: NO_TRANSACTION_TO_ACT_ON',
+      'Current decision state: STALE_DO_NOT_ACT')}}, {
+      code:2, output:/\/waivers\s+WARN\s+evidence=WAIVER AUDIT HELD/, allRoutes:true
+    });
+  await scenario('milestone1-missing-waiver-audit-held',
+    {rosterWaiverOnly:true, routes:{'/waivers': good['/waivers'].replace(
+      'BF-631 current gate: LATEST_EVIDENCE_LINEAGE_VERIFIED', '')}}, {
+      code:2, output:/\/waivers\s+WARN\s+evidence=WAIVER AUDIT MISSING/, allRoutes:true
+    });
+  await scenario('milestone1-duplicated-waiver-proof-rejected',
+    {rosterWaiverOnly:true, routes:{'/waivers': good['/waivers'].replace(
+      '<div>BF-629 current gate: NO_TRANSACTION_TO_REVALIDATE</div>',
+      '<div>BF-629 current gate: NO_TRANSACTION_TO_REVALIDATE</div>' +
+      '<div>BF-629 current gate: NO_TRANSACTION_TO_REVALIDATE</div>')}}, {
+      code:1, output:/\/waivers\s+FAIL\s+evidence=WAIVER AUDIT DUPLICATE/, allRoutes:true
+    });
+  await scenario('milestone1-contradictory-no-move-pair-rejected',
+    {rosterWaiverOnly:true, routes:{'/waivers': good['/waivers'].replace(
+      '</details>', '</details><article class="waiver-action-card add"></article>' +
+      '<article class="waiver-action-card drop"></article>')}}, {
+      code:1, output:/\/waivers\s+FAIL\s+evidence=WAIVER PAIR PROOF/, allRoutes:true
     });
   await scenario('milestone1-incompatible-worker',
     {rosterWaiverOnly:true, omitLocalRead:true}, {
