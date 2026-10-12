@@ -82,6 +82,7 @@ function Assert-Bf1128HealthAvailable {
         # BF-1135: verify the actual compiled worker, not just source text,
         # exposes the new public runtime capability required by readiness.
         $wire.IndexOf('"workerRecoveryContract":"v04-safe-page-recovery-bf1134"', [StringComparison]::Ordinal) -lt 0 -or
+        $wire.IndexOf('"localReadContract":"v04-bounded-local-read-bf1146"', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('"liveCheckContract":"v04-current-page-proof-bf1110"', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
         $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or

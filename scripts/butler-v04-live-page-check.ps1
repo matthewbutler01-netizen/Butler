@@ -428,6 +428,9 @@ function Test-ButlerLocalHealth {
             # reset My Team/Waiver connections on module-load failures.
             # Never certify it as the currently tested manager runtime.
             $health.workerRecoveryContract -ceq 'v04-safe-page-recovery-bf1134' -and
+            # BF-1146: previous draft runtimes share BF-1134 health but lack
+            # the bounded Auto-Pilot companion and local-read diagnostics.
+            $health.localReadContract -ceq 'v04-bounded-local-read-bf1146' -and
             $health.bind -ceq '127.0.0.1'
     }
     catch { return $false }
@@ -804,7 +807,7 @@ foreach ($candidate in $ports) {
     catch { }
 }
 if ($live.Count -ne 1) {
-    throw 'BF-1134 BLOCKED: expected exactly one current v0.4 manager worker on 18080/8080. A frozen release or already-running pre-BF1134 draft lacks the checked safe-page recovery contract. Use the updated draft v0.4 runtime or specify its exact -Port; this diagnostic does not restart any process. No outside host was contacted.'
+    throw 'BF-1146 BLOCKED: expected exactly one current v0.4 manager worker on 18080/8080. A frozen release or earlier v0.4 draft lacks the checked bounded local-read capability. Use the updated draft v0.4 runtime or specify its exact -Port; this diagnostic does not restart any process. No outside host was contacted.'
 }
 $selectedPort = $live[0]
 Write-Host ('BUTLER v0.4 LOCAL MANAGER PAGE CHECK | 127.0.0.1:' + $selectedPort)

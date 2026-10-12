@@ -454,7 +454,7 @@ Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097
 
 $health = [pscustomobject]@{
     Status = 200; Type = 'application/json; charset=utf-8'
-    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
+    Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","localReadContract":"v04-bounded-local-read-bf1146","bind":"127.0.0.1"}'
 }
 if (-not (Test-ButlerLocalHealth -Response $health)) {
     throw 'BF-1040 BLOCKED: exact Butler loopback health was rejected.'
@@ -496,6 +496,20 @@ if (-not (Test-ButlerLocalHealth -Response $health)) {
 }
 if ($workerSource.IndexOf('"workerRecoveryContract":"v04-safe-page-recovery-bf1134"', [StringComparison]::Ordinal) -lt 0) {
     throw 'BF-1134 BLOCKED: canonical worker does not advertise safe recovery capability.'
+}
+
+# BF-1146: the previously valid BF-1134 worker is not the worker under
+# test. It lacks the bounded Auto-Pilot read contract and busy diagnosis.
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1146 BLOCKED: old worker without bounded local-read capability was certified.'
+}
+$health.Body = '{"status":"ok","service":"butler-app-shell","featureSet":"v04-audited-onopen-freshness-bf1048","readinessContract":"v04-sourced-onopen-bf1098","liveCheckContract":"v04-current-page-proof-bf1110","workerRecoveryContract":"v04-safe-page-recovery-bf1134","localReadContract":"unrelated-local-read","bind":"127.0.0.1"}'
+if (Test-ButlerLocalHealth -Response $health) {
+    throw 'BF-1146 BLOCKED: unrelated worker local-read capability was accepted.'
+}
+if ($workerSource.IndexOf('"localReadContract":"v04-bounded-local-read-bf1146"', [StringComparison]::Ordinal) -lt 0) {
+    throw 'BF-1146 BLOCKED: canonical worker does not advertise the current local-read capability.'
 }
 
 # BF-1098: older v0.4 still advertises the original featureSet,

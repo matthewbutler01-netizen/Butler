@@ -14,6 +14,7 @@ const feature = 'v04-audited-onopen-freshness-bf1048';
 const readiness = 'v04-sourced-onopen-bf1098';
 const liveCheck = 'v04-current-page-proof-bf1110';
 const workerRecovery = 'v04-safe-page-recovery-bf1134';
+const localRead = 'v04-bounded-local-read-bf1146';
 const csp = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'";
 const observed = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const currentProof = '<p class="meta butler-startsit-source-proof" role="status">' +
@@ -59,6 +60,7 @@ async function scenario(name, mutations, expect) {
         ...(mutations.omitReadiness ? {} : {readinessContract: mutations.readiness || readiness}),
         ...(mutations.omitLiveCheck ? {} : {liveCheckContract: mutations.liveCheck || liveCheck}),
         ...(mutations.omitRecovery ? {} : {workerRecoveryContract: mutations.workerRecovery || workerRecovery}),
+        ...(mutations.omitLocalRead ? {} : {localReadContract: mutations.localRead || localRead}),
         bind:'127.0.0.1'
       }));
       return;
@@ -135,7 +137,7 @@ async function scenario(name, mutations, expect) {
   // BF-1110: do not run the current readiness diagnostic against an
   // older, cached v0.4 request-worker that only passed BF-1098 health.
   await scenario('stale-v04-runtime', {omitLiveCheck:true}, {
-    code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   await scenario('wrong-v04-runtime', {liveCheck:'previous-worker'}, {
     code:1, output:/BF-1134 BLOCKED/, allRoutes:false
@@ -147,6 +149,14 @@ async function scenario(name, mutations, expect) {
   });
   await scenario('spoofed-recovery-v04-runtime', {workerRecovery:'unrelated-worker'}, {
     code:1, output:/BF-1134 BLOCKED/, allRoutes:false
+  });
+  // BF-1146: a pre-bounded v0.4 draft must fail before manager GETs
+  // and cannot claim current local-read recovery just by being healthy.
+  await scenario('pre-bounded-v04-runtime', {omitLocalRead:true}, {
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
+  });
+  await scenario('spoofed-bounded-v04-runtime', {localRead:'unrelated-worker'}, {
+    code:1, output:/BF-1146 BLOCKED/, allRoutes:false
   });
   // BF-1109: a genuinely rendered League Hub without provider-backed
   // franchise rankings is not certified ready. It is a WARN in default
