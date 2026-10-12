@@ -185,13 +185,26 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         String diagnostic = source("scripts/butler-v04-live-page-check.ps1");
         String acceptance = source("scripts/butler-v04-live-page-check-acceptance.ps1");
         String recovery = "v04-safe-page-recovery-bf1134";
+        String boundedRead = "v04-bounded-local-read-bf1146";
 
-        assertTrue(worker.contains("workerRecoveryContract") && worker.contains(recovery));
+        // Milestone 1: the real one-click diagnostic must not accept the
+        // earlier BF-1134 shell as the current v0.4 worker. Its old
+        // first-open contract did not include bounded Auto-Pilot reads or
+        // actionable, privacy-safe local contention categories.
+        assertTrue(worker.contains("\"workerRecoveryContract\":\"" + recovery + "\""));
+        assertTrue(worker.contains("\"localReadContract\":\"" + boundedRead + "\""));
         assertTrue(diagnostic.contains("$health.workerRecoveryContract -ceq '" + recovery + "'"));
+        assertTrue(diagnostic.contains("$health.localReadContract -ceq '" + boundedRead + "'"));
         assertTrue(acceptance.contains("BF-1134 BLOCKED: old manager without safe worker fallback"));
         assertTrue(acceptance.contains("BF-1134 BLOCKED: untrusted manager recovery claim"));
         assertTrue(acceptance.contains("BF-1134 BLOCKED: canonical worker does not advertise"));
-        assertTrue(diagnostic.contains("this diagnostic does not restart any process"));
+        assertTrue(acceptance.contains("BF-1146 BLOCKED: old worker without bounded local-read capability"));
+        assertTrue(acceptance.contains("BF-1146 BLOCKED: unrelated worker local-read capability"));
+        // BF-1149 made this wording more specific for stale/unknown ports.
+        // Preserve the behavioral no-restart guard instead of an outdated
+        // exact message from the old generic health-error exception.
+        assertTrue(diagnostic.contains("this diagnostic never replaces or stops another release"));
+        assertTrue(diagnostic.contains("no process was stopped, restarted, or changed"));
         assertFalse(diagnostic.contains("submitTransaction"));
     }
 
