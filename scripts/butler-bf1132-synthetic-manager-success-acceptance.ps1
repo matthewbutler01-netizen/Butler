@@ -92,7 +92,21 @@ $privateMarker = 'BF1132_PRIVATE_LEAGUE_NEVER_RENDER'
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ('butler-bf1132-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
 $validPath = Join-Path $fixtureRoot 'valid.ps1'
-[IO.File]::WriteAllText($validPath, '$true | Out-Null', [Text.Encoding]::ASCII)
+# BF-1153: the real /waivers worker adds its governed browser refresh
+# helper after a successful core GET. The synthetic module fixture must
+# supply a strictly read-only/no-op equivalent; otherwise its absent helper
+# falsely converts a valid fake core HTTP 200 into PUBLIC_WORKER HTTP 500.
+# The production helper and its own policy/security acceptance are unchanged.
+$validModule = @'
+function Add-AutomaticWaiverRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    if ($RequestTarget -cne '/waivers') {
+        throw 'BF-1153 BLOCKED: synthetic waiver helper called for wrong route.'
+    }
+    return @{ Html = $Html; Nonce = '' }
+}
+'@
+[IO.File]::WriteAllText($validPath, $validModule, [Text.Encoding]::ASCII)
 
 try {
     foreach ($target in @('/team', '/waivers', '/league', '/matchup')) {
