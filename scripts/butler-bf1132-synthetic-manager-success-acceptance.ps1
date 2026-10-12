@@ -35,7 +35,10 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
     public readonly int Port;
     public string RequestedRoute = "";
     public string Failure = "";
-    public ButlerBf1132LocalCoreStub() {
+    private readonly bool closeEarly;
+    public ButlerBf1132LocalCoreStub() : this(false) { }
+    public ButlerBf1132LocalCoreStub(bool closeEarly) {
+        this.closeEarly = closeEarly;
         listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         Port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -60,6 +63,10 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
                 if (firstLine == null || !firstLine.StartsWith("GET /", StringComparison.Ordinal))
                     throw new InvalidOperationException("Not a synthetic GET");
                 RequestedRoute = firstLine.Split(' ')[1];
+                // BF-1151: close a real accepted inner-core socket before
+                // sending HTTP headers. Exercise the outer public worker's
+                // lost-response path, not the already-tested closed port 9.
+                if (closeEarly) return;
                 string body = "<!doctype html><html><head><title>Butler synthetic</title></head>" +
                     "<body><main><h1>Butler synthetic healthy page</h1></main></body></html>";
                 byte[] bytes = Encoding.UTF8.GetBytes(body);
@@ -88,7 +95,7 @@ $validPath = Join-Path $fixtureRoot 'valid.ps1'
 [IO.File]::WriteAllText($validPath, '$true | Out-Null', [Text.Encoding]::ASCII)
 
 try {
-    foreach ($target in @('/team', '/league', '/matchup')) {
+    foreach ($target in @('/team', '/waivers', '/league', '/matchup')) {
         $core = [ButlerBf1132LocalCoreStub]::new()
         try {
             $wire = Invoke-Bf1127FirstOpenGet -Target $target `
@@ -112,8 +119,40 @@ try {
             throw 'BF-1132 BLOCKED: public manager did not read the exact synthetic core route.'
         }
     }
+
+    # BF-1151: both reported failure routes must return a complete,
+    # private-data-free error page if a reachable inner core abruptly
+    # closes after accepting the actual GET. No provider or DB is involved.
+    foreach ($case in @(
+        @{ Target = '/team'; Title = 'My Team unavailable'; Retry = 'Try My Team again' },
+        @{ Target = '/waivers'; Title = 'Waiver Board unavailable'; Retry = 'Try Waiver Board again' }
+    )) {
+        $core = [ButlerBf1132LocalCoreStub]::new($true)
+        try {
+            $wire = Invoke-Bf1127FirstOpenGet -Target $case.Target `
+                -HistoryPath $validPath -TradeHostPath $validPath -InnerPort $core.Port
+            if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
+                $wire.IndexOf('X-Butler-Failure-Layer: CORE_READ', [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf('<h1>' + $case.Title + '</h1>', [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf($case.Retry, [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf('Cache-Control: no-store', [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf('Content-Length:', [StringComparison]::Ordinal) -lt 0 -or
+                $wire.IndexOf($privateMarker, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $wire.IndexOf($fixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $wire.IndexOf('GET ERROR', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $wire.Length -gt 25000) {
+                throw 'BF-1151 BLOCKED: abruptly closed core did not yield one safe route-specific HTTP 500.'
+            }
+        }
+        finally {
+            $core.Dispose()
+        }
+        if ($core.Failure -ne '' -or $core.RequestedRoute -cne $case.Target) {
+            throw 'BF-1151 BLOCKED: abruptly closed core was not actually contacted for its route.'
+        }
+    }
 }
 finally {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
-Write-Host 'BF-1132 PASS: real public worker displays successful synthetic core manager reads.'
+Write-Host 'BF-1132/1151 PASS: real public worker handles successful and abruptly closed Team/Waiver core GETs.'
