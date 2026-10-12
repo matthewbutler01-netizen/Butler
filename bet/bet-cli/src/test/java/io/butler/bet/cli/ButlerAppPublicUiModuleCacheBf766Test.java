@@ -170,6 +170,9 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         assertTrue(worker.contains("$spec.PrimaryHref = '/waivers'"));
         assertTrue(worker.contains("$spec.PrimaryHref = '/matchup/autofill'"));
         assertTrue(worker.contains("$spec.PrimaryHref = '/league'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/autopilot'"));
+        assertTrue(worker.contains("$spec.PrimaryLabel = 'Try Auto-Pilot again'"));
+        assertTrue(worker.contains("'/league', '/autopilot') -cnotcontains $PrimaryHref"));
         assertTrue(worker.contains("PrimaryHref = '/'"));
         assertTrue(worker.contains("@('/', '/team', '/waivers', '/matchup',"));
     }
@@ -215,6 +218,7 @@ class ButlerAppPublicUiModuleCacheBf766Test {
         assertTrue(error > fallback && bypass > error && returnFromFailure > bypass);
         assertTrue(normalResponse > returnFromFailure,
             "BF-1138 the normal HTTP 200 writer must stay outside the error preparation catch");
+        assertTrue(worker.contains("Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/autopilot' -PrimaryLabel 'Try Auto-Pilot again'"));
         assertFalse(worker.substring(fallback, normalResponse).contains("$_.Exception.Message"));
         assertFalse(worker.substring(fallback, normalResponse).contains("submitTransaction"));
     }
