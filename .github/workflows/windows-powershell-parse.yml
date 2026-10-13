@@ -177,6 +177,59 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # BF-M1: pinned to reviewed app commit, never an installer,
+      # force-stop tool or v0.3 production replacement.
+      - name: Package guarded pinned v0.4 update and start
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'butler-v04-safe-update'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          foreach ($name in @('butler-v04-safe-update-and-start.cmd',
+                              'butler-v04-safe-update-and-start.ps1')) {
+            $src = Join-Path '.\scripts' $name
+            if (-not (Test-Path -LiteralPath $src -PathType Leaf)) {
+              throw 'BF-M1 BLOCKED: pinned updater file not found.'
+            }
+            Copy-Item -LiteralPath $src -Destination (Join-Path $target $name)
+          }
+          $readme = @(
+            'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
+            '',
+            'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
+            'This updater is pinned to reviewed commit cf9d3995 and port 18080.',
+            'It will not upgrade, merge or touch the frozen v0.3 release.',
+            '',
+            'IMPORTANT: use Windows Explorer EXTRACT ALL, not Open-in-ZIP.',
+            'Both the CMD and PS1 must remain together in the extracted folder.',
+            '',
+            '1. In the window running old v0.4 Butler, press Ctrl+C normally.',
+            '2. When the app has stopped, double-click',
+            '   butler-v04-safe-update-and-start.cmd in this extracted folder.',
+            '3. The helper checks trusted Git origin, clean worktree and free',
+            '   loopback port BEFORE fetching and switching to the pinned SHA.',
+            '4. Keep the new Butler app console open. Browse 127.0.0.1:18080.',
+            '5. Run the previously supplied read-only Milestone 1 checker.',
+            '',
+            'If PORT OCCUPIED, do NOT kill processes: stop your known app',
+            'normally and retry. If LOCAL CHANGES PRESENT, do not discard them.',
+            'This helper never runs git reset, git clean, force-kill, database',
+            'modification, Sleeper add/drop, a trade or a lineup submission.',
+            '',
+            'A normal app GET may use its existing governed local evidence',
+            'recovery; this launcher does not certify current Sleeper data.',
+            'Even if identity passes, a stale waiver decision remains HELD.'
+          ) -join [Environment]::NewLine
+          [IO.File]::WriteAllText((Join-Path $target 'README.txt'),
+              $readme, [Text.Encoding]::ASCII)
+      - name: Upload guarded pinned v0.4 updater
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: butler-v04-pinned-safe-update
+          path: ${{ runner.temp }}/butler-v04-safe-update/
+          if-no-files-found: error
+          retention-days: 14
+
   powershell-51:
     runs-on: windows-latest
     steps:
