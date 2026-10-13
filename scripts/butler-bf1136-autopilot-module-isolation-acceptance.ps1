@@ -1,4 +1,4 @@
-param([switch]$BrokenCss, [switch]$BusyGate)
+param([switch]$BrokenCss, [switch]$BusyGate, [switch]$BrokenAccessibility)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -48,8 +48,12 @@ if ($BrokenCss) {
 }
 [IO.File]::WriteAllText($readOnlyModules, $moduleText, [Text.Encoding]::ASCII)
 
-if ($BrokenCss -and $BusyGate) {
-    throw 'BF-1143 BLOCKED: broken CSS and busy-gate scenarios must run independently.'
+if (@($BrokenCss, $BusyGate, $BrokenAccessibility | Where-Object { $_ }).Count -gt 1) {
+    throw 'BF-M2 BLOCKED: failure scenarios must run independently.'
+}
+if ($BrokenAccessibility) {
+    $moduleText += [Environment]::NewLine +
+        "function Add-ButlerAccessibility { param([string]`$Html) throw 'BF1136_PRIVATE_NO_LEAGUE' }"
 }
 $occupiedGate = $null
 $heldSlots = 0
@@ -82,7 +86,16 @@ try {
         $wire.IndexOf('href="/autopilot">Retry Auto-Pilot</a>', [StringComparison]::Ordinal) -lt 0)) {
         throw 'BF-1144 BLOCKED: busy Auto-Pilot failed to explain its safe retry without source claims.'
     }
-    if ($BrokenCss) {
+    if ($BrokenAccessibility) {
+        if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
+            $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('X-Butler-Autopilot-Failure-Stage: WATCH_ACCESSIBILITY', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('<h1>Auto-Pilot unavailable</h1>', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0) {
+            throw 'BF-M2 BLOCKED: accessibility failure did not return the expected source-free 500.'
+        }
+    }
+    elseif ($BrokenCss) {
         if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
             $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
             $wire.IndexOf('X-Butler-Autopilot-Failure-Stage: RENDER_WATCH', [StringComparison]::Ordinal) -lt 0 -or
@@ -137,6 +150,9 @@ if ($BusyGate) {
 }
 elseif ($BrokenCss) {
     Write-Host 'BF-1138 PASS: broken Auto-Pilot renderer returns safe HTTP 500 and no private error.'
+}
+elseif ($BrokenAccessibility) {
+    Write-Host 'BF-M2 PASS: Auto-Pilot accessibility failure emits exact fixed stage without source details.'
 }
 else {
     Write-Host 'BF-1136 PASS: Auto-Pilot loads without Trade/Detail, and core outage stays non-actionable.'
