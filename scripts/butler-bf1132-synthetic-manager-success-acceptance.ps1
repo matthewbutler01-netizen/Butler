@@ -188,6 +188,23 @@ try {
                         [StringComparison]::Ordinal) -ge 0) {
                     throw 'BF-M2 BLOCKED: source-backed Dashboard audit was not preserved separately from its removed UI details.'
                 }
+                # BF-M2: the public dashboard parser requires exactly one
+                # technical entry per field. A duplicated visible value can
+                # make a valid hidden audit appear UNVERIFIED, even when
+                # the snapshot is intact. Test exact *wire* values here.
+                foreach ($spec in @(
+                    @{ Label = 'Decision state:'; Value = 'CURRENT_AND_ACTIONABLE' },
+                    @{ Label = 'BF-629:'; Value = 'LIVE_ACTIONABLE_VERIFIED' },
+                    @{ Label = 'BF-631:'; Value = 'LATEST_EVIDENCE_LINEAGE_VERIFIED' }
+                )) {
+                    $proofHits = [regex]::Matches($wire,
+                        '<div>' + [regex]::Escape([string]$spec.Label) +
+                        '\s*(?<value>[^<]+)</div>')
+                    if ($proofHits.Count -ne 1 -or
+                        $proofHits[0].Groups['value'].Value.Trim() -cne [string]$spec.Value) {
+                        throw 'BF-M2 BLOCKED: public Dashboard decision gate sees ambiguous or altered source proof.'
+                    }
+                }
             }
             elseif ($fixtureProof -ne '') {
                 $preserved = [regex]::Matches($wire, [regex]::Escape($fixtureProof)).Count -eq 1
