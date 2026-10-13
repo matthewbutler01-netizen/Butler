@@ -12,6 +12,7 @@ foreach ($spec in @(
     @{ Path = $hostPath; Name = 'Get-AppCss' },
     @{ Path = $worker; Name = 'Get-V04AutoPilotApprovalPolicy' },
     @{ Path = $worker; Name = 'Get-V04AutoPilotApprovalQueue' },
+    @{ Path = $worker; Name = 'Get-V04AutoPilotCss' },
     @{ Path = $worker; Name = 'Get-V04AutoPilotHtml' }
 )) {
     $tokens = $null

@@ -156,7 +156,7 @@ if ($route -match 'Sleeper.*(submit|transaction)|Set-Faab|Method\s*=\s*POST') {
 }
 # BF-1075: the manager-facing card must explain why Start/Sit is held
 # without incorrectly prescribing a blind Refresh or blocking waivers.
-foreach ($name in @('Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotHtml')) {
+foreach ($name in @('Get-V04AutoPilotApprovalQueue','Get-V04AutoPilotCss','Get-V04AutoPilotHtml')) {
     $found = @($ast.FindAll({
         param($node)
         $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
