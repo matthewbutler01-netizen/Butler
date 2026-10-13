@@ -1462,7 +1462,10 @@ function Get-V04AutoPilotHtml {
         [Parameter(Mandatory = $true)]$ApprovalQueue
     )
 
+    # Fixed diagnostic phases only; no exception, IDs, or player text enters public output.
+    $script:ButlerAutoPilotRenderSubstage = 'RENDER_CSS'
     $css = Get-AppCss
+    $script:ButlerAutoPilotRenderSubstage = 'RENDER_STATE'
     $attention = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Attention)
     $startSit = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.StartSit)
     $waivers = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Waivers)
@@ -1654,6 +1657,7 @@ function Get-V04AutoPilotHtml {
         }
     }
 
+    $script:ButlerAutoPilotRenderSubstage = 'RENDER_POLICY'
     $approvalMode = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Mode)
     $startSitPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.StartSit)
     $waiverPolicy = [System.Net.WebUtility]::HtmlEncode([string]$ApprovalPolicy.Waivers)
@@ -1709,6 +1713,7 @@ function Get-V04AutoPilotHtml {
     $preparedHref = [System.Net.WebUtility]::HtmlEncode([string]$preparedStartSit.ReviewHref)
     $preparedClass = if ($preparedStartSit.State -ceq 'BLOCKED') { 'warn' } else { 'good' }
 
+    $script:ButlerAutoPilotRenderSubstage = 'RENDER_HTML'
     return @"
 <!doctype html>
 <html lang="en">
@@ -1823,7 +1828,7 @@ function Send-HttpResponse {
         [string]$Bf857Timing,
         [string]$ScriptNonce,
         [string]$FailureLayer = '',
-        [ValidateSet('', 'READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT', 'PREPARE_POLICY', 'APPROVAL_QUEUE', 'RENDER_WATCH', 'WATCH_ACCESSIBILITY', 'BROWSER_REFRESH')]
+        [ValidateSet('', 'READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT', 'PREPARE_POLICY', 'APPROVAL_QUEUE', 'RENDER_WATCH', 'RENDER_CSS', 'RENDER_STATE', 'RENDER_POLICY', 'RENDER_HTML', 'WATCH_ACCESSIBILITY', 'BROWSER_REFRESH')]
         [string]$AutoPilotFailureStage = '',
         [switch]$SkipOptionalHtmlPresentation
     )
@@ -2236,6 +2241,13 @@ try {
         $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         catch {
+            # Fixed phases identify failing local renderer stage without
+            # exposing exception, roster, league, file paths, or player text.
+            if ($autoPilotFailureStage -ceq 'RENDER_WATCH' -and
+                @('RENDER_CSS', 'RENDER_STATE', 'RENDER_POLICY', 'RENDER_HTML') -ccontains
+                    [string]$script:ButlerAutoPilotRenderSubstage) {
+                $autoPilotFailureStage = [string]$script:ButlerAutoPilotRenderSubstage
+            }
             # No headers have been written. Never reflect the raw exception,
             # player/league context, local paths or a partial approval queue.
             $blocked = Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/autopilot' -PrimaryLabel 'Try Auto-Pilot again'
