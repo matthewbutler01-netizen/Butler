@@ -106,6 +106,16 @@ function Get-ButlerLocalGetFailureCategory {
                     if (@('CORE_HTTP', 'CORE_READ', 'PUBLIC_WORKER') -ccontains $layer) {
                         $category += ' ' + $layer
                     }
+                    # Auto-Pilot failure phase is diagnostic ONLY. Never pass
+                    # a route based on this value, and ignore any unknown
+                    # header. Do not expose raw source or exception strings.
+                    if ($code -eq 500 -and $layer -ceq 'PUBLIC_WORKER') {
+                        $phase = [string]$http.Headers['X-Butler-Autopilot-Failure-Stage']
+                        if (@('READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT',
+                              'RENDER_WATCH', 'BROWSER_REFRESH') -ccontains $phase) {
+                            $category += ' ' + $phase
+                        }
+                    }
                     return $category
                 }
             }
