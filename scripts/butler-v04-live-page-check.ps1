@@ -631,7 +631,7 @@ function Test-ButlerLivePage {
             # the older BF-835 headings. Require real franchise and governed
             # action containers, not old copy or sidebar navigation labels.
             @('class="league-franchise-board"', 'class="league-governance"',
-              'View governed league actions', 'League hub')
+              'View league actions', 'League hub')
         }
         default { @() }
     }
