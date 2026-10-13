@@ -79,6 +79,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1' -BrokenCss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1' -HostCssThrows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-bf1136-autopilot-module-isolation-acceptance.ps1' -BrokenAccessibility
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '.\scripts\butler-m2-autopilot-real-render-variants-acceptance.ps1'

@@ -1,4 +1,4 @@
-param([switch]$BrokenCss, [switch]$BusyGate, [switch]$BrokenAccessibility)
+param([switch]$BrokenCss, [switch]$BusyGate, [switch]$BrokenAccessibility, [switch]$HostCssThrows)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -39,15 +39,21 @@ function Add-AutomaticAutoPilotRefresh {
     return @{ Html = $Html; Nonce = '' }
 }
 '@
-if ($BrokenCss) {
-    # BF-1138: a throwing UI renderer must not reset the connection or
-    # reveal the dummy private league marker/exception in an error page.
+if ($HostCssThrows) {
+    # Optional shared presentation CSS failure must be handled by the
+    # independent static Auto-Pilot fallback, with actionability still held.
     $moduleText = $moduleText.Replace(
         "return 'body{font-family:Arial,sans-serif}'",
         "throw 'BF1136_PRIVATE_NO_LEAGUE'")
 }
-if (($BrokenCss -and $BusyGate) -or ($BrokenCss -and $BrokenAccessibility) -or
-    ($BusyGate -and $BrokenAccessibility)) {
+if ($BrokenCss) {
+    # An actual Auto-Pilot CSS renderer failure still needs a bounded 500;
+    # this is separate from the optional TradeHost appearance provider.
+    $moduleText += [Environment]::NewLine +
+        "function Get-V04AutoPilotCss { throw 'BF1136_PRIVATE_NO_LEAGUE' }"
+}
+if ((@($BrokenCss, $BusyGate, $BrokenAccessibility, $HostCssThrows) |
+     Where-Object { $_ }).Count -gt 1) {
     throw 'BF-M2 BLOCKED: failure scenarios must run independently.'
 }
 if ($BrokenAccessibility) {
@@ -87,7 +93,17 @@ try {
         $wire.IndexOf('href="/autopilot">Retry Auto-Pilot</a>', [StringComparison]::Ordinal) -lt 0)) {
         throw 'BF-1144 BLOCKED: busy Auto-Pilot failed to explain its safe retry without source claims.'
     }
-    if ($BrokenAccessibility) {
+    if ($HostCssThrows) {
+        if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
+            $wire.IndexOf('autopilot-safe-css-fallback', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('WATCH DATA UNAVAILABLE', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('READY FOR MANAGER REVIEW', [StringComparison]::Ordinal) -ge 0 -or
+            $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
+            $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0) {
+            throw 'BF-M2 BLOCKED: optional CSS failure did not produce a held local fallback watch.'
+        }
+    }
+    elseif ($BrokenAccessibility) {
         if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
             $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
             $wire.IndexOf('X-Butler-Autopilot-Failure-Stage: WATCH_ACCESSIBILITY', [StringComparison]::Ordinal) -lt 0 -or
@@ -151,6 +167,9 @@ if ($BusyGate) {
 }
 elseif ($BrokenCss) {
     Write-Host 'BF-1138 PASS: broken Auto-Pilot renderer returns safe HTTP 500 and no private error.'
+}
+elseif ($HostCssThrows) {
+    Write-Host 'BF-M2 PASS: Auto-Pilot optional stylesheet failure renders a non-actionable local fallback over real HTTP.'
 }
 elseif ($BrokenAccessibility) {
     Write-Host 'BF-M2 PASS: Auto-Pilot accessibility failure emits exact fixed stage without source details.'

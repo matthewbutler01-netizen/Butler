@@ -1455,6 +1455,34 @@ function Get-V04AutoPilotApprovalQueue {
     }
 }
 
+# BF-M2: Auto-Pilot remains usable (and strictly read-only) when the
+# optional TradeHost UI CSS provider is absent or throws on this worker.
+# A stylesheet is presentation, not evidence; the source/current-week
+# approval gates remain unchanged and fail closed.
+function Get-V04AutoPilotCss {
+    $fallback = @'
+/* autopilot-safe-css-fallback */
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;line-height:1.5;--bg:#0e1214;--surface:#171d1f;--surface-2:#20282b;--line:#36423e;--turf:#78b698;--turf-deep:#a3dabd;--gold:#d4ab65;--ink:#f5f7f6;--muted:#b4c4bf;--brick:#df9385;--font-display:Inter,Segoe UI,Arial,sans-serif;--font-body:Inter,Segoe UI,Arial,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink)}body{font-family:var(--font-body)}a{color:var(--turf-deep)}h1,h2,h3,strong{color:var(--ink)}.shell{max-width:1160px;margin:0 auto;padding:24px}.top,.panel,.nav{border:1px solid var(--line);border-radius:10px;background:var(--surface)}.top{padding:18px;margin-bottom:12px}.layout{display:grid;grid-template-columns:188px minmax(0,1fr);gap:16px}.nav{display:flex;flex-direction:column;padding:12px;gap:5px}.nav a{display:block;padding:9px 10px;border-radius:6px;text-decoration:none;font-size:13px}.nav a:hover,.nav a.active{background:var(--surface-2)}.main{min-width:0}.panel{margin:0 0 16px;padding:20px}.muted,.subtle,.meta{color:var(--muted)}.status,.badge,.pill{display:inline-block;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:700}.warn{color:var(--gold)}.good{color:var(--turf-deep)}button,.button{padding:9px 12px;background:var(--turf);color:#0e1214;border-radius:6px;border:0;cursor:pointer}a:focus-visible,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}@media(max-width:760px){.shell{padding:12px}.layout{display:block}.nav{display:flex;flex-direction:row;overflow:auto;margin-bottom:12px}.nav a{flex:0 0 auto}.panel{padding:14px}}
+'@
+    try {
+        $provider = Get-Command -Name Get-AppCss -CommandType Function -ErrorAction SilentlyContinue
+        if ($null -ne $provider) {
+            $candidate = Get-AppCss
+            if ($candidate -is [string] -and
+                -not [string]::IsNullOrWhiteSpace($candidate) -and
+                $candidate.Length -le 45000) {
+                return $candidate
+            }
+        }
+    }
+    catch {
+        # This optional appearance provider cannot turn a non-actionable
+        # Auto-Pilot screen into HTTP 500. Never log its error to a response.
+    }
+    return $fallback
+}
+
 function Get-V04AutoPilotHtml {
     param(
         [Parameter(Mandatory = $true)]$WatchState,
@@ -1464,7 +1492,7 @@ function Get-V04AutoPilotHtml {
 
     # Fixed diagnostic phases only; no exception, IDs, or player text enters public output.
     $script:ButlerAutoPilotRenderSubstage = 'RENDER_CSS'
-    $css = Get-AppCss
+    $css = Get-V04AutoPilotCss
     $script:ButlerAutoPilotRenderSubstage = 'RENDER_STATE'
     $attention = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.Attention)
     $startSit = [System.Net.WebUtility]::HtmlEncode([string]$WatchState.StartSit)
