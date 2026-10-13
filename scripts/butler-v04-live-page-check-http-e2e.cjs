@@ -399,6 +399,14 @@ async function scenario(name, mutations, expect) {
     code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER RENDER_WATCH/,
     allRoutes:true
   });
+  await scenario('autopilot-css-stage', {
+    httpStatus:{'/autopilot':500},
+    httpLayer:{'/autopilot':'PUBLIC_WORKER'},
+    httpAutopilotPhase:{'/autopilot':'RENDER_CSS'}
+  }, {
+    code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER RENDER_CSS/,
+    allRoutes:true
+  });
   await scenario('autopilot-accessibility-stage', {
     httpStatus:{'/autopilot':500},
     httpLayer:{'/autopilot':'PUBLIC_WORKER'},
