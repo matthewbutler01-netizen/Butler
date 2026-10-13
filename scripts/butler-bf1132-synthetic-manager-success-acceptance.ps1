@@ -134,9 +134,11 @@ try {
             $fixtureProof = '<div class="butler-m1-waiver-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: OWNER</div><div>BF-M1 raw Sleeper league / roster: 2026 / 3</div><div>BF-M1 local binding: BF623_GOVERNED_WAIVER</div><div>BF-M1 decision state: NO_TRANSACTION_TO_ACT_ON</div><div>BF-M1 actionability: NO_TRANSACTION_TO_REVALIDATE</div><div>BF-M1 lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div>'
         }
         [ButlerBf1132LocalCoreStub]::FixtureBody = if ($fixtureProof -ne '') {
-            '<!doctype html><html lang="en"><head><title>Butler synthetic</title></head><body><main class="shell">' +
-            '<nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a class="active" href="' +
-            $target + '">Current</a></nav><section class="panel"><h1>Butler synthetic healthy page</h1></section>' +
+            # Minimal, self-contained core GET HTML. The worker's
+            # navigation augmentation requires a fully staged manager shell;
+            # that contract is separately exercised by BF-1019 fixtures.
+            '<!doctype html><html lang="en"><head><title>Butler synthetic</title></head><body><main>' +
+            '<section class="panel"><h1>Butler synthetic healthy page</h1></section>' +
             $fixtureProof + '</main></body></html>'
         } else { '' }
         $core = [ButlerBf1132LocalCoreStub]::new()
