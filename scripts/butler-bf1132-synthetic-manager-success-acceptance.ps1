@@ -118,6 +118,13 @@ $validPath = Join-Path $fixtureRoot 'valid.ps1'
 # falsely converts a valid fake core HTTP 200 into PUBLIC_WORKER HTTP 500.
 # The production helper and its own policy/security acceptance are unchanged.
 $validModule = @'
+function Add-AutomaticDashboardRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    if ($RequestTarget -cne '/') {
+        throw 'BF-M2 BLOCKED: synthetic Dashboard helper called for wrong route.'
+    }
+    return @{ Html = $Html; Nonce = '' }
+}
 function Add-AutomaticWaiverRefresh {
     param([string]$Html, [string]$RequestTarget, [string]$Token)
     if ($RequestTarget -cne '/waivers') {
