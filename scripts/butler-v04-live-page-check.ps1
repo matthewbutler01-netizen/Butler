@@ -112,7 +112,8 @@ function Get-ButlerLocalGetFailureCategory {
                     if ($code -eq 500 -and $layer -ceq 'PUBLIC_WORKER') {
                         $phase = [string]$http.Headers['X-Butler-Autopilot-Failure-Stage']
                         if (@('READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT',
-                              'RENDER_WATCH', 'BROWSER_REFRESH') -ccontains $phase) {
+                              'PREPARE_POLICY', 'APPROVAL_QUEUE', 'RENDER_WATCH',
+                              'WATCH_ACCESSIBILITY', 'BROWSER_REFRESH') -ccontains $phase) {
                             $category += ' ' + $phase
                         }
                     }
