@@ -2234,6 +2234,7 @@ try {
         $autoPilotFailureStage = 'APPROVAL_QUEUE'
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
         $autoPilotFailureStage = 'RENDER_WATCH'
+        $script:ButlerAutoPilotRenderSubstage = 'UNSET'
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $autoPilotFailureStage = 'WATCH_ACCESSIBILITY'
         $html = Add-ButlerAccessibility -Html $html
