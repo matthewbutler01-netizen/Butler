@@ -85,6 +85,7 @@ try {
     if ($BrokenCss) {
         if (-not $wire.StartsWith('HTTP/1.1 500 Internal Server Error', [StringComparison]::Ordinal) -or
             $wire.IndexOf('X-Butler-Failure-Layer: PUBLIC_WORKER', [StringComparison]::Ordinal) -lt 0 -or
+            $wire.IndexOf('X-Butler-Autopilot-Failure-Stage: RENDER_WATCH', [StringComparison]::Ordinal) -lt 0 -or
             $wire.IndexOf('<h1>Auto-Pilot unavailable</h1>', [StringComparison]::Ordinal) -lt 0 -or
             $wire.IndexOf('<a href="/autopilot">Try Auto-Pilot again</a>', [StringComparison]::Ordinal) -lt 0 -or
             $wire.IndexOf('No Sleeper transaction was submitted by this page.', [StringComparison]::Ordinal) -lt 0 -or
@@ -105,6 +106,7 @@ try {
         $wire.IndexOf('Content-Type: text/html', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('Cache-Control: no-store', [StringComparison]::Ordinal) -lt 0 -or
         $wire.IndexOf('X-Butler-Failure-Layer:', [StringComparison]::Ordinal) -ge 0 -or
+        $wire.IndexOf('X-Butler-Autopilot-Failure-Stage:', [StringComparison]::Ordinal) -ge 0 -or
         $wire.IndexOf($privateMarker, [StringComparison]::Ordinal) -ge 0 -or
         $wire.IndexOf($root, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
         $wire.Length -gt 90000) {
