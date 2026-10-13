@@ -88,6 +88,10 @@ async function scenario(name, mutations, expect) {
       if (mutations.httpLayer && mutations.httpLayer[req.url]) {
         errorHeaders['X-Butler-Failure-Layer'] = mutations.httpLayer[req.url];
       }
+      if (mutations.httpAutopilotPhase && mutations.httpAutopilotPhase[req.url]) {
+        errorHeaders['X-Butler-Autopilot-Failure-Stage'] =
+          mutations.httpAutopilotPhase[req.url];
+      }
       res.writeHead(failureStatus, errorHeaders);
       res.end('SENSITIVE_LOCAL_ERROR_BODY: roster, league and audit data');
       return;
@@ -382,6 +386,25 @@ async function scenario(name, mutations, expect) {
   }, {
     code:1,
     output:/[/]team[^\r\n]*HTTP 500\s+auto=N[/]A/,
+    allRoutes:true
+  });
+  // BF-M2: stage-specific 500 reports are bounded to the exact
+  // known Auto-Pilot error stages. No arbitrary header or response body
+  // may appear in the shareable report and the readiness gate stays FAIL.
+  await scenario('autopilot-fixed-failure-stage', {
+    httpStatus:{'/autopilot':500},
+    httpLayer:{'/autopilot':'PUBLIC_WORKER'},
+    httpAutopilotPhase:{'/autopilot':'RENDER_WATCH'}
+  }, {
+    code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER RENDER_WATCH/,
+    allRoutes:true
+  });
+  await scenario('autopilot-reject-untrusted-stage', {
+    httpStatus:{'/autopilot':500},
+    httpLayer:{'/autopilot':'PUBLIC_WORKER'},
+    httpAutopilotPhase:{'/autopilot':'PRIVATE_ROSTER_LEAGUE_ID_NOT_FOR_REPORT'}
+  }, {
+    code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER\s+auto=/,
     allRoutes:true
   });
   // BF-1102: the on-screen Auto-Pilot season/week must agree with the
