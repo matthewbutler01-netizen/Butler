@@ -35,6 +35,8 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
     public readonly int Port;
     public string RequestedRoute = "";
     public string Failure = "";
+    public bool SentGate = false;
+    public bool SentBinding = false;
     private readonly bool closeEarly;
     // BF-M1: the exact real-worker transport accepts pre-rendered staged
     // proof HTML, rather than only a synthetic no-proof success page.
@@ -85,6 +87,8 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
                 string body = "<!doctype html><html><head><title>Butler synthetic</title></head>" +
                     "<body><main><h1>Butler synthetic healthy page</h1></main></body></html>";
                 if (!String.IsNullOrEmpty(FixtureBody)) body = FixtureBody;
+                SentGate = body.Contains("BOUND_TARGET_LIVE_VERIFIED");
+                SentBinding = body.Contains("BF668_PROVEN_ROSTER") || body.Contains("BF623_GOVERNED_WAIVER");
                 byte[] bytes = Encoding.UTF8.GetBytes(body);
                 string headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
                     "Content-Length: " + bytes.Length.ToString() + "\r\nCache-Control: no-store\r\n" +
@@ -145,6 +149,8 @@ try {
         try {
             $wire = Invoke-Bf1127FirstOpenGet -Target $target `
                 -HistoryPath $validPath -TradeHostPath $validPath -InnerPort $core.Port
+            $fixtureSourceHasGate = $fixtureProof.Contains('BOUND_TARGET_LIVE_VERIFIED')
+            $configuredBodyHasGate = [ButlerBf1132LocalCoreStub]::FixtureBody.Contains('BOUND_TARGET_LIVE_VERIFIED')
             # Check the *real* public worker does not drop, rewrite or
             # collapse literal source proof supplied by a healthy core.
             # The proof contains only synthetic league/roster IDs; no user
@@ -168,8 +174,9 @@ try {
                     } elseif ($wire.StartsWith('HTTP/1.1 500', [StringComparison]::Ordinal)) {
                         'HTTP500'
                     } else { 'OTHER_HTTP' }
-                    throw ('BF-M1 BLOCKED: public worker altered {0} proof ({1}; marker_counts={2}).' -f
-                        $target, $httpClass, ($flags -join ','))
+                    throw ('BF-M1 BLOCKED: public worker altered {0} proof ({1}; marker_counts={2}; source={3}; fixture={4}; coreSent={5}; bindingSent={6}).' -f
+                        $target, $httpClass, ($flags -join ','), $fixtureSourceHasGate,
+                        $configuredBodyHasGate, $core.SentGate, $core.SentBinding)
                 }
             }
             if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
