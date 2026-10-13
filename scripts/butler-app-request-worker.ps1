@@ -1823,6 +1823,8 @@ function Send-HttpResponse {
         [string]$Bf857Timing,
         [string]$ScriptNonce,
         [string]$FailureLayer = '',
+        [ValidateSet('', 'READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT', 'RENDER_WATCH', 'BROWSER_REFRESH')]
+        [string]$AutoPilotFailureStage = '',
         [switch]$SkipOptionalHtmlPresentation
     )
 
@@ -1876,6 +1878,14 @@ function Send-HttpResponse {
     if ($StatusCode -ge 400 -and -not [string]::IsNullOrWhiteSpace($FailureLayer)) {
         $failureHeader = 'X-Butler-Failure-Layer: ' + $FailureLayer + "`r`n"
     }
+    # Read-only diagnostic phase uses a fixed enum; never include exceptions,
+    # roster details or source identifiers in response headers.
+    $autoPilotFailureHeader = ''
+    if ($StatusCode -eq 500 -and $FailureLayer -ceq 'PUBLIC_WORKER' -and
+        -not [string]::IsNullOrWhiteSpace($AutoPilotFailureStage)) {
+        $autoPilotFailureHeader = 'X-Butler-Autopilot-Failure-Stage: ' +
+            $AutoPilotFailureStage + "`r`n"
+    }
     $headers = "HTTP/1.1 $StatusCode $StatusText`r`n" +
         "Content-Type: $ContentType`r`n" +
         "Content-Length: $($bodyBytes.Length)`r`n" +
@@ -1885,6 +1895,7 @@ function Send-HttpResponse {
         $bf856Header +
         $bf857Header +
         $failureHeader +
+        $autoPilotFailureHeader +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
     $Stream.Write($headerBytes, 0, $headerBytes.Length)
@@ -2110,6 +2121,7 @@ try {
         # catch and close the socket with no HTTP response. Prepare the page
         # completely before writing headers and return fixed, safe HTTP 500
         # if any presentation dependency fails. No provider or local retry.
+        $autoPilotFailureStage = 'READ_SOURCES'
         try {
         $dashboardHtmlForRefresh = ''
         $dashboardReadBusy = $false
@@ -2157,6 +2169,7 @@ try {
                 'BF-694 BLOCKED: finite wait for companion heavy read capacity expired.'
             ) -ccontains [string]$_.Exception.Message
         }
+        $autoPilotFailureStage = 'RECONCILE_WEEK'
         $resolvedWatch = Resolve-V04AutoPilotOnOpenWeek -InitialWatchState $watchState -DashboardHtml $dashboardHtmlForRefresh -MatchupHtml $matchupHtmlForWeekProof -InnerPort $InnerPort -League $LeagueId -Root $RepoRoot -RefreshState $RefreshState
         $watchState = $resolvedWatch.WatchState
         # Do not overwrite stronger audited STALE or WEEK_MISMATCH proof.
@@ -2171,6 +2184,7 @@ try {
         }
         $dashboardHtmlForRefresh = [string]$resolvedWatch.DashboardHtml
 
+        $autoPilotFailureStage = 'SOURCED_STARTSIT'
         # BF-1074: dashboard/matchup source week alone cannot prepare a
         # player change. Read the actual Start/Sit page once only when the
         # weekly watch is otherwise ready. All failures withhold ONLY the
@@ -2210,17 +2224,19 @@ try {
             }
         }
 
+        $autoPilotFailureStage = 'RENDER_WATCH'
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
         $html = Add-ButlerAccessibility -Html $html
+        $autoPilotFailureStage = 'BROWSER_REFRESH'
         $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         catch {
             # No headers have been written. Never reflect the raw exception,
             # player/league context, local paths or a partial approval queue.
             $blocked = Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/autopilot' -PrimaryLabel 'Try Auto-Pilot again'
-            Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $blocked -FailureLayer 'PUBLIC_WORKER' -SkipOptionalHtmlPresentation
+            Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText 'Internal Server Error' -ContentType 'text/html; charset=utf-8' -Body $blocked -FailureLayer 'PUBLIC_WORKER' -AutoPilotFailureStage $autoPilotFailureStage -SkipOptionalHtmlPresentation
             return
         }
         Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText 'OK' -ContentType 'text/html; charset=utf-8' -Body $autoRefresh.Html -ScriptNonce $autoRefresh.Nonce
