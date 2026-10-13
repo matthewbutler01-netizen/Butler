@@ -142,7 +142,8 @@ try {
             # navigation augmentation requires a fully staged manager shell;
             # that contract is separately exercised by BF-1019 fixtures.
             '<!doctype html><html lang="en"><head><title>Butler synthetic</title></head><body><main>' +
-            '<section class="panel"><h1>Butler synthetic healthy page</h1></section>' +
+            '<section class="panel"><h1>Butler synthetic healthy page</h1>' +
+            '<span class="visible-enum">BOUND_TARGET_LIVE_VERIFIED</span></section>' +
             $fixtureProof + '</main></body></html>'
         } else { '' }
         $core = [ButlerBf1132LocalCoreStub]::new()
@@ -151,6 +152,11 @@ try {
                 -HistoryPath $validPath -TradeHostPath $validPath -InnerPort $core.Port
             $fixtureSourceHasGate = $fixtureProof.Contains('BOUND_TARGET_LIVE_VERIFIED')
             $configuredBodyHasGate = [ButlerBf1132LocalCoreStub]::FixtureBody.Contains('BOUND_TARGET_LIVE_VERIFIED')
+            if ($fixtureProof -ne '' -and
+                $wire.IndexOf('<span class="visible-enum">Verified</span>',
+                    [StringComparison]::Ordinal) -lt 0) {
+                throw ('BF-M1 BLOCKED: {0} lost normal user-facing token translation.' -f $target)
+            }
             # Check the *real* public worker does not drop, rewrite or
             # collapse literal source proof supplied by a healthy core.
             # The proof contains only synthetic league/roster IDs; no user

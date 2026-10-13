@@ -264,6 +264,23 @@ function ConvertTo-ButlerUserFacingHtml {
     }
     $result = [regex]::Replace($Html, '(?is)<pre\b[^>]*>.*?</pre>', $preEvaluator)
 
+    # BF-M1: protected machine-readable source proof is not user-facing copy.
+    # BF-791 otherwise replaces BOUND_TARGET_LIVE_VERIFIED with "Verified",
+    # rewrites BF668_PROVEN_ROSTER and corrupts BF-631 lineage, causing
+    # legitimate /team and /waivers checks to remain HELD. Preserve only
+    # these two source-emitted hidden blocks verbatim across the cosmetic
+    # translation; do not bypass the existing identity or audit checks.
+    $m1ProofBlocks = New-Object System.Collections.Generic.List[string]
+    $m1ProofEvaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        $index = $m1ProofBlocks.Count
+        $m1ProofBlocks.Add($match.Value)
+        return "@@butler-m1-source-proof-$index@@"
+    }
+    $result = [regex]::Replace($result,
+        '(?is)<div class="butler-m1-(?:roster|waiver)-proof" hidden>.*?</div></div>',
+        $m1ProofEvaluator)
+
     $copy = [ordered]@{
         'BF-628 integrity-verified history for the exact BF-623-bound league and roster. This page does not rerun recommendations.' = 'Past waiver recommendations for this team. Butler does not rerun decisions on this page.'
         'Loading Butler''s BF-628 integrity-verified immutable waiver audit trail.' = 'Loading your saved waiver decisions.'
@@ -459,6 +476,13 @@ function ConvertTo-ButlerUserFacingHtml {
 
     for ($index = 0; $index -lt $preBlocks.Count; $index++) {
         $result = $result.Replace("@@butler-pre-$index@@", $preBlocks[$index])
+    }
+    # Restore hidden BF-M1 verification bytes after every manager-language
+    # and enum display rewrite. The separate readiness checker validates
+    # exact gate/owner/identity/audit; this never manufactures PASS.
+    for ($index = 0; $index -lt $m1ProofBlocks.Count; $index++) {
+        $result = $result.Replace("@@butler-m1-source-proof-$index@@",
+            $m1ProofBlocks[$index])
     }
     return $result
 }
