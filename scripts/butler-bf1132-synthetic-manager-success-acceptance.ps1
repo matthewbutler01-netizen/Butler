@@ -129,9 +129,19 @@ function Add-AutomaticWaiverRefresh {
 [IO.File]::WriteAllText($validPath, $validModule, [Text.Encoding]::ASCII)
 
 try {
-    foreach ($target in @('/team', '/waivers', '/league', '/matchup')) {
+    foreach ($target in @('/', '/team', '/waivers', '/league', '/matchup')) {
         $fixtureProof = ''
-        if ($target -ceq '/team') {
+        if ($target -ceq '/') {
+            # BF-M2: the real manager response strips this technical
+            # disclosure from the visible Dashboard. Preserve exactly the
+            # three audited enum fields in a hidden source contract instead.
+            $fixtureProof = '<div class="dashboard-summary-row"><div class="dashboard-summary-card">Synthetic</div></div>' +
+                '<details><summary>Technical details</summary><div class="tech">' +
+                '<div>Decision state: CURRENT_AND_ACTIONABLE</div>' +
+                '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
+                '<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div></details>'
+        }
+        elseif ($target -ceq '/team') {
             $fixtureProof = '<div class="butler-m1-roster-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: OWNER</div><div>BF-M1 raw Sleeper league / roster: 2026 / 3</div><div>BF-M1 local binding: BF668_PROVEN_ROSTER</div></div>'
         }
         elseif ($target -ceq '/waivers') {
@@ -161,7 +171,18 @@ try {
             # collapse literal source proof supplied by a healthy core.
             # The proof contains only synthetic league/roster IDs; no user
             # data, source HTML or error message is printed on failure.
-            if ($fixtureProof -ne '') {
+            if ($target -ceq '/') {
+                $dashboardProof = '<div class="butler-m2-dashboard-audit" hidden>' +
+                    '<div>Decision state: CURRENT_AND_ACTIONABLE</div>' +
+                    '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
+                    '<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div>'
+                if ([regex]::Matches($wire, [regex]::Escape($dashboardProof)).Count -ne 1 -or
+                    $wire.IndexOf('<summary>Technical details</summary>',
+                        [StringComparison]::Ordinal) -ge 0) {
+                    throw 'BF-M2 BLOCKED: source-backed Dashboard audit was not preserved separately from its removed UI details.'
+                }
+            }
+            elseif ($fixtureProof -ne '') {
                 $preserved = [regex]::Matches($wire, [regex]::Escape($fixtureProof)).Count -eq 1
                 if (-not $preserved) {
                     # Report only fixed boolean labels from synthetic fixtures,
