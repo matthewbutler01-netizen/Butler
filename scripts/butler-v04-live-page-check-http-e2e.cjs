@@ -404,7 +404,7 @@ async function scenario(name, mutations, expect) {
     httpLayer:{'/autopilot':'PUBLIC_WORKER'},
     httpAutopilotPhase:{'/autopilot':'WATCH_ACCESSIBILITY'}
   }, {
-    code:1, output:/[/]autopilot[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500 PUBLIC_WORKER WATCH_ACCESSIBILITY/,
+    code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER WATCH_ACCESSIBILITY/,
     allRoutes:true
   });
   await scenario('autopilot-approval-queue-stage', {
@@ -412,7 +412,7 @@ async function scenario(name, mutations, expect) {
     httpLayer:{'/autopilot':'PUBLIC_WORKER'},
     httpAutopilotPhase:{'/autopilot':'APPROVAL_QUEUE'}
   }, {
-    code:1, output:/[/]autopilot[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500 PUBLIC_WORKER APPROVAL_QUEUE/,
+    code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER APPROVAL_QUEUE/,
     allRoutes:true
   });
   await scenario('autopilot-reject-untrusted-stage', {
