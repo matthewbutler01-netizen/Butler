@@ -150,7 +150,24 @@ try {
             if ($fixtureProof -ne '') {
                 $preserved = [regex]::Matches($wire, [regex]::Escape($fixtureProof)).Count -eq 1
                 if (-not $preserved) {
-                    throw ('BF-M1 BLOCKED: public worker changed exact {0} source proof.' -f $target)
+                    # Report only fixed boolean labels from synthetic fixtures,
+                    # never raw core HTML or any user roster information.
+                    $flags = @()
+                    foreach ($label in @(
+                        'butler-m1-', 'BF-M1 target gate:', 'BOUND_TARGET_LIVE_VERIFIED',
+                        'BF-M1 role:', 'OWNER', 'BF-M1 raw Sleeper league / roster:',
+                        '2026 / 3', 'BF-M1 local binding:', 'BF668_PROVEN_ROSTER',
+                        'BF623_GOVERNED_WAIVER'
+                    )) {
+                        $flags += [string]([regex]::Matches($wire, [regex]::Escape($label)).Count)
+                    }
+                    $httpClass = if ($wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal)) {
+                        'HTTP200'
+                    } elseif ($wire.StartsWith('HTTP/1.1 500', [StringComparison]::Ordinal)) {
+                        'HTTP500'
+                    } else { 'OTHER_HTTP' }
+                    throw ('BF-M1 BLOCKED: public worker altered {0} proof ({1}; marker_counts={2}).' -f
+                        $target, $httpClass, ($flags -join ','))
                 }
             }
             if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
