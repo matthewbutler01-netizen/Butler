@@ -484,6 +484,35 @@ function ConvertTo-ButlerUserFacingHtml {
         $result = $result.Replace("@@butler-m1-source-proof-$index@@",
             $m1ProofBlocks[$index])
     }
+    # BF-M2: the Dashboard's source-backed audit is rendered inside an
+    # advanced technical record, which BF-794 deliberately removes from
+    # public UI. That used to make the public freshness checker say
+    # AUDIT UNVERIFIED even when the core had exact local audit fields.
+    # Copy only three uniquely present, bounded enum values into a hidden
+    # machine-readable contract after display translation. Missing or
+    # conflicting source values remain unverified, never invented green.
+    if ([regex]::Matches($Html, 'class="dashboard-summary-row"').Count -eq 1) {
+        $auditValues = @()
+        foreach ($label in @('Decision state:', 'BF-629:', 'BF-631:')) {
+            $rx = '<div>' + [regex]::Escape($label) +
+                '\\s*(?<value>[A-Z][A-Z0-9_]{2,63})</div>'
+            $matches = [regex]::Matches($Html, $rx)
+            if ($matches.Count -ne 1) {
+                $auditValues = @()
+                break
+            }
+            $auditValues += '<div>' + $label + ' ' +
+                $matches[0].Groups['value'].Value + '</div>'
+        }
+        if ($auditValues.Count -eq 3) {
+            $endBody = [regex]::Matches($result, '(?i)</body>')
+            if ($endBody.Count -eq 1) {
+                $proof = '<div class="butler-m2-dashboard-audit" hidden>' +
+                    ($auditValues -join '') + '</div>'
+                $result = $result.Insert($endBody[0].Index, $proof)
+            }
+        }
+    }
     return $result
 }
 '@
