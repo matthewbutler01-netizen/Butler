@@ -1823,7 +1823,7 @@ function Send-HttpResponse {
         [string]$Bf857Timing,
         [string]$ScriptNonce,
         [string]$FailureLayer = '',
-        [ValidateSet('', 'READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT', 'RENDER_WATCH', 'BROWSER_REFRESH')]
+        [ValidateSet('', 'READ_SOURCES', 'RECONCILE_WEEK', 'SOURCED_STARTSIT', 'PREPARE_POLICY', 'APPROVAL_QUEUE', 'RENDER_WATCH', 'WATCH_ACCESSIBILITY', 'BROWSER_REFRESH')]
         [string]$AutoPilotFailureStage = '',
         [switch]$SkipOptionalHtmlPresentation
     )
@@ -2224,10 +2224,13 @@ try {
             }
         }
 
-        $autoPilotFailureStage = 'RENDER_WATCH'
+        $autoPilotFailureStage = 'PREPARE_POLICY'
         $approvalPolicy = Get-V04AutoPilotApprovalPolicy
+        $autoPilotFailureStage = 'APPROVAL_QUEUE'
         $approvalQueue = Get-V04AutoPilotApprovalQueue -WatchState $watchState -ApprovalPolicy $approvalPolicy
+        $autoPilotFailureStage = 'RENDER_WATCH'
         $html = Get-V04AutoPilotHtml -WatchState $watchState -ApprovalPolicy $approvalPolicy -ApprovalQueue $approvalQueue
+        $autoPilotFailureStage = 'WATCH_ACCESSIBILITY'
         $html = Add-ButlerAccessibility -Html $html
         $autoPilotFailureStage = 'BROWSER_REFRESH'
         $autoRefresh = Add-AutomaticAutoPilotRefresh -Html $html -RequestTarget $requestTarget -DashboardHtml $dashboardHtmlForRefresh -Token (Get-RefreshTokenSnapshot -State $RefreshState)
