@@ -474,10 +474,10 @@ function Test-ButlerLocalHealth {
 # Never output the raw Sleeper IDs; local proof != fresh source proof.
 function Test-ButlerMilestoneTargetProof {
     param([string]$Html, [string]$Route)
-    # Prefer BF-M1 markers from the actual staged v0.4 renderers.
-    # The earlier BF-610 and BF-834 labels belonged to different HTML
-    # presentations; they were not emitted on the user's real pages.
-    # Older staged versions continue to use the strict legacy contract.
+    # BF-M1: the BF-668 core /team and governed /waivers route have
+    # distinct source views from the legacy synthetic technical labels.
+    # Only an exact, unique positive local binding can prove the target;
+    # this is NOT independent live Sleeper freshness.
     if ($Html.Contains('BF-M1 target gate:') -or
         $Html.Contains('BF-M1 local binding:')) {
         $labels = @('BF-M1 target gate:', 'BF-M1 role:',
@@ -497,8 +497,21 @@ function Test-ButlerMilestoneTargetProof {
         $expectedBinding = if ($Route -ceq '/team') {
             'BF668_PROVEN_ROSTER'
         } else { 'BF623_GOVERNED_WAIVER' }
-        $ids = [regex]::Match([string](Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 raw Sleeper league / roster:'),
-            '^(?<league>[1-9][0-9]*)\s*/\s*(?<roster>[1-9][0-9]*)
+        $ids = [regex]::Match(
+            [string](Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 raw Sleeper league / roster:'),
+            '^(?<league>[1-9][0-9]*)\s*/\s*(?<roster>[1-9][0-9]*)$'
+        )
+        if ($gate -cne 'BOUND_TARGET_LIVE_VERIFIED' -or $role -cne 'OWNER' -or
+            $binding -cne $expectedBinding -or -not $ids.Success) {
+            return @{ Status='WARN'; Evidence='TARGET NOT VERIFIED'; Identity='' }
+        }
+        return @{ Status='PASS'; Evidence='LOCAL TARGET VERIFIED';
+            Identity=($ids.Groups['league'].Value + '/' + $ids.Groups['roster'].Value) }
+    }
+
+    # Exact previous route technical field contract remains recognized
+    # for staged fixtures, but missing or ambiguous fields never pass.
+    $rawLabel = if ($Route -ceq '/team') {
         'BF-610 raw Sleeper league / roster:'
     } else { 'Raw Sleeper league / roster:' }
     $labels = @('BF-623 target gate:', 'BF-623 role:', $rawLabel)
