@@ -174,9 +174,23 @@ try {
                     } elseif ($wire.StartsWith('HTTP/1.1 500', [StringComparison]::Ordinal)) {
                         'HTTP500'
                     } else { 'OTHER_HTTP' }
-                    throw ('BF-M1 BLOCKED: public worker altered {0} proof ({1}; marker_counts={2}; source={3}; fixture={4}; coreSent={5}; bindingSent={6}).' -f
+                    # Fixture-controlled probe: only alphanumeric and
+                    # underscore data from the synthetic BF-M1 divs may be
+                    # logged. Never output response HTML or a real league.
+                    $foundGate = [regex]::Match($wire, '<div>BF-M1 target gate:\s*(?<v>[^<]*)</div>')
+                    $foundBinding = [regex]::Match($wire, '<div>BF-M1 local binding:\s*(?<v>[^<]*)</div>')
+                    $gateValue = if ($foundGate.Success) {
+                        [regex]::Replace($foundGate.Groups['v'].Value, '[^A-Za-z0-9_]', '_')
+                    } else { 'NO_MATCH' }
+                    $bindingValue = if ($foundBinding.Success) {
+                        [regex]::Replace($foundBinding.Groups['v'].Value, '[^A-Za-z0-9_]', '_')
+                    } else { 'NO_MATCH' }
+                    if ($gateValue.Length -gt 70) { $gateValue = $gateValue.Substring(0,70) }
+                    if ($bindingValue.Length -gt 70) { $bindingValue = $bindingValue.Substring(0,70) }
+                    throw ('BF-M1 BLOCKED: public worker altered {0} proof ({1}; marker_counts={2}; source={3}; fixture={4}; coreSent={5}; bindingSent={6}; fixtureGateClass={7}; fixtureBindClass={8}).' -f
                         $target, $httpClass, ($flags -join ','), $fixtureSourceHasGate,
-                        $configuredBodyHasGate, $core.SentGate, $core.SentBinding)
+                        $configuredBodyHasGate, $core.SentGate, $core.SentBinding,
+                        $gateValue, $bindingValue)
                 }
             }
             if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
