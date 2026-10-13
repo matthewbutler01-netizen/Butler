@@ -399,6 +399,22 @@ async function scenario(name, mutations, expect) {
     code:1, output:/[/]autopilot[^\r\n]*FAIL[^\r\n]*HTTP 500 PUBLIC_WORKER RENDER_WATCH/,
     allRoutes:true
   });
+  await scenario('autopilot-accessibility-stage', {
+    httpStatus:{'/autopilot':500},
+    httpLayer:{'/autopilot':'PUBLIC_WORKER'},
+    httpAutopilotPhase:{'/autopilot':'WATCH_ACCESSIBILITY'}
+  }, {
+    code:1, output:/[/]autopilot[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500 PUBLIC_WORKER WATCH_ACCESSIBILITY/,
+    allRoutes:true
+  });
+  await scenario('autopilot-approval-queue-stage', {
+    httpStatus:{'/autopilot':500},
+    httpLayer:{'/autopilot':'PUBLIC_WORKER'},
+    httpAutopilotPhase:{'/autopilot':'APPROVAL_QUEUE'}
+  }, {
+    code:1, output:/[/]autopilot[^\\r\\n]*FAIL[^\\r\\n]*HTTP 500 PUBLIC_WORKER APPROVAL_QUEUE/,
+    allRoutes:true
+  });
   await scenario('autopilot-reject-untrusted-stage', {
     httpStatus:{'/autopilot':500},
     httpLayer:{'/autopilot':'PUBLIC_WORKER'},
