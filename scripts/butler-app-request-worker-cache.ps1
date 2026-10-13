@@ -495,7 +495,7 @@ function ConvertTo-ButlerUserFacingHtml {
         $auditValues = @()
         foreach ($label in @('Decision state:', 'BF-629:', 'BF-631:')) {
             $rx = '<div>' + [regex]::Escape($label) +
-                '\\s*(?<value>[A-Z][A-Z0-9_]{2,63})</div>'
+                '\s*(?<value>[A-Z][A-Z0-9_]{2,63})</div>'
             $matches = [regex]::Matches($Html, $rx)
             if ($matches.Count -ne 1) {
                 $auditValues = @()
