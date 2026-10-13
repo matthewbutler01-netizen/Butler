@@ -46,15 +46,16 @@ if ($BrokenCss) {
         "return 'body{font-family:Arial,sans-serif}'",
         "throw 'BF1136_PRIVATE_NO_LEAGUE'")
 }
-[IO.File]::WriteAllText($readOnlyModules, $moduleText, [Text.Encoding]::ASCII)
-
-if (@($BrokenCss, $BusyGate, $BrokenAccessibility | Where-Object { $_ }).Count -gt 1) {
+if (($BrokenCss -and $BusyGate) -or ($BrokenCss -and $BrokenAccessibility) -or
+    ($BusyGate -and $BrokenAccessibility)) {
     throw 'BF-M2 BLOCKED: failure scenarios must run independently.'
 }
 if ($BrokenAccessibility) {
     $moduleText += [Environment]::NewLine +
         "function Add-ButlerAccessibility { param([string]`$Html) throw 'BF1136_PRIVATE_NO_LEAGUE' }"
 }
+[IO.File]::WriteAllText($readOnlyModules, $moduleText, [Text.Encoding]::ASCII)
+
 $occupiedGate = $null
 $heldSlots = 0
 try {
