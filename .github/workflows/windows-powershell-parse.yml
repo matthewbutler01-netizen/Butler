@@ -203,7 +203,7 @@ jobs:
             'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
             '',
             'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
-            'This updater is pinned to reviewed commit 32cdfdd9 and port 18080.',
+            'This updater is pinned to reviewed commit c93b47c4 and port 18080.',
             'It will not upgrade, merge or touch the frozen v0.3 release.',
             '',
             'IMPORTANT: use Windows Explorer EXTRACT ALL, not Open-in-ZIP.',
