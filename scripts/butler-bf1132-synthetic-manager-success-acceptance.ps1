@@ -36,6 +36,9 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
     public string RequestedRoute = "";
     public string Failure = "";
     private readonly bool closeEarly;
+    // BF-M1: the exact real-worker transport accepts pre-rendered staged
+    // proof HTML, rather than only a synthetic no-proof success page.
+    public static string FixtureBody = "";
     public ButlerBf1132LocalCoreStub() : this(false) { }
     public ButlerBf1132LocalCoreStub(bool closeEarly) {
         this.closeEarly = closeEarly;
@@ -81,6 +84,7 @@ public sealed class ButlerBf1132LocalCoreStub : IDisposable {
                 }
                 string body = "<!doctype html><html><head><title>Butler synthetic</title></head>" +
                     "<body><main><h1>Butler synthetic healthy page</h1></main></body></html>";
+                if (!String.IsNullOrEmpty(FixtureBody)) body = FixtureBody;
                 byte[] bytes = Encoding.UTF8.GetBytes(body);
                 string headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n" +
                     "Content-Length: " + bytes.Length.ToString() + "\r\nCache-Control: no-store\r\n" +
@@ -122,10 +126,33 @@ function Add-AutomaticWaiverRefresh {
 
 try {
     foreach ($target in @('/team', '/waivers', '/league', '/matchup')) {
+        $fixtureProof = ''
+        if ($target -ceq '/team') {
+            $fixtureProof = '<div class="butler-m1-roster-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: OWNER</div><div>BF-M1 raw Sleeper league / roster: 2026 / 3</div><div>BF-M1 local binding: BF668_PROVEN_ROSTER</div></div>'
+        }
+        elseif ($target -ceq '/waivers') {
+            $fixtureProof = '<div class="butler-m1-waiver-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: OWNER</div><div>BF-M1 raw Sleeper league / roster: 2026 / 3</div><div>BF-M1 local binding: BF623_GOVERNED_WAIVER</div><div>BF-M1 decision state: NO_TRANSACTION_TO_ACT_ON</div><div>BF-M1 actionability: NO_TRANSACTION_TO_REVALIDATE</div><div>BF-M1 lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div>'
+        }
+        [ButlerBf1132LocalCoreStub]::FixtureBody = if ($fixtureProof -ne '') {
+            '<!doctype html><html lang="en"><head><title>Butler synthetic</title></head><body><main class="shell">' +
+            '<nav class="nav" aria-label="Butler sections"><a href="/">Dashboard</a><a class="active" href="' +
+            $target + '">Current</a></nav><section class="panel"><h1>Butler synthetic healthy page</h1></section>' +
+            $fixtureProof + '</main></body></html>'
+        } else { '' }
         $core = [ButlerBf1132LocalCoreStub]::new()
         try {
             $wire = Invoke-Bf1127FirstOpenGet -Target $target `
                 -HistoryPath $validPath -TradeHostPath $validPath -InnerPort $core.Port
+            # Check the *real* public worker does not drop, rewrite or
+            # collapse literal source proof supplied by a healthy core.
+            # The proof contains only synthetic league/roster IDs; no user
+            # data, source HTML or error message is printed on failure.
+            if ($fixtureProof -ne '') {
+                $preserved = [regex]::Matches($wire, [regex]::Escape($fixtureProof)).Count -eq 1
+                if (-not $preserved) {
+                    throw ('BF-M1 BLOCKED: public worker changed exact {0} source proof.' -f $target)
+                }
+            }
             if (-not $wire.StartsWith('HTTP/1.1 200 OK', [StringComparison]::Ordinal) -or
                 $wire.IndexOf('Butler synthetic healthy page', [StringComparison]::Ordinal) -lt 0 -or
                 $wire.IndexOf('Content-Type: text/html', [StringComparison]::Ordinal) -lt 0 -or
@@ -154,6 +181,8 @@ try {
             throw 'BF-1132 BLOCKED: public manager did not read the exact synthetic core route.'
         }
     }
+
+    [ButlerBf1132LocalCoreStub]::FixtureBody = ''
 
     # BF-1151: both reported failure routes must return a complete,
     # private-data-free error page if a reachable inner core abruptly
