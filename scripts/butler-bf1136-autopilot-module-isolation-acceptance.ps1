@@ -52,8 +52,8 @@ if ($BrokenCss) {
     $moduleText += [Environment]::NewLine +
         "function Get-V04AutoPilotCss { throw 'BF1136_PRIVATE_NO_LEAGUE' }"
 }
-if ((@($BrokenCss, $BusyGate, $BrokenAccessibility, $HostCssThrows) |
-     Where-Object { $_ }).Count -gt 1) {
+if (@(@($BrokenCss, $BusyGate, $BrokenAccessibility, $HostCssThrows) |
+     Where-Object { [bool]$_ }).Count -gt 1) {
     throw 'BF-M2 BLOCKED: failure scenarios must run independently.'
 }
 if ($BrokenAccessibility) {
