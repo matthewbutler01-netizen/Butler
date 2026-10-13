@@ -161,6 +161,63 @@ async function scenario(name, mutations, expect) {
   // Milestone 1: scope local first-open checks to the two failing pages.
   // Both must be opened twice, with source/health gates preserved and
   // no accidental probes of Auto-Pilot, Matchup or any provider endpoint.
+  // BF-M1: the observed user's real pages omitted every old technical
+  // field. The *new* markers are sourced from BF-668's bound roster view
+  // and the exact governed Waiver Board decision, not a fabricated PASS.
+  // Also test stale/duplicate proof: no manager action is authorized.
+  const m1Team = good['/team'].replace(
+    /<details><div>BF-623 target gate:[\s\S]*?<\/details>/, '') .replace(
+    '</body>', '<div class="butler-m1-roster-proof" hidden>' +
+    '<div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div>' +
+    '<div>BF-M1 role: OWNER</div>' +
+    '<div>BF-M1 raw Sleeper league / roster: 2026 / 3</div>' +
+    '<div>BF-M1 local binding: BF668_PROVEN_ROSTER</div></div></body>');
+  const m1Waiver = good['/waivers'].replace(
+    /<details><summary>Technical and audit details<\/summary>[\s\S]*?<\/details>/, '') .replace(
+    '</body>', '<div class="butler-m1-waiver-proof" hidden>' +
+    '<div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div>' +
+    '<div>BF-M1 role: OWNER</div>' +
+    '<div>BF-M1 raw Sleeper league / roster: 2026 / 3</div>' +
+    '<div>BF-M1 local binding: BF623_GOVERNED_WAIVER</div>' +
+    '<div>BF-M1 decision state: NO_TRANSACTION_TO_ACT_ON</div>' +
+    '<div>BF-M1 actionability: NO_TRANSACTION_TO_REVALIDATE</div>' +
+    '<div>BF-M1 lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div></body>');
+  await scenario('milestone1-current-renderer-bound-proof', {
+    rosterWaiverOnly:true, strict:true,
+    routes:{'/team':m1Team,'/waivers':m1Waiver}
+  }, {code:0, output:/MILESTONE 1 FIRST-OPEN CHECK: PASS/, allRoutes:true});
+  await scenario('milestone1-current-renderer-stale-waiver-held', {
+    rosterWaiverOnly:true, strict:true,
+    routes:{'/team':m1Team, '/waivers':m1Waiver.replace(
+      'BF-M1 decision state: NO_TRANSACTION_TO_ACT_ON',
+      'BF-M1 decision state: CURRENT_REFRESH_RECOMMENDED')}
+  }, {code:2,output:/\/waivers\s+WARN\s+evidence=WAIVER AUDIT HELD/,allRoutes:true});
+  await scenario('milestone1-current-renderer-duplicate-target', {
+    rosterWaiverOnly:true,strict:true,
+    routes:{'/team':m1Team.replace(
+      '<div>BF-M1 role: OWNER</div>',
+      '<div>BF-M1 role: OWNER</div><div>BF-M1 role: OWNER</div>'),
+      '/waivers':m1Waiver}
+  }, {code:1,output:/\/team\s+FAIL\s+evidence=TARGET PROOF DUPLICATE/,allRoutes:true});
+  // A partial current-renderer audit must still be held, never accepted
+  // via a decorative fallback navigation title or an earlier legacy label.
+  await scenario('milestone1-current-renderer-incomplete-proof-held', {
+    rosterWaiverOnly:true,strict:true,
+    routes:{'/team':m1Team,'/waivers':m1Waiver.replace(
+      '<div>BF-M1 lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED</div>','')}
+  }, {code:2,output:/\/waivers\s+WARN\s+evidence=WAIVER AUDIT MISSING/,allRoutes:true});
+  // Assert the actual transform sources keep the new source-bound labels.
+  // These are checks only; adding proof does not refresh or source data.
+  const fs = require('node:fs');
+  const rosterTransform = fs.readFileSync(path.join(__dirname,
+    'butler-app-bf1019-v04-fantasy-manager-shell-transform.ps1'),'utf8');
+  const waiverTransform = fs.readFileSync(path.join(__dirname,
+    'butler-dashboard-bf873-waiver-decision-first-transform.ps1'),'utf8');
+  assert.match(rosterTransform,/BF-M1 local binding: BF668_PROVEN_ROSTER/);
+  assert.match(rosterTransform,/\$Roster\.SleeperLeagueId/);
+  assert.match(waiverTransform,/BF-M1 decision state: \$\(ConvertTo-HtmlText \$current\.State\)/);
+  assert.match(waiverTransform,/BF-M1 lineage: \$\(ConvertTo-HtmlText \$current\.Bf631\)/);
+  assert.match(waiverTransform,/BF-M1 local binding: BF623_GOVERNED_WAIVER/);
   await scenario('milestone1-first-and-repeat-healthy',
     {rosterWaiverOnly:true, strict:true}, {
       code:0, output:/MILESTONE 1 FIRST-OPEN CHECK: PASS \(page contracts, local audit and target identity only\)/, allRoutes:true

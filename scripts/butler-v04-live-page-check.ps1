@@ -474,6 +474,115 @@ function Test-ButlerLocalHealth {
 # Never output the raw Sleeper IDs; local proof != fresh source proof.
 function Test-ButlerMilestoneTargetProof {
     param([string]$Html, [string]$Route)
+    # Prefer BF-M1 markers from the actual staged v0.4 renderers.
+    # The earlier BF-610 and BF-834 labels belonged to different HTML
+    # presentations; they were not emitted on the user's real pages.
+    # Older staged versions continue to use the strict legacy contract.
+    if ($Html.Contains('BF-M1 target gate:') -or
+        $Html.Contains('BF-M1 local binding:')) {
+        $labels = @('BF-M1 target gate:', 'BF-M1 role:',
+            'BF-M1 raw Sleeper league / roster:', 'BF-M1 local binding:')
+        foreach ($label in $labels) {
+            $hits = [regex]::Matches($Html, '<div>' + [regex]::Escape($label) + '\s*[^<]*</div>')
+            if ($hits.Count -gt 1) {
+                return @{ Status='FAIL'; Evidence='TARGET PROOF DUPLICATE'; Identity='' }
+            }
+            if ($hits.Count -ne 1) {
+                return @{ Status='WARN'; Evidence='TARGET PROOF MISSING'; Identity='' }
+            }
+        }
+        $gate = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 target gate:'
+        $role = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 role:'
+        $binding = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 local binding:'
+        $expectedBinding = if ($Route -ceq '/team') {
+            'BF668_PROVEN_ROSTER'
+        } else { 'BF623_GOVERNED_WAIVER' }
+        $ids = [regex]::Match([string](Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-M1 raw Sleeper league / roster:'),
+            '^(?<league>[1-9][0-9]*)\s*/\s*(?<roster>[1-9][0-9]*)
+        'BF-610 raw Sleeper league / roster:'
+    } else { 'Raw Sleeper league / roster:' }
+    $labels = @('BF-623 target gate:', 'BF-623 role:', $rawLabel)
+    if ($Route -ceq '/team') { $labels += 'BF-610 context state:' }
+    foreach ($label in $labels) {
+        $count = [regex]::Matches($Html, '<div>' + [regex]::Escape($label) + '\s*[^<]*</div>').Count
+        if ($count -gt 1) {
+            return @{ Status='FAIL'; Evidence='TARGET PROOF DUPLICATE'; Identity='' }
+        }
+        if ($count -ne 1) {
+            return @{ Status='WARN'; Evidence='TARGET PROOF MISSING'; Identity='' }
+        }
+    }
+    $gate = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-623 target gate:'
+    $role = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-623 role:'
+    $context = if ($Route -ceq '/team') {
+        Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-610 context state:'
+    } else { 'READY_CONTEXT_ONLY' }
+    $ids = [regex]::Match([string](Get-DecisionRefreshTechnicalField -Html $Html -Label $rawLabel),
+        '^(?<league>[1-9][0-9]*)\s*/\s*(?<roster>[1-9][0-9]*)$')
+    if ($gate -cne 'BOUND_TARGET_LIVE_VERIFIED' -or $role -cne 'OWNER' -or
+        $context -cne 'READY_CONTEXT_ONLY' -or -not $ids.Success) {
+        return @{ Status='WARN'; Evidence='TARGET NOT VERIFIED'; Identity='' }
+    }
+    return @{ Status='PASS'; Evidence='LOCAL TARGET VERIFIED';
+        Identity=($ids.Groups['league'].Value + '/' + $ids.Groups['roster'].Value) }
+}
+
+function Test-ButlerMilestoneWaiverAudit {
+    param([AllowNull()][string]$Html)
+
+    $m1 = $Html.Contains('BF-M1 decision state:') -or
+        $Html.Contains('BF-M1 actionability:') -or
+        $Html.Contains('BF-M1 lineage:')
+    $fields = if ($m1) {
+        @('BF-M1 decision state:', 'BF-M1 actionability:', 'BF-M1 lineage:')
+    } else {
+        @('Current decision state:', 'BF-629 current gate:', 'BF-631 current gate:')
+    }
+    foreach ($field in $fields) {
+        $hits = [regex]::Matches([string]$Html, '<div>' + [regex]::Escape($field) + '\s*[^<]*</div>')
+        if ($hits.Count -gt 1) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER AUDIT DUPLICATE' }
+        }
+        if ($hits.Count -ne 1) {
+            return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WAIVER AUDIT MISSING' }
+        }
+    }
+    $state = Get-DecisionRefreshTechnicalField -Html $Html -Label $fields[0]
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $Html -Label $fields[1]
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $Html -Label $fields[2]
+    $adds = [regex]::Matches($Html, '<article class="waiver-action-card add">').Count
+    $drops = [regex]::Matches($Html, '<article class="waiver-action-card drop">').Count
+
+    if ($state -ceq 'CURRENT_AND_ACTIONABLE' -and
+        $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        if ($adds -ne 1 -or $drops -ne 1) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER PAIR PROOF' }
+        }
+        return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LOCAL WAIVER AUDIT' }
+    }
+    if ($state -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $bf629 -ceq 'NO_TRANSACTION_TO_REVALIDATE' -and
+        $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
+        if ($adds -ne 0 -or $drops -ne 0) {
+            return [pscustomobject]@{ Status = 'FAIL'; Evidence = 'WAIVER PAIR PROOF' }
+        }
+        return [pscustomobject]@{ Status = 'PASS'; Evidence = 'LOCAL NO MOVE' }
+    }
+    # Pending, completed, stale, incomplete, contradictory and unrecognized
+    # local states are HELD rather than automatically approved. Do not
+    # reflect IDs, raw HTML or server-supplied error messages into reports.
+    return [pscustomobject]@{ Status = 'WARN'; Evidence = 'WAIVER AUDIT HELD' }
+}
+
+)
+        if ($gate -cne 'BOUND_TARGET_LIVE_VERIFIED' -or
+            $role -cne 'OWNER' -or $binding -cne $expectedBinding -or -not $ids.Success) {
+            return @{ Status='WARN'; Evidence='TARGET NOT VERIFIED'; Identity='' }
+        }
+        return @{ Status='PASS'; Evidence='LOCAL TARGET VERIFIED';
+            Identity=($ids.Groups['league'].Value + '/' + $ids.Groups['roster'].Value) }
+    }
     $rawLabel = if ($Route -ceq '/team') {
         'BF-610 raw Sleeper league / roster:'
     } else { 'Raw Sleeper league / roster:' }
