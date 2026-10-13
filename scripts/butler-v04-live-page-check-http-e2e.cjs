@@ -47,7 +47,7 @@ const good = {
   '/matchup/autofill': html('Start/Sit Assistant <section class="panel butler-live-week-status" role="status" data-butler-week-state="MATCH" data-butler-week-season="2026" data-butler-week-number="5"></section><div class="target" data-butler-matchup-season="2026">League &middot; Week 5</div><section class="panel recommendation-panel start-sit-assistant">Review only' + currentProof + '</section>'),
   '/league': html('League <section class="panel"><div class="eyebrow">League hub</div>' +
     '<div class="league-franchise-board"><article class="league-franchise-card">Current synthetic team</article></div>' +
-    '<details class="league-governance"><summary>View governed league actions</summary></details></section>'),
+    '<details class="league-governance"><summary>View league actions</summary></details></section>'),
   '/autopilot': html('<section><div class="autopilot-watch-head"><div><div class="eyebrow">CURRENT WEEKLY WATCH</div><h2>What Butler sees right now</h2><span class="autopilot-watch-week" role="status" data-butler-watch-week-state="MATCH">NFL 2026 season - Week 5 verified against the public Sleeper week.</span></div><span class="status good">CURRENT SNAPSHOT</span></div>' +
     '<div class="autopilot-watch-grid"><div class="autopilot-watch-card"><span>Start/Sit</span><strong>REVIEW</strong></div></div>' +
     '<div class="autopilot-prepared-head"><div><div class="eyebrow">PREPARED START/SIT REVIEW</div><h2>Recommendation packet</h2></div><span class="status good">READY FOR MANAGER REVIEW</span></div></section>')
