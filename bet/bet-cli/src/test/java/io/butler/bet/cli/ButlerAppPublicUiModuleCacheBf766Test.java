@@ -226,7 +226,11 @@ class ButlerAppPublicUiModuleCacheBf766Test {
             "Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable'", refresh);
         int error = worker.indexOf(
             "-StatusCode 500 -StatusText 'Internal Server Error'", fallback);
-        int bypass = worker.indexOf("-FailureLayer 'PUBLIC_WORKER' -SkipOptionalHtmlPresentation", error);
+        // BF-M2 adds a bounded source-free diagnostic enum to HTTP 500.
+        // The dedicated failure response must retain the safety bypass.
+        int bypass = worker.indexOf(
+            "-FailureLayer 'PUBLIC_WORKER' -AutoPilotFailureStage $autoPilotFailureStage -SkipOptionalHtmlPresentation",
+            error);
         int returnFromFailure = worker.indexOf("return", bypass);
         int normalResponse = worker.indexOf("-StatusCode 200 -StatusText 'OK'", returnFromFailure);
         assertTrue(route >= 0 && guard > route && opening > guard);
