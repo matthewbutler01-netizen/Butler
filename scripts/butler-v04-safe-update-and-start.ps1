@@ -1,7 +1,8 @@
 param(
     [string]$CheckoutPath = 'C:\ButlerDev\pr1464',
     [ValidateRange(1024, 65535)][int]$TargetPort = 18080,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [switch]$UpdateOnly
 )
 
 Set-StrictMode -Version Latest
@@ -90,6 +91,11 @@ try {
     }
 
     Write-Host ('Pinned v0.4 commit verified: ' + $targetCommit.Substring(0, 8))
+    if ($UpdateOnly) {
+        Write-Host 'UPDATE COMPLETE. One-click beta launcher will start and check the app.'
+        Write-Host 'No server launched or stopped by updater.'
+        return
+    }
     Write-Host 'Starting guarded development app on 127.0.0.1:18080.'
     Write-Host 'Leave the Butler window open while testing.'
     Write-Host ''
