@@ -117,6 +117,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-safe-update-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-v04-beta-one-click-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-bf1076-optional-read-budget-http-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
@@ -185,6 +187,47 @@ jobs:
 
       # BF-M1: pinned to reviewed app commit, never an installer,
       # force-stop tool or v0.3 production replacement.
+      # BF-BETA: one ZIP to launch the guarded v0.4 read-only beta.
+      - name: Package v0.4 one-click beta
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'butler-v04-beta-one-click'
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          foreach ($name in @('butler-v04-beta-one-click.cmd',
+                              'butler-v04-beta-one-click.ps1',
+                              'butler-v04-safe-update-and-start.ps1')) {
+            Copy-Item -LiteralPath (Join-Path '.\scripts' $name) -Destination (Join-Path $target $name) -ErrorAction Stop
+          }
+          $readme = @(
+            'BUTLER v0.4 - READ-ONLY BETA - ONE CLICK',
+            '',
+            '1. Right-click ZIP and choose Extract All.',
+            '2. Double-click butler-v04-beta-one-click.cmd in extracted folder.',
+            '3. One launcher updates v0.4, starts it, checks it, opens Dashboard',
+            '   and saves the ONE status report in LocalAppData\Butler\diagnostics.',
+            '4. Leave the separate Butler app window open while using it.',
+            '',
+            'If an older v0.4 Butler is already running, the launcher opens',
+            'it WITHOUT installing a new build. Close ONLY your known v0.4',
+            'window with Ctrl+C and double-click again to install this build.',
+            'No v0.3 changes, force-stop, or Sleeper transactions are made.',
+            'Normal app GETs may invoke existing governed Butler-local recovery.',
+            'WARN/HOLD is not permission to follow stale waiver/lineup advice.',
+            'Auto-Pilot is preview-only; advanced automation moves to v0.5.',
+            'Live injuries/projections and browser refresh are not certified',
+            'merely because the local pages opened.'
+          ) -join [Environment]::NewLine
+          [IO.File]::WriteAllText((Join-Path $target 'README.txt'),
+              $readme, [Text.Encoding]::ASCII)
+      - name: Upload v0.4 one-click read-only beta
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: butler-v04-beta-one-click
+          path: ${{ runner.temp }}/butler-v04-beta-one-click/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Package guarded pinned v0.4 update and start
         shell: powershell
         run: |
@@ -203,7 +246,7 @@ jobs:
             'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
             '',
             'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
-            'This updater is pinned to reviewed commit c93b47c4 and port 18080.',
+            'This updater is pinned to reviewed commit 370cd7bc and port 18080.',
             'It will not upgrade, merge or touch the frozen v0.3 release.',
             '',
             'IMPORTANT: use Windows Explorer EXTRACT ALL, not Open-in-ZIP.',

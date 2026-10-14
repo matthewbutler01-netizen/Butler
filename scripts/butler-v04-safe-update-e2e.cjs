@@ -16,11 +16,13 @@ const cmdSource = fs.readFileSync(cmd,'utf8');
 for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean/i,/git\s+push/i,/submitTransaction/i,/Invoke-RestMethod/i]) {
   assert.doesNotMatch(source,forbidden);
 }
-assert.match(source,/c93b47c4485950cb0a2f0fe64017e03f056d7c9e/);
+assert.match(source,/370cd7bcfcc556e4a0aa923cc6d8a402dd6eab72/);
 assert.match(source,/refs\/heads\/startsit-review-action-summary/);
 assert.match(source,/merge-base --is-ancestor \$targetCommit FETCH_HEAD/);
 assert.match(source,/status --porcelain=v1 --untracked-files=normal/);
 assert.match(source,/switch --detach \$targetCommit/);
+assert.match(source,/\[switch\]\$UpdateOnly/);
+assert.match(source,/if \(\$UpdateOnly\)/);
 assert.match(cmdSource,/butler-v04-safe-update-and-start.ps1/);
 assert.match(cmdSource,/EXTRACT ALL REQUIRED/);
 function git(args) {
