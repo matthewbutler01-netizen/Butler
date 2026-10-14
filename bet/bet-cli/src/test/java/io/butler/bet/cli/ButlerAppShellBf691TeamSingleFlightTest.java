@@ -25,7 +25,9 @@ class ButlerAppShellBf691TeamSingleFlightTest {
         assertTrue(worker.contains("[System.AppDomain]::CurrentDomain.GetData($cacheKey)"));
         assertTrue(worker.contains("[System.AppDomain]::CurrentDomain.SetData($cacheKey"));
         assertTrue(worker.contains("AddSeconds(5).Ticks"));
-        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200)"));
+        assertTrue(worker.contains("if ([int]$proxied.StatusCode -eq 200 -and"));
+        assertTrue(worker.contains("$cached.ContainsKey('EvidenceGeneration')"));
+        assertTrue(worker.contains("Get-EvidenceRefreshGeneration -State $RefreshState"));
         assertTrue(worker.contains("Invoke-TeamSingleFlightGet -Port $InnerPort -RequestTarget $requestTarget -League $LeagueId"));
         assertTrue(worker.contains("if ($requestTarget -ceq '/team')"));
     }

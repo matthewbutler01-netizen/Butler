@@ -51,7 +51,11 @@ class SleeperLiveAutoFillLineupRecommendationBf800Test {
 
         var report = new SleeperLiveAutoFillLineupRecommendation(
             database,
-            (season, week, scoring) -> snapshot)
+            (season, week, scoring) -> snapshot,
+            ids -> ids.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                id -> id,
+                id -> new SleeperPlayerAvailabilityProvider.PlayerAvailability(
+                    id, "Active", "Healthy"))))
             .recommend(rosterReport(leagueId));
 
         assertTrue(report.ready());

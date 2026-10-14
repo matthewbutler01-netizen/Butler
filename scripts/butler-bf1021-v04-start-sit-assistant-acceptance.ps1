@@ -39,11 +39,28 @@ try {
         'Projected difference',
         'Compare this swap',
         'What needs your decision',
-        'Projection hold'
+        'Player holds:'
     )) {
         if ($surface.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1021 BLOCKED: staged Start/Sit marker is missing: $required"
         }
+    }
+
+    # BF-1105: assert the actual *staged* Start/Sit renderer contains
+    # one escaped source-proof paragraph, inside the readable captioned
+    # source card. Preserve the exact proof marker used downstream.
+    foreach ($label in @(
+        '<div class=`"startsit-source-context`">',
+        '<strong class=`"startsit-source-heading`">EVIDENCE BEHIND THIS ADVICE</strong>',
+        '<p class=`"meta butler-startsit-source-proof`" role=`"status`">$(ConvertTo-HtmlText $statusProofCopy)</p>',
+        '<p class=`"startsit-source-caution`">Retrieval times are not injury clearance.'
+    )) {
+        if ($surface.IndexOf($label, [StringComparison]::Ordinal) -lt 0) {
+            throw "BF-1105 BLOCKED: staged Start/Sit summary did not retain accessible readable evidence: $label"
+        }
+    }
+    if ([regex]::Matches($surface, 'meta butler-startsit-source-proof').Count -ne 1) {
+        throw 'BF-1105 BLOCKED: generated Start/Sit exposed ambiguous source proof.'
     }
 
     if ($surface -match 'Invoke-RestMethod|Invoke-WebRequest|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
@@ -56,7 +73,12 @@ try {
         '.start-sit-assistant{padding:22px}',
         '.lineup-row.changed{border-color:',
         '.grid.four>.summary-card:nth-child(3)',
-        '.grid.four>.summary-card:nth-child(4)'
+        '.grid.four>.summary-card:nth-child(4)',
+        '.start-sit-assistant .startsit-source-context{margin-top:14px;padding:16px',
+        '.start-sit-assistant .butler-startsit-source-proof{display:block;margin-top:9px',
+        'color:var(--ink);line-height:1.65;font-size:14px',
+        '.start-sit-assistant .lineup-swap-compare{font-size:14px',
+        '.start-sit-assistant .review-queue li{font-size:14px'
     )) {
         if ($all.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1021 BLOCKED: staged Start/Sit visual marker is missing: $required"

@@ -70,7 +70,9 @@ class ButlerAppShellBf689BoundedConcurrencyTest {
         assertTrue(worker.contains("if ($parts[0] -ne 'GET')"));
         assertTrue(worker.contains("if ($parts[0] -eq 'POST')"));
         assertTrue(worker.contains("if ($requestTarget -cne '/refresh')"));
-        assertTrue(worker.contains("No Butler or Sleeper write was executed."));
+        assertTrue(worker.contains("No Sleeper transaction was submitted by this page."));
+        assertTrue(worker.contains("Butler may have attempted governed local evidence recovery"));
+        assertFalse(worker.contains("No Butler or Sleeper write was executed."));
         assertFalse(worker.contains("transactions/"));
         assertFalse(worker.contains("waiver_budget"));
     }

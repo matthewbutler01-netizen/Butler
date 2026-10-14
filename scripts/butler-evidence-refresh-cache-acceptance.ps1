@@ -1,0 +1,113 @@
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$worker = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
+$tokens = $null
+$errors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($worker, [ref]$tokens, [ref]$errors)
+if ($errors.Count -gt 0) { throw 'Butler worker parser failed.' }
+
+# Exercise the actual single-flight cache functions with only the inner core GET stubbed.
+foreach ($name in @(
+    'Get-Bf856ElapsedMs',
+    'New-Bf856RouteTiming',
+    'Get-EvidenceRefreshGeneration',
+    'Test-EvidenceRefreshInProgress',
+    'Claim-LocalEvidenceRecovery',
+    'Complete-DecisionRefreshAttempt',
+    'Invoke-TeamSingleFlightGet',
+    'Get-ExpensiveReadSingleFlightKey',
+    'Invoke-ExpensiveReadSingleFlightGet'
+)) {
+    $node = $ast.Find({
+        param($item)
+        $item -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $item.Name -ceq $name
+    }, $true)
+    if ($null -eq $node) { throw "Missing cache function $name" }
+    . ([scriptblock]::Create($node.Extent.Text))
+}
+
+$script:bf856RouteTimingEnabled = $false
+$script:coreReads = 0
+function Invoke-AppCoreGet {
+    param([int]$Port, [string]$RequestTarget)
+    $script:coreReads += 1
+    return [pscustomobject]@{
+        StatusCode = 200
+        StatusText = 'OK'
+        ContentType = 'text/html; charset=utf-8'
+        Body = "core-read-$($script:coreReads)"
+    }
+}
+
+$league = [Guid]::NewGuid().ToString('N')
+$state = [hashtable]::Synchronized(@{ Token = 'a' * 64; InProgress = $false })
+if ((Get-EvidenceRefreshGeneration -State $state) -ne 0) { throw 'Unexpected startup evidence generation.' }
+
+foreach ($route in @('/team', '/waivers', '/', '/matchup')) {
+    $script:coreReads = 0
+    $run = {
+        if ($route -ceq '/team') {
+            return Invoke-TeamSingleFlightGet -Port 1 -RequestTarget $route -League $league -RefreshState $state
+        }
+        return Invoke-ExpensiveReadSingleFlightGet -Port 1 -RequestTarget $route -League $league -RefreshState $state
+    }
+
+    $first = & $run
+    $second = & $run
+    if ($first.Body -cne 'core-read-1' -or $second.Body -cne 'core-read-1' -or $script:coreReads -ne 1) {
+        throw "$route failed to reuse a valid same-generation read."
+    }
+
+    # A refresh may begin while a warm response still exists. That response
+    # must not be served, and in-progress reads must not repopulate the cache.
+    $state.InProgress = $true
+    if (-not (Test-EvidenceRefreshInProgress -State $state)) {
+        throw "$route did not register the in-progress evidence refresh."
+    }
+    $duringOne = & $run
+    $duringTwo = & $run
+    if ($duringOne.Body -cne 'core-read-2' -or $duringTwo.Body -cne 'core-read-3' -or $script:coreReads -ne 3) {
+        throw "$route served or populated a cache during the governed refresh."
+    }
+
+    # Completing even a partially failed refresh invalidates prior generations.
+    Complete-DecisionRefreshAttempt -State $state
+    if ($state.InProgress -or (Test-EvidenceRefreshInProgress -State $state) -or
+        (Get-EvidenceRefreshGeneration -State $state) -le 0) {
+        throw "$route refresh completion failed to release and advance generation."
+    }
+    $afterOne = & $run
+    $afterTwo = & $run
+    if ($afterOne.Body -cne 'core-read-4' -or $afterTwo.Body -cne 'core-read-4' -or $script:coreReads -ne 4) {
+        throw "$route served a pre-refresh cached response or broke same-generation reuse."
+    }
+
+    # BF-723 on-open roster drift shares the same writer claim as POST, but
+    # must not rotate the protected POST token or reuse pre-recovery HTML.
+    $previousToken = $state.Token
+    $previousGeneration = Get-EvidenceRefreshGeneration -State $state
+    Claim-LocalEvidenceRecovery -State $state
+    $secondClaimBlocked = $false
+    try { Claim-LocalEvidenceRecovery -State $state } catch { $secondClaimBlocked = $true }
+    if (-not $secondClaimBlocked -or -not $state.InProgress) {
+        throw "$route allowed overlapping BF-723/POST evidence writers."
+    }
+    $bf723InProgress = & $run
+    if ($bf723InProgress.Body -cne 'core-read-5' -or $script:coreReads -ne 5) {
+        throw "$route reused stale HTML during BF-723 evidence recovery."
+    }
+    Complete-DecisionRefreshAttempt -State $state
+    if ((Get-EvidenceRefreshGeneration -State $state) -ne ($previousGeneration + 1) -or
+        $state.Token -cne $previousToken -or $state.InProgress) {
+        throw "$route BF-723 recovery did not preserve POST token ownership."
+    }
+    $bf723One = & $run
+    $bf723Two = & $run
+    if ($bf723One.Body -cne 'core-read-6' -or $bf723Two.Body -cne 'core-read-6' -or $script:coreReads -ne 6) {
+        throw "$route reused pre-BF-723 local evidence after guarded recovery."
+    }
+}
+
+Write-Host 'EVIDENCE REFRESH CACHE GENERATION ACCEPTANCE: PASS (team, waiver, dashboard, matchup)'

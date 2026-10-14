@@ -41,9 +41,12 @@ function New-ManagerRecoveryPageHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active $Active
+    # BF-1120: never echo an exception, stack trace, player, league or
+    # internal database path from a downstream error into public HTML.
+    # Accept only the exact internal sentinel; render fixed safe language.
     $detailsHtml = ''
-    if (-not [string]::IsNullOrWhiteSpace($Detail)) {
-        $detailsHtml = "<details><summary>Technical details</summary><div class=`"technical`">$(ConvertTo-HtmlText $Detail)</div></details>"
+    if ($Detail -ceq 'UNVERIFIED_SOURCE') {
+        $detailsHtml = '<details><summary>Technical details</summary><div class="technical">Read-only source information could not be verified. Do not act on this response.</div></details>'
     }
 
     return @"
@@ -65,46 +68,58 @@ if ($markerIndex -lt 0) {
 }
 $core = $core.Insert($markerIndex, $helper)
 
+$bf1119LeagueOld = @'
+$errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler League unavailable</title></head><body><main><h1>Butler League view unavailable</h1><p>The local League read could not finish. Rankings and actions are not verified by this response. No Sleeper transaction was submitted by this page.</p><a href="/league">Try League again</a> or <a href="/">Dashboard</a>.</main></body></html>'
+'@
+
+$bf1119TeamOld = @'
+$errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler My Team unavailable</title></head><body><main><h1>Butler My Team view unavailable</h1><p>The local roster read could not finish. Lineup and injury information are not verified by this response. No Sleeper transaction was submitted by this page.</p><a href="/team">Try My Team again</a> or <a href="/">Dashboard</a>.</main></body></html>'
+'@
+
+$bf1119GenericOld = @'
+$errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler page unavailable</title></head><body><main><h1>Butler read unavailable</h1><p>The local engine could not finish this page. Do not rely on lineup or waiver advice from this response. No Sleeper transaction was submitted by this page.</p><a href="/">Return to Dashboard</a>.</main></body></html>'
+'@
+
 $replacements = @(
     [pscustomobject]@{
         Contract = 'League blocked page'
-        Old = '$errorHtml = "<!doctype html><html><body><h1>Butler League view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "League view unavailable" -Status "STOPPED SAFELY" -Summary "Butler stopped the League view rather than continue with incomplete or unsafe evidence." -Detail $_.Exception.Message -Active "league"'
+        Old = $bf1119LeagueOld
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "League view unavailable" -Status "STOPPED SAFELY" -Summary "League rankings could not be verified for this request. Review current evidence before acting." -Detail "UNVERIFIED_SOURCE" -Active "league"'
     },
     [pscustomobject]@{
         Contract = 'My Team blocked page'
-        Old = '$errorHtml = "<!doctype html><html><body><h1>Butler My Team view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
-        New = '$teamFailureParts = New-Object System.Collections.Generic.List[string]; if ($null -ne $_) { $teamFailureParts.Add([string]$_) }; if ($null -ne $_.Exception) { $teamFailureParts.Add(("ExceptionType={0}" -f $_.Exception.GetType().FullName)); $teamFailureParts.Add(("ExceptionMessage={0}" -f [string]$_.Exception.Message)) }; if (-not [string]::IsNullOrWhiteSpace([string]$_.FullyQualifiedErrorId)) { $teamFailureParts.Add(("ErrorId={0}" -f [string]$_.FullyQualifiedErrorId)) }; if (-not [string]::IsNullOrWhiteSpace([string]$_.ScriptStackTrace)) { $teamFailureParts.Add(("Stack={0}" -f [string]$_.ScriptStackTrace)) }; $teamFailure = ($teamFailureParts | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } | Select-Object -Unique) -join " | "; if ([string]::IsNullOrWhiteSpace($teamFailure)) { $teamFailure = "BF-908 diagnostic marker: My Team failed without an exposed PowerShell error record." }; Write-Warning ("BF-908 My Team runtime failure: {0}" -f $teamFailure); $errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Butler stopped My Team rather than continue with incomplete or unsafe evidence." -Detail $teamFailure -Active "team"'
+        Old = $bf1119TeamOld
+        New = 'Write-Warning "BF-908 My Team runtime failure: unverified local read, error details omitted"; $errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Roster and lineup information could not be verified. No action was submitted." -Detail "UNVERIFIED_SOURCE" -Active "team"'
     },
     [pscustomobject]@{
         Contract = 'generic app blocked page'
-        Old = '$errorHtml = "<!doctype html><html><body><h1>Butler app blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Butler could not complete this view" -Status "STOPPED SAFELY" -Summary "Butler stopped rather than continue with incomplete or unsafe evidence." -Detail $_.Exception.Message -Active "dashboard"'
+        Old = $bf1119GenericOld
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Butler could not complete this view" -Status "STOPPED SAFELY" -Summary "Butler stopped rather than continue with unverified matchup or waiver data." -Detail "UNVERIFIED_SOURCE" -Active "dashboard"'
     },
     [pscustomobject]@{
         Contract = 'Player Detail blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Player Detail blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p></body></html>"'
-        New = '$playerDetailFailure = [string]$_; if ([string]::IsNullOrWhiteSpace($playerDetailFailure) -and $null -ne $_.Exception) { $playerDetailFailure = [string]$_.Exception }; if ([string]::IsNullOrWhiteSpace($playerDetailFailure)) { $playerDetailFailure = "Player Detail failed without diagnostic text." }; $errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail $playerDetailFailure -Active "team"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this player detail safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "team"'
     },
     [pscustomobject]@{
         Contract = 'Franchise Detail blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Franchise Detail blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Franchise Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this franchise detail safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "league"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Franchise Detail unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify this franchise detail safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "league"'
     },
     [pscustomobject]@{
         Contract = 'Player Search blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Player Search blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p><p><a href=`"/players`">Back to Player Search</a></p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail $_.Exception.Message -Active "league"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Search unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not complete that player search safely. Adjust the search or return to another manager view." -Detail "UNVERIFIED_SOURCE" -Active "league"'
     },
     [pscustomobject]@{
         Contract = 'Player Compare blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Player Compare blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No provider refresh, Butler write, or Sleeper write was executed.</p><p><a href=`"/players`">Back to Player Search</a></p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "league"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Player Compare unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify that player comparison safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "league"'
     },
     [pscustomobject]@{
         Contract = 'Weekly Matchup blocked page'
         Old = '$errorHtml = "<!doctype html><html><body><h1>Butler Weekly Matchup view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"'
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Weekly Matchup unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify the matchup view safely, so it stopped instead of guessing." -Detail $_.Exception.Message -Active "matchup"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Weekly Matchup unavailable" -Status "STOPPED SAFELY" -Summary "Butler could not verify the matchup view safely, so it stopped instead of guessing." -Detail "UNVERIFIED_SOURCE" -Active "matchup"'
     }
 )
 

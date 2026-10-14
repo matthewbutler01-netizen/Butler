@@ -1,5 +1,7 @@
 package io.butler.bet.sleeper;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -41,6 +43,7 @@ final class SleeperPlayerAvailabilityProvider {
 
     private Map<String, PlayerAvailability> cachedByPlayerId = Map.of();
     private Instant expiresAt = Instant.EPOCH;
+    private Instant lastFetchedAt = Instant.EPOCH;
 
     SleeperPlayerAvailabilityProvider() {
         this(new SleeperClient()::getNflPlayers, Clock.systemUTC(), DEFAULT_CACHE_TTL, new ObjectMapper());
@@ -54,7 +57,12 @@ final class SleeperPlayerAvailabilityProvider {
         this.payloadSource = Objects.requireNonNull(payloadSource, "payloadSource must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.cacheTtl = Objects.requireNonNull(cacheTtl, "cacheTtl must not be null");
-        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+        // BF-1064: a duplicate player ID or conflicting injury_status is
+        // ambiguous safety evidence, not a "last field wins" clearance.
+        // Copy the injected mapper so tests and production share this gate.
+        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null").copy()
+            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
         if (cacheTtl.isZero() || cacheTtl.isNegative()) {
             throw new IllegalArgumentException("cacheTtl must be positive");
         }
@@ -70,8 +78,14 @@ final class SleeperPlayerAvailabilityProvider {
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
         Instant now = clock.instant();
-        if (!now.isBefore(expiresAt)) {
-            cachedByPlayerId = parse(payloadSource.load());
+        // BF-1065: after an OS clock rollback, an old observed player
+        // status cannot remain "fresh" just because its expiry lies in
+        // what is now the future. Re-fetch; if source fails, do not reuse
+        // the older availability cache.
+        if (now.isBefore(lastFetchedAt) || !now.isBefore(expiresAt)) {
+            var refreshed = parse(payloadSource.load());
+            cachedByPlayerId = refreshed;
+            lastFetchedAt = now;
             expiresAt = now.plus(cacheTtl);
         }
 
@@ -147,7 +161,11 @@ final class SleeperPlayerAvailabilityProvider {
         boolean requiresInjuryReview() {
             String normalizedStatus = normalize(status);
             String normalizedInjury = normalize(injuryStatus);
-            return (normalizedStatus != null && EXPLICITLY_UNAVAILABLE.contains(normalizedStatus))
+            // Only an explicitly Active provider status supports a routine
+            // projected promotion. Unrecognized/missing status is neither
+            // "healthy" nor certified inactive; hold it for manager review.
+            // The separate explicitlyUnavailable gate still handles Out/IR.
+            return !"active".equals(normalizedStatus)
                 || (normalizedInjury != null && !normalizedInjury.equals("healthy"));
         }
 

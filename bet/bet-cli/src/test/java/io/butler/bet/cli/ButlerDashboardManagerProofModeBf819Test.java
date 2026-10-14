@@ -79,6 +79,17 @@ class ButlerDashboardManagerProofModeBf819Test {
     }
 
     @Test
+    void stagedDashboardCarriesExactAuditedRefreshIdentity() throws Exception {
+        String transform = source("scripts/butler-dashboard-bf819-manager-proof-mode-transform.ps1");
+        assertTrue(transform.contains("<div class=\"butler-refresh-contract\" hidden>"));
+        assertTrue(transform.contains("Decision state: $(ConvertTo-HtmlText $state)"));
+        assertTrue(transform.contains("BF-629: $(ConvertTo-HtmlText $bf629)"));
+        assertTrue(transform.contains("BF-631: $(ConvertTo-HtmlText $bf631)"));
+        assertTrue(transform.contains("BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)"));
+        assertTrue(transform.contains("Audit ID: $(ConvertTo-HtmlText $audit.Id)"));
+    }
+
+    @Test
     void bf818StagesBf819AfterWaiverAdvisor() throws Exception {
         String bf818 = source("scripts/butler-dashboard-bf818-waiver-advisor-transform.ps1");
 

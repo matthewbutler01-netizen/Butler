@@ -29,12 +29,12 @@ class ButlerWaiverDecisionSurfaceBf834Test {
         String transform = source("scripts/butler-dashboard-bf834-waiver-decision-surface-transform.ps1");
 
         for (String marker : new String[]{
-                "Review Butler's proven add/drop move",
+                "Review Butler's recommended add/drop move",
                 "Refresh before relying on this waiver move",
-                "Waiver review complete; no move proven",
+                "Waiver review complete; no move recommended",
                 "Waiver move already pending",
                 "Do not act on the saved waiver move",
-                "MOVE PROVEN",
+                "READY FOR REVIEW",
                 "NO MOVE",
                 "What to do now",
                 "Authorized review pool"

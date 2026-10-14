@@ -71,6 +71,12 @@ function Add-DecisionRefreshControl {
         (Test-DecisionRefreshNoTransactionLineage -LineageState $bf631State)) {
         $eligible = $true
     }
+    elseif ($decisionState -ceq 'STALE_DO_NOT_ACT' -and
+        $bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631State) {
+        $eligible = $true
+    }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
         $bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
         $bf631State -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
@@ -121,7 +127,7 @@ $nav
 <input type="hidden" name="token" value="$safeToken">
 <div class="refresh-actions"><button class="refresh-button" type="submit">Confirm refresh</button><a class="refresh-cancel" href="/">Cancel</a></div>
 </form>
-<details class="refresh-governance"><summary>Technical details</summary><ul class="refresh-list"><li>This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.</li><li>BF-823 first performs a read-only roster/player recovery probe.</li><li>If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed.</li><li>If lineup recovery is not needed, the unchanged BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized.</li><li>If any required state is ambiguous or unsafe, the refresh stops instead of guessing.</li></ul></details>
+<details class="refresh-governance"><summary>Technical details</summary><ul class="refresh-list"><li>This does not submit a lineup, waiver move, trade, or FAAB change to Sleeper.</li><li>BF-823 first performs a read-only roster/player recovery probe.</li><li>If current player mappings or exact roster evidence need repair, only the governed Butler-local recovery chain is allowed.</li><li>If lineup recovery is not needed, the BF-676 waiver refresh runner performs its existing strict preflight before any Butler evidence write.</li><li>An exact governed no-transaction decision remains eligible for a manual recheck under BF-675.</li><li>If Butler already has an actionable waiver recommendation, BF-676 proceeds only when the existing governed refresh plan is exactly authorized.</li><li>A saved decision superseded by newer evidence can be refreshed only while its exact live actionability still verifies. The old move remains blocked pending a new decision.</li><li>If any required state is ambiguous or unsafe, the refresh stops instead of guessing.</li></ul></details>
 </section>
 </main>
 </body>
@@ -239,7 +245,7 @@ function Get-DecisionRefreshSuccessHtml {
 .refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
 </style></head>
 <body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
-<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler is up to date</h2><p class="lede">Your roster and player data were successfully refreshed. Butler can now use the repaired data for recommendations. No changes were submitted to Sleeper.</p></div><span class="status done">UP TO DATE</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/waivers">Review Waiver Board</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history?load=1">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
+<section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler refresh finished</h2><p class="lede">The supported refresh steps completed. Review Waiver Board for the resulting decision and any remaining holds. No changes were submitted to Sleeper.</p></div><span class="status done">REFRESH FINISHED</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/waivers">Review Waiver Board</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history?load=1">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
 </main></body></html>
 "@
 }
@@ -256,4 +262,211 @@ function Get-DecisionRefreshFailureHtml {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Refresh blocked</title><style>$css</style></head>
 <body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We&apos;re here to serve you. Less Research. Better Decisions.</p></div><div class="target">Refresh blocked safely</div></div>$nav<section class="panel"><div class="eyebrow">Explicit governed refresh</div><div class="statusrow"><div><h2 class="headline">Butler data refresh stopped</h2><p class="lede">Butler could not prove that the requested recovery was safe to continue.</p></div><span class="status warn">STOPPED SAFELY</span></div><details open><summary>View refresh details</summary><pre>$safeMessage</pre></details><p>Butler did not submit, cancel, or replace a Sleeper transaction and did not set FAAB.</p><p>If an authorized Butler-local recovery had already begun, earlier Butler evidence stages may have completed before the failure; later stages were stopped.</p><p><a href="/refresh">Return to refresh confirmation</a> &nbsp; <a href="/waivers">Review Waiver Board</a> &nbsp; <a href="/">Dashboard</a></p></section></main></body></html>
 "@
+}
+
+# Automatic evidence recheck is available only after an exact server-proven
+# eligibility signal. GET renders a capability; the existing token-gated POST
+# runner remains the sole authority for any governed Butler-local writes.
+function Add-AutomaticGovernedRefreshHtml {
+    param(
+        [string]$Html,
+        [string]$Route,
+        [string]$AuditId,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if (@('/', '/waivers', '/autopilot', '/matchup/autofill') -cnotcontains $Route -or
+        $Token -cnotmatch '^[0-9a-f]{64}$' -or
+        $AuditId -cnotmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+        return $result
+    }
+    # Never emit a script nonce if insertion into a single well-formed body
+    # cannot be proved. Do not introduce a permissive global script policy.
+    # The insertion uses an exact case-sensitive replacement. Require that
+    # exact casing here too; an uppercase <BODY> must not claim a live nonce
+    # while silently leaving the automatic refresh script uninserted.
+    if ([regex]::Matches($Html, '<body>').Count -ne 1 -or
+        [regex]::Matches($Html, '</body>').Count -ne 1) {
+        return $result
+    }
+
+    $nonce = New-DecisionRefreshToken
+    # Dashboard and Auto-Pilot share one cooldown per audited decision so
+    # navigating between the two cannot silently trigger duplicate refreshes.
+    $cooldownRoute = if (@('/autopilot', '/matchup/autofill') -ccontains $Route) { '/' } else { $Route }
+    $markup = @"
+<div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
+<script nonce="$nonce">
+(async function () {
+  const status = document.getElementById('butler-auto-refresh-status');
+  const key = 'butler-auto-refresh:${cooldownRoute}:$AuditId';
+  try {
+    // BF-1103: completed refreshes stay on a five-minute shared audit
+    // cooldown. A failed/unfinished local POST does NOT count as fresh
+    // evidence for five minutes: permit a new automatic attempt on a
+    // later page visit after one minute, never a background retry.
+    // Legacy timestamp-only values remain five-minute success locks.
+    const now = Date.now();
+    const prior = sessionStorage.getItem(key);
+    const found = /^([psf]):([0-9]+)$/.exec(prior || '');
+    const kind = found ? found[1] : 's';
+    const previous = Number(found ? found[2] : prior);
+    const cooldown = kind === 's' ? 300000 : 60000;
+    if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < cooldown) {
+      status.textContent = kind === 's'
+        ? 'Butler checked this decision recently. Review the current status or use Check refresh options.'
+        : 'Butler could not complete the last update. It will recheck on a later page visit; Check refresh options is available now.';
+      return;
+    }
+    // Lock concurrent tabs/navigations before sending the POST. If the
+    // browser refuses sessionStorage, fail closed without a write.
+    sessionStorage.setItem(key, 'p:' + String(now));
+    status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
+    const response = await fetch('/refresh', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'token=$Token'
+    });
+    if (!response.ok) {
+      sessionStorage.setItem(key, 'f:' + String(Date.now()));
+      status.textContent = 'Automatic update stopped. Butler can recheck on a later visit or you can use Check refresh options.';
+      return;
+    }
+    sessionStorage.setItem(key, 's:' + String(Date.now()));
+    window.location.replace('$Route');
+  } catch (error) {
+    try {
+      if (sessionStorage.getItem(key) && sessionStorage.getItem(key).indexOf('p:') === 0) {
+        sessionStorage.setItem(key, 'f:' + String(Date.now()));
+      }
+    } catch (ignored) {}
+    status.textContent = 'Automatic update could not finish. Butler can recheck on a later visit; use Check refresh options now.';
+  }
+})();
+</script>
+"@
+    $result.Html = $Html.Replace('<body>', '<body>' + $markup)
+    $result.Nonce = $nonce
+    return $result
+}
+
+function Add-AutomaticWaiverRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/waivers') { return $result }
+    $auditMatches = [regex]::Matches($Html, 'data-butler-auto-waiver="(?<audit>[0-9a-fA-F-]{36})"')
+    if ($auditMatches.Count -ne 1) { return $result }
+    return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/waivers' -AuditId $auditMatches[0].Groups['audit'].Value -Token $Token
+}
+
+function Add-AutomaticDashboardRefresh {
+    param([string]$Html, [string]$RequestTarget, [string]$Token)
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/') { return $result }
+
+    # A successful Add-DecisionRefreshControl call adds this exact link only
+    # after it verifies the current audited decision against existing gates.
+    $nav = [regex]::Matches($Html, '(?is)<nav class="nav" aria-label="Butler sections">.*?</nav>')
+    if ($nav.Count -ne 1 -or
+        -not $nav[0].Value.Contains('<a href="/refresh">Refresh Butler data</a>')) {
+        return $result
+    }
+    $state = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Decision state:'
+    $bf629 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-629:'
+    $bf631 = Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-631:'
+    # Never infer automatic-write authorization from a preexisting navigation
+    # link alone. Prove the audited actionability and lineage independently.
+    $autoEligible = $false
+    if ($state -ceq 'STALE_DO_NOT_ACT' -and
+        $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+        @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631) {
+        $autoEligible = $true
+    }
+    elseif ($state -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+            $bf629 -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+            $bf631 -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan state:') -ceq 'MANUAL_REFRESH_PLAN_READY' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'BF-636 plan policy:') -ceq 'sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution' -and
+            (Get-DecisionRefreshTechnicalField -Html $Html -Label 'Governed step count:') -ceq '9') {
+        $autoEligible = $true
+    }
+    if (-not $autoEligible) {
+        # NO_TRANSACTION_TO_ACT_ON allows only the separate manual recheck.
+        # Unproven or duplicated BF fields also remain ineligible.
+        return $result
+    }
+    $auditId = Get-DecisionRefreshTechnicalField -Html $Html -Label 'Audit ID:'
+    return Add-AutomaticGovernedRefreshHtml -Html $Html -Route '/' -AuditId $auditId -Token $Token
+}
+
+
+# Auto-Pilot reuses the real governed Dashboard evidence rather than inventing
+# an independent refresh authorization. On eligible stale evidence, its page
+# can update the Butler-local watch on open and return to Auto-Pilot. The same
+# five-minute audit cooldown is shared with Dashboard; Sleeper stays read-only.
+# BF-1104: source-based manager pages may only recheck Butler evidence
+# under the independently audited Dashboard state, just as Auto-Pilot does.
+# No inference from a Start/Sit blocker alone authorizes a local POST.
+function Add-AutomaticSourcedManagerRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if (@('/autopilot', '/matchup/autofill') -cnotcontains $RequestTarget -or
+        [string]::IsNullOrWhiteSpace($DashboardHtml)) { return $result }
+    try {
+        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
+        $proof = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token $Token
+        if ([string]::IsNullOrWhiteSpace([string]$proof.Nonce)) { return $result }
+        $auditId = Get-DecisionRefreshTechnicalField -Html $governed -Label 'Audit ID:'
+        return Add-AutomaticGovernedRefreshHtml -Html $Html -Route $RequestTarget -AuditId $auditId -Token $Token
+    }
+    catch {
+        # Missing or conflicting proof never creates an automatic write.
+        return $result
+    }
+}
+
+function Add-AutomaticAutoPilotRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if ($RequestTarget -cne '/autopilot') { return $result }
+    return Add-AutomaticSourcedManagerRefresh -Html $Html -RequestTarget $RequestTarget -DashboardHtml $DashboardHtml -Token $Token
+}
+
+# BF-1104: Start/Sit is already fetched read-only on each open. Only a
+# uniquely blocked source page is worth checking against Dashboard
+# eligibility. A verified healthy page does not trigger a second read or POST.
+function Test-AutomaticStartSitRefreshCandidate {
+    param([string]$Html,[string]$RequestTarget)
+    if ($RequestTarget -cne '/matchup/autofill') { return $false }
+    if ([regex]::Matches([string]$Html,
+        '<section\b[^>]*class="[^"]*\bstart-sit-assistant\b[^"]*"').Count -ne 1) {
+        return $false
+    }
+    return [regex]::Matches([string]$Html,
+        'class="callout callout-danger start-sit-blocker"').Count -eq 1
+}
+
+function Add-AutomaticStartSitRefresh {
+    param(
+        [string]$Html,
+        [string]$RequestTarget,
+        [string]$DashboardHtml,
+        [string]$Token
+    )
+    $result = @{ Html = $Html; Nonce = '' }
+    if (-not (Test-AutomaticStartSitRefreshCandidate -Html $Html -RequestTarget $RequestTarget)) {
+        return $result
+    }
+    return Add-AutomaticSourcedManagerRefresh -Html $Html -RequestTarget $RequestTarget -DashboardHtml $DashboardHtml -Token $Token
 }

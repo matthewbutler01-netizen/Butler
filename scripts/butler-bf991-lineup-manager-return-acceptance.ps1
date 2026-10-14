@@ -44,7 +44,7 @@ try {
         'href=`"/matchup`">Back to Matchup</a>',
         'href=`"/team`">Back to My Team</a>',
         'href=`"/team/autofill`">Refresh projection</a>',
-        'Review queue'
+        'What needs your decision'
     )) {
         if ($lineup.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-991 BLOCKED: staged Lineup Review return marker is missing: $required"

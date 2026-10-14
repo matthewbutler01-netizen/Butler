@@ -813,7 +813,7 @@ try {
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
                 }
                 catch {
-                    $errorHtml = "<!doctype html><html><body><h1>Butler League view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                    $errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler League unavailable</title></head><body><main><h1>Butler League view unavailable</h1><p>The local League read could not finish. Rankings and actions are not verified by this response. No Sleeper transaction was submitted by this page.</p><a href="/league">Try League again</a> or <a href="/">Dashboard</a>.</main></body></html>'
                     Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
                 }
                 continue
@@ -834,7 +834,7 @@ try {
                     Send-HttpResponse -Stream $stream -StatusCode 200 -StatusText "OK" -ContentType "text/html; charset=utf-8" -Body $html
                 }
                 catch {
-                    $errorHtml = "<!doctype html><html><body><h1>Butler My Team view blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                    $errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler My Team unavailable</title></head><body><main><h1>Butler My Team view unavailable</h1><p>The local roster read could not finish. Lineup and injury information are not verified by this response. No Sleeper transaction was submitted by this page.</p><a href="/team">Try My Team again</a> or <a href="/">Dashboard</a>.</main></body></html>'
                     Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
                 }
                 continue
@@ -856,7 +856,7 @@ try {
                 Send-HttpResponse -Stream $stream -StatusCode $proxied.StatusCode -StatusText $proxied.StatusText -ContentType $proxied.ContentType -Body $body
             }
             catch {
-                $errorHtml = "<!doctype html><html><body><h1>Butler app blocked</h1><pre>$(ConvertTo-HtmlText $_.Exception.Message)</pre><p>No Butler or Sleeper write was executed.</p></body></html>"
+                $errorHtml = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Butler page unavailable</title></head><body><main><h1>Butler read unavailable</h1><p>The local engine could not finish this page. Do not rely on lineup or waiver advice from this response. No Sleeper transaction was submitted by this page.</p><a href="/">Return to Dashboard</a>.</main></body></html>'
                 Send-HttpResponse -Stream $stream -StatusCode 500 -StatusText "Internal Server Error" -ContentType "text/html; charset=utf-8" -Body $errorHtml
             }
         }

@@ -64,6 +64,186 @@ class ButlerAppPublicUiModuleCacheBf766Test {
     }
 
     @Test
+    void invalidFirstOpenUiModulesReturnAUsefulFailClosed503() throws Exception {
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int loadStart = wrapper.indexOf("try {\n        foreach ($bf766ModuleSpec in $bf766ModuleSpecs)");
+        int moduleLoad = wrapper.indexOf(". $bf766Module", loadStart);
+        int recover = wrapper.indexOf("catch {\n        # No response headers have been written", moduleLoad);
+        int response = wrapper.indexOf("Send-HttpResponse -Stream $stream -StatusCode 503", recover);
+        int exit = wrapper.indexOf("\n        return\n    }", response);
+        int workerEntry = wrapper.indexOf("$worker = [scriptblock]::Create($implementation)");
+
+        assertTrue(loadStart >= 0 && moduleLoad > loadStart && recover > moduleLoad);
+        assertTrue(response > recover && exit > response && workerEntry > exit,
+            "BF-1125 UI module failures must respond and stop before routing");
+        String safeCatch = wrapper.substring(recover, exit);
+        assertTrue(safeCatch.contains("Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(safeCatch.contains("-FailureLayer 'PUBLIC_WORKER'"));
+        assertFalse(safeCatch.contains("$_.Exception.Message"));
+        assertFalse(safeCatch.contains("$LeagueId"));
+        assertFalse(safeCatch.contains("submitTransaction"));
+        assertTrue(worker.contains("function Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(worker.contains("function Send-HttpResponse"));
+        assertTrue(worker.contains("BF-1112 BLOCKED: invalid local response failure layer"));
+    }
+
+    @Test
+    void firstOpenPublicWorker503BypassesOptionalPresentationWithoutWeakeningNormalPages() throws Exception {
+        // BF-1127: rendering a fail-closed first-open 503 must not depend on
+        // optional UI presentation helpers after a module import has failed.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int sendBoundary = wrapper.indexOf("$bodyEncodingReplacement = @'");
+        int gate = wrapper.indexOf("if ($ContentType -match '^text/html' -and", sendBoundary);
+        int exception = wrapper.indexOf(
+            "-not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')", gate);
+        int present = wrapper.indexOf("ConvertTo-ButlerUserFacingHtml -Html $Body", exception);
+        int accessible = wrapper.indexOf("Add-ButlerAccessibility -Html $Body", present);
+        int encode = wrapper.indexOf("$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)", accessible);
+
+        assertTrue(sendBoundary >= 0 && gate > sendBoundary && exception > gate);
+        assertTrue(present > exception && accessible > present && encode > accessible,
+            "BF-1127 only the safe public-worker 503 may skip optional HTML presentation");
+        assertTrue(wrapper.contains("if (-not $bf890AcceptanceDiagnostic)"),
+            "normal HTML responses must retain their existing presentation controls");
+        assertTrue(wrapper.contains("-StatusCode 503 -StatusText 'Service Unavailable'"));
+        assertTrue(wrapper.contains("-FailureLayer 'PUBLIC_WORKER'"));
+        assertTrue(worker.contains("function Get-ButlerMinimalBlockedPageHtml"));
+        assertTrue(worker.contains("No Sleeper transaction was submitted by this page."));
+        assertFalse(wrapper.contains("submitTransaction"));
+    }
+
+    @Test
+    void independentManager500DoesNotReenterBrokenPresentationPipeline() throws Exception {
+        // BF-1129: a failed styled error renderer falls back to the small,
+        // independently escaped HTML page; the response writer must not
+        // send that same page back through optional UI presentation.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int responseParam = worker.indexOf("[switch]$SkipOptionalHtmlPresentation");
+        int managerError = worker.indexOf("$bf1129MinimalFallback = $false");
+        int styled = worker.indexOf("$errorHtml = Get-ButlerBlockedPageHtml", managerError);
+        int minimal = worker.indexOf("$errorHtml = Get-ButlerMinimalBlockedPageHtml", styled);
+        int activate = worker.indexOf("$bf1129MinimalFallback = $true", minimal);
+        int send = worker.indexOf("-SkipOptionalHtmlPresentation:$bf1129MinimalFallback", activate);
+        assertTrue(responseParam > 0 && managerError > responseParam && styled > managerError);
+        assertTrue(minimal > styled && activate > minimal && send > activate,
+            "BF-1129 only the independent 500 fallback may set the presentation bypass");
+
+        int gate = wrapper.indexOf("$bf1129SkipMinimal500 = $SkipOptionalHtmlPresentation -and");
+        int code = wrapper.indexOf("$StatusCode -eq 500", gate);
+        int layer = wrapper.indexOf("@('CORE_READ', 'PUBLIC_WORKER') -ccontains $FailureLayer", code);
+        int present = wrapper.indexOf("-not $bf1129SkipMinimal500 -and", layer);
+        int format = wrapper.indexOf("ConvertTo-ButlerUserFacingHtml -Html $Body", present);
+        assertTrue(gate >= 0 && code > gate && layer > code && present > layer && format > present,
+            "BF-1129 bypass must require explicit fallback, exact HTTP 500 and known failure layer");
+        assertTrue(wrapper.contains("-not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')"));
+        assertFalse(wrapper.contains("submitTransaction"));
+        assertFalse(worker.contains("submitTransaction"));
+    }
+
+    @Test
+    void firstOpen503UsesOnlyFixedRouteRetrySpec() throws Exception {
+        // BF-1131: a failed UI module may not reflect arbitrary request-target
+        // strings or secrets back into a browser hyperlink or page heading.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+
+        int catchStart = wrapper.indexOf("catch {\n        # No response headers have been written");
+        int helper = wrapper.indexOf(
+            "Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase 'PUBLIC_WORKER'",
+            catchStart);
+        int safe = wrapper.indexOf(
+            "Get-ButlerMinimalBlockedPageHtml -Title $bf1131Retry.Title" +
+            " -PrimaryHref $bf1131Retry.PrimaryHref -PrimaryLabel $bf1131Retry.PrimaryLabel",
+            helper);
+        int send = wrapper.indexOf("Send-HttpResponse -Stream $stream -StatusCode 503", safe);
+        assertTrue(catchStart >= 0 && helper > catchStart && safe > helper && send > safe);
+        assertFalse(wrapper.substring(catchStart, send).contains("$_"), 
+            "BF-1131 no raw module exception may enter the HTTP 503 retry page");
+        assertTrue(worker.contains("switch -CaseSensitive ($RequestTarget)"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/team'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/waivers'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/matchup/autofill'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/league'"));
+        assertTrue(worker.contains("$spec.PrimaryHref = '/autopilot'"));
+        assertTrue(worker.contains("$spec.PrimaryLabel = 'Try Auto-Pilot again'"));
+        assertTrue(worker.contains("'/league', '/autopilot') -cnotcontains $PrimaryHref"));
+        assertTrue(worker.contains("PrimaryHref = '/'"));
+        assertTrue(worker.contains("@('/', '/team', '/waivers', '/matchup',"));
+    }
+
+    @Test
+    void liveReadinessRejectsPreRecoveryWorkerWithOldHealthMarkers() throws Exception {
+        // BF-1134: a 200 from an outdated cached worker is not proof its
+        // first-open module errors can return safe HTTP 503/500 pages.
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String diagnostic = source("scripts/butler-v04-live-page-check.ps1");
+        String acceptance = source("scripts/butler-v04-live-page-check-acceptance.ps1");
+        String recovery = "v04-safe-page-recovery-bf1134";
+        String boundedRead = "v04-bounded-local-read-bf1146";
+
+        // Milestone 1: the real one-click diagnostic must not accept the
+        // earlier BF-1134 shell as the current v0.4 worker. Its old
+        // first-open contract did not include bounded Auto-Pilot reads or
+        // actionable, privacy-safe local contention categories.
+        assertTrue(worker.contains("\"workerRecoveryContract\":\"" + recovery + "\""));
+        assertTrue(worker.contains("\"localReadContract\":\"" + boundedRead + "\""));
+        assertTrue(diagnostic.contains("$health.workerRecoveryContract -ceq '" + recovery + "'"));
+        assertTrue(diagnostic.contains("$health.localReadContract -ceq '" + boundedRead + "'"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: old manager without safe worker fallback"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: untrusted manager recovery claim"));
+        assertTrue(acceptance.contains("BF-1134 BLOCKED: canonical worker does not advertise"));
+        assertTrue(acceptance.contains("BF-1146 BLOCKED: old worker without bounded local-read capability"));
+        assertTrue(acceptance.contains("BF-1146 BLOCKED: unrelated worker local-read capability"));
+        // Milestone 1: a blocked /health must exit with fixed privacy-safe
+        // guidance, not throw a PowerShell error that exposes a local path.
+        // Confirm explicit old/multiple-worker guards and no automatic
+        // launch: the one-click diagnostic is read-only, not a starter.
+        assertTrue(diagnostic.contains("Write-Host 'BF-1146 BLOCKED: OLDER BUTLER WORKER."));
+        assertTrue(diagnostic.contains("Write-Host 'BF-1146 BLOCKED: MULTIPLE CURRENT WORKERS."));
+        assertTrue(diagnostic.contains("The diagnostic ZIP contains only a read-only checker; it cannot install or launch Butler."));
+        assertTrue(diagnostic.contains("no process was started or stopped."));
+        assertFalse(diagnostic.contains("submitTransaction"));
+    }
+
+    @Test
+    void autopilotRenderFailureReturnsSafeLocal500InsteadOfDroppedConnection() throws Exception {
+        // BF-1138: Auto-Pilot does not follow the core manager GET catch;
+        // failed CSS/navigation or automatic-refresh rendering must still
+        // return one safe, independent page before headers are written.
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        int route = worker.indexOf("if ($path -eq '/autopilot')");
+        int guard = worker.indexOf("# BF-1138: Auto-Pilot's read-only watch", route);
+        int opening = worker.indexOf("try {", guard);
+        int render = worker.indexOf("Get-V04AutoPilotHtml -WatchState", opening);
+        int refresh = worker.indexOf("Add-AutomaticAutoPilotRefresh -Html $html", render);
+        int fallback = worker.indexOf(
+            "Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable'", refresh);
+        int error = worker.indexOf(
+            "-StatusCode 500 -StatusText 'Internal Server Error'", fallback);
+        // BF-M2 adds a bounded source-free diagnostic enum to HTTP 500.
+        // The dedicated failure response must retain the safety bypass.
+        int bypass = worker.indexOf(
+            "-FailureLayer 'PUBLIC_WORKER' -AutoPilotFailureStage $autoPilotFailureStage -SkipOptionalHtmlPresentation",
+            error);
+        int returnFromFailure = worker.indexOf("return", bypass);
+        int normalResponse = worker.indexOf("-StatusCode 200 -StatusText 'OK'", returnFromFailure);
+        assertTrue(route >= 0 && guard > route && opening > guard);
+        assertTrue(render > opening && refresh > render && fallback > refresh);
+        assertTrue(error > fallback && bypass > error && returnFromFailure > bypass);
+        assertTrue(normalResponse > returnFromFailure,
+            "BF-1138 the normal HTTP 200 writer must stay outside the error preparation catch");
+        assertTrue(worker.contains("Get-ButlerMinimalBlockedPageHtml -Title 'Auto-Pilot unavailable' -PrimaryHref '/autopilot' -PrimaryLabel 'Try Auto-Pilot again'"));
+        assertFalse(worker.substring(fallback, normalResponse).contains("$_.Exception.Message"));
+        assertFalse(worker.substring(fallback, normalResponse).contains("submitTransaction"));
+    }
+
+    @Test
     void healthFastPathStillReturnsBeforeAnyUiModuleLoad() throws Exception {
         String worker = source("scripts/butler-app-request-worker.ps1");
 

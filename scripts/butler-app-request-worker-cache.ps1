@@ -44,19 +44,53 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# BF-1124: the cached wrapper can fail BEFORE the request worker begins
+# (missing compiled worker source, invalid compiled transforms, or corrupt
+# runspace cache state). Per-route module import failures are BF-1125 below.
+# Previously those exceptions closed the socket and appeared to the user as
+# GET ERROR. Reply with a constant local 503 instead; never copy exception
+# messages, file paths, league IDs or tokens to the browser or diagnostics.
+function Send-ButlerWorkerInitializationFailure {
+    param([Parameter(Mandatory = $true)][System.Net.Sockets.TcpClient]$Client)
+
+    try {
+        $body = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butler page unavailable</title></head><body><main><h1>Butler manager page unavailable</h1><p>The local page worker could not initialize. Current roster and recommendations are not verified. No Sleeper transaction was submitted by this page.</p><p><a href="/">Return to Dashboard</a></p></main></body></html>'
+        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+        $headers = "HTTP/1.1 503 Service Unavailable`r`n" +
+            "Content-Type: text/html; charset=utf-8`r`n" +
+            "Content-Length: $($bodyBytes.Length)`r`n" +
+            "Cache-Control: no-store`r`n" +
+            "X-Content-Type-Options: nosniff`r`n" +
+            "Content-Security-Policy: default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`r`n" +
+            "X-Butler-Failure-Layer: PUBLIC_WORKER`r`n" +
+            "Connection: close`r`n`r`n"
+        $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
+        $stream = $Client.GetStream()
+        $stream.Write($headerBytes, 0, $headerBytes.Length)
+        $stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $stream.Flush()
+    }
+    catch {
+        # A broken/closed client cannot receive the fallback. Never surface
+        # a second exception or repeat confidential failure material.
+    }
+    finally {
+        try { $Client.Close() } catch {}
+    }
+}
+
+try {
 $cacheName = 'ButlerBf765PublicRequestWorkerScriptBlock'
 $worker = Get-Variable -Name $cacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
 if ($null -eq $worker) {
     $implementationPath = Join-Path $PSScriptRoot 'butler-app-request-worker.ps1'
     if (-not (Test-Path -LiteralPath $implementationPath -PathType Leaf)) {
-        try { $Client.Close() } catch {}
-        throw "BF-765 BLOCKED: public request-worker implementation is unavailable at $implementationPath"
+            throw "BF-765 BLOCKED: public request-worker implementation is unavailable at $implementationPath"
     }
 
     $implementation = [System.IO.File]::ReadAllText($implementationPath, [System.Text.Encoding]::ASCII)
     if ([string]::IsNullOrWhiteSpace($implementation)) {
-        try { $Client.Close() } catch {}
-        throw 'BF-765 BLOCKED: public request-worker implementation is empty.'
+            throw 'BF-765 BLOCKED: public request-worker implementation is empty.'
     }
 
     # BF-766 preserves the historical worker source and its health fast path.
@@ -68,8 +102,7 @@ if ($null -eq $worker) {
     $moduleLoadPattern = '(?m)^    \. \$TradeHost\r?\n    \. \$TradeLab\r?\n    \. \$History\r?\n    \. \$Detail\r?\n    \. \$DecisionRefresh\r?$'
     $moduleLoadMatches = [regex]::Matches($implementation, $moduleLoadPattern)
     if ($moduleLoadMatches.Count -ne 1) {
-        try { $Client.Close() } catch {}
-        throw "BF-766 BLOCKED: public UI module load block count was $($moduleLoadMatches.Count), expected exactly 1."
+            throw "BF-766 BLOCKED: public UI module load block count was $($moduleLoadMatches.Count), expected exactly 1."
     }
 
     $moduleLoadReplacement = @'
@@ -81,10 +114,23 @@ if ($null -eq $worker) {
         throw "BF-789 BLOCKED: companion read proxy is unavailable at $gradle"
     }
 
+    # BF-1123: Matchup and Start/Sit use only the same core GET and
+    # guarded DecisionRefresh presentation path as My Team. Neither route
+    # calls Trade Lab, Trade Host, or Player Detail. Requiring those three
+    # unrelated modules on first open made the two lineup pages slower and
+    # let an unrelated Trade/Detail module failure block valid lineup reads.
+    # Keep this exact-path allowlist: /trade, /players, /history, refresh
+    # confirmation and all parameterized/unknown paths retain full loading.
+    # BF-1136 includes only the exact /autopilot GET in that core scope.
+    # BF-1136: Auto-Pilot's watch uses the public worker plus shared
+    # History and DecisionRefresh. It does not depend on Trade/Detail.
     $bf767CoreRead = $requestTarget -ceq '/' -or
         $requestTarget -ceq '/team' -or
         $requestTarget -ceq '/waivers' -or
-        $requestTarget -ceq '/league'
+        $requestTarget -ceq '/league' -or
+        $requestTarget -ceq '/matchup' -or
+        $requestTarget -ceq '/matchup/autofill' -or
+        $requestTarget -ceq '/autopilot'
 
     $bf766ModuleSpecs = if ($bf767CoreRead) {
         @(
@@ -102,7 +148,13 @@ if ($null -eq $worker) {
         )
     }
 
-    foreach ($bf766ModuleSpec in $bf766ModuleSpecs) {
+    # BF-1125: UI modules are loaded before any route response. If a
+    # module is missing, malformed or invalid in this runspace, return one
+    # bounded fail-closed HTTP page instead of silently resetting the TCP
+    # connection. This catches the page-load errors the early cached-wrapper
+    # BF-1124 boundary cannot reach (the compiled worker is already running).
+    try {
+        foreach ($bf766ModuleSpec in $bf766ModuleSpecs) {
         $bf766PathCacheName = $bf766ModuleSpec.CacheName + 'Path'
         $bf766Module = Get-Variable -Name $bf766ModuleSpec.CacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
         $bf766CachedPath = Get-Variable -Name $bf766PathCacheName -Scope Global -ValueOnly -ErrorAction SilentlyContinue
@@ -131,7 +183,19 @@ if ($null -eq $worker) {
             throw "BF-766 BLOCKED: cached $($bf766ModuleSpec.Name) module state is invalid or belongs to a different path."
         }
 
-        . $bf766Module
+            . $bf766Module
+        }
+    }
+    catch {
+        # No response headers have been written at this pre-route phase.
+        # Do not copy module/exception text, paths, league, player or tokens.
+        # BF-1131: select a retry target only from the already-fixed route
+        # allowlist; arbitrary paths and query parameters fall back to '/'.
+        # The spec never contains the original exception or private context.
+        $bf1131Retry = Get-ButlerManagerFailureSpec -RequestTarget $requestTarget -FailurePhase 'PUBLIC_WORKER'
+        $bf1125FailureHtml = Get-ButlerMinimalBlockedPageHtml -Title $bf1131Retry.Title -PrimaryHref $bf1131Retry.PrimaryHref -PrimaryLabel $bf1131Retry.PrimaryLabel
+        Send-HttpResponse -Stream $stream -StatusCode 503 -StatusText 'Service Unavailable' -ContentType 'text/html; charset=utf-8' -Body $bf1125FailureHtml -FailureLayer 'PUBLIC_WORKER'
+        return
     }
 '@
 
@@ -146,8 +210,7 @@ if ($null -eq $worker) {
     $sendMarker = 'function Send-HttpResponse {'
     $sendMarkerMatches = [regex]::Matches($implementation, [regex]::Escape($sendMarker))
     if ($sendMarkerMatches.Count -ne 1) {
-        try { $Client.Close() } catch {}
-        throw "BF-791 BLOCKED: public response boundary count was $($sendMarkerMatches.Count), expected exactly 1."
+            throw "BF-791 BLOCKED: public response boundary count was $($sendMarkerMatches.Count), expected exactly 1."
     }
 
     $presentationFunctions = @'
@@ -200,6 +263,23 @@ function ConvertTo-ButlerUserFacingHtml {
         return "@@butler-pre-$index@@"
     }
     $result = [regex]::Replace($Html, '(?is)<pre\b[^>]*>.*?</pre>', $preEvaluator)
+
+    # BF-M1: protected machine-readable source proof is not user-facing copy.
+    # BF-791 otherwise replaces BOUND_TARGET_LIVE_VERIFIED with "Verified",
+    # rewrites BF668_PROVEN_ROSTER and corrupts BF-631 lineage, causing
+    # legitimate /team and /waivers checks to remain HELD. Preserve only
+    # these two source-emitted hidden blocks verbatim across the cosmetic
+    # translation; do not bypass the existing identity or audit checks.
+    $m1ProofBlocks = New-Object System.Collections.Generic.List[string]
+    $m1ProofEvaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+        param($match)
+        $index = $m1ProofBlocks.Count
+        $m1ProofBlocks.Add($match.Value)
+        return "@@butler-m1-source-proof-$index@@"
+    }
+    $result = [regex]::Replace($result,
+        '(?is)<div class="butler-m1-(?:roster|waiver)-proof" hidden>.*?</div></div>',
+        $m1ProofEvaluator)
 
     $copy = [ordered]@{
         'BF-628 integrity-verified history for the exact BF-623-bound league and roster. This page does not rerun recommendations.' = 'Past waiver recommendations for this team. Butler does not rerun decisions on this page.'
@@ -397,6 +477,42 @@ function ConvertTo-ButlerUserFacingHtml {
     for ($index = 0; $index -lt $preBlocks.Count; $index++) {
         $result = $result.Replace("@@butler-pre-$index@@", $preBlocks[$index])
     }
+    # Restore hidden BF-M1 verification bytes after every manager-language
+    # and enum display rewrite. The separate readiness checker validates
+    # exact gate/owner/identity/audit; this never manufactures PASS.
+    for ($index = 0; $index -lt $m1ProofBlocks.Count; $index++) {
+        $result = $result.Replace("@@butler-m1-source-proof-$index@@",
+            $m1ProofBlocks[$index])
+    }
+    # BF-M2: the Dashboard's source-backed audit is rendered inside an
+    # advanced technical record, which BF-794 deliberately removes from
+    # public UI. That used to make the public freshness checker say
+    # AUDIT UNVERIFIED even when the core had exact local audit fields.
+    # Copy only three uniquely present, bounded enum values into a hidden
+    # machine-readable contract after display translation. Missing or
+    # conflicting source values remain unverified, never invented green.
+    if ([regex]::Matches($Html, 'class="dashboard-summary-row"').Count -eq 1) {
+        $auditValues = @()
+        foreach ($label in @('Decision state:', 'BF-629:', 'BF-631:')) {
+            $rx = '<div>' + [regex]::Escape($label) +
+                '\s*(?<value>[A-Z][A-Z0-9_]{2,63})</div>'
+            $matches = [regex]::Matches($Html, $rx)
+            if ($matches.Count -ne 1) {
+                $auditValues = @()
+                break
+            }
+            $auditValues += '<div>' + $label + ' ' +
+                $matches[0].Groups['value'].Value + '</div>'
+        }
+        if ($auditValues.Count -eq 3) {
+            $endBody = [regex]::Matches($result, '(?i)</body>')
+            if ($endBody.Count -eq 1) {
+                $proof = '<div class="butler-m2-dashboard-audit" hidden>' +
+                    ($auditValues -join '') + '</div>'
+                $result = $result.Insert($endBody[0].Index, $proof)
+            }
+        }
+    }
     return $result
 }
 '@
@@ -409,11 +525,19 @@ function ConvertTo-ButlerUserFacingHtml {
     $bodyEncodingLine = '    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($Body)'
     $bodyEncodingMatches = [regex]::Matches($implementation, [regex]::Escape($bodyEncodingLine))
     if ($bodyEncodingMatches.Count -ne 1) {
-        try { $Client.Close() } catch {}
-        throw "BF-791 BLOCKED: public HTML encoding boundary count was $($bodyEncodingMatches.Count), expected exactly 1."
+            throw "BF-791 BLOCKED: public HTML encoding boundary count was $($bodyEncodingMatches.Count), expected exactly 1."
     }
     $bodyEncodingReplacement = @'
-    if ($ContentType -match '^text/html') {
+    # BF-1127/BF-1129: emergency worker 503 and explicitly marked minimal
+    # manager 500 pages already have accessible, escaped standalone markup.
+    # Neither may depend on optional UI presentation that may have just failed.
+    # Normal HTML, other 500s and successful pages keep all existing helpers.
+    $bf1129SkipMinimal500 = $SkipOptionalHtmlPresentation -and
+        $StatusCode -eq 500 -and
+        @('CORE_READ', 'PUBLIC_WORKER') -ccontains $FailureLayer
+    if ($ContentType -match '^text/html' -and
+        -not $bf1129SkipMinimal500 -and
+        -not ($StatusCode -eq 503 -and $FailureLayer -ceq 'PUBLIC_WORKER')) {
         $bf856PresentationStarted = if ($bf856RouteTimingEnabled -and $null -ne $DiagnosticTimings) {
             [System.Diagnostics.Stopwatch]::GetTimestamp()
         } else {
@@ -441,8 +565,13 @@ function ConvertTo-ButlerUserFacingHtml {
     Set-Variable -Name $cacheName -Scope Global -Value $worker
 }
 elseif ($worker -isnot [scriptblock]) {
-    try { $Client.Close() } catch {}
     throw 'BF-765 BLOCKED: cached public request worker has an unexpected type.'
+}
+
+}
+catch {
+    Send-ButlerWorkerInitializationFailure -Client $Client
+    return
 }
 
 & $worker `

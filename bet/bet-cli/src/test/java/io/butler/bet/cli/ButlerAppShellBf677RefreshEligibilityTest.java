@@ -88,7 +88,13 @@ class ButlerAppShellBf677RefreshEligibilityTest {
         assertTrue(eligibility.contains("return $Html"));
 
         assertFalse(eligibility.contains("$decisionState -ceq 'CURRENT_AND_ACTIONABLE'"));
-        assertFalse(eligibility.contains("$decisionState -ceq 'STALE_DO_NOT_ACT'"));
+        int staleStart = eligibility.indexOf("elseif ($decisionState -ceq 'STALE_DO_NOT_ACT'");
+        int staleEnd = eligibility.indexOf("elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED'", staleStart);
+        assertTrue(staleStart >= 0 && staleEnd > staleStart);
+        String stale = eligibility.substring(staleStart, staleEnd);
+        assertTrue(stale.contains("$bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED'"));
+        assertTrue(stale.contains("-ccontains $bf631State"));
+        assertFalse(stale.contains("LATEST_EVIDENCE_LINEAGE_VERIFIED"));
         assertFalse(eligibility.contains("$decisionState -ceq 'TRANSACTION_PENDING_DO_NOT_DUPLICATE'"));
         assertFalse(eligibility.contains("$decisionState -ceq 'TRANSACTION_ALREADY_COMPLETE'"));
     }

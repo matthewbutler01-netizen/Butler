@@ -40,7 +40,12 @@ class ButlerAppCorePoolWorkerCacheBf764Test {
         assertTrue(worker.contains("'GET only'"));
         assertTrue(worker.contains("'Not found'"));
         assertTrue(worker.contains("butler-app-shell-core-pool"));
-        assertTrue(worker.contains("No Butler or Sleeper write was executed."));
+        assertTrue(worker.contains("No Sleeper transaction was submitted by this page."));
+        assertTrue(worker.contains("Butler inner core unavailable"));
+        assertTrue(worker.contains("Return to Dashboard"));
+        assertFalse(worker.contains("No Butler or Sleeper write was executed."));
+        assertFalse(worker.contains("HtmlEncode($_.Exception.Message)"));
+        assertFalse(worker.contains("<pre>$message</pre>"));
         assertTrue(worker.contains("Content-Security-Policy:"));
         assertTrue(worker.contains("StatusCode 502"));
         assertFalse(worker.contains("Start-Job"));

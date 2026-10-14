@@ -92,6 +92,20 @@ $team = [regex]::Replace($team, $railPattern, [System.Text.RegularExpressions.Ma
     return $railReplacement
 }, 1)
 
+# BF-M1: the real My Team renderer is based on BF-668's parsed,
+# BOUND_TARGET_LIVE_VERIFIED roster context. Earlier readiness fixtures
+# expected BF-610 technical labels from a *different* /team HTML renderer.
+# Preserve the already-parsed source identity without another provider read
+# or a claim that player status/injuries are currently refreshed.
+$m1Close = '</main></body></html>'
+if ([regex]::Matches($team, [regex]::Escape($m1Close)).Count -ne 1) {
+    throw 'BF-M1 BLOCKED: final My Team proof insertion point is not unique.'
+}
+$m1RosterProof = @'
+<div class="butler-m1-roster-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: $(ConvertTo-HtmlText $Roster.Role)</div><div>BF-M1 raw Sleeper league / roster: $(ConvertTo-HtmlText $Roster.SleeperLeagueId) / $(ConvertTo-HtmlText $Roster.RosterId)</div><div>BF-M1 local binding: BF668_PROVEN_ROSTER</div></div>
+'@
+$team = $team.Replace($m1Close, $m1RosterProof.TrimEnd() + [Environment]::NewLine + $m1Close)
+
 $core = $core.Substring(0, $teamFn.Extent.StartOffset) + $team + $core.Substring($teamFn.Extent.EndOffset)
 
 $cssStart = $core.IndexOf('function Get-AppCss {', [System.StringComparison]::Ordinal)

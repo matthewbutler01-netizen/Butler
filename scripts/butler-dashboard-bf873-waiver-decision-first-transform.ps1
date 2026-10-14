@@ -105,6 +105,7 @@ $heroNew = @'
   <div class="eyebrow">Butler waiver decision</div>
   <div class="waiver-decision-head"><div><h1 class="headline">$(ConvertTo-HtmlText $waiverDecisionTitle)</h1><p class="lede">$(ConvertTo-HtmlText $waiverDecisionCopy)</p></div><div class="status $waiverDecisionClass">$(ConvertTo-HtmlText $waiverDecisionStatus)</div></div>
   $waiverPairHtml
+  <div class="butler-m1-waiver-proof" hidden><div>BF-M1 target gate: $(ConvertTo-HtmlText $target.Gate)</div><div>BF-M1 role: $(ConvertTo-HtmlText $target.Role)</div><div>BF-M1 raw Sleeper league / roster: $(ConvertTo-HtmlText $target.SleeperLeagueId) / $(ConvertTo-HtmlText $target.RosterId)</div><div>BF-M1 local binding: BF623_GOVERNED_WAIVER</div><div>BF-M1 decision state: $(ConvertTo-HtmlText $current.State)</div><div>BF-M1 actionability: $(ConvertTo-HtmlText $current.Bf629)</div><div>BF-M1 lineage: $(ConvertTo-HtmlText $current.Bf631)</div></div>
   <div class="waiver-next"><strong>Next step</strong><p>$(ConvertTo-HtmlText $waiverNextActionCopy)</p>$waiverHistoryLink</div>
   <details class="waiver-decision-details"><summary>Decision details</summary><div class="tech"><div>Governed state: $(ConvertTo-HtmlText $current.State)</div><div>Authorized review pool: $($counts.Total)</div><div>Current audit ID: $(ConvertTo-HtmlText $current.AuditId)</div>$waiverPairDetailHtml</div></details>
 </section>

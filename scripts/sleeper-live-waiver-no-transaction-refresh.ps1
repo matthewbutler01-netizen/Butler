@@ -288,6 +288,16 @@ try {
         }
         Write-Host ("BF-676 PREFLIGHT VERIFIED: governed no-transaction state is eligible for manual refresh with BF-631 lineage {0}." -f $bf631State)
     }
+    elseif ($decisionState -ceq 'STALE_DO_NOT_ACT') {
+        # Only superseded evidence with a still-valid live transaction is recoverable here.
+        # Pending/completed transactions and every failed/unknown live gate stay blocked.
+        if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or
+            @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+              'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -cnotcontains $bf631State) {
+            throw 'BF-676 BLOCKED: stale recovery requires verified live actionability and exactly superseded evidence. No BF-602/BF-603/etc. write stage was executed.'
+        }
+        Write-Host 'BF-676 PREFLIGHT VERIFIED: superseded evidence recovery; the saved move remains blocked until a new decision is captured and checked.'
+    }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED') {
         if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
             throw 'BF-676 BLOCKED: warning-state refresh requires BF-629 live actionability and BF-631 latest evidence lineage. No BF-602/BF-603/etc. write stage was executed.'

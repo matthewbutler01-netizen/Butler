@@ -32,8 +32,16 @@ $drift = '<div>BLOCKED: current roster membership drifted from BF-603/BF-602 fra
 if (-not (Test-StartSitRosterDriftResponse -RequestTarget '/matchup/autofill' -Body $drift)) {
     throw 'BF-1037 BLOCKED: exact Start/Sit roster drift was not detected.'
 }
-if (Test-StartSitRosterDriftResponse -RequestTarget '/matchup' -Body $drift) {
-    throw 'BF-1037 BLOCKED: ordinary Matchup must not auto-recover roster drift.'
+if (-not (Test-StartSitRosterDriftResponse -RequestTarget '/team' -Body $drift)) {
+    throw 'BF-1037 BLOCKED: exact My Team roster drift was not detected.'
+}
+foreach ($route in @('/matchup', '/', '/waivers', '/team?position=RB', '/players')) {
+    if (Test-StartSitRosterDriftResponse -RequestTarget $route -Body $drift) {
+        throw "BF-1037 BLOCKED: unsupported route $route initiated roster recovery."
+    }
+}
+if (Test-StartSitRosterDriftResponse -RequestTarget '/team' -Body '<div>projection gap</div>') {
+    throw 'BF-1037 BLOCKED: non-roster My Team failures must not trigger roster recovery.'
 }
 if (Test-StartSitRosterDriftResponse -RequestTarget '/matchup/autofill' -Body '<div>projection gap</div>') {
     throw 'BF-1037 BLOCKED: non-roster Start/Sit failures must not trigger roster recovery.'
@@ -44,7 +52,9 @@ foreach ($required in @(
     '$proxied = Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget',
     'BF-723 APP AUTO RECOVERY: COMPLETE',
     '-AppAutoRecovery',
-    'Local\Butler.StartSit.RosterRecovery.'
+    'Local\Butler.StartSit.RosterRecovery.',
+    'Claim-LocalEvidenceRecovery -State $RefreshState',
+    'Complete-DecisionRefreshAttempt -State $RefreshState'
 )) {
     if ($worker.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0 -and
         $recovery.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
@@ -65,4 +75,4 @@ foreach ($forbidden in @('create_transaction','submitTransaction','setFaab','can
 }
 
 Write-Host 'BF-1037 START/SIT AUTO ROSTER RECOVERY ACCEPTANCE: PASS'
-Write-Host 'Coverage: exact drift detection only on Start/Sit, governed BF-723 local-evidence recovery, single route retry, bounded mutex, manual fallback on failure, and no Sleeper transaction behavior.'
+Write-Host 'Coverage: exact drift detection on My Team and Start/Sit only, governed BF-723 local-evidence recovery, cache invalidation even after partial writes, single route retry, bounded mutex, and no Sleeper transaction behavior.'

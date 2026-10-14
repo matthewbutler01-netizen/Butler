@@ -36,8 +36,8 @@ class ButlerLineupSlotPlacementDecisionCountBf1010Test {
     void acceptanceCoversRealUseZeroMoveAndOneMoveMismatch() throws Exception {
         String acceptance = source("scripts/butler-bf1010-lineup-slot-placement-decision-count-acceptance.ps1");
 
-        assertTrue(acceptance.contains("Review 4 unresolved items"));
-        assertTrue(acceptance.contains("Review 5 unresolved items"));
+        assertTrue(acceptance.contains(">4 ITEMS</span>"));
+        assertTrue(acceptance.contains(">5 ITEMS</span>"));
         assertTrue(acceptance.contains("Emeka Egbuka"));
         assertTrue(acceptance.contains("Jauan Jennings"));
         assertTrue(acceptance.contains("Drake Maye"));

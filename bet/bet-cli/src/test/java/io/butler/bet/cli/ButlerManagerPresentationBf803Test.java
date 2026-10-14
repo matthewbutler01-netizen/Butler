@@ -65,6 +65,10 @@ class ButlerManagerPresentationBf803Test {
         assertTrue(ui.contains("Roster strength"));
         assertTrue(ui.contains("Team direction"));
         assertTrue(ui.contains("Draft capital"));
+        // BF-1052: current roster membership is not proof that injuries,
+        // projections or waiver evidence were updated on this page load.
+        assertTrue(ui.contains("ROSTER SNAPSHOT"));
+        assertFalse(ui.contains(">UP TO DATE<"));
         assertTrue(ui.contains("@media(max-width:760px)"));
 
         assertFalse(ui.contains("FantasyPros logo"));

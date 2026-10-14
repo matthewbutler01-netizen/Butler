@@ -6,6 +6,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -37,11 +41,70 @@ class ButlerAppCoreRouteUiModuleScopeBf767Test {
     }
 
     @Test
+    void matchupAndStartSitLoadOnlyCoreUiModulesOnExactReadOnlyGet() throws Exception {
+        // BF-1123: Matchup and Start/Sit share the same read-only core
+        // pipeline as My Team. An unrelated Trade/Detail module must not
+        // be a prerequisite for the first lineup or recommendation page.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String allowlist = between(wrapper, "$bf767CoreRead = ", "$bf766ModuleSpecs = if ($bf767CoreRead)");
+
+        Matcher routes = Pattern.compile("\\$requestTarget -ceq '([^']+)'").matcher(allowlist);
+        Set<String> actual = new LinkedHashSet<>();
+        while (routes.find()) {
+            assertTrue(actual.add(routes.group(1)), "BF-1123 duplicate exact route");
+        }
+        assertEquals(Set.of("/", "/team", "/waivers", "/league",
+                "/matchup", "/matchup/autofill", "/autopilot"), actual);
+        assertFalse(allowlist.contains("$path -eq"), "never classify prefix/query matches as exact reads");
+        assertFalse(allowlist.contains("-like"), "no wildcard routes may skip required UI modules");
+
+        String coreBlock = between(wrapper,
+            "$bf766ModuleSpecs = if ($bf767CoreRead) {", "    else {");
+        assertFalse(coreBlock.contains("TradeHost"));
+        assertFalse(coreBlock.contains("TradeLab"));
+        assertFalse(coreBlock.contains("Name = 'Detail'"));
+        assertTrue(coreBlock.contains("Name = 'History'"));
+        assertTrue(coreBlock.contains("Name = 'DecisionRefresh'"));
+
+        // These endpoints still call the current inner core and are
+        // constrained by the existing read-only GET and recovery guard.
+        assertTrue(worker.contains("Invoke-ExpensiveReadSingleFlightGet -Port $InnerPort"));
+        assertTrue(worker.contains("Invoke-AppCoreGet -Port $InnerPort -RequestTarget $requestTarget"));
+        assertTrue(worker.contains("Test-AutomaticWeekRecoveryCandidate"));
+        assertTrue(worker.contains("Test-AutomaticStartSitRefreshCandidate"));
+        assertFalse(wrapper.contains("submitTransaction"));
+        assertFalse(wrapper.contains("create_transaction"));
+    }
+
+    @Test
+    void autopilotFirstOpenDoesNotRequireTradeOrDetailModules() throws Exception {
+        // BF-1136: the /autopilot watch is a read-only public manager route
+        // whose page HTML and decision-policy helpers live in the worker.
+        // The remaining shared UI helpers use only History/DecisionRefresh.
+        String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
+        String worker = source("scripts/butler-app-request-worker.ps1");
+        String scope = between(wrapper, "$bf767CoreRead = ",
+            "$bf766ModuleSpecs = if ($bf767CoreRead)");
+        assertTrue(scope.contains("$requestTarget -ceq '/autopilot'"));
+        assertFalse(scope.contains("$path -eq '/autopilot'"));
+        assertFalse(scope.contains("-like '/autopilot*'"));
+        assertTrue(worker.contains("if ($path -eq '/autopilot')"));
+        assertTrue(worker.contains("Get-V04AutoPilotWatchState -DashboardHtml"));
+        assertTrue(worker.contains("Get-V04AutoPilotHtml -WatchState"));
+        assertTrue(worker.contains("Get-V04AutoPilotApprovalQueue -WatchState"));
+        assertTrue(worker.contains("Get-AppCss"));
+        assertTrue(wrapper.contains("Name = 'History'"));
+        assertTrue(wrapper.contains("Name = 'DecisionRefresh'"));
+        assertFalse(wrapper.contains("submitTransaction"));
+    }
+
+    @Test
     void nonCoreRoutesRetainHistoricalFiveModuleOrder() throws Exception {
         String wrapper = source("scripts/butler-app-request-worker-cache.ps1");
         String fullBlock = between(wrapper,
             "    else {\n        @(\n            [pscustomobject]@{ Name = 'TradeHost'",
-            "\n        )\n    }\n\n    foreach ($bf766ModuleSpec");
+            "\n        )\n    }");
 
         int tradeHost = fullBlock.indexOf("Name = 'TradeHost'");
         int tradeLab = fullBlock.indexOf("Name = 'TradeLab'");

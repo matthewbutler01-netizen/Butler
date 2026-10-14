@@ -39,6 +39,27 @@ try {
     }
 
     $dashboard = $functions[0].Extent.Text
+
+    # Exercise the full BF-715-to-v0.4 staged renderer, not an invented
+    # template: public automatic recheck requires one real audited ID and
+    # exact state, actionability, lineage, and plan fields from this surface.
+    foreach ($field in @(
+        '<div class="butler-refresh-contract" hidden>',
+        'Decision state: $(ConvertTo-HtmlText $state)',
+        'BF-629: $(ConvertTo-HtmlText $bf629)',
+        'BF-631: $(ConvertTo-HtmlText $bf631)',
+        'BF-636 plan state: $(ConvertTo-HtmlText $refreshPlan.State)',
+        'BF-636 plan policy: $(ConvertTo-HtmlText $refreshPlan.Policy)',
+        'Governed step count: $($refreshPlan.Steps.Count)',
+        'Audit ID: $(ConvertTo-HtmlText $audit.Id)'
+    )) {
+        if ($dashboard.IndexOf($field, [StringComparison]::Ordinal) -lt 0) {
+            throw "BF-1020 BLOCKED: staged Dashboard lacks refresh contract field $field"
+        }
+    }
+    if ([regex]::Matches($dashboard, [regex]::Escape('Audit ID: $(ConvertTo-HtmlText $audit.Id)')).Count -ne 1) {
+        throw 'BF-1020 BLOCKED: staged audited Dashboard identity must be unique.'
+    }
     foreach ($required in @(
         'BF-1020 v0.4 Dashboard Command Center',
         'dashboard-summary-row',
