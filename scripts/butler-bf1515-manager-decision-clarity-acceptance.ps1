@@ -36,7 +36,12 @@ foreach($required in @(
     'A recorded add/drop never authorizes a Sleeper transaction.',
     'ADD 11647 / DROP 11370','<div class="target">Decision History</div>','READ ONLY.'
 )) { if(-not $page.Contains($required)) { throw "BF-1515 BLOCKED: missing $required" } }
-if($page.Contains($id)) { throw 'BF-1515 BLOCKED: raw league id displayed.' }
+if($page.Contains(('<div class="target">' + $id + '</div>'))) {
+    throw 'BF-1515 BLOCKED: raw league id displayed in the normal manager header.'
+}
+if(-not $page.Contains(('Source Butler league: ' + $id))) {
+    throw 'BF-1515 BLOCKED: source league reconciliation is unavailable in advanced evidence.'
+}
 $entry.ProviderLeg='POSTSEASON'
 $other=ConvertTo-DecisionDetailHtml -History $history -Entry $entry -Explanation $explanation
 if(-not $other.Contains('Recorded source frame: 2026 / REGULAR / POSTSEASON') -or

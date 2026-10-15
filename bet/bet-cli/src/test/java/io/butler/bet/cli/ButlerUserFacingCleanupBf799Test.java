@@ -37,7 +37,8 @@ class ButlerUserFacingCleanupBf799Test {
         String detail = source("scripts/butler-decision-detail.ps1");
 
         assertTrue(detail.contains("$Explanation.ExplanationId"));
-        assertTrue(detail.contains("$History.LeagueId"));
+        assertTrue(detail.contains("Source Butler league: $(ConvertTo-HtmlText $History.LeagueId)"));
+        assertFalse(detail.contains("<div class=\"target\">$(ConvertTo-HtmlText $History.LeagueId)"));
         assertTrue(detail.contains("$Entry.AuditId"));
     }
 

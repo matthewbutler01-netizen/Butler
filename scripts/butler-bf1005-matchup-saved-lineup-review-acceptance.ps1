@@ -14,7 +14,7 @@ try {
     foreach ($required in @(
         'function Get-Bf1005SavedLineupReview',
         'function ConvertTo-Bf1005SavedLineupReviewHtml',
-        'The saved Week $week Lineup Review is current for this roster',
+        'The saved Week $week Lineup Review matches this local lineup',
         'No new provider request was made to display it.',
         'Refresh full Lineup Review',
         '-SavedReview $savedReview'
@@ -35,8 +35,71 @@ try {
         $matches[0]
     }
 
-    foreach ($name in @('ConvertTo-HtmlText','Get-MatchupLineupDecisionView','ConvertTo-Bf1005SavedLineupReviewHtml')) {
+    foreach ($name in @('ConvertTo-HtmlText','Get-Bf808LineupFingerprint','Get-Bf1005SavedLineupReview','ConvertTo-Bf1005TargetKey','Get-MatchupLineupDecisionView','ConvertTo-Bf1005SavedLineupReviewHtml')) {
         Invoke-Expression (Get-OneFunction -Name $name).Extent.Text
+    }
+
+    # BF-1515 protects exactly the owner-observed case: a lineup changed
+    # in Sleeper without changing the target roster id or the NFL week.
+    $roster=[pscustomobject]@{
+        LeagueName='Test League'; TeamName='Test Team'; ButlerTeamName='Test Team'
+        RosterId=6
+        Players=@(
+            [pscustomobject]@{SleeperId='1001';Slot='starter';Ordinal='1';Lineup='QB'},
+            [pscustomobject]@{SleeperId='2002';Slot='bench';Ordinal='';Lineup=''}
+        )
+    }
+    $before=Get-Bf808LineupFingerprint -RosterView $roster
+    if ($before -cnotmatch '^[a-f0-9]{64}$') { throw 'BF-1515 BLOCKED: invalid lineup hash.' }
+    $reordered=[pscustomobject]@{
+        Players=@($roster.Players[1],$roster.Players[0])
+    }
+    if ((Get-Bf808LineupFingerprint -RosterView $reordered) -cne $before) {
+        throw 'BF-1515 BLOCKED: unordered roster inventory changed fingerprint.'
+    }
+    if ((ConvertTo-Bf1005TargetKey -Value 'Mass') -ceq
+        (ConvertTo-Bf1005TargetKey -Value 'Ma')) {
+        throw 'BF-1515 BLOCKED: team identity normalization collapses letters.'
+    }
+
+    # Isolate the real BF-1005 reader to one synthetic local JSON fixture.
+    $savedPath=Join-Path $root 'bf1515-snapshot.json'
+    function Get-Bf808AutoFillSnapshotPath {
+        param([Parameter(Mandatory = $true)][string]$LeagueKey)
+        return $savedPath
+    }
+    $saved=[ordered]@{
+        Schema='BF-808-1'; LeagueId='league-test'
+        TargetHuman='Test League | Test Team | roster 6'
+        Ready=$true; Source='synthetic'; Season='2026'; Week='4'
+        Scoring='PPR'; CurrentTotal='10'; RecommendedTotal='11'; Gain='1'
+        ChangedCount=1; GeneratedUtc=[DateTimeOffset]::UtcNow.ToString('o')
+        LineupFingerprintPolicy='BF1515-LINEUP-1'
+        LineupFingerprint=$before
+    }
+    [IO.File]::WriteAllText($savedPath,($saved|ConvertTo-Json))
+    if ($null -eq (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $roster -Week 4)) {
+        throw 'BF-1515 BLOCKED: exact unchanged lineup review was not reused.'
+    }
+    $roster.Players[0].Slot='bench'
+    $roster.Players[0].Ordinal=''
+    $roster.Players[0].Lineup=''
+    $roster.Players[1].Slot='starter'
+    $roster.Players[1].Ordinal='1'
+    $roster.Players[1].Lineup='QB'
+    if ($null -ne (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $roster -Week 4)) {
+        throw 'BF-1515 BLOCKED: changed lineup reused an old review.'
+    }
+    $roster.Players[0].Slot='starter'
+    $roster.Players[0].Ordinal='1'
+    $roster.Players[0].Lineup='QB'
+    $roster.Players[1].Slot='bench'
+    $roster.Players[1].Ordinal=''
+    $roster.Players[1].Lineup=''
+    $saved.Remove('LineupFingerprint')
+    [IO.File]::WriteAllText($savedPath,($saved|ConvertTo-Json))
+    if ($null -ne (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $roster -Week 4)) {
+        throw 'BF-1515 BLOCKED: legacy snapshot without a fingerprint was treated as current.'
     }
 
     $idle=[pscustomobject]@{Requested=$false}

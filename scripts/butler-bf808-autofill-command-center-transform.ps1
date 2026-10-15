@@ -62,6 +62,51 @@ function Get-Bf808AutoFillSnapshotPath {
     return Join-Path $directory ($safeLeagueKey + '.json')
 }
 
+function Get-Bf808LineupFingerprint {
+    param([Parameter(Mandatory = $true)]$RosterView)
+
+    # The BF-610 roster includes exact starter ordinal and lineup slot.
+    # Hash the full slot inventory so a starter/bench swap invalidates a
+    # saved review even when the league, owner and roster number are unchanged.
+    if ($null -eq $RosterView.PSObject.Properties['Players']) { return '' }
+    $players = @($RosterView.Players)
+    if ($players.Count -eq 0) { return '' }
+
+    $rows = New-Object 'System.Collections.Generic.List[string]'
+    $seen = @{}
+    foreach ($player in $players) {
+        if ($null -eq $player) { return '' }
+        foreach ($name in @('SleeperId','Slot','Ordinal','Lineup')) {
+            if ($null -eq $player.PSObject.Properties[$name]) { return '' }
+        }
+
+        $id = ([string]$player.SleeperId).Trim()
+        $slot = ([string]$player.Slot).Trim()
+        $ordinal = ([string]$player.Ordinal).Trim()
+        $lineup = ([string]$player.Lineup).Trim()
+        if ([string]::IsNullOrWhiteSpace($id) -or
+            [string]::IsNullOrWhiteSpace($slot) -or
+            $seen.ContainsKey($id)) {
+            return ''
+        }
+        $seen[$id] = $true
+        $rows.Add(([Uri]::EscapeDataString($id) + '|' +
+            [Uri]::EscapeDataString($slot) + '|' +
+            [Uri]::EscapeDataString($ordinal) + '|' +
+            [Uri]::EscapeDataString($lineup)))
+    }
+    $rows.Sort([System.StringComparer]::Ordinal)
+    $canonical = [string]::Join([string][char]10, $rows.ToArray())
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($canonical))).Replace('-','').ToLowerInvariant())
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
 function Save-Bf808AutoFillSnapshot {
     param(
         [Parameter(Mandatory = $true)]$AutoFill,
@@ -79,6 +124,10 @@ function Save-Bf808AutoFillSnapshot {
     $benchMoveCount = @($AutoFill.BenchMoves).Count
     $managerMoveCount = [Math]::Max($promotionCount, $benchMoveCount)
     $targetHuman = "$($RosterView.LeagueName) | $($RosterView.TeamName) | roster $($RosterView.RosterId)"
+    $lineupFingerprint = Get-Bf808LineupFingerprint -RosterView $RosterView
+    if ([string]::IsNullOrWhiteSpace($lineupFingerprint)) {
+        throw 'BF-1515 BLOCKED: current roster lineup identity cannot be verified for a saved review.'
+    }
     $snapshot = [ordered]@{
         Schema = 'BF-808-1'
         LeagueId = [string]$LeagueId
@@ -100,6 +149,8 @@ function Save-Bf808AutoFillSnapshot {
         PromotionCount = [int]$promotionCount
         BenchMoveCount = [int]$benchMoveCount
         AssignmentCount = [int](@($AutoFill.Assignments).Count)
+        LineupFingerprintPolicy = 'BF1515-LINEUP-1'
+        LineupFingerprint = $lineupFingerprint
         GeneratedUtc = [DateTimeOffset]::UtcNow.ToString('o')
     }
 
