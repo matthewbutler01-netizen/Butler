@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - startsit-review-action-summary
+      - bf1515-manager-decision-clarity
   pull_request:
     branches:
       - main

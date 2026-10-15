@@ -89,7 +89,7 @@ function Get-DecisionDetailLoadingHtml {
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="1;url=/history?audit=$encodedAudit&amp;detail=1"><title>Butler Decision Detail</title><style>$css
 .loading-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.loading-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:11px 16px;text-decoration:none;font-weight:700}.loading-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}
 </style></head><body><main class="shell">
-<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></header>
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History</div></header>
 $nav
 <section class="panel"><div class="eyebrow">Decision detail</div><div class="statusrow"><div><h1 class="headline">Opening Decision Detail...</h1><p class="lede">Loading this recorded waiver decision and its saved explanation.</p></div><div class="status done">READ ONLY</div></div><div class="empty">This view reads the existing decision record only.</div>
 <div class="loading-actions"><a href="/history?audit=$encodedAudit&amp;detail=1">Open Decision Detail now</a><a href="/history?load=1">Back to Decision History</a></div></section>
@@ -178,9 +178,146 @@ function ConvertTo-DecisionDetailHtml {
     $recommendationLabel = if ($Entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') { 'No governed transaction' } else { $Entry.RecommendationState }
     $explanationTypeLabel = if ($Explanation.ExplanationType -ceq 'NO_GOVERNED_TRANSACTION') { 'No governed transaction' } else { $Explanation.ExplanationType }
     $detailCss = @'
-.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.detail-item{padding:14px;border:1px solid #2b3962;border-radius:12px;background:#0d1630}.detail-item strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.detail-item span{display:block;margin-top:5px;font-weight:800;word-break:break-word}.explanation-copy{font-size:18px;line-height:1.55;color:#e8edfb}.mono{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.back-link{color:#a9c6ff;font-weight:800;text-decoration:none}.detail-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0 18px}.detail-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:10px 14px;text-decoration:none;font-weight:700}.detail-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}@media(max-width:760px){.detail-grid{grid-template-columns:1fr}}
+.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.detail-item{padding:14px;border:1px solid #2b3962;border-radius:12px;background:#0d1630}.detail-item strong{display:block;color:#8797bd;font-size:10px;text-transform:uppercase;letter-spacing:.07em}.detail-item span{display:block;margin-top:5px;font-weight:800;word-break:break-word}.explanation-copy{font-size:18px;line-height:1.55;color:#e8edfb}.mono{font:12px Consolas,monospace;color:#a9b5d2;word-break:break-word}.back-link{color:#a9c6ff;font-weight:800;text-decoration:none}.detail-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0 18px}.detail-actions a{display:inline-block;border:1px solid #334155;border-radius:12px;padding:10px 14px;text-decoration:none;font-weight:700}.detail-actions a:first-child{background:#2563eb;border-color:#3b82f6;color:#fff}.recorded-evidence{margin-top:14px;padding:13px 15px;border:1px solid var(--line);border-left:3px solid var(--turf);border-radius:10px;background:var(--surface-2)}.recorded-evidence strong{display:block;font-size:14px}.recorded-evidence p{margin:7px 0 0;font-size:13px;line-height:1.5}.recorded-evidence a{font-weight:800}
+@media(max-width:760px){.detail-grid{grid-template-columns:1fr}}
 '@
     $decisionLabel = if ($Entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') { 'No governed transaction' } elseif ($Entry.RecommendationState -ceq 'RECOMMEND_ADD_DROP') { "ADD $(ConvertTo-HtmlText $Entry.AddSleeperId) / DROP $(ConvertTo-HtmlText $Entry.DropSleeperId)" } else { ConvertTo-HtmlText $Entry.RecommendationState }
+    # Historical BF-628 provider frame does not prove current waiver eligibility.
+    $recordedFrame = if ([string]$Entry.ProviderSeason -cmatch '^20[0-9]{2}$' -and
+        [string]$Entry.ProviderLeg -cmatch '^([1-9]|1[0-9]|2[0-2])$') {
+        'Season ' + [string]$Entry.ProviderSeason + ' / Week ' + [string]$Entry.ProviderLeg
+    }
+    else {
+        'Recorded source frame: ' + [string]$Entry.ProviderSeason + ' / ' +
+            [string]$Entry.ProviderStatus + ' / ' + [string]$Entry.ProviderLeg
+    }
+    $explanationPanel = if ($Explanation.State -ceq 'EXPLANATION_READY') {
+        @"
+<section class="panel"><div class="eyebrow">Saved explanation</div><div class="statusrow"><div><h2 class="headline">Why this decision?</h2><p class="explanation-copy">$(ConvertTo-HtmlText $Explanation.ExplanationText)</p></div><div class="status good">SAVED</div></div><details><summary>Explanation details</summary><div class="detail-grid"><div class="detail-item"><strong>Explanation type</strong><span>$(ConvertTo-HtmlText $explanationTypeLabel)</span></div><div class="detail-item"><strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $explanationCapturedLabel)</span></div><div class="detail-item"><strong>Explanation id</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationId)</span></div></div><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Explanation.Captured)</p><p class="mono">Explanation type: $(ConvertTo-HtmlText $Explanation.ExplanationType)</p><p class="mono">Policy: $(ConvertTo-HtmlText $Explanation.Policy)</p><p class="mono">Evidence policy: $(ConvertTo-HtmlText $Explanation.EvidencePolicy)</p><p class="mono">Evidence trace: $(ConvertTo-HtmlText $Explanation.EvidenceTrace)</p></details></section>
+"@
+    }
+    else {
+        @"
+<section class="panel"><div class="eyebrow">Saved explanation</div><div class="statusrow"><div><h2 class="headline">No saved explanation</h2><p class="lede">No explanation was saved with this historical decision. Butler will not reconstruct or generate reasoning that was not persisted with the decision.</p></div><div class="status warn">NOT SAVED</div></div></section>
+"@
+    }
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision Detail</title><style>$css$detailCss</style></head><body><main class="shell">
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History</div></header>
+$nav
+<p><a class="back-link" href="/history?load=1">&larr; Back to Decision History</a></p>
+<div class="detail-actions"><a href="/history?load=1">Decision History</a><a href="/waivers">Review Waiver Board</a><a href="/">Dashboard</a></div>
+<section class="panel"><div class="eyebrow">Recorded waiver decision</div><div class="statusrow"><div><h1 class="headline">$decisionLabel</h1><p class="lede">Captured $(ConvertTo-HtmlText $capturedLabel). This is a verified saved record, not a current approval.</p></div><span class="status">HISTORY ONLY</span></div><div class="recorded-evidence"><strong>$(ConvertTo-HtmlText $recordedFrame)</strong><p>These source details belong to the recorded decision, not today's waiver availability. <a href="/waivers">Check the current Waiver Board</a> before considering a move. A recorded add/drop never authorizes a Sleeper transaction.</p></div><details><summary>Decision evidence</summary><div class="detail-grid"><div class="detail-item"><strong>Integrity</strong><span>$(ConvertTo-HtmlText $Entry.IntegrityState)</span></div><div class="detail-item"><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $Entry.ProviderSeason) / $(ConvertTo-HtmlText $Entry.ProviderStatus) / $(ConvertTo-HtmlText $Entry.ProviderLeg)</span></div><div class="detail-item"><strong>Selection state</strong><span>$(ConvertTo-HtmlText $selectionLabel)</span></div><div class="detail-item"><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $recommendationLabel)</span></div></div><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)</p><p class="mono">Selection state: $(ConvertTo-HtmlText $Entry.SelectionState)</p><p class="mono">Recommendation state: $(ConvertTo-HtmlText $Entry.RecommendationState)</p><p class="mono">Audit: $(ConvertTo-HtmlText $Entry.AuditId)</p><p class="mono">BF-603 market: $(ConvertTo-HtmlText $Entry.MarketSnapshotId)</p><p class="mono">BF-602 waiver: $(ConvertTo-HtmlText $Entry.WaiverSnapshotId)</p><p class="mono">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $Entry.AddSleeperId) / $(ConvertTo-HtmlText $Entry.DropSleeperId)</p></details></section>
+$explanationPanel
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Decision Detail reads the selected recorded decision and its saved explanation only. It cannot capture an explanation, rerun a recommendation, refresh evidence, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
+</main></body></html>
+"@
+}
+
+function Invoke-DecisionHistoryHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$RequestTarget
+    )
+
+    $query = ConvertFrom-DecisionHistoryRequestTarget -RequestTarget $RequestTarget
+    $auditId = if ($query.ContainsKey('audit')) { [string]$query['audit'] } else { $null }
+    $detail = $query.ContainsKey('detail') -and [string]$query['detail'] -ceq '1'
+
+    if (-not [string]::IsNullOrWhiteSpace($auditId) -and -not $detail) {
+        if ($auditId -cnotmatch '^[A-Za-z0-9-]{1,128}$') { throw 'BF-672 BLOCKED: requested audit id has an invalid shape.' }
+        return Get-DecisionDetailLoadingHtml -LeagueId $LeagueId -AuditId $auditId
+    }
+    if ($detail -and [string]::IsNullOrWhiteSpace($auditId)) {
+        throw 'BF-672 BLOCKED: detail mode requires one exact audit id.'
+    }
+
+    $raw = Invoke-ButlerReadOnlyTask -Task ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditHistory' -Arguments $LeagueId -BoundaryName 'BF-672'
+    $history = ConvertTo-DecisionHistoryView -Text $raw
+    if ($history.LeagueId -cne $LeagueId) {
+        throw 'BF-672 BLOCKED: BF-628 history league does not match the configured Butler league.'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($auditId)) {
+        $html = ConvertTo-DecisionHistoryHtml -History $history
+        return Add-DecisionDetailLinks -Html $html -History $history
+    }
+
+    $entry = Get-ExactDecisionHistoryEntry -History $history -AuditId $auditId
+    $explanationRaw = Invoke-ButlerReadOnlyTask -Task ':bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup' -Arguments "$LeagueId $auditId" -BoundaryName 'BF-672'
+    $explanation = ConvertTo-DecisionExplanationView -Text $explanationRaw
+    Assert-DecisionExplanationReconciled -Entry $entry -Explanation $explanation
+    return ConvertTo-DecisionDetailHtml -History $history -Entry $entry -Explanation $explanation
+}
+ -and
+        [string]$Entry.ProviderLeg -cmatch '^([1-9]|1[0-9]|2[0-2])
+    $explanationPanel = if ($Explanation.State -ceq 'EXPLANATION_READY') {
+        @"
+<section class="panel"><div class="eyebrow">Saved explanation</div><div class="statusrow"><div><h2 class="headline">Why this decision?</h2><p class="explanation-copy">$(ConvertTo-HtmlText $Explanation.ExplanationText)</p></div><div class="status good">SAVED</div></div><details><summary>Explanation details</summary><div class="detail-grid"><div class="detail-item"><strong>Explanation type</strong><span>$(ConvertTo-HtmlText $explanationTypeLabel)</span></div><div class="detail-item"><strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $explanationCapturedLabel)</span></div><div class="detail-item"><strong>Explanation id</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationId)</span></div></div><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Explanation.Captured)</p><p class="mono">Explanation type: $(ConvertTo-HtmlText $Explanation.ExplanationType)</p><p class="mono">Policy: $(ConvertTo-HtmlText $Explanation.Policy)</p><p class="mono">Evidence policy: $(ConvertTo-HtmlText $Explanation.EvidencePolicy)</p><p class="mono">Evidence trace: $(ConvertTo-HtmlText $Explanation.EvidenceTrace)</p></details></section>
+"@
+    }
+    else {
+        @"
+<section class="panel"><div class="eyebrow">Saved explanation</div><div class="statusrow"><div><h2 class="headline">No saved explanation</h2><p class="lede">No explanation was saved with this historical decision. Butler will not reconstruct or generate reasoning that was not persisted with the decision.</p></div><div class="status warn">NOT SAVED</div></div></section>
+"@
+    }
+
+    return @"
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Decision Detail</title><style>$css$detailCss</style></head><body><main class="shell">
+<header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$(ConvertTo-HtmlText $History.LeagueId) &middot; roster $(ConvertTo-HtmlText $History.RosterId)</div></header>
+$nav
+<p><a class="back-link" href="/history?load=1">&larr; Back to Decision History</a></p>
+<div class="detail-actions"><a href="/history?load=1">Decision History</a><a href="/waivers">Review Waiver Board</a><a href="/">Dashboard</a></div>
+<section class="panel"><div class="eyebrow">Recorded waiver decision</div><div class="statusrow"><div><h1 class="headline">$decisionLabel</h1><p class="lede">Captured $(ConvertTo-HtmlText $capturedLabel). Butler verified this against the saved decision record.</p></div></div><details><summary>Decision evidence</summary><div class="detail-grid"><div class="detail-item"><strong>Integrity</strong><span>$(ConvertTo-HtmlText $Entry.IntegrityState)</span></div><div class="detail-item"><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $Entry.ProviderSeason) / $(ConvertTo-HtmlText $Entry.ProviderStatus) / $(ConvertTo-HtmlText $Entry.ProviderLeg)</span></div><div class="detail-item"><strong>Selection state</strong><span>$(ConvertTo-HtmlText $selectionLabel)</span></div><div class="detail-item"><strong>Recommendation</strong><span>$(ConvertTo-HtmlText $recommendationLabel)</span></div></div><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Entry.Captured)</p><p class="mono">Selection state: $(ConvertTo-HtmlText $Entry.SelectionState)</p><p class="mono">Recommendation state: $(ConvertTo-HtmlText $Entry.RecommendationState)</p><p class="mono">Audit: $(ConvertTo-HtmlText $Entry.AuditId)</p><p class="mono">BF-603 market: $(ConvertTo-HtmlText $Entry.MarketSnapshotId)</p><p class="mono">BF-602 waiver: $(ConvertTo-HtmlText $Entry.WaiverSnapshotId)</p><p class="mono">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $Entry.AddSleeperId) / $(ConvertTo-HtmlText $Entry.DropSleeperId)</p></details></section>
+$explanationPanel
+<section class="panel boundary"><span class="lock">READ ONLY.</span> Decision Detail reads the selected recorded decision and its saved explanation only. It cannot capture an explanation, rerun a recommendation, refresh evidence, execute a transaction, set FAAB, alter a roster, or submit a Sleeper transaction.</section>
+</main></body></html>
+"@
+}
+
+function Invoke-DecisionHistoryHtml {
+    param(
+        [Parameter(Mandatory = $true)][string]$LeagueId,
+        [Parameter(Mandatory = $true)][string]$RequestTarget
+    )
+
+    $query = ConvertFrom-DecisionHistoryRequestTarget -RequestTarget $RequestTarget
+    $auditId = if ($query.ContainsKey('audit')) { [string]$query['audit'] } else { $null }
+    $detail = $query.ContainsKey('detail') -and [string]$query['detail'] -ceq '1'
+
+    if (-not [string]::IsNullOrWhiteSpace($auditId) -and -not $detail) {
+        if ($auditId -cnotmatch '^[A-Za-z0-9-]{1,128}$') { throw 'BF-672 BLOCKED: requested audit id has an invalid shape.' }
+        return Get-DecisionDetailLoadingHtml -LeagueId $LeagueId -AuditId $auditId
+    }
+    if ($detail -and [string]::IsNullOrWhiteSpace($auditId)) {
+        throw 'BF-672 BLOCKED: detail mode requires one exact audit id.'
+    }
+
+    $raw = Invoke-ButlerReadOnlyTask -Task ':bet:bet-cli:sleeperLiveWaiverRecommendationAuditHistory' -Arguments $LeagueId -BoundaryName 'BF-672'
+    $history = ConvertTo-DecisionHistoryView -Text $raw
+    if ($history.LeagueId -cne $LeagueId) {
+        throw 'BF-672 BLOCKED: BF-628 history league does not match the configured Butler league.'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($auditId)) {
+        $html = ConvertTo-DecisionHistoryHtml -History $history
+        return Add-DecisionDetailLinks -Html $html -History $history
+    }
+
+    $entry = Get-ExactDecisionHistoryEntry -History $history -AuditId $auditId
+    $explanationRaw = Invoke-ButlerReadOnlyTask -Task ':bet:bet-cli:sleeperLiveWaiverGovernedExplanationLookup' -Arguments "$LeagueId $auditId" -BoundaryName 'BF-672'
+    $explanation = ConvertTo-DecisionExplanationView -Text $explanationRaw
+    Assert-DecisionExplanationReconciled -Entry $entry -Explanation $explanation
+    return ConvertTo-DecisionDetailHtml -History $history -Entry $entry -Explanation $explanation
+}
+) {
+        'Season ' + [string]$Entry.ProviderSeason + ' / Week ' + [string]$Entry.ProviderLeg
+    }
+    else {
+        'Recorded source frame: ' + [string]$Entry.ProviderSeason + ' / ' +
+            [string]$Entry.ProviderStatus + ' / ' + [string]$Entry.ProviderLeg
+    }
     $explanationPanel = if ($Explanation.State -ceq 'EXPLANATION_READY') {
         @"
 <section class="panel"><div class="eyebrow">Saved explanation</div><div class="statusrow"><div><h2 class="headline">Why this decision?</h2><p class="explanation-copy">$(ConvertTo-HtmlText $Explanation.ExplanationText)</p></div><div class="status good">SAVED</div></div><details><summary>Explanation details</summary><div class="detail-grid"><div class="detail-item"><strong>Explanation type</strong><span>$(ConvertTo-HtmlText $explanationTypeLabel)</span></div><div class="detail-item"><strong>Explanation captured</strong><span>$(ConvertTo-HtmlText $explanationCapturedLabel)</span></div><div class="detail-item"><strong>Explanation id</strong><span>$(ConvertTo-HtmlText $Explanation.ExplanationId)</span></div></div><p class="mono">Captured UTC: $(ConvertTo-HtmlText $Explanation.Captured)</p><p class="mono">Explanation type: $(ConvertTo-HtmlText $Explanation.ExplanationType)</p><p class="mono">Policy: $(ConvertTo-HtmlText $Explanation.Policy)</p><p class="mono">Evidence policy: $(ConvertTo-HtmlText $Explanation.EvidencePolicy)</p><p class="mono">Evidence trace: $(ConvertTo-HtmlText $Explanation.EvidenceTrace)</p></details></section>
