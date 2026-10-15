@@ -318,7 +318,7 @@ $null = Get-Bf1005Ast -Text $core -Contract 'final core'
 foreach ($required in @(
     'function Get-Bf1005SavedLineupReview',
     'function ConvertTo-Bf1005SavedLineupReviewHtml',
-    'The saved Week $week Lineup Review is current for this roster',
+    'The saved Week $week Lineup Review matches this local lineup',
     'Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)',
     '-SavedReview $savedReview',
     'No new provider request was made to display it.',
