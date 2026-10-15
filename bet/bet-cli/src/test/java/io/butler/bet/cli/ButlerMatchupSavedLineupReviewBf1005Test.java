@@ -17,7 +17,7 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         String t = source("scripts/butler-app-bf1005-matchup-saved-lineup-review-transform.ps1");
         assertTrue(t.contains("function Get-Bf1005SavedLineupReview"));
         assertTrue(t.contains("function ConvertTo-Bf1005SavedLineupReviewHtml"));
-        assertTrue(t.contains("The saved Week $week Lineup Review is current for this roster"));
+        assertTrue(t.contains("The saved Week $week Lineup Review matches this local lineup"));
         assertTrue(t.contains("Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)"));
         assertTrue(t.contains("-SavedReview $savedReview"));
         assertTrue(t.contains("No new provider request was made to display it."));
@@ -30,6 +30,9 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("$savedWeek -ne $Week"));
         assertTrue(t.contains("$ageHours -lt -0.1 -or $ageHours -gt 6.0"));
         assertTrue(t.contains("[string]$snapshot.LeagueId -cne $LeagueId"));
+        assertTrue(t.contains("LineupFingerprintPolicy"));
+        assertTrue(t.contains("Get-Bf808LineupFingerprint -RosterView $Roster"));
+        assertTrue(t.contains("LineupFingerprint -cnotmatch"));
     }
 
     @Test
