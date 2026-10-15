@@ -7,6 +7,7 @@ on:
       - startsit-review-action-summary
       - bf1515-manager-decision-clarity
       - bf1515-lineup-fingerprint
+      - bf1515-dashboard-saved-review-proof
   pull_request:
     branches:
       - main
