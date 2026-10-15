@@ -52,7 +52,7 @@ $helpers = @'
 function ConvertTo-Bf1005TargetKey {
     param([AllowNull()][string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
-    return ([regex]::Replace($Value.Trim(), 's+', ' ')).ToLowerInvariant()
+    return ([regex]::Replace($Value.Trim(), '\s+', ' ')).ToLowerInvariant()
 }
 
 function Get-Bf1005SavedLineupReview {
@@ -75,6 +75,19 @@ function Get-Bf1005SavedLineupReview {
 
     if ([string]$snapshot.Schema -cne 'BF-808-1') { return $null }
     if ([string]$snapshot.LeagueId -cne $LeagueId) { return $null }
+    # A roster id alone cannot prove the starting lineup is unchanged.
+    # Older snapshots without this BF-1515 proof remain historical only.
+    if ($null -eq $snapshot.PSObject.Properties['LineupFingerprintPolicy'] -or
+        $null -eq $snapshot.PSObject.Properties['LineupFingerprint'] -or
+        [string]$snapshot.LineupFingerprintPolicy -cne 'BF1515-LINEUP-1' -or
+        [string]$snapshot.LineupFingerprint -cnotmatch '^[a-f0-9]{64}$') {
+        return $null
+    }
+    $actualLineup = Get-Bf808LineupFingerprint -RosterView $Roster
+    if ([string]::IsNullOrWhiteSpace($actualLineup) -or
+        $actualLineup -cne [string]$snapshot.LineupFingerprint) {
+        return $null
+    }
 
     $teamName = if (-not [string]::IsNullOrWhiteSpace([string]$Roster.TeamName) -and [string]$Roster.TeamName -cne 'none') { [string]$Roster.TeamName } else { [string]$Roster.ButlerTeamName }
     $expectedTarget = "$($Roster.LeagueName) | $teamName | roster $($Roster.RosterId)"
@@ -156,7 +169,7 @@ function ConvertTo-Bf1005SavedLineupReviewHtml {
         (ConvertTo-HtmlText $title) +
         '</h2><p class="lede">Butler loaded the saved read-only Week ' +
         (ConvertTo-HtmlText $week) +
-        ' review for this exact roster. No new provider request was made to display it.</p></div><span class="status ' +
+        ' review for the same locally verified lineup and roster. No new provider request was made to display it.</p></div><span class="status ' +
         $statusClass + '">' + $statusText +
         '</span></div><div class="stats"><div class="stat"><strong>Current projection</strong><span>' +
         (ConvertTo-HtmlText ([string]$Snapshot.CurrentTotal)) +
@@ -224,7 +237,7 @@ $savedDecision = @'
             $nameText = if ($names.Count -gt 0) { $names -join ', ' } else { "$($attention.Count) saved review holds" }
             return [pscustomobject]@{
                 Title = "Review current Week $week lineup holds"
-                Copy = "The saved Week $week Lineup Review is current for this roster and contains manual-review holds."
+                Copy = "The saved Week $week Lineup Review matches this local lineup, but still contains manual-review holds."
                 Status = 'MANUAL REVIEW'
                 StatusClass = 'warn'
                 Detail = $nameText

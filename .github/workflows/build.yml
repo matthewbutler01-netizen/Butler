@@ -6,6 +6,7 @@ on:
       - main
       - startsit-review-action-summary
       - bf1515-manager-decision-clarity
+      - bf1515-lineup-fingerprint
   pull_request:
     branches:
       - main
