@@ -102,7 +102,6 @@ function Get-DecisionRefreshConfirmationHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'dashboard'
-    $safeLeague = ConvertTo-HtmlText $LeagueId
     $safeToken = ConvertTo-HtmlText $Token
     return @"
 <!doctype html>
@@ -117,7 +116,7 @@ function Get-DecisionRefreshConfirmationHtml {
 </head>
 <body>
 <main class="shell">
-<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Butler data refresh</div></div>
 $nav
 <section class="panel">
 <div class="eyebrow">Data refresh</div>
@@ -236,7 +235,6 @@ function Get-DecisionRefreshSuccessHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'dashboard'
-    $safeLeague = ConvertTo-HtmlText $LeagueId
     $safeResult = ConvertTo-HtmlText $ResultText
     return @"
 <!doctype html>
@@ -244,7 +242,7 @@ function Get-DecisionRefreshSuccessHtml {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Butler - Data refreshed</title><style>$css
 .refresh-success-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:18px}.refresh-primary,.refresh-secondary{display:inline-block;border-radius:12px;font-weight:700;padding:11px 16px;text-decoration:none}.refresh-primary{border:1px solid #3b82f6;background:#2563eb;color:#fff}.refresh-secondary{border:1px solid #334155}.refresh-tertiary{display:inline-block;padding:11px 0}.refresh-governance{margin-top:18px;padding:14px 16px;border:1px solid #334155;border-radius:14px}.refresh-governance summary{cursor:pointer;font-weight:700}
 </style></head>
-<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>$nav
+<body><main class="shell"><div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Butler data refresh</div></div>$nav
 <section class="panel"><div class="eyebrow">Data refresh</div><div class="statusrow"><div><h2 class="headline">Butler refresh finished</h2><p class="lede">The supported refresh steps completed. Review Waiver Board for the resulting decision and any remaining holds. No changes were submitted to Sleeper.</p></div><span class="status done">REFRESH FINISHED</span></div><div class="refresh-success-actions"><a class="refresh-primary" href="/">Return to Dashboard</a><a class="refresh-secondary" href="/waivers">Review Waiver Board</a><a class="refresh-secondary" href="/team">Review My Team</a><a class="refresh-tertiary" href="/history?load=1">View History</a></div><details class="refresh-governance"><summary>Technical details</summary><pre>$safeResult</pre></details></section>
 </main></body></html>
 "@

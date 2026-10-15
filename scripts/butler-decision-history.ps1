@@ -50,7 +50,6 @@ function Get-DecisionHistoryLoadingHtml {
 
     $css = Get-AppCss
     $nav = Get-AppNav -Active 'history'
-    $safeLeague = ConvertTo-HtmlText $LeagueId
     return @"
 <!doctype html>
 <html lang="en">
@@ -65,7 +64,7 @@ function Get-DecisionHistoryLoadingHtml {
 </head>
 <body>
 <main class="shell">
-<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">$safeLeague</div></div>
+<div class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Decision History</div></div>
 $nav
 <section class="panel">
 <div class="eyebrow">Governed decision history</div>
