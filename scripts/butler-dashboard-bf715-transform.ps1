@@ -926,6 +926,16 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & $bf1021Transform -CorePath $stagedCore
 }
 
+# BF-1518: final manager UI truth gate; standalone Dashboard staging with no
+# companion app core must retain its original BF-715 behavior.
+if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
+    $bf1518Transform = Join-Path $PSScriptRoot 'butler-bf1518-dashboard-saved-lineup-trust-transform.ps1'
+    if (-not (Test-Path -LiteralPath $bf1518Transform -PathType Leaf)) {
+        throw 'BF-1518 BLOCKED: Dashboard saved-review trust gate not found.'
+    }
+    & $bf1518Transform -DashboardPath $DashboardPath
+}
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
