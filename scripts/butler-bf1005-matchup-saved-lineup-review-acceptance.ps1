@@ -15,7 +15,7 @@ try {
         'function Get-Bf1005SavedLineupReview',
         'function ConvertTo-Bf1005SavedLineupReviewHtml',
         'The saved Week $week Lineup Review matches this local lineup',
-        'No new provider request was made to display it.',
+        'Butler checked current Sleeper starter slots before reusing this saved review. No new projections were requested, and no lineup was submitted.',
         'Refresh full Lineup Review',
         '-SavedReview $savedReview',
         '--weekly-matchup-bundle-live-proof',
@@ -154,7 +154,7 @@ try {
     }
 
     $html=ConvertTo-Bf1005SavedLineupReviewHtml -Snapshot $snapshot
-    foreach ($required in @('Week 4 lineup review needs attention','Keenan Allen','Jadarian Price','Josh Jacobs','Hunter Henry','No new provider request was made to display it.','Refresh full Lineup Review')) {
+    foreach ($required in @('Week 4 lineup review needs attention','Keenan Allen','Jadarian Price','Josh Jacobs','Hunter Henry','Butler checked current Sleeper starter slots before reusing this saved review. No new projections were requested, and no lineup was submitted.','Refresh full Lineup Review')) {
         if ($html.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1005 BLOCKED: saved review render marker missing: $required"
         }
@@ -164,7 +164,7 @@ try {
     }
 
     Write-Host 'BF-1005 MATCHUP SAVED LINEUP REVIEW ACCEPTANCE: PASS'
-    Write-Host 'Coverage: current saved weekly review -> Matchup decision + compact advisor summary; no new provider request or Sleeper write.'
+    Write-Host 'Coverage: source-verified saved weekly review -> compact Matchup decision; no new projections or Sleeper transaction.'
 }
 finally {
     if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }

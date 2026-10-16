@@ -20,7 +20,7 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("The saved Week $week Lineup Review matches this local lineup"));
         assertTrue(t.contains("Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)"));
         assertTrue(t.contains("-SavedReview $savedReview"));
-        assertTrue(t.contains("No new provider request was made to display it."));
+        assertTrue(t.contains("Butler checked current Sleeper starter slots before reusing this saved review."));
         assertTrue(t.contains("LINEUP CHECK NEEDED"));
         assertTrue(t.contains("has not checked the current Sleeper starter slots"));
         assertTrue(t.contains("fresh read-only lineup check"));

@@ -936,6 +936,14 @@ if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & $bf1518Transform -DashboardPath $DashboardPath
 }
 
+# BF-1521: preserve the governed Waiver Board decision but do not confuse
+# no verified add/drop from one evidence frame with a current free-agent search.
+$bf1521Transform = Join-Path $PSScriptRoot 'butler-bf1521-waiver-no-verified-move-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf1521Transform -PathType Leaf)) {
+    throw 'BF-1521 BLOCKED: Waiver Board decision clarity transform not found.'
+}
+& $bf1521Transform -DashboardPath $DashboardPath
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
