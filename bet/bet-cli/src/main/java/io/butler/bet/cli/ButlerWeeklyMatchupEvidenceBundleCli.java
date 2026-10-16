@@ -319,8 +319,7 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
         Database database, String leagueId, MatchupContext context) throws Exception {
         var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
         if (!target.sleeperLeagueId().equals(context.sleeperLeagueId())
-            || target.rosterId() != context.rosterId()
-            || target.season() != context.season()) {
+            || target.rosterId() != context.rosterId()) {
             throw new IllegalStateException("BF-1520 BLOCKED: exact personalized target changed");
         }
         var report = new SleeperLiveWaiverTargetRosterContextAudit(database)
