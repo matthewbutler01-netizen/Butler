@@ -29,6 +29,8 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("$rosterForSavedReview = $liveRoster"));
         assertTrue(t.contains("Binding gate state: BOUND_TARGET_LIVE_VERIFIED"));
         assertTrue(t.contains("Target-roster context state: READY_CONTEXT_ONLY"));
+        assertTrue(t.contains("$readSavedReview = $ageHours -ge -0.1 -and $ageHours -le 6.0"));
+        assertTrue(t.contains("$savedCandidate.LineupFingerprintPolicy -ceq 'BF1515-LINEUP-1'"));
     }
 
     @Test
