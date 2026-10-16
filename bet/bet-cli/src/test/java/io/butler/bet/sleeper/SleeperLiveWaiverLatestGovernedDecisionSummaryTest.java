@@ -102,6 +102,23 @@ class SleeperLiveWaiverLatestGovernedDecisionSummaryTest {
     }
 
     @Test
+    void auditedWeekRolloverIsNeverActionableEvenWithFreshSnapshots() throws Exception {
+        var evidence = evidence(
+            SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
+        var service = service(
+            actionability(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT),
+            evidence,
+            telemetry(evidence, "audit", 1L, 1L, 1L));
+
+        var report = service.summarize(target());
+
+        assertEquals(SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT,
+            report.state());
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT,
+            report.bf629State());
+    }
+
+    @Test
     void staleLiveRosterStateWinsOverYoungEvidence() throws Exception {
         var evidence = evidence(
             SleeperLiveWaiverRecommendationEvidenceLineageRevalidation.EvidenceLineageState.LATEST_EVIDENCE_LINEAGE_VERIFIED);
