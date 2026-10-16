@@ -289,14 +289,22 @@ try {
         Write-Host ("BF-676 PREFLIGHT VERIFIED: governed no-transaction state is eligible for manual refresh with BF-631 lineage {0}." -f $bf631State)
     }
     elseif ($decisionState -ceq 'STALE_DO_NOT_ACT') {
-        # Only superseded evidence with a still-valid live transaction is recoverable here.
-        # Pending/completed transactions and every failed/unknown live gate stay blocked.
-        if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or
-            @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
-              'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -cnotcontains $bf631State) {
-            throw 'BF-676 BLOCKED: stale recovery requires verified live actionability and exactly superseded evidence. No BF-602/BF-603/etc. write stage was executed.'
+        # BF-1529: a previous-week add/drop is NEVER reusable as a move. Only
+        # BF-629's independently proven EXACT NEXT regular-season week may
+        # authorize a separate, explicitly confirmed Butler-local re-evaluation.
+        # No automatic page-open POST, stale transaction, or FAAB change.
+        if ($bf629State -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT' -and
+            (Test-Bf676NoTransactionLineage -LineageState $bf631State)) {
+            Write-Host 'BF-1529 PREFLIGHT VERIFIED: exact next regular-season week. OLD ADD/DROP REMAINS BLOCKED. Confirmed Butler-local current-week evidence recheck only; BF-840 must verify the current matchup before any evidence write.'
         }
-        Write-Host 'BF-676 PREFLIGHT VERIFIED: superseded evidence recovery; the saved move remains blocked until a new decision is captured and checked.'
+        elseif ($bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+            @('MARKET_LINEAGE_SUPERSEDED', 'WAIVER_LINEAGE_SUPERSEDED',
+              'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -ccontains $bf631State) {
+            Write-Host 'BF-676 PREFLIGHT VERIFIED: superseded evidence recovery; the saved move remains blocked until a new decision is captured and checked.'
+        }
+        else {
+            throw 'BF-676 BLOCKED: stale recovery requires an exact next-week governed rollover or verified live actionability with superseded evidence. No BF-602/BF-603/etc. write stage was executed.'
+        }
     }
     elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED') {
         if ($bf629State -cne 'LIVE_ACTIONABLE_VERIFIED' -or $bf631State -cne 'LATEST_EVIDENCE_LINEAGE_VERIFIED') {
