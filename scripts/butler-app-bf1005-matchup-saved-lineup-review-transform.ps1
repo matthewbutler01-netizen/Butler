@@ -323,15 +323,81 @@ $core = $core.Substring(0,$matchupFn.Extent.StartOffset) + $matchup + $core.Subs
 
 $routeOld = '$html = ConvertTo-MatchupHtml -Roster $rosterView -Matchup $matchup -AutoFill $autoFill -OpponentStrength $opponentStrength -OpponentPressure $opponentPressure'
 $routeNew = @'
-$savedReview = if ($requestAutoFill) {
+$rosterForSavedReview = $rosterView
+                        if ($readSavedReview) {
+                            try {
+                                $liveRosterText = Get-TeamEvidenceBundleSection -Text $bundleText -Name "LIVE_ROSTER_CONTEXT"
+                                $liveLeg = [regex]::Matches($liveRosterText, '(?m)^Provider season/status/leg:\s+(?<season>\d+)/in_season/(?<week>\d+)\s*$')
+                                if ([regex]::Matches($liveRosterText, '(?m)^Binding gate state: BOUND_TARGET_LIVE_VERIFIED\s*$').Count -eq 1 -and
+                                    [regex]::Matches($liveRosterText, '(?m)^Target-roster context state: READY_CONTEXT_ONLY\s*$').Count -eq 1 -and
+                                    $liveLeg.Count -eq 1) {
+                                    $liveRoster = ConvertTo-RosterContextView -Text $liveRosterText
+                                    if ([string]$liveRoster.SleeperLeagueId -ceq [string]$rosterView.SleeperLeagueId -and
+                                        [int]$liveRoster.RosterId -eq [int]$rosterView.RosterId -and
+                                        [int]$liveRoster.Season -eq [int]$rosterView.Season -and
+                                        [int]$liveLeg[0].Groups['season'].Value -eq [int]$matchup.Season -and
+                                        [int]$liveLeg[0].Groups['week'].Value -eq [int]$matchup.Week -and
+                                        [string]$liveRoster.ProviderStatus -ceq 'in_season') {
+                                        $rosterForSavedReview = $liveRoster
+                                    }
+                                }
+                            }
+                            catch {
+                                # Incomplete live proof holds the saved advice.
+                            }
+                        }
+                        $savedReview = if ($requestAutoFill) {
                             $null
                         }
                         else {
-                            Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId) -Roster $rosterView -Week ([int]$matchup.Week)
+                            Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId) -Roster $rosterForSavedReview -Week ([int]$matchup.Week)
                         }
                         $html = ConvertTo-MatchupHtml -Roster $rosterView -Matchup $matchup -AutoFill $autoFill -OpponentStrength $opponentStrength -OpponentPressure $opponentPressure -SavedReview $savedReview
 '@.TrimEnd()
 $core = Replace-Bf1005ExactlyOnce -Text $core -Old $routeOld -New $routeNew -Contract 'ordinary Matchup saved review hydration'
+
+# BF-1520: only a pre-existing saved review may request this extra bounded,
+# read-only owner+roster source. Ordinary Matchup remains its old passive mode.
+$bundleArgsOld = '$bundleArguments = if ($requestAutoFill) { "$LeagueId --weekly-matchup-bundle-autofill" } else { "$LeagueId --weekly-matchup-bundle" }'
+$bundleArgsNew = @'
+$readSavedReview = $false
+                    if (-not $requestAutoFill) {
+                        # BF-1520: do not spend up to nine seconds checking a
+                        # prior-week or expired review on each Matchup visit.
+                        # File age is only a source-read eligibility limit,
+                        # NEVER a substitute for the exact live roster check.
+                        $savedPath = Get-Bf808AutoFillSnapshotPath -LeagueKey ([string]$LeagueId)
+                        if (Test-Path -LiteralPath $savedPath -PathType Leaf) {
+                            try {
+                                $savedCandidate = [IO.File]::ReadAllText($savedPath) | ConvertFrom-Json
+                                $savedAt = [DateTimeOffset]::MinValue
+                                if ([string]$savedCandidate.Schema -ceq 'BF-808-1' -and
+                                    [string]$savedCandidate.LeagueId -ceq [string]$LeagueId -and
+                                    [bool]$savedCandidate.Ready -and
+                                    [string]$savedCandidate.LineupFingerprintPolicy -ceq 'BF1515-LINEUP-1' -and
+                                    [string]$savedCandidate.LineupFingerprint -cmatch '^[a-f0-9]{64}$' -and
+                                    [DateTimeOffset]::TryParse([string]$savedCandidate.GeneratedUtc, [ref]$savedAt)) {
+                                    $ageHours = ([DateTimeOffset]::UtcNow - $savedAt).TotalHours
+                                    $readSavedReview = $ageHours -ge -0.1 -and $ageHours -le 6.0
+                                }
+                            }
+                            catch {
+                                # Invalid or unknown saved JSON cannot arm
+                                # a new provider request on a passive GET.
+                            }
+                        }
+                    }
+                    $bundleArguments = if ($requestAutoFill) {
+                        "$LeagueId --weekly-matchup-bundle-autofill"
+                    }
+                    elseif ($readSavedReview) {
+                        "$LeagueId --weekly-matchup-bundle-live-proof"
+                    }
+                    else {
+                        "$LeagueId --weekly-matchup-bundle"
+                    }
+'@
+$core = Replace-Bf1005ExactlyOnce -Text $core -Old $bundleArgsOld -New $bundleArgsNew.TrimEnd() -Contract 'conditional BF-1520 saved-lineup proof'
 
 $null = Get-Bf1005Ast -Text $core -Contract 'final core'
 
@@ -344,7 +410,10 @@ foreach ($required in @(
     'No new provider request was made to display it.',
     'Refresh full Lineup Review',
     'LINEUP CHECK NEEDED',
-    'has not checked the current Sleeper starter slots'
+    'has not checked the current Sleeper starter slots',
+    '--weekly-matchup-bundle-live-proof',
+    'LIVE_ROSTER_CONTEXT',
+    '$rosterForSavedReview = $liveRoster'
 )) {
     if ($core.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1005 BLOCKED: saved-review hydration marker is missing: $required"

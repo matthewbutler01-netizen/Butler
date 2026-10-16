@@ -11,6 +11,7 @@ import io.butler.bet.intelligence.LeagueRosterStrengthTierAnalyzer;
 import io.butler.bet.intelligence.WeeklyMatchupWorkspaceAnalyzer;
 import io.butler.bet.sleeper.SleeperLiveAutoFillLineupRecommendation;
 import io.butler.bet.sleeper.SleeperLiveWaiverTargetRosterContextAudit;
+import io.butler.bet.sleeper.SleeperPersonalizedTargetService;
 import io.butler.bet.sleeper.SleeperClient;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -35,6 +36,7 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
     static final String MATCHUP_CONTEXT = "MATCHUP_CONTEXT";
     static final String MATCHUP = "MATCHUP";
     static final String WEEK_FRESHNESS = "WEEK_FRESHNESS";
+    static final String LIVE_ROSTER_CONTEXT = "LIVE_ROSTER_CONTEXT";
     static final int EVIDENCE_WORKERS = 5;
 
     private static final Path DATABASE_PATH = Path.of("butler.db");
@@ -49,10 +51,12 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
 
     static int runEmbedded(String[] args) {
         boolean includeAutoFill = validAutoFillArgs(args);
+        boolean includeLineupProof = validLiveRosterArgs(args);
         boolean normalBundle = args != null
             && args.length == 1
             && args[0] != null
             && !args[0].isBlank();
+        normalBundle = normalBundle || includeLineupProof;
         if (!normalBundle && !includeAutoFill) {
             System.err.println("Error: weekly matchup evidence bundle requires <butler-league-id> [--autofill].");
             return 2;
@@ -94,6 +98,12 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
                 includeAutoFill && weekVerified
                     ? executor.submit(() -> autoFillSafely(database, leagueId, context))
                     : null;
+            // BF-1520 is only requested when a saved lineup review actually
+            // exists. It is bounded, read-only and independent of projections.
+            // Failed live proof may never upgrade saved advice to CURRENT.
+            Future<LiveRosterEvidence> liveRosterFuture = includeLineupProof && weekVerified
+                ? executor.submit(() -> liveRosterSafely(database, leagueId, context))
+                : null;
 
             LeagueRosterStrengthTierAnalyzer.RosterStrengthReport strength = await(strengthFuture);
             LeaguePositionalPressureAnalyzer.PositionalPressureReport pressure = await(pressureFuture);
@@ -112,18 +122,36 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             String positionalPressure = ButlerMyTeamEvidenceBundleCli.capture(() ->
                 ButlerLeaguePositionalPressureCli.print(pressure));
             String matchup = renderMatchup(matchupFuture);
+            String liveRosterText = "State: UNAVAILABLE";
+            if (liveRosterFuture != null) {
+                try {
+                    LiveRosterEvidence proof = liveRosterFuture.get(9, TimeUnit.SECONDS);
+                    liveRosterText = ButlerMyTeamEvidenceBundleCli.capture(() -> {
+                        ButlerPersonalizedTargetCliSupport.printVerified(proof.target());
+                        ButlerSleeperLiveWaiverTargetRosterContextAuditCli.print(proof.roster());
+                    });
+                } catch (Exception ignored) {
+                    liveRosterFuture.cancel(true);
+                    // No unverified fallback to persisted starter slots.
+                }
+            }
 
             ButlerMyTeamEvidenceBundleCli.emit(MATCHUP_CONTEXT, matchupContext);
             ButlerMyTeamEvidenceBundleCli.emit(WEEK_FRESHNESS, weekProof);
             if (includeAutoFill) {
                 ButlerMyTeamEvidenceBundleCli.emit(ButlerMyTeamEvidenceBundleCli.AUTOFILL, autoFill);
             }
+            if (includeLineupProof) {
+                ButlerMyTeamEvidenceBundleCli.emit(LIVE_ROSTER_CONTEXT, liveRosterText);
+            }
             ButlerMyTeamEvidenceBundleCli.emit(ButlerMyTeamEvidenceBundleCli.ROSTER_STRENGTH, rosterStrength);
             ButlerMyTeamEvidenceBundleCli.emit(ButlerMyTeamEvidenceBundleCli.POSITIONAL_PRESSURE, positionalPressure);
             ButlerMyTeamEvidenceBundleCli.emit(MATCHUP, matchup);
             System.out.println(includeAutoFill
                 ? "Boundary: BF-849 uses persisted Matchup identity/evidence and one explicitly requested BF-623/BF-610 read-only lineup review; no Butler or Sleeper write is executed."
-                : "Boundary: BF-1054 passive Matchup uses persisted exact pairing plus one bounded public read-only Sleeper NFL week check; no league-specific provider fetch and no Butler or Sleeper write is executed.");
+                : includeLineupProof
+                    ? "Boundary: BF-1520 saved review uses one bounded BF-623/BF-610 live roster proof plus public week, without projections or Sleeper/Butler writes."
+                    : "Boundary: BF-1054 passive Matchup uses persisted exact pairing plus one bounded public read-only Sleeper NFL week check; no league-specific provider fetch and no Butler or Sleeper write is executed.");
             return 0;
         } catch (Exception e) {
             System.err.println("Error: " + safeMessage(e));
@@ -175,6 +203,14 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
             future.cancel(true);
             return "";
         }
+    }
+
+    static boolean validLiveRosterArgs(String[] args) {
+        return args != null
+            && args.length == 2
+            && args[0] != null
+            && !args[0].isBlank()
+            && "--live-roster-proof".equals(args[1]);
     }
 
     static boolean validAutoFillArgs(String[] args) {
@@ -275,6 +311,34 @@ public final class ButlerWeeklyMatchupEvidenceBundleCli {
                 "Lineup review is unavailable until current roster evidence is refreshed: " + safeMessage(e));
         }
     }
+
+    // Keep live BF-623/BF-610 verification out of the ordinary passive mode.
+    // The wrapper calls this only for an existing saved review when public
+    // season/week proof has already passed. No snapshot or database write.
+    private static LiveRosterEvidence liveRosterSafely(
+        Database database, String leagueId, MatchupContext context) throws Exception {
+        var target = ButlerPersonalizedTargetCliSupport.verify(database, leagueId);
+        if (!target.sleeperLeagueId().equals(context.sleeperLeagueId())
+            || target.rosterId() != context.rosterId()) {
+            throw new IllegalStateException("BF-1520 BLOCKED: exact personalized target changed");
+        }
+        var report = new SleeperLiveWaiverTargetRosterContextAudit(database)
+            .audit(leagueId, target.sleeperUserId());
+        if (!report.sleeperLeagueId().equals(context.sleeperLeagueId())
+            || !report.sleeperOwnerId().equals(target.sleeperUserId())
+            || report.rosterId() != context.rosterId()
+            || report.providerSeason() != context.season()
+            || report.providerLeg() == null || report.providerLeg() != context.week()
+            || !"in_season".equals(report.providerStatus())
+            || report.targetPlayers().isEmpty()) {
+            throw new IllegalStateException("BF-1520 BLOCKED: live roster source frame mismatched");
+        }
+        return new LiveRosterEvidence(target, report);
+    }
+
+    private record LiveRosterEvidence(
+        SleeperPersonalizedTargetService.VerifiedTarget target,
+        SleeperLiveWaiverTargetRosterContextAudit.AuditReport roster) {}
 
     private static Database initializedDatabase() throws Exception {
         Database database = new Database(DATABASE_PATH);

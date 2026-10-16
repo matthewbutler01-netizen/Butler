@@ -47,6 +47,10 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
         assertFalse(composition.contains("new SleeperLiveWaiverTargetRosterContextAudit"));
         assertTrue(source.substring(autoFillHelper).contains("ButlerPersonalizedTargetCliSupport.verify(database, leagueId)"));
         assertTrue(source.substring(autoFillHelper).contains("new SleeperLiveWaiverTargetRosterContextAudit(database)"));
+        assertTrue(source.contains("includeLineupProof && weekVerified"));
+        assertTrue(source.contains("liveRosterFuture.get(9, TimeUnit.SECONDS)"));
+        assertTrue(source.contains("emit(LIVE_ROSTER_CONTEXT, liveRosterText)"));
+        assertTrue(source.contains("report.providerLeg() != context.week()"));
     }
 
     @Test
@@ -66,6 +70,12 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
             new String[]{"league"}));
         assertFalse(ButlerWeeklyMatchupEvidenceBundleCli.validAutoFillArgs(
             new String[]{"league", "--matchup"}));
+        assertTrue(ButlerWeeklyMatchupEvidenceBundleCli.validLiveRosterArgs(
+            new String[]{"league", "--live-roster-proof"}));
+        assertFalse(ButlerWeeklyMatchupEvidenceBundleCli.validLiveRosterArgs(
+            new String[]{"league"}));
+        assertFalse(ButlerWeeklyMatchupEvidenceBundleCli.validLiveRosterArgs(
+            new String[]{"league", "--autofill"}));
     }
 
     @Test
@@ -74,6 +84,7 @@ class ButlerWeeklyMatchupSingleBundleBf849Test {
 
         assertTrue(wrapper.contains("--weekly-matchup-bundle"));
         assertTrue(wrapper.contains("--weekly-matchup-bundle-autofill"));
+        assertTrue(wrapper.contains("--weekly-matchup-bundle-live-proof"));
         assertTrue(wrapper.contains("ButlerWeeklyMatchupEvidenceBundleCli.main"));
         assertTrue(wrapper.contains("--team-bundle"));
         assertTrue(wrapper.contains("--team-bundle-autofill"));

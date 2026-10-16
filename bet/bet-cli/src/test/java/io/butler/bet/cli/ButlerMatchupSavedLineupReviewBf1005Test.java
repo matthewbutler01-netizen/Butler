@@ -24,6 +24,13 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("LINEUP CHECK NEEDED"));
         assertTrue(t.contains("has not checked the current Sleeper starter slots"));
         assertTrue(t.contains("fresh read-only lineup check"));
+        assertTrue(t.contains("--weekly-matchup-bundle-live-proof"));
+        assertTrue(t.contains("Get-TeamEvidenceBundleSection -Text $bundleText -Name \"LIVE_ROSTER_CONTEXT\""));
+        assertTrue(t.contains("$rosterForSavedReview = $liveRoster"));
+        assertTrue(t.contains("Binding gate state: BOUND_TARGET_LIVE_VERIFIED"));
+        assertTrue(t.contains("Target-roster context state: READY_CONTEXT_ONLY"));
+        assertTrue(t.contains("$readSavedReview = $ageHours -ge -0.1 -and $ageHours -le 6.0"));
+        assertTrue(t.contains("$savedCandidate.LineupFingerprintPolicy -ceq 'BF1515-LINEUP-1'"));
     }
 
     @Test
