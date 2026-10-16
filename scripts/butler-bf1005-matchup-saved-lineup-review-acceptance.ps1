@@ -17,7 +17,10 @@ try {
         'The saved Week $week Lineup Review matches this local lineup',
         'No new provider request was made to display it.',
         'Refresh full Lineup Review',
-        '-SavedReview $savedReview'
+        '-SavedReview $savedReview',
+        '--weekly-matchup-bundle-live-proof',
+        'Get-TeamEvidenceBundleSection -Text $bundleText -Name "LIVE_ROSTER_CONTEXT"',
+        '$rosterForSavedReview = $liveRoster'
     )) {
         if ($core.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-1005 BLOCKED: staged marker is missing: $required"

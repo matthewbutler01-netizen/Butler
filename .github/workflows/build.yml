@@ -9,6 +9,7 @@ on:
       - bf1515-lineup-fingerprint
       - bf1515-dashboard-saved-review-proof
       - bf1519-explicit-lineup-change-notice
+      - bf1520-matchup-live-roster-proof
   pull_request:
     branches:
       - main
