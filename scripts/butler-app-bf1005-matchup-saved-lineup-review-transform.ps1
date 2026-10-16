@@ -360,8 +360,33 @@ $core = Replace-Bf1005ExactlyOnce -Text $core -Old $routeOld -New $routeNew -Con
 # read-only owner+roster source. Ordinary Matchup remains its old passive mode.
 $bundleArgsOld = '$bundleArguments = if ($requestAutoFill) { "$LeagueId --weekly-matchup-bundle-autofill" } else { "$LeagueId --weekly-matchup-bundle" }'
 $bundleArgsNew = @'
-$readSavedReview = -not $requestAutoFill -and
-                        (Test-Path -LiteralPath (Get-Bf808AutoFillSnapshotPath -LeagueKey ([string]$LeagueId)) -PathType Leaf)
+$readSavedReview = $false
+                    if (-not $requestAutoFill) {
+                        # BF-1520: do not spend up to nine seconds checking a
+                        # prior-week or expired review on each Matchup visit.
+                        # File age is only a source-read eligibility limit,
+                        # NEVER a substitute for the exact live roster check.
+                        $savedPath = Get-Bf808AutoFillSnapshotPath -LeagueKey ([string]$LeagueId)
+                        if (Test-Path -LiteralPath $savedPath -PathType Leaf) {
+                            try {
+                                $savedCandidate = [IO.File]::ReadAllText($savedPath) | ConvertFrom-Json
+                                $savedAt = [DateTimeOffset]::MinValue
+                                if ([string]$savedCandidate.Schema -ceq 'BF-808-1' -and
+                                    [string]$savedCandidate.LeagueId -ceq [string]$LeagueId -and
+                                    [bool]$savedCandidate.Ready -and
+                                    [string]$savedCandidate.LineupFingerprintPolicy -ceq 'BF1515-LINEUP-1' -and
+                                    [string]$savedCandidate.LineupFingerprint -cmatch '^[a-f0-9]{64}$' -and
+                                    [DateTimeOffset]::TryParse([string]$savedCandidate.GeneratedUtc, [ref]$savedAt)) {
+                                    $ageHours = ([DateTimeOffset]::UtcNow - $savedAt).TotalHours
+                                    $readSavedReview = $ageHours -ge -0.1 -and $ageHours -le 6.0
+                                }
+                            }
+                            catch {
+                                # Invalid or unknown saved JSON cannot arm
+                                # a new provider request on a passive GET.
+                            }
+                        }
+                    }
                     $bundleArguments = if ($requestAutoFill) {
                         "$LeagueId --weekly-matchup-bundle-autofill"
                     }
