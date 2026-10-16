@@ -14,6 +14,7 @@ on:
       - bf1522-waiver-history-week-labels
       - bf1523-v04-pin-tested-beta
       - bf1524-history-player-identity-hold
+      - bf1525-waiver-evidence-age
   pull_request:
     branches:
       - main
