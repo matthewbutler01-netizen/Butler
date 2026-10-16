@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-v04-beta-one-click.ps1'))
 $start=$source.IndexOf("# BF-1527: verify the checkout", [StringComparison]::Ordinal)
-$finish=$source.IndexOf("try {\n    Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'", $start, [StringComparison]::Ordinal)
+$finish=$source.IndexOf("try {`n    Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'", $start, [StringComparison]::Ordinal)
 if ($start -lt 0 -or $finish -le $start) {
     throw 'BF-1527 BLOCKED: isolated source pin function boundary not found.'
 }
