@@ -21,6 +21,9 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)"));
         assertTrue(t.contains("-SavedReview $savedReview"));
         assertTrue(t.contains("No new provider request was made to display it."));
+        assertTrue(t.contains("LINEUP CHECK NEEDED"));
+        assertTrue(t.contains("has not checked the current Sleeper starter slots"));
+        assertTrue(t.contains("fresh read-only lineup check"));
     }
 
     @Test
@@ -30,6 +33,7 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("$savedWeek -ne $Week"));
         assertTrue(t.contains("$ageHours -lt -0.1 -or $ageHours -gt 6.0"));
         assertTrue(t.contains("[string]$snapshot.LeagueId -cne $LeagueId"));
+        assertTrue(t.contains("[string]$snapshot.Season -cne [string]$Roster.Season"));
         assertTrue(t.contains("LineupFingerprintPolicy"));
         assertTrue(t.contains("Get-Bf808LineupFingerprint -RosterView $Roster"));
         assertTrue(t.contains("LineupFingerprint -cnotmatch"));
