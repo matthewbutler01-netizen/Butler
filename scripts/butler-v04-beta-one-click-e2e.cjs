@@ -10,6 +10,19 @@ for(const good of [/-UpdateOnly/,/Test-BetaHealth/,/Test-BetaPortBusy/,/Start-Pr
  assert.match(ps,good);
 }
 assert.match(updater,/\[switch\]\$UpdateOnly/);
+// Exact immutable pin in the updater and the beta launcher must agree.
+// A source checkout check is deliberately NOT proof of a live Sleeper week.
+const pinnedUpdater=updater.match(/^\$targetCommit = '([0-9a-f]{40})'\r?$/m);
+const pinnedLauncher=ps.match(/^\$approvedCandidateCommit = '([0-9a-f]{40})'\r?$/m);
+assert.ok(pinnedUpdater && pinnedLauncher,'both immutable source pins required');
+assert.equal(pinnedUpdater[1],pinnedLauncher[1],'one-click candidate pin drift');
+assert.match(ps,/function Assert-BetaCandidateCheckout/);
+assert.match(ps,/git -C \$Path rev-parse HEAD/);
+assert.match(ps,/BETA CHECKOUT MISMATCH/);
+assert.match(ps,/\$verifiedCheckout = Assert-BetaCandidateCheckout -Path \$CheckoutPath/);
+assert.ok(ps.indexOf('Assert-BetaCandidateCheckout -Path $CheckoutPath') < ps.indexOf("Write-Host 'Starting v0.4 in a separate app window...'"),'must verify pin before launching');
+assert.match(ps,/BETA SOURCE CHECKOUT: VERIFIED/);
+assert.match(ps,/not a Sleeper week, injury, waiver availability or browser execution check/);
 assert.match(ps,/EXISTING v0\.4 WORKER\. The tested beta update was NOT applied/);
 assert.doesNotMatch(ps,/BUTLER: ALREADY RUNNING\. No update applied/);
 assert.match(cmd,/butler-v04-beta-one-click\.ps1/);
