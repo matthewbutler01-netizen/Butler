@@ -34,8 +34,24 @@ $page=ConvertTo-DecisionDetailHtml -History $history -Entry $entry -Explanation 
 foreach($required in @(
     'HISTORY ONLY','Season 2026 / Week 5','not a current approval','Check the current Waiver Board',
     'A recorded add/drop never authorizes a Sleeper transaction.',
-    'ADD 11647 / DROP 11370','<div class="target">Decision History</div>','READ ONLY.'
+    'Recorded waiver add/drop','Historical player names were not saved',
+    'exact recorded ADD and DROP Sleeper IDs','<div class="target">Decision History</div>','READ ONLY.'
 )) { if(-not $page.Contains($required)) { throw "BF-1515 BLOCKED: missing $required" } }
+if ($page.Contains('<h1 class="headline">ADD 11647 / DROP 11370</h1>') -or
+    -not $page.Contains('<p class="mono">ADD / DROP Sleeper ids: 11647 / 11370</p>')) {
+    throw 'BF-1524 BLOCKED: player ids leaked as headline or missing from advanced evidence.'
+}
+$noMoveEntry = [pscustomobject]@{
+    Captured='2026-10-13T01:32:00Z'; ProviderSeason='2026'; ProviderStatus='REGULAR'
+    ProviderLeg='5'; SelectionState='NO_HISTORICAL_FINALIST'; IntegrityState='VERIFIED'
+    RecommendationState='NO_GOVERNED_TRANSACTION'; AddSleeperId='none'; DropSleeperId='none'
+    AuditId='audit-no-move'; MarketSnapshotId='market'; WaiverSnapshotId='waiver'
+}
+$noMovePage = ConvertTo-DecisionDetailHtml -History $history -Entry $noMoveEntry -Explanation $explanation
+if ($noMovePage.Contains('Historical player names were not saved') -or
+    -not $noMovePage.Contains('<h1 class="headline">No governed transaction</h1>')) {
+    throw 'BF-1524 BLOCKED: name unavailable notice exposed on no-move audit.'
+}
 if($page.Contains(('<div class="target">' + $id + '</div>'))) {
     throw 'BF-1515 BLOCKED: raw league id displayed in the normal manager header.'
 }
