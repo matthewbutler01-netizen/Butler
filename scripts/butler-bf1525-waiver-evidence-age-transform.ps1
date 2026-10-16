@@ -28,6 +28,9 @@ if ($functions.Count -ne 1) {
 }
 $fn = $functions[0]
 $waiver = $fn.Extent.Text
+if ($waiver.Contains('$bf1525AgePanel')) {
+    throw 'BF-1525 BLOCKED: evidence-age panel already installed.'
+}
 foreach ($required in @('$Summary','NO VERIFIED MOVE','waiver-decision-hero','$waiverPairHtml')) {
     if (-not $waiver.Contains($required)) {
         throw "BF-1525 BLOCKED: existing Waiver Board contract missing $required"
