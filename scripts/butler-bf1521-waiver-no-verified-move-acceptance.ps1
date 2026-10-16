@@ -45,7 +45,29 @@ function ConvertTo-WaiverCandidateDetailHtml {}
     if ($superseded -notmatch 'href="/refresh"') {
         throw 'BF-1521 BLOCKED: authorized superseded lineage refresh path missing.'
     }
+    # BF-1529: rollover is an explicit MANUAL check only. The previously
+    # audited pair remains blocked, even though a new evidence cycle is offered.
+    foreach ($lineage in @('LATEST_EVIDENCE_LINEAGE_VERIFIED',
+            'MARKET_LINEAGE_SUPERSEDED','WAIVER_LINEAGE_SUPERSEDED',
+            'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED')) {
+        $rollover=ConvertTo-WaiverHtml -State 'STALE_DO_NOT_ACT' -CandidateCount 4 -Actionability 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT' -Lineage $lineage
+        if ($rollover -notmatch 'href="/refresh"' -or
+            $rollover -notmatch 'Recheck current-week waiver evidence' -or
+            $rollover -notmatch 'old move blocked' -or
+            $rollover -notmatch 'confirmation required') {
+            throw "BF-1529 BLOCKED: manual rollover refresh missing on $lineage"
+        }
+        if ($rollover -match 'data-butler-auto-waiver=') {
+            throw 'BF-1529 BLOCKED: adjacent-week decision armed an automatic refresh.'
+        }
+    }
     foreach ($params in @(
+        @{State='STALE_DO_NOT_ACT';Actionability='AUDITED_WEEK_ROLLOVER_DO_NOT_ACT';Lineage='UNKNOWN'},
+        @{State='CURRENT_AND_ACTIONABLE';Actionability='AUDITED_WEEK_ROLLOVER_DO_NOT_ACT';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
+        @{State='STALE_DO_NOT_ACT';Actionability='AUDITED_WEEK_MISMATCH_DO_NOT_ACT';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
+        @{State='STALE_DO_NOT_ACT';Actionability='AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
+        @{State='STALE_DO_NOT_ACT';Actionability='AUDITED_TRANSACTION_PENDING';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
+        @{State='STALE_DO_NOT_ACT';Actionability='AUDITED_TRANSACTION_COMPLETE';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
         @{State='NO_TRANSACTION_TO_ACT_ON';Actionability='NO_TRANSACTION_TO_REVALIDATE';Lineage='UNKNOWN'},
         @{State='NO_TRANSACTION_TO_ACT_ON';Actionability='LIVE_ACTIONABLE_VERIFIED';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
         @{State='NO_AUDITED_DECISION';Actionability='NO_TRANSACTION_TO_REVALIDATE';Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'},
