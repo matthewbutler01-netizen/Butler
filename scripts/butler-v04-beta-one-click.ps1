@@ -55,6 +55,13 @@ function Assert-BetaCandidateCheckout {
     if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
         throw 'GIT NOT AVAILABLE. Candidate source identity cannot be checked.'
     }
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        throw 'BETA CHECKOUT MISMATCH. The required local source checkout directory is missing; no app was started.'
+    }
+    $gitMarker = Join-Path $Path '.git'
+    if (-not (Test-Path -LiteralPath $gitMarker)) {
+        throw 'BETA CHECKOUT MISMATCH. The source directory has no Git checkout; no app was started.'
+    }
     $head = @(& git -C $Path rev-parse HEAD 2>$null)
     if ($LASTEXITCODE -ne 0 -or $head.Count -ne 1 -or
         $head[0].Trim() -cne $approvedCandidateCommit) {
