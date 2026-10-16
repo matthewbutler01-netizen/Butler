@@ -258,7 +258,15 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.TRANSACTION_PENDING_DO_NOT_DUPLICATE) {
             System.out.println("Operator guard: TRANSACTION_PENDING_DO_NOT_DUPLICATE - BF-629 found the exact audited add/drop already PENDING in Sleeper transaction evidence. Do not submit a duplicate while Sleeper is processing it.");
         } else if (report.state() == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT) {
-            System.out.println("Operator guard: STALE_DO_NOT_ACT - a hard BF-629/BF-631 safety gate failed; the audited move is retained only for traceability.");
+            if (report.bf629State()
+                == io.butler.bet.sleeper.SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT) {
+                System.out.println("Operator guard: STALE_DO_NOT_ACT - the saved waiver move belongs to a different NFL season/week than the current public NFL state. HISTORY ONLY. Do not act; a new governed current-week decision is required.");
+            } else if (report.bf629State()
+                == io.butler.bet.sleeper.SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT) {
+                System.out.println("Operator guard: STALE_DO_NOT_ACT - the current public NFL season/week could not be verified. HOLD. Do not use the saved add/drop until a separately verified governed current-week decision exists.");
+            } else {
+                System.out.println("Operator guard: STALE_DO_NOT_ACT - a hard BF-629/BF-631 safety gate failed; the audited move is retained only for traceability.");
+            }
         } else if (report.state()
             == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.CURRENT_REFRESH_RECOMMENDED) {
             System.out.println("Refresh trigger: " + refreshTrigger(report));
