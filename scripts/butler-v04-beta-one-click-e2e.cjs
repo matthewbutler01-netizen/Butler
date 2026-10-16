@@ -10,6 +10,8 @@ for(const good of [/-UpdateOnly/,/Test-BetaHealth/,/Test-BetaPortBusy/,/Start-Pr
  assert.match(ps,good);
 }
 assert.match(updater,/\[switch\]\$UpdateOnly/);
+assert.match(ps,/EXISTING v0\.4 WORKER\. The tested beta update was NOT applied/);
+assert.doesNotMatch(ps,/BUTLER: ALREADY RUNNING\. No update applied/);
 assert.match(cmd,/butler-v04-beta-one-click\.ps1/);
 assert.match(cmd,/EXTRACT ALL REQUIRED/);
 console.log('BF-BETA ONE-CLICK CONTRACT: PASS (guarded update, launch, one report, no transaction)');
