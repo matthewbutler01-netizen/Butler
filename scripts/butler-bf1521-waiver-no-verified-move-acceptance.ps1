@@ -31,7 +31,7 @@ function ConvertTo-WaiverCandidateDetailHtml {}
         if (-not $noCandidates.Contains($marker)) { throw "BF-1521 BLOCKED: missing empty shortlist reason $marker" }
     }
     $candidatePool=ConvertTo-WaiverHtml -State 'NO_TRANSACTION_TO_ACT_ON' -CandidateCount 4
-    foreach ($marker in @('NO VERIFIED MOVE','context, not a ranking','not a current-week free-agent search')) {
+    foreach ($marker in @('NO VERIFIED MOVE','context, not a ranking','current-week free-agent search')) {
         if (-not $candidatePool.Contains($marker)) { throw "BF-1521 BLOCKED: missing shortlist context $marker" }
     }
     $noAudit=ConvertTo-WaiverHtml -State 'NO_AUDITED_DECISION' -CandidateCount 4

@@ -171,7 +171,7 @@ function ConvertTo-Bf1005SavedLineupReviewHtml {
         (ConvertTo-HtmlText $title) +
         '</h2><p class="lede">Butler loaded the saved read-only Week ' +
         (ConvertTo-HtmlText $week) +
-        ' review for the same locally verified lineup and roster. No new provider request was made to display it.</p></div><span class="status ' +
+        ' review for the same locally verified lineup and roster. Butler checked current Sleeper starter slots before reusing this saved review. No new projections were requested, and no lineup was submitted.</p></div><span class="status ' +
         $statusClass + '">' + $statusText +
         '</span></div><div class="stats"><div class="stat"><strong>Current projection</strong><span>' +
         (ConvertTo-HtmlText ([string]$Snapshot.CurrentTotal)) +
@@ -407,7 +407,7 @@ foreach ($required in @(
     'The saved Week $week Lineup Review matches this local lineup',
     'Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)',
     '-SavedReview $savedReview',
-    'No new provider request was made to display it.',
+    'Butler checked current Sleeper starter slots before reusing this saved review. No new projections were requested, and no lineup was submitted.',
     'Refresh full Lineup Review',
     'LINEUP CHECK NEEDED',
     'has not checked the current Sleeper starter slots',
