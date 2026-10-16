@@ -53,7 +53,7 @@ if ($latestStart -lt 0 -or $weekIndex -le $latestStart -or $latestDetails -le $w
     throw 'BF-1522 BLOCKED: recorded frame not visible before collapsed technical evidence on both cards.'
 }
 if ($page.Contains('Week OFFSEASON') -or
-    -not $page.Contains('The recorded move does not establish current waiver availability.') -or
+    -not $page.Contains('This record does not establish current waiver availability.') -or
     -not $page.Contains('READ ONLY.') -or
     -not $page.Contains('Audit: synthetic-latest')) {
     throw 'BF-1522 BLOCKED: historical status or technical evidence regression.'
