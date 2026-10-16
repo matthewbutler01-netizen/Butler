@@ -14,6 +14,7 @@ on:
       - bf1522-waiver-history-week-labels
       - bf1523-v04-pin-tested-beta
       - bf1524-history-player-identity-hold
+      - bf1525-waiver-evidence-age
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
@@ -354,6 +355,7 @@ jobs:
           & '.\scripts\butler-bf1515-manager-decision-clarity-acceptance.ps1'
           & '.\scripts\butler-bf1518-dashboard-saved-lineup-proof-acceptance.ps1'
           & '.\scripts\butler-bf1521-waiver-no-verified-move-acceptance.ps1'
+          & '.\scripts\butler-bf1525-waiver-evidence-age-acceptance.ps1'
           & '.\scripts\butler-bf1522-waiver-history-week-label-acceptance.ps1'
           & '.\scripts\butler-bf1005-matchup-saved-lineup-review-acceptance.ps1'
           & '.\scripts\butler-bf1020-v04-dashboard-command-center-acceptance.ps1'
