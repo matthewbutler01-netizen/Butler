@@ -161,6 +161,20 @@ function ConvertTo-HistoryCapturedLabel {
     }
 }
 
+# Historical provider legs are recorded evidence, not a live NFL-week check.
+# Keep source week visible even when older decision details stay collapsed.
+function Get-DecisionHistoryFrameLabel {
+    param([Parameter(Mandatory = $true)]$Entry)
+
+    $season = [string]$Entry.ProviderSeason
+    $leg = [string]$Entry.ProviderLeg
+    if ($season -cmatch '^20[0-9]{2}$' -and $leg -cmatch '^([1-9]|1[0-9]|2[0-2])$') {
+        return "Season $season / Week $leg"
+    }
+    return 'Recorded source frame: ' + $season + ' / ' +
+        [string]$Entry.ProviderStatus + ' / ' + $leg
+}
+
 function ConvertTo-DecisionHistoryHtml {
     param([Parameter(Mandatory = $true)]$History)
 
@@ -185,6 +199,7 @@ function ConvertTo-DecisionHistoryHtml {
     for ($entryIndex = $presentationEntries.Count - 1; $entryIndex -ge 0; $entryIndex--) {
         $entry = $presentationEntries[$entryIndex]
         $capturedLabel = ConvertTo-HistoryCapturedLabel -Captured $entry.Captured
+        $historyFrameLabel = Get-DecisionHistoryFrameLabel -Entry $entry
         $decisionLabel = if ($entry.RecommendationState -ceq 'NO_GOVERNED_TRANSACTION') {
             'No move recorded'
         }
@@ -228,7 +243,7 @@ function ConvertTo-DecisionHistoryHtml {
         if ($isNewest) {
             $cardHtml = @"
 <article class="history-card">
-<div class="statusrow"><div><div class="eyebrow">Latest recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div><p class="history-summary">$(ConvertTo-HtmlText $decisionSummary)</p></div><span class="status $decisionClass">$(ConvertTo-HtmlText $decisionStatus)</span></div>
+<div class="statusrow"><div><div class="eyebrow">Latest recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div><p class="history-summary"><strong>$(ConvertTo-HtmlText $historyFrameLabel) - HISTORY ONLY.</strong> This record does not establish current waiver availability.</p><p class="history-summary">$(ConvertTo-HtmlText $decisionSummary)</p></div><span class="status $decisionClass">$(ConvertTo-HtmlText $decisionStatus)</span></div>
 <details><summary>Decision details</summary><div class="history-meta"><div><strong>Integrity</strong><span>$(ConvertTo-HtmlText $entry.IntegrityState)</span></div><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation state</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div><p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p></details>
 </article>
 "@
@@ -236,7 +251,7 @@ function ConvertTo-DecisionHistoryHtml {
         else {
             $cardHtml = @"
 <article class="history-card history-card-compact">
-<div class="statusrow"><div><div class="eyebrow">Recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div></div><span class="status $decisionClass">$(ConvertTo-HtmlText $decisionStatus)</span></div>
+<div class="statusrow"><div><div class="eyebrow">Recorded waiver decision</div><h3>$(ConvertTo-HtmlText $capturedLabel)</h3><div class="history-decision">$decisionLabel</div><p class="history-summary"><strong>$(ConvertTo-HtmlText $historyFrameLabel) - HISTORY ONLY.</strong></p></div><span class="status $decisionClass">$(ConvertTo-HtmlText $decisionStatus)</span></div>
 <details class="history-older-details"><summary>Show decision details</summary>
 <div class="history-meta"><div><strong>Integrity</strong><span>$(ConvertTo-HtmlText $entry.IntegrityState)</span></div><div><strong>Provider frame</strong><span>$(ConvertTo-HtmlText $entry.ProviderSeason) / $(ConvertTo-HtmlText $entry.ProviderStatus) / $(ConvertTo-HtmlText $entry.ProviderLeg)</span></div><div><strong>Selection state</strong><span>$(ConvertTo-HtmlText $entry.SelectionState)</span></div><div><strong>Recommendation state</strong><span>$(ConvertTo-HtmlText $entry.RecommendationState)</span></div></div>
 <p class="history-lineage">Captured UTC: $(ConvertTo-HtmlText $entry.Captured)</p><p class="history-lineage">Audit: $(ConvertTo-HtmlText $entry.AuditId)</p><p class="history-lineage">BF-603 market: $(ConvertTo-HtmlText $entry.MarketSnapshotId)</p><p class="history-lineage">BF-602 waiver: $(ConvertTo-HtmlText $entry.WaiverSnapshotId)</p><p class="history-lineage">ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $entry.AddSleeperId) / $(ConvertTo-HtmlText $entry.DropSleeperId)</p>

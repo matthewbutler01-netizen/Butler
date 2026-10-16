@@ -11,6 +11,7 @@ on:
       - bf1519-explicit-lineup-change-notice
       - bf1520-matchup-live-roster-proof
       - bf1521-waiver-no-verified-move-clarity
+      - bf1522-waiver-history-week-labels
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
@@ -351,6 +352,7 @@ jobs:
           & '.\scripts\butler-bf1515-manager-decision-clarity-acceptance.ps1'
           & '.\scripts\butler-bf1518-dashboard-saved-lineup-proof-acceptance.ps1'
           & '.\scripts\butler-bf1521-waiver-no-verified-move-acceptance.ps1'
+          & '.\scripts\butler-bf1522-waiver-history-week-label-acceptance.ps1'
           & '.\scripts\butler-bf1005-matchup-saved-lineup-review-acceptance.ps1'
           & '.\scripts\butler-bf1020-v04-dashboard-command-center-acceptance.ps1'
           & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
