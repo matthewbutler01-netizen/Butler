@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.butler.bet.data.Database;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -19,28 +20,26 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
     private final HistorySource historySource;
     private final RosterSource rosterSource;
     private final TransactionSource transactionSource;
+    private final CurrentWeekSource currentWeekSource;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public SleeperLiveWaiverRecommendationActionabilityRevalidation(Database database) {
         this(
             target -> new SleeperLiveWaiverRecommendationAuditHistory(database).inspect(target),
             leagueId -> new SleeperApiGateway().fetchRosters(leagueId),
-            (leagueId, round) -> new SleeperClient().getLeagueTransactions(leagueId, round));
-    }
-
-    SleeperLiveWaiverRecommendationActionabilityRevalidation(
-        HistorySource historySource,
-        RosterSource rosterSource) {
-        this(historySource, rosterSource, (leagueId, round) -> "[]");
+            (leagueId, round) -> new SleeperClient().getLeagueTransactions(leagueId, round),
+            () -> new SleeperClient().getNflState(Duration.ofSeconds(4)));
     }
 
     SleeperLiveWaiverRecommendationActionabilityRevalidation(
         HistorySource historySource,
         RosterSource rosterSource,
-        TransactionSource transactionSource) {
+        TransactionSource transactionSource,
+        CurrentWeekSource currentWeekSource) {
         this.historySource = Objects.requireNonNull(historySource, "historySource must not be null");
         this.rosterSource = Objects.requireNonNull(rosterSource, "rosterSource must not be null");
         this.transactionSource = Objects.requireNonNull(transactionSource, "transactionSource must not be null");
+        this.currentWeekSource = Objects.requireNonNull(currentWeekSource, "currentWeekSource must not be null");
     }
 
     public RevalidationReport revalidate(SleeperPersonalizedTargetService.VerifiedTarget target)
@@ -73,6 +72,18 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         if (transactionMatch == TransactionMatch.PENDING) {
             return report(target, latest, ActionabilityState.AUDITED_TRANSACTION_PENDING,
                 addId, dropId, null, null, 0);
+        }
+
+        // BF-1528: an exact audited add/drop can outlive its scoring week.
+        // Duplicate transaction evidence is checked above, but a still-available
+        // player pair is not proof that a Week 5 recommendation is valid in Week 6.
+        // Current-week proof is independent of the saved BF-628/BF-603 frame.
+        CurrentWeekProof weekProof = verifyAuditedWeek(latest);
+        if (weekProof != CurrentWeekProof.MATCH) {
+            ActionabilityState hold = weekProof == CurrentWeekProof.MISMATCH
+                ? ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT
+                : ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT;
+            return report(target, latest, hold, addId, dropId, null, null, 0);
         }
 
         List<SleeperJsonParser.SleeperRoster> rosters = rosterSource.fetch(target.sleeperLeagueId());
@@ -117,6 +128,45 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         else state = ActionabilityState.LIVE_ACTIONABLE_VERIFIED;
 
         return report(target, latest, state, addId, dropId, addRosterId, dropRosterId, rosters.size());
+    }
+
+    private CurrentWeekProof verifyAuditedWeek(
+        SleeperLiveWaiverRecommendationAuditHistory.HistoryEntry audit) throws InterruptedException {
+        if (audit.providerSeason() != SleeperPersonalizedTargetService.TARGET_SEASON
+            || audit.providerLeg() == null || audit.providerLeg() < 1 || audit.providerLeg() > 18
+            || !"in_season".equals(audit.providerStatus())) {
+            return CurrentWeekProof.UNVERIFIED;
+        }
+        final String raw;
+        try {
+            raw = currentWeekSource.fetch();
+        } catch (IOException | RuntimeException error) {
+            // An unavailable/invalid public state is a hard hold, not an excuse
+            // to treat saved provider leg as the current week.
+            return CurrentWeekProof.UNVERIFIED;
+        }
+        if (raw == null || raw.isBlank()) return CurrentWeekProof.UNVERIFIED;
+
+        try {
+            JsonNode state = mapper.readTree(raw);
+            if (state == null || !state.isObject()) return CurrentWeekProof.UNVERIFIED;
+            String season = text(state.get("season"));
+            String seasonType = text(state.get("season_type"));
+            JsonNode week = state.get("week");
+            if (season == null || !season.matches("20[0-9]{2}")
+                || seasonType == null || seasonType.isBlank()
+                || week == null || !week.isIntegralNumber()) {
+                return CurrentWeekProof.UNVERIFIED;
+            }
+            int currentWeek = week.intValue();
+            if (currentWeek < 1 || currentWeek > 18) return CurrentWeekProof.UNVERIFIED;
+            return Integer.toString(audit.providerSeason()).equals(season)
+                && "regular".equals(seasonType)
+                && audit.providerLeg() == currentWeek
+                ? CurrentWeekProof.MATCH : CurrentWeekProof.MISMATCH;
+        } catch (IOException | RuntimeException malformed) {
+            return CurrentWeekProof.UNVERIFIED;
+        }
     }
 
     private TransactionMatch exactAuditedTransaction(
@@ -249,12 +299,20 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         String fetch(String sleeperLeagueId, int round) throws IOException, InterruptedException;
     }
 
+    @FunctionalInterface
+    interface CurrentWeekSource {
+        String fetch() throws IOException, InterruptedException;
+    }
+
+    private enum CurrentWeekProof { MATCH, MISMATCH, UNVERIFIED }
     private enum TransactionMatch { NONE, PENDING, COMPLETE }
 
     public enum ActionabilityState {
         NO_AUDITED_DECISION,
         NO_TRANSACTION_TO_REVALIDATE,
         LIVE_ACTIONABLE_VERIFIED,
+        AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
+        AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT,
         AUDITED_TRANSACTION_PENDING,
         AUDITED_TRANSACTION_COMPLETE,
         ADD_NO_LONGER_AVAILABLE,
