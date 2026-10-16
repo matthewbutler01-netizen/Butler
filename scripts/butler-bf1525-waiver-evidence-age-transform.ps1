@@ -77,13 +77,17 @@ $waiver = $waiver.Insert($returnAt,$stamp)
 # Add one visible source-age line directly under the governed pair or hold.
 # The BF-1521 helper runs BEFORE this pass, so the link/hold policy is intact.
 $anchor = '  $waiverPairHtml'
-if ([regex]::Matches($waiver,'(?m)^' + [regex]::Escape($anchor) + '$').Count -ne 1) {
-    throw 'BF-1525 BLOCKED: final Waiver hero insertion point ambiguous.'
+# Match a full source line on either CRLF (Windows fixture) or LF
+# (BF-715 normalized staging). Never match another variable occurrence.
+$linePattern = '(?m)^' + [regex]::Escape($anchor) + '\r?$'
+$matches = [regex]::Matches($waiver,$linePattern)
+if ($matches.Count -ne 1) {
+    throw ('BF-1525 BLOCKED: expected exactly one Waiver hero line, found ' + $matches.Count + '.')
 }
 $waiver = [regex]::Replace(
     $waiver,
-    '(?m)^' + [regex]::Escape($anchor) + '$',
-    { param($m) $m.Value + [Environment]::NewLine + '  $bf1525AgePanel' }
+    $linePattern,
+    { param($m) $anchor + [Environment]::NewLine + '  $bf1525AgePanel' }
 )
 $source = $source.Substring(0,$fn.Extent.StartOffset) +
     $waiver + $source.Substring($fn.Extent.EndOffset)
