@@ -33,6 +33,7 @@ class ButlerMatchupSavedLineupReviewBf1005Test {
         assertTrue(t.contains("$savedWeek -ne $Week"));
         assertTrue(t.contains("$ageHours -lt -0.1 -or $ageHours -gt 6.0"));
         assertTrue(t.contains("[string]$snapshot.LeagueId -cne $LeagueId"));
+        assertTrue(t.contains("[string]$snapshot.Season -cne [string]$Roster.Season"));
         assertTrue(t.contains("LineupFingerprintPolicy"));
         assertTrue(t.contains("Get-Bf808LineupFingerprint -RosterView $Roster"));
         assertTrue(t.contains("LineupFingerprint -cnotmatch"));

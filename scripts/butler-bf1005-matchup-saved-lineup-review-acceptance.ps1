@@ -43,7 +43,7 @@ try {
     # in Sleeper without changing the target roster id or the NFL week.
     $roster=[pscustomobject]@{
         LeagueName='Test League'; TeamName='Test Team'; ButlerTeamName='Test Team'
-        RosterId=6
+        RosterId=6; Season=2026
         Players=@(
             [pscustomobject]@{SleeperId='1001';Slot='starter';Ordinal='1';Lineup='QB'},
             [pscustomobject]@{SleeperId='2002';Slot='bench';Ordinal='';Lineup=''}
@@ -81,6 +81,23 @@ try {
     if ($null -eq (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $roster -Week 4)) {
         throw 'BF-1515 BLOCKED: exact unchanged lineup review was not reused.'
     }
+    # BF-849 ordinary Matchup supplies persisted target/season/week but no
+    # BF-610 live starter slot inventory. That context can never certify that
+    # saved lineup advice remains valid.
+    $rosterWithoutSlots=[pscustomobject]@{
+        LeagueName='Test League'; TeamName='Test Team'; ButlerTeamName='Test Team'
+        RosterId=6; Season=2026
+    }
+    if ($null -ne (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $rosterWithoutSlots -Week 4)) {
+        throw 'BF-1519 BLOCKED: persisted Matchup roster became false live starter proof.'
+    }
+    $saved.Season='2025'
+    [IO.File]::WriteAllText($savedPath,($saved|ConvertTo-Json))
+    if ($null -ne (Get-Bf1005SavedLineupReview -LeagueId 'league-test' -Roster $roster -Week 4)) {
+        throw 'BF-1519 BLOCKED: a prior-season lineup review was reused.'
+    }
+    $saved.Season='2026'
+    [IO.File]::WriteAllText($savedPath,($saved|ConvertTo-Json))
     $roster.Players[0].Slot='bench'
     $roster.Players[0].Ordinal=''
     $roster.Players[0].Lineup=''

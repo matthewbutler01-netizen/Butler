@@ -75,6 +75,8 @@ function Get-Bf1005SavedLineupReview {
 
     if ([string]$snapshot.Schema -cne 'BF-808-1') { return $null }
     if ([string]$snapshot.LeagueId -cne $LeagueId) { return $null }
+    # A numerical NFL week alone is not enough when seasons roll over.
+    if ([string]$snapshot.Season -cne [string]$Roster.Season) { return $null }
     # A roster id alone cannot prove the starting lineup is unchanged.
     # Older snapshots without this BF-1515 proof remain historical only.
     if ($null -eq $snapshot.PSObject.Properties['LineupFingerprintPolicy'] -or
