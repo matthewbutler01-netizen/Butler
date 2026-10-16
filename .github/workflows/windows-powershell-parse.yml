@@ -16,6 +16,7 @@ on:
       - bf1524-history-player-identity-hold
       - bf1525-waiver-evidence-age
       - bf1526-v04-beta-pack-verified-waiver
+      - bf1527-one-click-exact-checkout
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
@@ -130,6 +131,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-beta-one-click-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\scripts\butler-bf1527-one-click-checkout-pin-acceptance.ps1'
+          if (-not $?) { exit 1 }
           node '.\scripts\butler-bf1076-optional-read-budget-http-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host 'BUTLER v0.4 FAST FRESHNESS WINDOWS GATE: PASS'
