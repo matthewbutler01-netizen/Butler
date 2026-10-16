@@ -18,6 +18,7 @@ on:
       - bf1526-v04-beta-pack-verified-waiver
       - bf1527-one-click-exact-checkout
       - bf1528-week-rollover-readonly-gate
+      - bf1529-governed-week-rollover-refresh
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
