@@ -11,8 +11,8 @@ $ErrorActionPreference = 'Stop'
 # BF-M1: a pinned, explicitly scoped v0.4 *development* update. Never
 # force-stop a process, modify Sleeper, touch the v0.3 release, reset Git,
 # clean untracked files or switch to a moving remote branch.
-$targetCommit = 'd2be2fc573472b4b36f4305dfe356df4fa3abbb1'
-$sourceBranch = 'refs/heads/bf1522-waiver-history-week-labels'
+$targetCommit = 'dd77d6b3221f4d78226d61330bc9ef5bed46976a'
+$sourceBranch = 'refs/heads/bf1525-waiver-evidence-age'
 
 try {
     Write-Host 'BUTLER v0.4 - PINNED LOCAL DEVELOPMENT UPDATE'
