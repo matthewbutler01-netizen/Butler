@@ -259,6 +259,9 @@ public final class ButlerSleeperLiveWaiverLatestGovernedDecisionSummaryCli {
             System.out.println("Operator guard: TRANSACTION_PENDING_DO_NOT_DUPLICATE - BF-629 found the exact audited add/drop already PENDING in Sleeper transaction evidence. Do not submit a duplicate while Sleeper is processing it.");
         } else if (report.state() == SleeperLiveWaiverLatestGovernedDecisionSummary.SummaryState.STALE_DO_NOT_ACT) {
             if (report.bf629State()
+                == io.butler.bet.sleeper.SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT) {
+                System.out.println("Operator guard: STALE_DO_NOT_ACT - Sleeper verified the immediately next regular-season NFL week. The PREVIOUS WEEK audited add/drop is HISTORY ONLY and must not be submitted. A separately confirmed governed current-week waiver evidence cycle is eligible for preflight; no Sleeper transaction is authorized.");
+            } else if (report.bf629State()
                 == io.butler.bet.sleeper.SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT) {
                 System.out.println("Operator guard: STALE_DO_NOT_ACT - the saved waiver move belongs to a different NFL season/week than the current public NFL state. HISTORY ONLY. Do not act; a new governed current-week decision is required.");
             } else if (report.bf629State()
