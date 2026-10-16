@@ -57,6 +57,24 @@ class ButlerAppShellBf672DecisionDetailTest {
     }
 
     @Test
+    void historicalAddDropIdentityIsHeldWithoutSavedNames() throws Exception {
+        String detail = script("scripts/butler-decision-detail.ps1");
+        int start = detail.indexOf("function ConvertTo-DecisionDetailHtml");
+        int end = detail.indexOf("function Invoke-DecisionHistoryHtml", start);
+        assertTrue(start >= 0 && end > start);
+        String display = detail.substring(start, end);
+
+        assertTrue(display.contains("'Recorded waiver add/drop'"));
+        assertTrue(display.contains("Historical player names were not saved with this decision"));
+        assertTrue(display.contains("Butler will not guess names from a newer roster"));
+        assertTrue(display.contains("ADD / DROP Sleeper ids: $(ConvertTo-HtmlText $Entry.AddSleeperId)"));
+        assertTrue(display.contains("<details><summary>Decision evidence</summary>"));
+        assertFalse(display.contains("<h1 class=\"headline\">ADD $(ConvertTo-HtmlText $Entry.AddSleeperId)"));
+        assertFalse(display.contains("sleeperLiveWaiverSnapshotSync"));
+        assertFalse(display.contains("https://api.sleeper.app"));
+    }
+
+    @Test
     void historyCardsLinkToImmediateReadOnlyDetailFirstPaint() throws Exception {
         String detail = script("scripts/butler-decision-detail.ps1");
 
