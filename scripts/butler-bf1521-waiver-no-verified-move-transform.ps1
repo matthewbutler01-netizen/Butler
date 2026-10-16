@@ -84,15 +84,28 @@ function Get-Bf1521WaiverRefreshLink {
     # Align exactly with BF-676 NO_TRANSACTION_TO_ACT_ON manual preflight.
     # A link is a confirmation-only capability: /refresh POST still
     # authorizes each Butler-local evidence write independently.
-    if ($State -cne 'NO_TRANSACTION_TO_ACT_ON' -or
-        $Actionability -cne 'NO_TRANSACTION_TO_REVALIDATE' -or
-        @('LATEST_EVIDENCE_LINEAGE_VERIFIED',
-          'MARKET_LINEAGE_SUPERSEDED',
-          'WAIVER_LINEAGE_SUPERSEDED',
-          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -cnotcontains $Lineage) {
-        return ''
+    $lineageAllowed = @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $Lineage
+    if (-not $lineageAllowed) { return '' }
+
+    # BF-1529: a prior-week recommendation is HISTORY, never approval.
+    # This exact BF-629 state can only arise from a read-only public NFL
+    # state proving the immediately next regular-season week. /refresh POST
+    # runs its own independent preflight before any Butler-local evidence
+    # write and NEVER submits a Sleeper waiver transaction.
+    if ($State -ceq 'STALE_DO_NOT_ACT' -and
+        $Actionability -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT') {
+        return '<a class="button" href="/refresh">Recheck current-week waiver evidence (confirmation required; old move blocked)</a>'
     }
-    return '<a class="button" href="/refresh">Check latest waiver evidence (confirmation required)</a>'
+    if ($State -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $Actionability -ceq 'NO_TRANSACTION_TO_REVALIDATE') {
+        return '<a class="button" href="/refresh">Check latest waiver evidence (confirmation required)</a>'
+    }
+    return ''
 }
 '@
 $helperAt = $waiverFn.Extent.StartOffset
