@@ -42,8 +42,24 @@ foreach ($expected in @(
 }
 $helpers = @'
 function Get-Bf1521WaiverDecisionClarity {
-    param([AllowNull()][string]$State, [int]$CandidateCount = 0)
+    param(
+        [AllowNull()][string]$State,
+        [int]$CandidateCount = 0,
+        [AllowNull()][string]$Actionability
+    )
 
+    # BF-1529: an independently verified NEXT NFL week is not a live move.
+    # Make the previously audited ADD/DROP unambiguously historical at a glance.
+    if ($State -ceq 'STALE_DO_NOT_ACT' -and
+        $Actionability -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT') {
+        return [pscustomobject]@{
+            Title = 'Previous-week waiver move - do not act'
+            Copy = 'Sleeper verified that the regular-season NFL week advanced. The saved ADD / DROP belongs to the previous week and cannot be submitted as a current recommendation.'
+            Status = 'NEW WEEK - HOLD'
+            Class = 'warn'
+            Next = 'Recheck current-week waiver evidence using the separate confirmation step. A new recommendation requires independently governed current-week evidence and approval.'
+        }
+    }
     # Decision-state interpretation only. No new ranking or source action.
     switch -CaseSensitive ($State) {
         'NO_TRANSACTION_TO_ACT_ON' {
@@ -129,7 +145,7 @@ if ($returnAt -lt 0) { throw 'BF-1521 BLOCKED: final Waiver Board return not fou
 $clarifier = @'
     # BF-1521: a saved NO TRANSACTION decision is not a current-week
     # free-agent search. Do not invent rankings or authorize any add/drop.
-    $bf1521Clarity = Get-Bf1521WaiverDecisionClarity -State ([string]$current.State) -CandidateCount ([int]$counts.Total)
+    $bf1521Clarity = Get-Bf1521WaiverDecisionClarity -State ([string]$current.State) -CandidateCount ([int]$counts.Total) -Actionability ([string]$current.Bf629)
     if ($null -ne $bf1521Clarity) {
         $waiverDecisionTitle = $bf1521Clarity.Title
         $waiverDecisionCopy = $bf1521Clarity.Copy
