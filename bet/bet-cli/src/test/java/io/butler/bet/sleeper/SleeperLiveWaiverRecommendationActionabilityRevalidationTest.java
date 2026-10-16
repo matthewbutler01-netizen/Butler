@@ -3,6 +3,7 @@ package io.butler.bet.sleeper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -146,7 +147,9 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
     void noTransactionAuditIsValidNonActionableStateWithoutRosterFetch() throws Exception {
         var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
             ignored -> noTransactionHistory(),
-            ignored -> { throw new AssertionError("roster source must not be called"); });
+            ignored -> { throw new AssertionError("roster source must not be called"); },
+            (leagueId, round) -> { throw new AssertionError("transaction source must not be called"); },
+            () -> { throw new AssertionError("week source must not be called"); });
 
         var report = service.revalidate(target());
 
@@ -159,7 +162,9 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
     void emptyHistoryIsValidAndDoesNotFetchRosters() throws Exception {
         var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
             ignored -> emptyHistory(),
-            ignored -> { throw new AssertionError("roster source must not be called"); });
+            ignored -> { throw new AssertionError("roster source must not be called"); },
+            (leagueId, round) -> { throw new AssertionError("transaction source must not be called"); },
+            () -> { throw new AssertionError("week source must not be called"); });
 
         var report = service.revalidate(target());
 
@@ -187,12 +192,100 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
         assertEquals(true, error.getMessage().contains("owner no longer matches BF-623"));
     }
 
+    @Test
+    void priorWeekAuditedMoveIsHeldBeforeLiveRosterRead() throws Exception {
+        var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+            ignored -> recommendationHistory(), ignored -> {
+                throw new AssertionError("rosters must not be read after stale week");
+            }, (league, round) -> "[]", () -> nflState(2026, 2, "regular"));
+        var report = service.revalidate(target());
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
+            report.state());
+        assertEquals(0, report.currentRosterCount());
+        assertEquals("7049", report.addSleeperPlayerId());
+        assertEquals("12503", report.dropSleeperPlayerId());
+    }
+
+    @Test
+    void exactCurrentWeekAndSeasonStillAllowGovernedRosterCheck() throws Exception {
+        var report = service(recommendationHistory(), List.of(
+            roster(6, "owner", "12503")),
+            "[]", nflState(2026, 1, "regular")).revalidate(target());
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.LIVE_ACTIONABLE_VERIFIED,
+            report.state());
+    }
+
+    @Test
+    void olderSeasonAndPostseasonNeverCertifyPriorRegularWeekMove() throws Exception {
+        for (String publicState : List.of(
+            nflState(2025, 1, "regular"),
+            nflState(2026, 1, "post"),
+            nflState(2026, 2, "regular"))) {
+            var report = service(recommendationHistory(),
+                List.of(roster(6, "owner", "12503")), "[]", publicState).revalidate(target());
+            assertEquals(
+                SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
+                report.state());
+        }
+    }
+
+    @Test
+    void unknownInvalidAndMissingCurrentWeekProofFailClosed() throws Exception {
+        for (String publicState : List.of(
+            "{}", "[]", "not-json", " ", "{\"season\":\"2026\",\"season_type\":\"regular\"}",
+            "{\"season\":\"2026\",\"week\":\"1\",\"season_type\":\"regular\"}",
+            "{\"season\":\"2026\",\"week\":0,\"season_type\":\"regular\"}",
+            "{\"season\":\"2026\",\"week\":1}")) {
+            var report = service(recommendationHistory(), List.of(roster(6, "owner", "12503")),
+                "[]", publicState).revalidate(target());
+            assertEquals(
+                SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT,
+                report.state(), "must fail closed for state " + publicState);
+        }
+    }
+
+    @Test
+    void readOnlyCurrentWeekSourceFailureFailsClosedWithoutRerecommending() throws Exception {
+        var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+            ignored -> recommendationHistory(), ignored -> {
+                throw new AssertionError("rosters must not be read after unverified week");
+            }, (league, round) -> "[]", () -> { throw new IOException("timeout"); });
+        var report = service.revalidate(target());
+        assertEquals(
+            SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT,
+            report.state());
+    }
+
+    @Test
+    void completedAndPendingExactTransactionsRemainClosedAcrossWeekRollover() throws Exception {
+        for (String status : List.of("complete", "pending")) {
+            var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+                ignored -> recommendationHistory(), ignored -> {
+                    throw new AssertionError("rosters must not be fetched for terminal transactions");
+                }, (league, round) -> transaction(status, 6, "7049", "12503"), () -> {
+                    throw new AssertionError("terminal transaction must not need current-week source");
+                });
+            var report = service.revalidate(target());
+            assertEquals(status.equals("complete")
+                ? SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_COMPLETE
+                : SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_TRANSACTION_PENDING,
+                report.state());
+        }
+    }
+
+    private static String nflState(int season, int week, String seasonType) {
+        return "{\"season\":\"" + season + "\",\"week\":" + week
+            + ",\"season_type\":\"" + seasonType + "\"}";
+    }
+
     private static SleeperLiveWaiverRecommendationActionabilityRevalidation service(
         SleeperLiveWaiverRecommendationAuditHistory.HistoryReport history,
         List<SleeperJsonParser.SleeperRoster> rosters) {
         return new SleeperLiveWaiverRecommendationActionabilityRevalidation(
             ignored -> history,
-            ignored -> rosters);
+            ignored -> rosters,
+            (leagueId, round) -> "[]",
+            () -> nflState(2026, 1, "regular"));
     }
 
     private static SleeperLiveWaiverRecommendationActionabilityRevalidation service(
@@ -206,7 +299,18 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
                 assertEquals("league-sleeper", leagueId);
                 assertEquals(1, round);
                 return transactions;
-            });
+            }, () -> nflState(2026, 1, "regular"));
+    }
+
+    private static SleeperLiveWaiverRecommendationActionabilityRevalidation service(
+        SleeperLiveWaiverRecommendationAuditHistory.HistoryReport history,
+        List<SleeperJsonParser.SleeperRoster> rosters,
+        String transactions,
+        String currentWeek) {
+        return new SleeperLiveWaiverRecommendationActionabilityRevalidation(
+            ignored -> history, ignored -> rosters,
+            (leagueId, round) -> transactions,
+            () -> currentWeek);
     }
 
     private static String transaction(String status, int rosterId, String addId, String dropId) {
