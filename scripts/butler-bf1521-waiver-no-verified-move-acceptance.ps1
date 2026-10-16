@@ -54,7 +54,10 @@ function ConvertTo-WaiverCandidateDetailHtml {}
         if ($rollover -notmatch 'href="/refresh"' -or
             $rollover -notmatch 'Recheck current-week waiver evidence' -or
             $rollover -notmatch 'old move blocked' -or
-            $rollover -notmatch 'confirmation required') {
+            $rollover -notmatch 'confirmation required' -or
+            $rollover -notmatch 'NEW WEEK - HOLD' -or
+            $rollover -notmatch 'previous week and cannot be submitted' -or
+            $rollover -notmatch 'separate confirmation step') {
             throw "BF-1529 BLOCKED: manual rollover refresh missing on $lineage"
         }
         if ($rollover -match 'data-butler-auto-waiver=') {
@@ -79,6 +82,11 @@ function ConvertTo-WaiverCandidateDetailHtml {}
         }
     }
 
+    $otherStale=ConvertTo-WaiverHtml -State 'STALE_DO_NOT_ACT' -CandidateCount 4 -Actionability 'AUDITED_WEEK_MISMATCH_DO_NOT_ACT' -Lineage 'LATEST_EVIDENCE_LINEAGE_VERIFIED'
+    if ($otherStale -match 'NEW WEEK - HOLD' -or
+        $otherStale -match 'href="/refresh"') {
+        throw 'BF-1529 BLOCKED: non-adjacent week was presented as safe rollover.'
+    }
     $noAudit=ConvertTo-WaiverHtml -State 'NO_AUDITED_DECISION' -CandidateCount 4
     if ($noAudit -notmatch 'NOT VERIFIED' -or $noAudit -notmatch 'No verified waiver decision available' -or
         $noAudit -notmatch 'Do not act on old add/drop advice') {
