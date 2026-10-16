@@ -32,11 +32,11 @@ function ConvertTo-AgeView {
 }
 function ConvertTo-WaiverHtml {
     param([string]$Summary)
-    $bf1521State = 'NO VERIFIED MOVE'
+    $bf1521Clarity = 'NO VERIFIED MOVE'
     $waiverPairHtml = '<p>Saved audited pair</p>'
     return @"
 <section class="panel waiver-decision-hero">
-  <h1>$bf1521State</h1>
+  <h1>$bf1521Clarity</h1>
   $waiverPairHtml
   <div class="next">No new current-week transaction</div>
 </section>
