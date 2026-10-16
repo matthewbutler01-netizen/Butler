@@ -13,6 +13,7 @@ on:
       - bf1521-waiver-no-verified-move-clarity
       - bf1522-waiver-history-week-labels
       - bf1523-v04-pin-tested-beta
+      - bf1524-history-player-identity-hold
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
