@@ -73,6 +73,27 @@ function Get-Bf1521WaiverDecisionClarity {
         default { return $null }
     }
 }
+
+function Get-Bf1521WaiverRefreshLink {
+    param(
+        [AllowNull()][string]$State,
+        [AllowNull()][string]$Actionability,
+        [AllowNull()][string]$Lineage
+    )
+
+    # Align exactly with BF-676 NO_TRANSACTION_TO_ACT_ON manual preflight.
+    # A link is a confirmation-only capability: /refresh POST still
+    # authorizes each Butler-local evidence write independently.
+    if ($State -cne 'NO_TRANSACTION_TO_ACT_ON' -or
+        $Actionability -cne 'NO_TRANSACTION_TO_REVALIDATE' -or
+        @('LATEST_EVIDENCE_LINEAGE_VERIFIED',
+          'MARKET_LINEAGE_SUPERSEDED',
+          'WAIVER_LINEAGE_SUPERSEDED',
+          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -cnotcontains $Lineage) {
+        return ''
+    }
+    return '<a class="button" href="/refresh">Check latest waiver evidence (confirmation required)</a>'
+}
 '@
 $helperAt = $waiverFn.Extent.StartOffset
 if ($source.Contains('function Get-Bf1521WaiverDecisionClarity {')) {
@@ -103,15 +124,24 @@ $clarifier = @'
         $waiverDecisionClass = $bf1521Clarity.Class
         $waiverNextActionCopy = $bf1521Clarity.Next
     }
+    $bf1521RefreshLink = Get-Bf1521WaiverRefreshLink -State ([string]$current.State) -Actionability ([string]$current.Bf629) -Lineage ([string]$current.Bf631)
 
 '@
 $waiver = $waiver.Insert($returnAt,$clarifier)
+# Append a link only inside the already-existing BF-959 next-step surface.
+# The link never carries an audit ID or grants POST authorization.
+$from = '$waiverQuickActions$waiverHistoryLink'
+$to = '$waiverQuickActions$bf1521RefreshLink$waiverHistoryLink'
+if ([regex]::Matches($waiver,[regex]::Escape($from)).Count -ne 1) {
+    throw 'BF-1521 BLOCKED: Waiver next-step insertion point changed.'
+}
+$waiver = $waiver.Replace($from,$to)
 $source = $source.Substring(0,$waiverFn.Extent.StartOffset) +
     $waiver + $source.Substring($waiverFn.Extent.EndOffset)
 $errors = $null
 [void][Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
 if (@($errors).Count -gt 0) { throw 'BF-1521 BLOCKED: final transformed Waiver Board failed parse.' }
-foreach ($required in @('Get-Bf1521WaiverDecisionClarity','NO VERIFIED MOVE','NOT VERIFIED','current-week free-agent search')) {
+foreach ($required in @('Get-Bf1521WaiverDecisionClarity','Get-Bf1521WaiverRefreshLink','bf1521RefreshLink','NO VERIFIED MOVE','NOT VERIFIED','current-week free-agent search')) {
     if (-not $source.Contains($required)) {
         throw "BF-1521 BLOCKED: visible decision-state contract missing: $required"
     }
