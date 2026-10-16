@@ -944,6 +944,14 @@ if (-not (Test-Path -LiteralPath $bf1521Transform -PathType Leaf)) {
 }
 & $bf1521Transform -DashboardPath $DashboardPath
 
+# BF-1525: show existing BF-633 as-of timestamps directly on Waiver Board.
+# Presentation-only; no new provider call, recommendation, transaction, or write.
+$bf1525Transform = Join-Path $PSScriptRoot 'butler-bf1525-waiver-evidence-age-transform.ps1'
+if (-not (Test-Path -LiteralPath $bf1525Transform -PathType Leaf)) {
+    throw 'BF-1525 BLOCKED: source-age presentation transform not found.'
+}
+& $bf1525Transform -DashboardPath $DashboardPath
+
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
 # staged Dashboard/core code without changing normal runtime when the flag is absent.
 if ([string]$env:BUTLER_APP_BF857_CORE_TIMING -ceq '1') {
