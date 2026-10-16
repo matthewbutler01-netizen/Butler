@@ -11,13 +11,14 @@ $ErrorActionPreference = 'Stop'
 # BF-M1: a pinned, explicitly scoped v0.4 *development* update. Never
 # force-stop a process, modify Sleeper, touch the v0.3 release, reset Git,
 # clean untracked files or switch to a moving remote branch.
-$targetCommit = '370cd7bcfcc556e4a0aa923cc6d8a402dd6eab72'
-$sourceBranch = 'refs/heads/startsit-review-action-summary'
+$targetCommit = 'd2be2fc573472b4b36f4305dfe356df4fa3abbb1'
+$sourceBranch = 'refs/heads/bf1522-waiver-history-week-labels'
 
 try {
     Write-Host 'BUTLER v0.4 - PINNED LOCAL DEVELOPMENT UPDATE'
     Write-Host 'Scope: only the existing v0.4 source checkout and port 18080.'
     Write-Host 'No v0.3 release replacement; no Sleeper transaction.'
+    Write-Host ('Approved beta candidate: ' + $targetCommit.Substring(0, 12))
     Write-Host ''
 
     if (-not (Test-Path -LiteralPath $CheckoutPath -PathType Container) -or

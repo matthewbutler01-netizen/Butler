@@ -99,8 +99,9 @@ try {
         Write-Host 'BUTLER: STARTED.'
     }
     else {
-        Write-Host 'BUTLER: ALREADY RUNNING. No update applied to this existing worker.'
-        Write-Host 'To install the updated version, stop the known v0.4 app with Ctrl+C and double-click this file again.'
+        # Health confirms only the service contract, not the checked-out Git SHA.
+        # Never mislabel an older running worker as this exact candidate.
+        throw 'EXISTING v0.4 WORKER. The tested beta update was NOT applied; source commit cannot be verified from health. Close your known Butler app window with Ctrl+C, then double-click again.'
     }
 
     $reportDir = Join-Path $env:LOCALAPPDATA 'Butler\diagnostics'

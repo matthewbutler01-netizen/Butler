@@ -16,8 +16,8 @@ const cmdSource = fs.readFileSync(cmd,'utf8');
 for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean/i,/git\s+push/i,/submitTransaction/i,/Invoke-RestMethod/i]) {
   assert.doesNotMatch(source,forbidden);
 }
-assert.match(source,/370cd7bcfcc556e4a0aa923cc6d8a402dd6eab72/);
-assert.match(source,/refs\/heads\/startsit-review-action-summary/);
+assert.match(source,/d2be2fc573472b4b36f4305dfe356df4fa3abbb1/);
+assert.match(source,/refs\/heads\/bf1522-waiver-history-week-labels/);
 assert.match(source,/merge-base --is-ancestor \$targetCommit FETCH_HEAD/);
 assert.match(source,/status --porcelain=v1 --untracked-files=normal/);
 assert.match(source,/switch --detach \$targetCommit/);
