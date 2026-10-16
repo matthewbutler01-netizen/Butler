@@ -114,6 +114,18 @@ try {
         )
     }
 
+    # An ordinary Matchup does not contain BF-610 live starter-slot proof.
+    # It must never say NOT REVIEWED solely because the saved snapshot could
+    # not be verified against a live lineup.
+    $unverified=Get-MatchupLineupDecisionView -AutoFill $idle -SavedReview $null
+    if ($unverified.Status -cne 'LINEUP CHECK NEEDED' -or
+        $unverified.StatusClass -cne 'warn' -or
+        $unverified.Copy -notmatch 'not checked the current Sleeper starter slots' -or
+        $unverified.Detail -notmatch 'fresh read-only lineup check' -or
+        $unverified.ActionHref -cne '/matchup/autofill') {
+        throw 'BF-1519 BLOCKED: unverified Matchup still claims no review was requested.'
+    }
+
     $decision=Get-MatchupLineupDecisionView -AutoFill $idle -SavedReview $snapshot
     if ([string]$decision.Status -cne 'MANUAL REVIEW' -or [string]$decision.Title -notmatch 'Week 4' -or [string]$decision.Detail -notmatch 'Keenan Allen' -or [string]$decision.Detail -notmatch 'Hunter Henry') {
         throw 'BF-1005 BLOCKED: saved current review did not hydrate Matchup decision.'

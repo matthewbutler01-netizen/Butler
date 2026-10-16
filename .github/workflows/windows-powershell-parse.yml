@@ -8,6 +8,7 @@ on:
       - bf1515-manager-decision-clarity
       - bf1515-lineup-fingerprint
       - bf1515-dashboard-saved-review-proof
+      - bf1519-explicit-lineup-change-notice
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'

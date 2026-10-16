@@ -272,6 +272,16 @@ $savedDecision = @'
     if (-not $AutoFill.Requested) {
 '@
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old $idleAnchor.TrimEnd() -New $savedDecision.TrimEnd() -Contract 'saved review decision branch'
+# BF-1519: ordinary BF-849 Matchup has persisted roster/week context,
+# not the BF-610 live starter-slot inventory. An unverified review is not
+# evidence that the owner never requested one on Start/Sit.
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old '            Title = "Review this week''s lineup"' -New '            Title = "Check the current lineup"' -Contract 'unverified Matchup headline'
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Copy = 'Your opponent is confirmed. Run the existing read-only Lineup Advisor before deciding whether to change any starters.'" -New "            Copy = 'Your opponent is confirmed, but this Matchup view has not checked the current Sleeper starter slots. A saved Start/Sit review cannot be assumed valid after a lineup edit.'" -Contract 'unverified Matchup copy'
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Status = 'NOT REVIEWED'" -New "            Status = 'LINEUP CHECK NEEDED'" -Contract 'unverified Matchup status'
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            StatusClass = 'done'" -New "            StatusClass = 'warn'" -Contract 'unverified Matchup tone'
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Detail = 'No weekly lineup recommendation has been requested from this page yet.'" -New "            Detail = 'Open Start/Sit Assistant for a fresh read-only lineup check. No lineup has been submitted to Sleeper.'" -Contract 'unverified Matchup next step'
+$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            ActionLabel = 'Review Lineup'" -New "            ActionLabel = 'Check current lineup'" -Contract 'unverified Matchup action'
+
 $core = $core.Substring(0,$decisionFn.Extent.StartOffset) + $decision + $core.Substring($decisionFn.Extent.EndOffset)
 
 $ast = Get-Bf1005Ast -Text $core -Contract 'decision-hydrated core'
@@ -322,7 +332,9 @@ foreach ($required in @(
     'Get-Bf1005SavedLineupReview -LeagueId ([string]$LeagueId)',
     '-SavedReview $savedReview',
     'No new provider request was made to display it.',
-    'Refresh full Lineup Review'
+    'Refresh full Lineup Review',
+    'LINEUP CHECK NEEDED',
+    'has not checked the current Sleeper starter slots'
 )) {
     if ($core.IndexOf($required,[System.StringComparison]::Ordinal) -lt 0) {
         throw "BF-1005 BLOCKED: saved-review hydration marker is missing: $required"
