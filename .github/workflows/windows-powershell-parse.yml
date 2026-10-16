@@ -12,6 +12,7 @@ on:
       - bf1520-matchup-live-roster-proof
       - bf1521-waiver-no-verified-move-clarity
       - bf1522-waiver-history-week-labels
+      - bf1523-v04-pin-tested-beta
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
