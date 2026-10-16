@@ -278,7 +278,15 @@ $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old $idleAnchor.TrimEnd()
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old '            Title = "Review this week''s lineup"' -New '            Title = "Check the current lineup"' -Contract 'unverified Matchup headline'
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Copy = 'Your opponent is confirmed. Run the existing read-only Lineup Advisor before deciding whether to change any starters.'" -New "            Copy = 'Your opponent is confirmed, but this Matchup view has not checked the current Sleeper starter slots. A saved Start/Sit review cannot be assumed valid after a lineup edit.'" -Contract 'unverified Matchup copy'
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Status = 'NOT REVIEWED'" -New "            Status = 'LINEUP CHECK NEEDED'" -Contract 'unverified Matchup status'
-$decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            StatusClass = 'done'" -New "            StatusClass = 'warn'" -Contract 'unverified Matchup tone'
+# Only the previously located idle branch may change tone. Other completed
+# no-change decisions retain their original trustworthy status color.
+$idleStatusAt = $decision.IndexOf("            Status = 'LINEUP CHECK NEEDED'",[StringComparison]::Ordinal)
+$idleToneOld = "            StatusClass = 'done'"
+$idleToneAt = if ($idleStatusAt -ge 0) { $decision.IndexOf($idleToneOld,$idleStatusAt,[StringComparison]::Ordinal) } else { -1 }
+if ($idleToneAt -lt 0 -or $idleToneAt - $idleStatusAt -gt 140) {
+    throw 'BF-1519 BLOCKED: cannot isolate the ordinary Matchup idle tone.'
+}
+$decision = $decision.Substring(0,$idleToneAt) + "            StatusClass = 'warn'" + $decision.Substring($idleToneAt + $idleToneOld.Length)
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            Detail = 'No weekly lineup recommendation has been requested from this page yet.'" -New "            Detail = 'Open Start/Sit Assistant for a fresh read-only lineup check. No lineup has been submitted to Sleeper.'" -Contract 'unverified Matchup next step'
 $decision = Replace-Bf1005ExactlyOnce -Text $decision -Old "            ActionLabel = 'Review Lineup'" -New "            ActionLabel = 'Check current lineup'" -Contract 'unverified Matchup action'
 
