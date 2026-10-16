@@ -47,6 +47,22 @@ function Test-BetaPortBusy {
     finally { try { $listener.Stop() } catch {} }
 }
 
+# BF-1527: verify the checkout of the immutable candidate before we start it.
+# This proves disk HEAD, not live player freshness or a health endpoint's SHA.
+$approvedCandidateCommit = 'dd77d6b3221f4d78226d61330bc9ef5bed46976a'
+function Assert-BetaCandidateCheckout {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+        throw 'GIT NOT AVAILABLE. Candidate source identity cannot be checked.'
+    }
+    $head = @(& git -C $Path rev-parse HEAD 2>$null)
+    if ($LASTEXITCODE -ne 0 -or $head.Count -ne 1 -or
+        $head[0].Trim() -cne $approvedCandidateCommit) {
+        throw 'BETA CHECKOUT MISMATCH. The checked-out source is not the approved candidate; no app was started.'
+    }
+    return $approvedCandidateCommit
+}
+
 try {
     Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'
     Write-Host 'One action: update, start, check, open.'
@@ -84,6 +100,8 @@ try {
         if ($LASTEXITCODE -ne 0) {
             throw 'SAFE UPDATE HELD. No app started. See message above.'
         }
+        $verifiedCheckout = Assert-BetaCandidateCheckout -Path $CheckoutPath
+        Write-Host ('BETA CHECKOUT: VERIFIED ' + $verifiedCheckout.Substring(0, 12))
         Write-Host 'Starting v0.4 in a separate app window...'
         $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
         $arguments = '/c "' + $launcher + '"'
@@ -110,7 +128,12 @@ try {
     $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 30 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
     $checkExit = $LASTEXITCODE
     $content = $log -join [Environment]::NewLine
-    [IO.File]::WriteAllText($reportPath, $content, [Text.Encoding]::UTF8)
+    # The report proves which source checkout the updater selected. It does not
+    # certify the health endpoint's process identity or live Sleeper evidence.
+    $header = 'BETA SOURCE CHECKOUT: VERIFIED ' + $verifiedCheckout + [Environment]::NewLine +
+        'SOURCE PROOF: exact Git checkout, not a Sleeper week, injury, waiver availability or browser execution check.' +
+        [Environment]::NewLine + [Environment]::NewLine
+    [IO.File]::WriteAllText($reportPath, $header + $content, [Text.Encoding]::UTF8)
 
     if ($checkExit -ne 0 -or $content -match '(?m)^RESULT:\s*[1-9][0-9]* page failure') {
         Write-Host 'BETA STATUS: PAGE ERROR. The app is open for read-only inspection.'
