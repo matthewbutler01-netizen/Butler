@@ -88,6 +88,11 @@ Acceptance cases for that slice:
 
 ## Subsequent slices
 
+The Dashboard matchup card now discloses the source and recorded as-of value
+from its existing validated matchup bundle. Missing metadata is explicitly
+unknown; a failed team/week binding does not show a verified source note.
+This adds no provider read and does not claim live scores or player clearance.
+
 Add the matchup overview using verified week/opponent context. Show live scoring
 only if an appropriate source and freshness contract are actually available.
 Then improve comparison continuity and attributed notes. Add bye-week planning
