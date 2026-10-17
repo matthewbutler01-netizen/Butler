@@ -61,22 +61,26 @@ function testRun(port) {
     assert.equal(r.status,2,r.stdout+r.stderr);
     assert.match(r.stdout,/UNRECOGNIZED GIT ORIGIN/);
     git(['remote','set-url','origin','https://github.com/matthewbutler01-netizen/Butler.git']);
+    let freePort;
     let busy = net.createServer();
     await new Promise((ok,fail)=>busy.once('error',fail).listen(0,'127.0.0.1',ok));
     try {
       const port=busy.address().port;
+      freePort=port;
       r=testRun(port);
       assert.equal(r.status,2,r.stdout+r.stderr);
       assert.match(r.stdout,/PORT \d+ OCCUPIED/);
     } finally {
       await new Promise(resolve=>busy.close(resolve));
     }
-    r=testRun(18080);
+    // Probe the released fixture port, never the owner's running beta.
+    r=testRun(freePort);
     assert.equal(r.status,0,r.stdout+r.stderr);
     assert.match(r.stdout,/PREFLIGHT ONLY/);
     assert.doesNotMatch(r.stdout,/Fetching pinned/);
     fs.writeFileSync(path.join(repo,'local-untracked.txt'),'test');
-    r=testRun(18080);
+    // Probe the released fixture port, never the owner's running beta.
+    r=testRun(freePort);
     assert.equal(r.status,2,r.stdout+r.stderr);
     assert.match(r.stdout,/LOCAL CHANGES PRESENT/);
     fs.unlinkSync(path.join(repo,'local-untracked.txt'));
