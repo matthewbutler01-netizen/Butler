@@ -49,7 +49,7 @@ function Test-BetaPortBusy {
 
 # BF-1527: verify the checkout of the immutable candidate before we start it.
 # This proves disk HEAD, not live player freshness or a health endpoint's SHA.
-$approvedCandidateCommit = 'dd77d6b3221f4d78226d61330bc9ef5bed46976a'
+$approvedCandidateCommit = 'cbaf8687fca950593ddd2db1836fa60be121a587'
 function Assert-BetaCandidateCheckout {
     param([Parameter(Mandatory = $true)][string]$Path)
     if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
