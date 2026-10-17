@@ -137,6 +137,7 @@ jobs:
           & '.\scripts\butler-preview-cache-isolation-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-startup-stderr-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-startup-pool-acceptance.ps1'
           if (-not $?) { exit 1 }
           node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
