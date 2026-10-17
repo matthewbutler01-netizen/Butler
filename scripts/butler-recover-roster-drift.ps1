@@ -181,6 +181,10 @@ else {
     throw "BF-723 BLOCKED: BF-610 failed for a reason other than exact roster drift. No Butler evidence write was attempted. output=$tail"
 }
 
+# Verify the current season/week before the first waiver evidence write.
+# Failure must leave the stale roster frame held.
+[void](Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' -Label 'BF-840 current weekly matchup sync' -LeagueId $leagueId)
+
 if ($recoveryNeeded) {
     $stages = @(
         [pscustomobject]@{ MainClass = 'io.butler.bet.cli.ButlerSleeperLiveWaiverSnapshotSyncCli'; Label = 'BF-602 waiver snapshot sync' },
@@ -195,8 +199,6 @@ if ($recoveryNeeded) {
         [void](Invoke-RequiredSuccess -MainClass $stage.MainClass -Label $stage.Label -LeagueId $leagueId)
     }
 }
-
-[void](Invoke-RequiredSuccess -MainClass 'io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli' -Label 'BF-840 current weekly matchup sync' -LeagueId $leagueId)
 
 [void](Invoke-RequiredSuccess -MainClass $bf610Class -Label 'BF-610 post-recovery target-roster verification' -LeagueId $leagueId)
 [void](Invoke-RequiredSuccess -MainClass $comparisonClass -Label 'BF-615/BF-617 post-recovery waiver comparison verification' -LeagueId $leagueId)
