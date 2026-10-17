@@ -41,8 +41,33 @@ $missingHtml=ConvertTo-DashboardHtml -Summary 'Target: synthetic incomplete sour
 if (-not $missingHtml.Contains('Dashboard evidence needs review') -or $missingHtml.Contains('butler-refresh-contract')) {
     throw 'Missing audit fields reached the normal Dashboard.'
 }
+$snapshot=[pscustomobject]@{
+    Ready=$true; Week=6; Source='<script>fixture & source</script>'; GeneratedUtc='2026-10-17T01:02:03-05:00'
+    AvailabilityExclusions=@()
+    ProjectionHolds=@([pscustomobject]@{Name='Synthetic starter';Id='101';RosterSlot='STARTER';LineupSlot='WR';Status='Active';InjuryStatus='Questionable'})
+}
+$attention=Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $snapshot -LineupSignalStatus 'NEEDS ATTENTION'
+foreach($required in @('Saved Lineup Review: week 6','source: &lt;script&gt;fixture &amp; source&lt;/script&gt;',
+    'generated: 2026-10-17 06:02:03 UTC','not a live injury or starter check','1 starter needs weekly review')) {
+    if (-not $attention.Contains($required)) { throw "Saved lineup context missing: $required" }
+}
+if ($attention.Contains('<script>') -or [regex]::Matches($attention,'class="meta saved-lineup-context"').Count -ne 1) { throw 'Saved context unsafe or duplicated.' }
+foreach($value in @('', '2026-10-17', '2026-10-17T06:02:03', '<script>time</script>', '2026-99-99T06:02:03Z')) {
+    $snapshot.GeneratedUtc=$value
+    if (-not (Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $snapshot -LineupSignalStatus 'NEEDS ATTENTION').Contains('generated: unknown')) { throw 'Ambiguous or invalid snapshot time received a timestamp.' }
+}
+$missing=[pscustomobject]@{Ready=$true;AvailabilityExclusions=@();ProjectionHolds=$snapshot.ProjectionHolds}
+$unknown=Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $missing -LineupSignalStatus 'NEEDS ATTENTION'
+if (-not $unknown.Contains('week unknown; source: unknown; generated: unknown')) { throw 'Missing snapshot metadata invented context.' }
+foreach($week in @(0,19,'bad')) {
+    $snapshot.Week=$week
+    if (-not (Get-ButlerSavedLineupContextHtml -Snapshot $snapshot).Contains('week unknown')) { throw 'Invalid saved week received a regular-season label.' }
+}
+foreach($state in @('REFRESH AUTOFILL','EVIDENCE GAP','NOT REVIEWED')) {
+    if (-not [string]::IsNullOrEmpty((Get-Bf979SnapshotWeeklyAttentionHtml -Snapshot $snapshot -LineupSignalStatus $state))) { throw 'Saved metadata bypassed the existing lineup hold gate.' }
+}
 if (-not [string]::IsNullOrWhiteSpace($OutputHtmlPath)) {
     [IO.File]::WriteAllText($OutputHtmlPath,$html,[Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText([IO.Path]::ChangeExtension($OutputHtmlPath,'.held.html'),$ambiguousHtml,[Text.UTF8Encoding]::new($false))
 }
-Write-Host 'GENERATED DASHBOARD QUEUE RENDER: PASS (real renderer, synthetic summary, no provider lookups).'
+Write-Host 'GENERATED DASHBOARD QUEUE RENDER: PASS (real renderer, saved lineup metadata/unknowns/escaping/gates, synthetic evidence, no provider lookups).'

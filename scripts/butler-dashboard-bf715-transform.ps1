@@ -955,6 +955,7 @@ if (-not (Test-Path -LiteralPath $bf1525Transform -PathType Leaf)) {
 # Weekly review summary consumes the final governed state without provider calls.
 if (Test-Path -LiteralPath $stagedCore -PathType Leaf) {
     & (Join-Path $PSScriptRoot 'butler-weekly-decision-queue-transform.ps1') -DashboardPath $DashboardPath
+    & (Join-Path $PSScriptRoot 'butler-dashboard-lineup-context-transform.ps1') -DashboardPath $DashboardPath
 }
 
 # BF-857: diagnostic-only inner-core timing runs last so it observes the exact final
