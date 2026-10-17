@@ -37,10 +37,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final GameLockSource gameLockSource;
     private final RosterInjuryNewsProvider sharedNewsProvider;
     private static final NflExpertPickProvider SHARED_EXPERT_PROVIDER = new NflExpertPickProvider();
-    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
-    private static final NflverseGameLockProvider SHARED_GAME_LOCK_PROVIDER = new NflverseGameLockProvider();
-    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
     private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
+    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER =
+        new NflverseDefensiveMatchupProvider(SHARED_USAGE_PROVIDER::download);
+    private static final NflverseGameLockProvider SHARED_GAME_LOCK_PROVIDER =
+        new NflverseGameLockProvider(SHARED_USAGE_PROVIDER::download);
+    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
         this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,

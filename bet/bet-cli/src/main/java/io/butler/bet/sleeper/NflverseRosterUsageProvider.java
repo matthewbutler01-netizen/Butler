@@ -19,6 +19,8 @@ import java.util.zip.GZIPInputStream;
 
 /** Read-only exact-ID usage evidence. A conservative review policy, not a calibrated points model. */
 final class NflverseRosterUsageProvider {
+    @FunctionalInterface
+    interface TextSource { String download(URI uri) throws IOException, InterruptedException; }
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
         .followRedirects(HttpClient.Redirect.NORMAL).build();
     private final Map<URI, Cached> cache = new LinkedHashMap<>();
