@@ -356,35 +356,6 @@ function Send-HttpResponse {
     $Stream.Flush()
 }
 
-function Initialize-PreservedCoreWorkers {
-    # Launch the existing bounded pool before serial health/cache preparation.
-    # Register each child immediately so the caller's finally owns all cleanup.
-    for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
-        $workerStartupTimer = [Diagnostics.Stopwatch]::StartNew()
-        Write-Host ("Starting Butler worker {0} of {1}. The app is not ready yet." -f ($index + 1), $maxCoreWorkers)
-        do {
-            $backendPort = Get-FreeLoopbackPort
-        } while ($backendPorts -contains $backendPort)
-        $process = Start-PreservedCore -BackendPort $backendPort
-        $backendPorts.Add($backendPort)
-        $backendProcesses.Add([pscustomobject]@{
-            Port = $backendPort
-            Process = $process
-            StartupTimer = $workerStartupTimer
-        })
-    }
-
-    for ($index = 0; $index -lt $backendProcesses.Count; $index++) {
-        $backend = $backendProcesses[$index]
-        $backendPort = [int]$backend.Port
-        $workerStartupTimer = $backend.StartupTimer
-        Wait-PreservedCore -BackendPort $backendPort -Process $backend.Process
-        Write-Host ("Butler worker {0} health verified after {1:N1}s; preparing optional page caches." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
-        Invoke-PreservedCoreWarmup -BackendPort $backendPort
-        Write-Host ("Butler worker {0} preparation finished after {1:N1}s. Optional cache warnings do not verify page evidence." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
-    }
-}
-
 $maxCoreWorkers = 6
 $backendPorts = New-Object System.Collections.Generic.List[int]
 $backendProcesses = New-Object System.Collections.Generic.List[object]
@@ -449,7 +420,24 @@ try {
     Initialize-ReadOnlyCliRuntime
     Initialize-DirectJavaRuntime
 
-    Initialize-PreservedCoreWorkers
+    for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
+        $workerStartupTimer = [Diagnostics.Stopwatch]::StartNew()
+        Write-Host ("Preparing Butler worker {0} of {1}. The app is not ready yet." -f ($index + 1), $maxCoreWorkers)
+        do {
+            $backendPort = Get-FreeLoopbackPort
+        } while ($backendPorts -contains $backendPort)
+
+        $process = Start-PreservedCore -BackendPort $backendPort
+        $backendPorts.Add($backendPort)
+        $backendProcesses.Add([pscustomobject]@{
+            Port = $backendPort
+            Process = $process
+        })
+        Wait-PreservedCore -BackendPort $backendPort -Process $process
+        Write-Host ("Butler worker {0} health verified after {1:N1}s; preparing optional page caches." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
+        Invoke-PreservedCoreWarmup -BackendPort $backendPort
+        Write-Host ("Butler worker {0} preparation finished after {1:N1}s. Optional cache warnings do not verify page evidence." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
+    }
 
     $requestPool.Open()
     $listener.Start()
