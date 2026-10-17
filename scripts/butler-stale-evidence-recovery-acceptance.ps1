@@ -95,35 +95,16 @@ if ($script:calls.Count -ne 1) {
     throw 'BF-1529 BLOCKED: rollover preflight-only wrote new evidence.'
 }
 $PreflightOnly = $false
-# BF-1529: an independently failed current-week BF-840 read MUST abort
-# before BF-602 or any other Butler-local evidence write, even though
-# public Week N+1 was verified by the earlier BF-629 read-only gate.
+# BF-1529: a failed BF-840 current-week sync MUST abort
+# before BF-602 or any other WAIVER evidence write.
 $script:summary = "Decision status: STALE_DO_NOT_ACT`nBF-629 live actionability: AUDITED_WEEK_ROLLOVER_DO_NOT_ACT`nBF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED"
 $script:calls = [Collections.Generic.List[string]]::new()
 $script:failAt = ':bet:bet-cli:sleeperCurrentWeekMatchupSync'
 $failed = $false
 try { & $flow | Out-Null } catch { $failed = $true }
 if (-not $failed -or $script:calls.Count -ne 2 -or
-    $script:calls[1] -notmatch 'CurrentWeekMatchupSync
-$script:calls = [Collections.Generic.List[string]]::new()
-$PreflightOnly = $true
-& $flow | Out-Null
-if ($script:calls.Count -ne 1) { throw 'Preflight wrote data' }
-$PreflightOnly = $false
-$script:calls = [Collections.Generic.List[string]]::new()
-$script:failAt = ':bet:bet-cli:sleeperLiveWaiverSnapshotSync'
-$failed = $false
-try { & $flow | Out-Null } catch { $failed = $true }
-if (-not $failed -or $script:calls.Count -ne 3) { throw 'Failure did not stop later stages' }
-$script:failAt = ''
-$script:summary += "`nBF-629 live actionability: LIVE_ACTIONABLE_VERIFIED"
-$script:calls = [Collections.Generic.List[string]]::new()
-$failed = $false
-try { & $flow | Out-Null } catch { $failed = $true }
-if (-not $failed -or $script:calls.Count -ne 1) { throw 'Duplicate evidence accepted' }
-Write-Host 'STALE EVIDENCE RECOVERY ACCEPTANCE: PASS (30 state combinations, preflight, failure stop, duplicate rejection)'
-) {
-    throw 'BF-1529 BLOCKED: BF-840 failure allowed rollover evidence writes.'
+    $script:calls[1] -notmatch 'CurrentWeekMatchupSync$') {
+    throw 'BF-1529 BLOCKED: BF-840 failure allowed rollover waiver evidence writes.'
 }
 $script:failAt = ''
 
