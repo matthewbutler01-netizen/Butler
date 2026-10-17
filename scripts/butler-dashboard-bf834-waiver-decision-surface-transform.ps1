@@ -75,10 +75,18 @@ $decisionPrelude = @'
         $savedExplanation = Get-GovernedExplanationView -Summary $Summary
         if ($savedExplanation.Ready) {
             $explanationDisplay = [string]$savedExplanation.ExplanationText
+            # This exact frozen method mentions an internal comparator ID,
+            # not a missing replacement player. Public ID stripping otherwise
+            # turns its ending into "replacement by .". Translate only the
+            # recognized saved statement; preserve all other method text.
+            $samePositionMethod = 'The add is the unique historical finalist directionally supported over every other same-position historical finalist under the frozen BF-614 evidence method, and the drop is the unique weakest production-backed exact-position BENCH/RESERVE comparator already directionally supported for replacement by BF-615.'
+            if ($explanationDisplay -ceq $samePositionMethod) {
+                $explanationDisplay = 'The saved historical comparison supports the recommended add over the other finalists at the same position. It identifies the recommended drop as the weakest supported bench or reserve comparator at that position. These are recorded method results, not weekly point projections.'
+            }
             # Replace only the known leading policy identifier, preserving the saved evidence.
             $explanationDisplay = $explanationDisplay -replace '^BF-\d+(?:/BF-\d+)*\s+produced\b', 'Butler produced'
             $waiverEvidenceHtml = @"
-<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
+<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>Original saved method record</p><pre>$(ConvertTo-HtmlText $savedExplanation.ExplanationText)</pre><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
 "@
         }
         else {
