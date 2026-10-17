@@ -756,9 +756,16 @@ function Send-HttpResponse {
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'`r`n" +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($headerBytes, 0, $headerBytes.Length)
+        $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException], [System.Net.Sockets.SocketException] {
+        # A closed or timed-out client must not terminate its server/worker.
+        if ($Stream -is [System.Net.Sockets.NetworkStream]) { return }
+        throw
+    }
 }
 
 $innerPort = Get-FreeLoopbackPort

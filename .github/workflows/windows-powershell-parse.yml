@@ -391,7 +391,9 @@ jobs:
           & '.\scripts\butler-accessibility-acceptance.ps1'
           & '.\scripts\butler-bf958-my-team-section-nav-acceptance.ps1'
           & '.\scripts\butler-bf954-dashboard-matchup-actions-acceptance.ps1'
-          & '.\scripts\butler-dashboard-disconnect-acceptance.ps1'
+          foreach ($source in @('butler-dashboard.ps1','butler-app-shell-core-single.ps1','butler-app-shell.ps1','butler-app-request-worker.ps1')) {
+            & '.\scripts\butler-dashboard-disconnect-acceptance.ps1' -ResponseSource $source
+          }
 
       - name: Exercise verification hardening fixtures
         shell: powershell

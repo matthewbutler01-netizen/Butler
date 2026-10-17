@@ -1,12 +1,16 @@
+param([ValidateSet('butler-dashboard.ps1','butler-app-shell-core-single.ps1','butler-app-shell.ps1','butler-app-request-worker.ps1')][string]$ResponseSource = 'butler-dashboard.ps1')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
-$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'butler-dashboard.ps1'), [ref]$tokens, [ref]$errors)
+$ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $ResponseSource), [ref]$tokens, [ref]$errors)
 if (@($errors).Count) { throw 'Dashboard parse failed.' }
 $functions = @($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Send-HttpResponse'}, $true))
 if ($functions.Count -ne 1) { throw 'Dashboard response function is not unique.' }
 . ([scriptblock]::Create($functions[0].Extent.Text))
+$bf856RouteTimingEnabled = $false
+$bf857CoreTimingEnabled = $false
 
+if (-not ('ButlerDisconnectTestStream' -as [type])) {
 Add-Type -TypeDefinition @'
 using System;
 using System.IO;
@@ -38,6 +42,7 @@ public sealed class ButlerUnexpectedWriteStream : MemoryStream {
     }
 }
 '@
+}
 
 foreach ($socketError in @($false, $true)) {
     foreach ($stage in @(1, 2, 3)) {
