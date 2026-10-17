@@ -75,10 +75,18 @@ $decisionPrelude = @'
         $savedExplanation = Get-GovernedExplanationView -Summary $Summary
         if ($savedExplanation.Ready) {
             $explanationDisplay = [string]$savedExplanation.ExplanationText
+            # This exact frozen method mentions an internal comparator ID,
+            # not a missing replacement player. Public ID stripping otherwise
+            # turns its ending into "replacement by .". Translate only the
+            # recognized saved statement; preserve all other method text.
+            $samePositionMethod = 'The add is the unique historical finalist directionally supported over every other same-position historical finalist under the frozen BF-614 evidence method, and the drop is the unique weakest production-backed exact-position BENCH/RESERVE comparator already directionally supported for replacement by BF-615.'
+            if ($explanationDisplay -ceq $samePositionMethod) {
+                $explanationDisplay = 'The saved historical comparison supports the recommended add over the other finalists at the same position. It identifies the recommended drop as the weakest supported bench or reserve comparator at that position. These are recorded method results, not weekly point projections.'
+            }
             # Replace only the known leading policy identifier, preserving the saved evidence.
             $explanationDisplay = $explanationDisplay -replace '^BF-\d+(?:/BF-\d+)*\s+produced\b', 'Butler produced'
             $waiverEvidenceHtml = @"
-<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
+<div class="waiver-pair-note"><strong>Saved recommendation evidence</strong><p>$(ConvertTo-HtmlText $explanationDisplay)</p><p>Source season: not recorded in this saved explanation. The comparison value is not a weekly points projection.</p><details><summary>Recorded source and scoring coverage</summary><p>Original saved method record</p><pre>$(ConvertTo-HtmlText $savedExplanation.ExplanationText)</pre><p>$(ConvertTo-HtmlText $savedExplanation.EvidenceTrace)</p></details></div>
 "@
         }
         else {
@@ -137,6 +145,7 @@ if ($returnStart -lt 0) {
 $managerReturn = @'
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - Waiver Board</title><style>$css
+.waiver-pair-note pre{max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 .waiver-decision-hero{border-color:#35507e}.waiver-decision-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.waiver-decision-head h1{margin-bottom:7px}.waiver-state-line{color:#9ba8c8;font-size:12px;margin-top:10px}.waiver-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.waiver-action-card{padding:17px;border:1px solid #2b3962;border-radius:14px;background:#0d1630}.waiver-action-card.add{border-left:4px solid #2d8a5f}.waiver-action-card.drop{border-left:4px solid #a64d5c}.waiver-action-label{font-size:11px;font-weight:900;letter-spacing:.1em;color:#8ea0c7}.waiver-action-name{font-size:22px;font-weight:900;margin-top:5px}.waiver-action-meta{font-size:12px;color:#9ba8c8;margin-top:4px}.waiver-pair-note{margin-top:10px;color:#aebada;font-size:12px}.waiver-next{margin-top:18px;padding:15px 16px;border:1px solid #33436f;border-radius:14px;background:#0a142c}.waiver-next strong{display:block;margin-bottom:5px}.waiver-next p{margin:0;color:#cbd4eb}.waiver-board-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.waiver-board-head .lede{max-width:760px}@media(max-width:760px){.waiver-decision-head,.waiver-board-head{display:block}.waiver-decision-head .status{display:inline-block;margin-top:10px}.waiver-pair{grid-template-columns:1fr}}
 </style></head><body><main class="shell">
 $header

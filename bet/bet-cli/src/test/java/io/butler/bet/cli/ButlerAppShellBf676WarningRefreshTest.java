@@ -84,11 +84,19 @@ class ButlerAppShellBf676WarningRefreshTest {
         int staleEnd = runner.indexOf("elseif ($decisionState -ceq 'CURRENT_REFRESH_RECOMMENDED')", staleStart);
         assertTrue(staleStart >= 0 && staleEnd > staleStart);
         String stale = runner.substring(staleStart, staleEnd);
-        assertTrue(stale.contains("$bf629State -cne 'LIVE_ACTIONABLE_VERIFIED'"));
+        // BF-1529 adds ONE manual-only exception for a BF-629-proven
+        // adjacent regular-season week. Old moves are not reauthorized.
+        assertTrue(stale.contains("$bf629State -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT'"));
+        assertTrue(stale.contains("Test-Bf676NoTransactionLineage -LineageState $bf631State"));
+        assertTrue(stale.contains("OLD ADD/DROP REMAINS BLOCKED"));
+        assertTrue(stale.contains("BF-840 must verify the current matchup"));
+        // Legacy superseded evidence remains separate and requires exact
+        // verified player availability instead of an unknown/held week.
+        assertTrue(stale.contains("$bf629State -ceq 'LIVE_ACTIONABLE_VERIFIED'"));
         assertTrue(stale.contains("'MARKET_LINEAGE_SUPERSEDED'"));
         assertTrue(stale.contains("'WAIVER_LINEAGE_SUPERSEDED'"));
         assertTrue(stale.contains("'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'"));
-        assertTrue(stale.contains("-cnotcontains $bf631State"));
+        assertTrue(stale.contains("-ccontains $bf631State"));
         assertTrue(stale.contains("throw 'BF-676 BLOCKED:"));
         assertFalse(runner.contains("$decisionState -ceq 'TRANSACTION_PENDING_DO_NOT_DUPLICATE'"));
         assertFalse(runner.contains("$decisionState -ceq 'TRANSACTION_ALREADY_COMPLETE'"));

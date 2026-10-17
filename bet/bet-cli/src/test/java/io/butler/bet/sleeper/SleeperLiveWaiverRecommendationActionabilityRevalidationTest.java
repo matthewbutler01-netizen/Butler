@@ -193,13 +193,13 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
     }
 
     @Test
-    void priorWeekAuditedMoveIsHeldBeforeLiveRosterRead() throws Exception {
+    void immediateRolloverAuditedMoveIsHeldBeforeLiveRosterRead() throws Exception {
         var service = new SleeperLiveWaiverRecommendationActionabilityRevalidation(
             ignored -> recommendationHistory(), ignored -> {
                 throw new AssertionError("rosters must not be read after stale week");
             }, (league, round) -> "[]", () -> nflState(2026, 2, "regular"));
         var report = service.revalidate(target());
-        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
+        assertEquals(SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT,
             report.state());
         assertEquals(0, report.currentRosterCount());
         assertEquals("7049", report.addSleeperPlayerId());
@@ -216,17 +216,30 @@ class SleeperLiveWaiverRecommendationActionabilityRevalidationTest {
     }
 
     @Test
-    void olderSeasonAndPostseasonNeverCertifyPriorRegularWeekMove() throws Exception {
+    void differentSeasonPostseasonOrMultiWeekDriftNeverCertifyMove() throws Exception {
         for (String publicState : List.of(
             nflState(2025, 1, "regular"),
             nflState(2026, 1, "post"),
-            nflState(2026, 2, "regular"))) {
+            nflState(2026, 3, "regular"))) {
             var report = service(recommendationHistory(),
                 List.of(roster(6, "owner", "12503")), "[]", publicState).revalidate(target());
             assertEquals(
                 SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
                 report.state());
         }
+    }
+
+    @Test
+    void nextRegularWeekRolloverDoesNotMakeOldAddDropActionable() throws Exception {
+        var report = service(recommendationHistory(), List.of(
+            roster(6, "owner", "12503", "900")),
+            "[]", nflState(2026, 2, "regular")).revalidate(target());
+        assertEquals(
+            SleeperLiveWaiverRecommendationActionabilityRevalidation.ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT,
+            report.state());
+        assertEquals(0, report.currentRosterCount());
+        assertEquals("7049", report.addSleeperPlayerId());
+        assertEquals("12503", report.dropSleeperPlayerId());
     }
 
     @Test

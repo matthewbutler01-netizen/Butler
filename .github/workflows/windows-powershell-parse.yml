@@ -18,6 +18,7 @@ on:
       - bf1526-v04-beta-pack-verified-waiver
       - bf1527-one-click-exact-checkout
       - bf1528-week-rollover-readonly-gate
+      - bf1529-governed-week-rollover-refresh
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
@@ -65,6 +66,12 @@ jobs:
           & '.\scripts\butler-automatic-startsit-refresh-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-waiver-evidence-display-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-dashboard-audit-presentation-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-roster-recovery-order-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
           if (-not $?) { exit 1 }

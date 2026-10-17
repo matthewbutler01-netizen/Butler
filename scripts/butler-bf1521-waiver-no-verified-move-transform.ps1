@@ -42,8 +42,24 @@ foreach ($expected in @(
 }
 $helpers = @'
 function Get-Bf1521WaiverDecisionClarity {
-    param([AllowNull()][string]$State, [int]$CandidateCount = 0)
+    param(
+        [AllowNull()][string]$State,
+        [int]$CandidateCount = 0,
+        [AllowNull()][string]$Actionability
+    )
 
+    # BF-1529: an independently verified NEXT NFL week is not a live move.
+    # Make the previously audited ADD/DROP unambiguously historical at a glance.
+    if ($State -ceq 'STALE_DO_NOT_ACT' -and
+        $Actionability -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT') {
+        return [pscustomobject]@{
+            Title = 'Previous-week waiver move - do not act'
+            Copy = 'Sleeper verified that the regular-season NFL week advanced. The saved ADD / DROP belongs to the previous week and cannot be submitted as a current recommendation.'
+            Status = 'NEW WEEK - HOLD'
+            Class = 'warn'
+            Next = 'Recheck current-week waiver evidence using the separate confirmation step. A new recommendation requires independently governed current-week evidence and approval.'
+        }
+    }
     # Decision-state interpretation only. No new ranking or source action.
     switch -CaseSensitive ($State) {
         'NO_TRANSACTION_TO_ACT_ON' {
@@ -84,15 +100,28 @@ function Get-Bf1521WaiverRefreshLink {
     # Align exactly with BF-676 NO_TRANSACTION_TO_ACT_ON manual preflight.
     # A link is a confirmation-only capability: /refresh POST still
     # authorizes each Butler-local evidence write independently.
-    if ($State -cne 'NO_TRANSACTION_TO_ACT_ON' -or
-        $Actionability -cne 'NO_TRANSACTION_TO_REVALIDATE' -or
-        @('LATEST_EVIDENCE_LINEAGE_VERIFIED',
-          'MARKET_LINEAGE_SUPERSEDED',
-          'WAIVER_LINEAGE_SUPERSEDED',
-          'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED') -cnotcontains $Lineage) {
-        return ''
+    $lineageAllowed = @(
+        'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+        'MARKET_LINEAGE_SUPERSEDED',
+        'WAIVER_LINEAGE_SUPERSEDED',
+        'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED'
+    ) -ccontains $Lineage
+    if (-not $lineageAllowed) { return '' }
+
+    # BF-1529: a prior-week recommendation is HISTORY, never approval.
+    # This exact BF-629 state can only arise from a read-only public NFL
+    # state proving the immediately next regular-season week. /refresh POST
+    # runs its own independent preflight before any Butler-local evidence
+    # write and NEVER submits a Sleeper waiver transaction.
+    if ($State -ceq 'STALE_DO_NOT_ACT' -and
+        $Actionability -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT') {
+        return '<a class="button" href="/refresh">Recheck current-week waiver evidence (confirmation required; old move blocked)</a>'
     }
-    return '<a class="button" href="/refresh">Check latest waiver evidence (confirmation required)</a>'
+    if ($State -ceq 'NO_TRANSACTION_TO_ACT_ON' -and
+        $Actionability -ceq 'NO_TRANSACTION_TO_REVALIDATE') {
+        return '<a class="button" href="/refresh">Check latest waiver evidence (confirmation required)</a>'
+    }
+    return ''
 }
 '@
 $helperAt = $waiverFn.Extent.StartOffset
@@ -116,7 +145,7 @@ if ($returnAt -lt 0) { throw 'BF-1521 BLOCKED: final Waiver Board return not fou
 $clarifier = @'
     # BF-1521: a saved NO TRANSACTION decision is not a current-week
     # free-agent search. Do not invent rankings or authorize any add/drop.
-    $bf1521Clarity = Get-Bf1521WaiverDecisionClarity -State ([string]$current.State) -CandidateCount ([int]$counts.Total)
+    $bf1521Clarity = Get-Bf1521WaiverDecisionClarity -State ([string]$current.State) -CandidateCount ([int]$counts.Total) -Actionability ([string]$current.Bf629)
     if ($null -ne $bf1521Clarity) {
         $waiverDecisionTitle = $bf1521Clarity.Title
         $waiverDecisionCopy = $bf1521Clarity.Copy

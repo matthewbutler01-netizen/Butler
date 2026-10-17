@@ -39,6 +39,75 @@ foreach ($live in @('LIVE_ACTIONABLE_VERIFIED','AUDITED_TRANSACTION_PENDING','AU
         if (($rendered -match 'href="/refresh"') -ne $expected) { throw 'Presentation and runner eligibility differ' }
     }
 }
+# BF-1529: only the independently verified immediately next NFL week can
+# re-enter the already governed nine-stage refresh chain. The old player pair
+# is never actionable; the UI offers manual confirmation only.
+$rolloverLineages = @(
+    'LATEST_EVIDENCE_LINEAGE_VERIFIED',
+    'MARKET_LINEAGE_SUPERSEDED',
+    'WAIVER_LINEAGE_SUPERSEDED',
+    'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED')
+foreach ($bf629 in @(
+    'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT',
+    'AUDITED_WEEK_MISMATCH_DO_NOT_ACT',
+    'AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT',
+    'AUDITED_TRANSACTION_PENDING',
+    'AUDITED_TRANSACTION_COMPLETE',
+    '')) {
+    foreach ($lineage in ($rolloverLineages + @('UNKNOWN', ''))) {
+        $script:summary = "Decision status: STALE_DO_NOT_ACT`nBF-629 live actionability: $bf629`nBF-631 evidence lineage: $lineage"
+        $script:calls = [Collections.Generic.List[string]]::new()
+        $script:failAt = ''
+        $allowed = $bf629 -ceq 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT' -and
+            $rolloverLineages -ccontains $lineage
+        $blocked=$false
+        try { & $flow | Out-Null } catch { $blocked=$true }
+        if ($blocked -eq $allowed) {
+            throw "BF-1529 BLOCKED: rollover preflight mismatch for $bf629 / $lineage"
+        }
+        if ($allowed) {
+            if ($script:calls.Count -ne 11 -or
+                $script:calls[1] -notmatch 'CurrentWeekMatchupSync$' -or
+                $script:calls[9] -notmatch 'AuditCapture$' -or
+                $script:calls[10] -notmatch 'DecisionSummary$') {
+                throw 'BF-1529 BLOCKED: fresh current-week cycle did not preserve nine governed stages and BF-840 first.'
+            }
+        } elseif ($script:calls.Count -ne 1) {
+            throw 'BF-1529 BLOCKED: unsafe rollover executed an evidence write stage.'
+        }
+        $dashboard = '<nav class="nav" aria-label="Butler sections"></nav>' +
+            "<div>Decision state: STALE_DO_NOT_ACT</div><div>BF-629: $bf629</div><div>BF-631: $lineage</div>"
+        $link = Add-DecisionRefreshControl -Html $dashboard -RequestTarget '/'
+        if ($link.Contains('href="/refresh"')) {
+            throw 'BF-1529 BLOCKED: automatic Dashboard source acquired rollover refresh capability.'
+        }
+        $auto = Add-AutomaticDashboardRefresh -Html $link -RequestTarget '/' -Token ('f' * 64)
+        if (-not [string]::IsNullOrWhiteSpace([string]$auto.Nonce)) {
+            throw 'BF-1529 BLOCKED: automatic Dashboard refresh was armed by old-week evidence.'
+        }
+    }
+}
+$PreflightOnly = $true
+$script:summary = "Decision status: STALE_DO_NOT_ACT`nBF-629 live actionability: AUDITED_WEEK_ROLLOVER_DO_NOT_ACT`nBF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED"
+$script:calls = [Collections.Generic.List[string]]::new()
+& $flow | Out-Null
+if ($script:calls.Count -ne 1) {
+    throw 'BF-1529 BLOCKED: rollover preflight-only wrote new evidence.'
+}
+$PreflightOnly = $false
+# BF-1529: a failed BF-840 current-week sync MUST abort
+# before BF-602 or any other WAIVER evidence write.
+$script:summary = "Decision status: STALE_DO_NOT_ACT`nBF-629 live actionability: AUDITED_WEEK_ROLLOVER_DO_NOT_ACT`nBF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED"
+$script:calls = [Collections.Generic.List[string]]::new()
+$script:failAt = ':bet:bet-cli:sleeperCurrentWeekMatchupSync'
+$failed = $false
+try { & $flow | Out-Null } catch { $failed = $true }
+if (-not $failed -or $script:calls.Count -ne 2 -or
+    $script:calls[1] -notmatch 'CurrentWeekMatchupSync$') {
+    throw 'BF-1529 BLOCKED: BF-840 failure allowed rollover waiver evidence writes.'
+}
+$script:failAt = ''
+
 $script:summary = "Decision status: STALE_DO_NOT_ACT`nBF-629 live actionability: LIVE_ACTIONABLE_VERIFIED`nBF-631 evidence lineage: MARKET_LINEAGE_SUPERSEDED"
 $script:calls = [Collections.Generic.List[string]]::new()
 $PreflightOnly = $true

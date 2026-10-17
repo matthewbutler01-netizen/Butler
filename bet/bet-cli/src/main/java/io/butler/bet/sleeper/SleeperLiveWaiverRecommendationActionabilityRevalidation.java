@@ -80,9 +80,12 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         // Current-week proof is independent of the saved BF-628/BF-603 frame.
         CurrentWeekProof weekProof = verifyAuditedWeek(latest);
         if (weekProof != CurrentWeekProof.MATCH) {
-            ActionabilityState hold = weekProof == CurrentWeekProof.MISMATCH
-                ? ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT
-                : ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT;
+            ActionabilityState hold = switch (weekProof) {
+                case NEXT_REGULAR_WEEK -> ActionabilityState.AUDITED_WEEK_ROLLOVER_DO_NOT_ACT;
+                case MISMATCH -> ActionabilityState.AUDITED_WEEK_MISMATCH_DO_NOT_ACT;
+                case UNVERIFIED -> ActionabilityState.AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT;
+                case MATCH -> throw new IllegalStateException("BF-1529 unexpected matching rollover hold");
+            };
             return report(target, latest, hold, addId, dropId, null, null, 0);
         }
 
@@ -160,10 +163,15 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
             }
             int currentWeek = week.intValue();
             if (currentWeek < 1 || currentWeek > 18) return CurrentWeekProof.UNVERIFIED;
-            return Integer.toString(audit.providerSeason()).equals(season)
-                && "regular".equals(seasonType)
-                && audit.providerLeg() == currentWeek
-                ? CurrentWeekProof.MATCH : CurrentWeekProof.MISMATCH;
+            boolean sameRegularSeason = Integer.toString(audit.providerSeason()).equals(season)
+                && "regular".equals(seasonType);
+            if (!sameRegularSeason) return CurrentWeekProof.MISMATCH;
+            if (audit.providerLeg() == currentWeek) return CurrentWeekProof.MATCH;
+            // BF-1529 authorizes *only a new manual governed evidence cycle* when
+            // public source explicitly proves the NEXT regular-season week.
+            // This never makes the old add/drop actionable.
+            if (audit.providerLeg() + 1 == currentWeek) return CurrentWeekProof.NEXT_REGULAR_WEEK;
+            return CurrentWeekProof.MISMATCH;
         } catch (IOException | RuntimeException malformed) {
             return CurrentWeekProof.UNVERIFIED;
         }
@@ -304,7 +312,7 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         String fetch() throws IOException, InterruptedException;
     }
 
-    private enum CurrentWeekProof { MATCH, MISMATCH, UNVERIFIED }
+    private enum CurrentWeekProof { MATCH, NEXT_REGULAR_WEEK, MISMATCH, UNVERIFIED }
     private enum TransactionMatch { NONE, PENDING, COMPLETE }
 
     public enum ActionabilityState {
@@ -312,6 +320,7 @@ public final class SleeperLiveWaiverRecommendationActionabilityRevalidation {
         NO_TRANSACTION_TO_REVALIDATE,
         LIVE_ACTIONABLE_VERIFIED,
         AUDITED_WEEK_MISMATCH_DO_NOT_ACT,
+        AUDITED_WEEK_ROLLOVER_DO_NOT_ACT,
         AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT,
         AUDITED_TRANSACTION_PENDING,
         AUDITED_TRANSACTION_COMPLETE,

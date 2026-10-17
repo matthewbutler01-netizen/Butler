@@ -1199,6 +1199,10 @@ function Limit-V04AutoPilotToSourcedStartSit {
     )
     if (-not [bool]$WatchState.Ready) { return $WatchState }
 
+    # An observed hold explains a blocked packet; it never grants approval.
+    # Clear it on every evaluation so a reused watch cannot retain old reasons.
+    $WatchState.PSObject.Properties.Remove('StartSitObservedEvidenceGap')
+
     # The current week and opponent must match on BOTH routes, not just
     # independently show a green "MATCH" badge.
     $matchup = Get-V04AutoPilotExactPageFrame -Html $MatchupHtml
@@ -1208,6 +1212,22 @@ function Limit-V04AutoPilotToSourcedStartSit {
         $valid = $matchup.Season -ceq $startSit.Season -and
             $matchup.Week -ceq $startSit.Week -and
             $matchup.League -ceq $startSit.League
+    }
+    if ($valid) {
+        $observedProof = [regex]::Matches($StartSitHtml,
+            '(?is)<p\s+class="meta butler-startsit-source-proof"\s+role="status"\s*>(?<text>[^<]*)</p>')
+        if ($observedProof.Count -eq 1) {
+            $observedMessage = [System.Net.WebUtility]::HtmlDecode($observedProof[0].Groups['text'].Value)
+            $observedHolds = [regex]::Matches($observedMessage, '\b[0-9]+ player holds?\b')
+            $partialClaims = [regex]::Matches($observedMessage,
+                'Partial projection coverage; missing projections are not zeros')
+            if ($observedHolds.Count -eq 1 -and
+                $observedHolds[0].Value -cmatch '^[1-9][0-9]{0,2} player holds?$' -and
+                $partialClaims.Count -eq 1 -and
+                $observedMessage.IndexOf('Full scoreable projection coverage', [StringComparison]::Ordinal) -lt 0) {
+                $WatchState | Add-Member -NotePropertyName StartSitObservedEvidenceGap -NotePropertyValue 'PARTIAL_WITH_HOLDS' -Force
+            }
+        }
     }
     if ($valid -and
         ($StartSitHtml.IndexOf('class="callout callout-danger start-sit-blocker"', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
@@ -1624,6 +1644,12 @@ function Get-V04AutoPilotHtml {
     elseif ($sourceNoChange) {
         $sourceReasonCode = 'verified-no-change'
         $sourceReason = 'The complete projection frame supports keeping the current lineup. Recheck injury news before kickoff.'
+    }
+    elseif ($lineupSourceHeld -and
+            $null -ne $WatchState.PSObject.Properties['StartSitObservedEvidenceGap'] -and
+            [string]$WatchState.StartSitObservedEvidenceGap -ceq 'PARTIAL_WITH_HOLDS') {
+        $sourceReasonCode = 'partial-projections-player-holds'
+        $sourceReason = 'The matching current-week Start/Sit page reports partial projection coverage and player holds. Review the missing projections and player evidence there. No lineup swap is prepared; source freshness is not independently verified.'
     }
     elseif ($null -ne $WatchState.PSObject.Properties['StartSitReadIssue'] -and
             [string]$WatchState.StartSit -ceq 'BLOCKED - CHECK START/SIT' -and

@@ -139,14 +139,14 @@ try {
     foreach ($target in @('/', '/team', '/waivers', '/league', '/matchup')) {
         $fixtureProof = ''
         if ($target -ceq '/') {
-            # BF-M2: the real manager response strips this technical
-            # disclosure from the visible Dashboard. Preserve exactly the
-            # three audited enum fields in a hidden source contract instead.
+            # Match the real Dashboard's hidden refresh contract, which
+            # survives friendly-language translation. Technical disclosures
+            # alone miss duplicate friendly/canonical state labels on the wire.
             $fixtureProof = '<div class="dashboard-summary-row"><div class="dashboard-summary-card">Synthetic</div></div>' +
-                '<details><summary>Technical details</summary><div class="tech">' +
+                '<div class="butler-refresh-contract" hidden>' +
                 '<div>Decision state: CURRENT_AND_ACTIONABLE</div>' +
                 '<div>BF-629: LIVE_ACTIONABLE_VERIFIED</div>' +
-                '<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div></details>'
+                '<div>BF-631: LATEST_EVIDENCE_LINEAGE_VERIFIED</div></div>'
         }
         elseif ($target -ceq '/team') {
             $fixtureProof = '<div class="butler-m1-roster-proof" hidden><div>BF-M1 target gate: BOUND_TARGET_LIVE_VERIFIED</div><div>BF-M1 role: OWNER</div><div>BF-M1 raw Sleeper league / roster: 2026 / 3</div><div>BF-M1 local binding: BF668_PROVEN_ROSTER</div></div>'
