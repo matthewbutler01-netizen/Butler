@@ -20,3 +20,10 @@ introduced.
 Local HTTP fixtures check request counts, independent week interpretation and
 retry after a failed resource. Live timings remain observations rather than a
 benchmark or proof of a universal response-time improvement.
+
+A controlled-clock HTTP fixture also checks the exact 15-minute expiry boundary:
+successful evidence is reusable just before expiry, a failed refresh at expiry
+throws rather than returning expired data, further calls retry, and a later
+successful refresh restores evidence. Refreshed schedule data remains shared
+with kickoff-lock checks. The production constructor still uses the UTC system
+clock; the package-private clock constructor exists for deterministic validation.
