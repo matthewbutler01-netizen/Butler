@@ -59,6 +59,16 @@ function Get-Bf808AutoFillSnapshotPath {
         $safeLeagueKey = 'league'
     }
     $directory = Join-Path $root 'Butler\autofill-preview'
+    # Explicit process-scoped isolation for acceptance sessions. The default
+    # owner preview location remains unchanged when no override is supplied.
+    $previewOverride = [string]$env:BUTLER_APP_PREVIEW_DIR
+    if (-not [string]::IsNullOrWhiteSpace($previewOverride)) {
+        if (-not [IO.Path]::IsPathRooted($previewOverride) -or
+            $previewOverride -notmatch '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
+            throw 'BF-808 BLOCKED: BUTLER_APP_PREVIEW_DIR must be an absolute path.'
+        }
+        $directory = [IO.Path]::GetFullPath($previewOverride)
+    }
     return Join-Path $directory ($safeLeagueKey + '.json')
 }
 
@@ -214,6 +224,16 @@ function Get-Bf808AutoFillSnapshotPath {
         $safeLeagueKey = 'league'
     }
     $directory = Join-Path $root 'Butler\autofill-preview'
+    # Explicit process-scoped isolation for acceptance sessions. The default
+    # owner preview location remains unchanged when no override is supplied.
+    $previewOverride = [string]$env:BUTLER_APP_PREVIEW_DIR
+    if (-not [string]::IsNullOrWhiteSpace($previewOverride)) {
+        if (-not [IO.Path]::IsPathRooted($previewOverride) -or
+            $previewOverride -notmatch '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
+            throw 'BF-808 BLOCKED: BUTLER_APP_PREVIEW_DIR must be an absolute path.'
+        }
+        $directory = [IO.Path]::GetFullPath($previewOverride)
+    }
     return Join-Path $directory ($safeLeagueKey + '.json')
 }
 

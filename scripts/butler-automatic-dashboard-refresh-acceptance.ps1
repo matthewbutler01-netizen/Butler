@@ -24,6 +24,26 @@ if ($ok.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
 }
 
 # No-transaction decisions still allow explicit manual checks, not repeated
+$production=$dashboard.Replace('<body>','<body class="dashboard-page">').Replace('<nav class="nav" aria-label="Butler sections"></nav>','<aside class="manager-playbook" aria-label="Butler sections"></aside>')
+$production=Add-DecisionRefreshControl -Html $production -RequestTarget '/'
+$productionResult=Add-AutomaticDashboardRefresh -Html $production -RequestTarget '/' -Token $token
+if ($productionResult.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
+    -not $productionResult.Html.Contains('<body class="dashboard-page"><div style="padding:16px" role="status">') -or
+    -not $productionResult.Html.Contains('<aside class="manager-playbook" aria-label="Butler sections"><a href="/refresh">Refresh Butler data</a></aside>')) {
+    throw 'Production Dashboard sidebar/body omitted governed refresh.'
+}
+foreach($badProduction in @(
+    $production.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED','BF-629: BLOCKED'),
+    $production.Replace('</aside>','</aside><nav class="nav" aria-label="Butler sections"></nav>'),
+    $production.Replace('<body class="dashboard-page">','<body class="dashboard-page"><body>'),
+    $production.Replace('<body class="dashboard-page">','<body class="dashboard-page"><BODY>'),
+    $production.Replace('<body class="dashboard-page">','<body class="dashboard-page extra">')
+)) {
+    $blocked=Add-AutomaticDashboardRefresh -Html $badProduction -RequestTarget '/' -Token $token
+    if ($blocked.Nonce -ne '' -or $blocked.Html -cne $badProduction) { throw 'Production markup bypassed audit/body/navigation guards.' }
+}
+
+# No-transaction decisions still allow explicit manual checks, not repeated
 # automatic nine-stage refreshes just because someone opens the Dashboard.
 foreach ($bad in @(
     $dashboard,

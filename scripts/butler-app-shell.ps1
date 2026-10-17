@@ -112,10 +112,13 @@ function Start-AppCore {
     $start.Arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$coreShell`" -LeagueId `"$LeagueId`" -Port $InnerPort -NoBrowser"
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
+    $start.RedirectStandardError = $true
+    . (Join-Path $scriptDir 'butler-startup-stderr.ps1')
     $process = [System.Diagnostics.Process]::Start($start)
     if ($null -eq $process) {
         throw 'BF-670 BLOCKED: unable to start the preserved Butler app core.'
     }
+    $process | Add-Member -NotePropertyName ButlerStartupStderr -NotePropertyValue ([ButlerStartupStderrTail]::new($process.StandardError, 16384))
     return $process
 }
 
@@ -127,7 +130,9 @@ function Wait-ForAppCore {
 
     for ($attempt = 0; $attempt -lt 240; $attempt++) {
         if ($Process.HasExited) {
-            throw 'BF-670 BLOCKED: preserved Butler app core exited during startup.'
+            . (Join-Path $scriptDir 'butler-startup-stderr.ps1')
+            $diagnostic = Save-ButlerStartupFailure -Process $Process
+            throw ('BF-670 BLOCKED: preserved Butler app core exited during startup.' + $diagnostic)
         }
         try {
             $request = [System.Net.HttpWebRequest]::Create("http://127.0.0.1:$InnerPort/health")
@@ -146,7 +151,9 @@ function Wait-ForAppCore {
         }
         Start-Sleep -Milliseconds 250
     }
-    throw 'BF-670 BLOCKED: preserved Butler app core did not become healthy.'
+    . (Join-Path $scriptDir 'butler-startup-stderr.ps1')
+    $diagnostic = Save-ButlerStartupFailure -Process $Process
+    throw ('BF-670 BLOCKED: preserved Butler app core did not become healthy.' + $diagnostic)
 }
 
 function Stop-AppCoreTree {
@@ -227,9 +234,16 @@ function Send-HttpResponse {
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`r`n" +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($headerBytes, 0, $headerBytes.Length)
+        $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException], [System.Net.Sockets.SocketException] {
+        # A closed or timed-out client must not terminate its server/worker.
+        if ($Stream -is [System.Net.Sockets.NetworkStream]) { return }
+        throw
+    }
 }
 
 $maxRequestWorkers = 8

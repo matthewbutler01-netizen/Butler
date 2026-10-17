@@ -19,12 +19,16 @@ on:
       - bf1527-one-click-exact-checkout
       - bf1528-week-rollover-readonly-gate
       - bf1529-governed-week-rollover-refresh
+      - bf-v04-fantasy-workflow-study
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
       - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/main/java/**'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/build.gradle.kts'
   pull_request:
     branches:
       - main
@@ -34,6 +38,9 @@ on:
       - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/main/java/**'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/build.gradle.kts'
 
 concurrency:
   group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
@@ -124,6 +131,12 @@ jobs:
           & '.\scripts\butler-bf1068-source-timestamps-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1074-autopilot-sourced-startsit-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-weekly-decision-queue-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-preview-cache-isolation-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-startup-stderr-acceptance.ps1'
           if (-not $?) { exit 1 }
           node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -378,7 +391,13 @@ jobs:
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell
-        run: .\scripts\butler-accessibility-acceptance.ps1
+        run: |
+          & '.\scripts\butler-accessibility-acceptance.ps1'
+          & '.\scripts\butler-bf958-my-team-section-nav-acceptance.ps1'
+          & '.\scripts\butler-bf954-dashboard-matchup-actions-acceptance.ps1'
+          foreach ($source in @('butler-dashboard.ps1','butler-app-shell-core-single.ps1','butler-app-shell.ps1','butler-app-request-worker.ps1')) {
+            & '.\scripts\butler-dashboard-disconnect-acceptance.ps1' -ResponseSource $source
+          }
 
       - name: Exercise verification hardening fixtures
         shell: powershell

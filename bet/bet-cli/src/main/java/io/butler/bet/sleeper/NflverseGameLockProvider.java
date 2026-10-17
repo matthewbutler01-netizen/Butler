@@ -23,7 +23,13 @@ import java.util.Objects;
 final class NflverseGameLockProvider {
     static final ZoneId NFLVERSE_SCHEDULE_ZONE = ZoneId.of("America/New_York");
 
-    private final NflverseRosterUsageProvider downloads = new NflverseRosterUsageProvider();
+    private final NflverseRosterUsageProvider.TextSource downloads;
+
+    NflverseGameLockProvider() { this(new NflverseRosterUsageProvider()::download); }
+
+    NflverseGameLockProvider(NflverseRosterUsageProvider.TextSource downloads) {
+        this.downloads = Objects.requireNonNull(downloads);
+    }
 
     Map<String, GameLockEvidence> load(
         int season,

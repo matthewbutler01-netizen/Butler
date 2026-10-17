@@ -160,16 +160,21 @@ function Invoke-AppCoreGet {
 function Test-StartSitRosterDriftResponse {
     param(
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [AllowNull()][string]$Body
+        [AllowNull()][string]$Body,
+        [int]$StatusCode = 500
     )
 
     # Only exact My Team and Start/Sit roster-drift messages authorize the
     # already-governed BF-723 local evidence repair. Other routes stay read-only.
-    if (@('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
+    if ($StatusCode -ne 500 -or @('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
         [string]::IsNullOrWhiteSpace($Body)) {
         return $false
     }
 
+    $markers=[regex]::Matches($Body,'data-butler-roster-recovery=')
+    if ($markers.Count -gt 0) {
+        return $markers.Count -eq 1 -and [regex]::Matches($Body,'<div data-butler-roster-recovery="bf610-exact-drift-v1" role="status">').Count -eq 1
+    }
     return $Body.IndexOf(
         'current roster membership drifted',
         [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
@@ -613,6 +618,24 @@ function Add-ButlerAccessibility {
     # page-local section jumps. Every other manager surface receives the same
     # Playbook navigation shell here at the final public HTML boundary.
     $hasTeamWorkspace = $result.IndexOf('aria-label="Team workspace"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if ($hasTeamWorkspace) {
+        # The desktop team rail is hidden below 1200px. Keep its weekly tools
+        # reachable from the compact navigation too, without duplicating links
+        # supplied by a newer page renderer or changing the current-page state.
+        foreach ($tool in @(
+            @{ Href = '/matchup/autofill'; Label = 'Start/Sit Assistant' },
+            @{ Href = '/autopilot'; Label = 'Auto-Pilot' }
+        )) {
+            if ($navigation -notmatch ('href="' + [regex]::Escape($tool.Href) + '"')) {
+                $toolLink = '<a href="' + $tool.Href + '">' + $tool.Label + '</a>'
+                $anchor = '<a href="/matchup">'
+                if ($navigation.Contains($anchor)) {
+                    $navigation = $navigation.Replace($anchor, $toolLink + $anchor)
+                }
+                else { $navigation = $navigation.Replace('</nav>', $toolLink + '</nav>') }
+            }
+        }
+    }
     if (-not $hasTeamWorkspace) {
         $currentMatch = [regex]::Match($navigation, '(?is)<a\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
         $currentLabel = if ($currentMatch.Success) {
@@ -1957,9 +1980,16 @@ function Send-HttpResponse {
         $autoPilotFailureHeader +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($headerBytes, 0, $headerBytes.Length)
+        $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException], [System.Net.Sockets.SocketException] {
+        # A closed or timed-out client must not terminate its server/worker.
+        if ($Stream -is [System.Net.Sockets.NetworkStream]) { return }
+        throw
+    }
 }
 
 function Get-RefreshTokenSnapshot {
@@ -2373,7 +2403,7 @@ try {
         # exact proven BF-610 roster drift. The BF-723 script rechecks its own
         # strict authorization before any Butler-local evidence write; it never
         # submits a Sleeper transaction.
-        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
+        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body) -StatusCode ([int]$proxied.StatusCode)) {
             try {
                 Claim-LocalEvidenceRecovery -State $RefreshState
                 try {
@@ -2462,6 +2492,9 @@ try {
         }
         $autoRefresh = @{ Html = $body; Nonce = '' }
         if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/') {
+            if ($body.Contains('<aside class="manager-playbook" aria-label="Butler sections">')) {
+                $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
+            }
             $autoRefresh = Add-AutomaticDashboardRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {

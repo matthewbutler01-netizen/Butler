@@ -75,7 +75,7 @@ foreach ($marker in @(
     '<title>Butler - Auto-Pilot</title>',
     'AUTOMATION OFF',
     'Open Start/Sit Assistant',
-    'Auto-Pilot currently monitors and explains only.',
+    'No background job or Sleeper lineup, waiver, trade, or FAAB write is enabled in this build.',
     'if ($path -eq ''/autopilot'')',
     'if ($requestTarget -cne ''/autopilot'')'
 )) {

@@ -29,12 +29,20 @@ function Replace-ExactlyOnce {
 $core = [System.IO.File]::ReadAllText($CorePath)
 
 $helper = @'
+function Test-ButlerExactRosterDrift {
+    param([AllowNull()][string]$Reason)
+    if ($Reason -ceq 'BF-610_ROSTER_DRIFT_VERIFIED') { return $true }
+    return [regex]::IsMatch([string]$Reason,
+        'BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added=\[[0-9, ]*\] removed=\[[0-9, ]*\]; refresh BF-602/BF-603 and downstream live evidence before target-roster review')
+}
+
 function New-ManagerRecoveryPageHtml {
     param(
         [Parameter(Mandatory = $true)][string]$Title,
         [Parameter(Mandatory = $true)][string]$Status,
         [Parameter(Mandatory = $true)][string]$Summary,
         [AllowEmptyString()][string]$Detail = '',
+        [bool]$RosterDrift = $false,
         [ValidateSet('dashboard','team','matchup','waivers','league','trade','history')]
         [string]$Active = 'dashboard'
     )
@@ -48,13 +56,22 @@ function New-ManagerRecoveryPageHtml {
     if ($Detail -ceq 'UNVERIFIED_SOURCE') {
         $detailsHtml = '<details><summary>Technical details</summary><div class="technical">Read-only source information could not be verified. Do not act on this response.</div></details>'
     }
+    if ($RosterDrift) {
+        # Fixed safe proof only. Never include player IDs or raw exceptions.
+        $detailsHtml += '<div data-butler-roster-recovery="bf610-exact-drift-v1" role="status"><p>Saved roster evidence no longer matches the current roster. Advice stays held while Butler checks whether a governed local evidence repair is available.</p><a href="/refresh">Check refresh options</a></div>'
+    }
+    $boundaryCopy = if ($RosterDrift) {
+        'Advice remains held. An independently verified roster-drift condition may trigger one governed Butler-local evidence repair. No Sleeper roster, waiver, FAAB or trade change is submitted.'
+    } else {
+        'These actions only navigate inside Butler. This page does not refresh evidence, rerun a recommendation, submit a lineup, or execute a Sleeper transaction.'
+    }
 
     return @"
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>Butler - $(ConvertTo-HtmlText $Title)</title><style>$css</style></head><body><main class="shell">
 <header class="top"><div class="brand"><h1>BUTLER</h1><p>We're here to serve you. Less Research. Better Decisions.</p></div><div class="target">Recovery</div></header>
 $nav
 <section class="panel hero-panel"><div class="manager-head"><div><div class="eyebrow">Butler recovery</div><h1 class="headline">$(ConvertTo-HtmlText $Title)</h1><p class="lede">$(ConvertTo-HtmlText $Summary)</p></div><span class="status warn">$(ConvertTo-HtmlText $Status)</span></div><div class="button-row"><a class="btn btn-primary" href="/">Dashboard</a><a class="btn btn-secondary" href="/team">My Team</a><a class="btn btn-secondary" href="/league">League</a></div>$detailsHtml</section>
-<section class="panel boundary"><span class="lock">SAFE RECOVERY.</span> These actions only navigate inside Butler. This page does not refresh evidence, rerun a recommendation, submit a lineup, or execute a Sleeper transaction.</section>
+<section class="panel boundary"><span class="lock">SAFE RECOVERY.</span> $boundaryCopy</section>
 </main></body></html>
 "@
 }
@@ -89,12 +106,12 @@ $replacements = @(
     [pscustomobject]@{
         Contract = 'My Team blocked page'
         Old = $bf1119TeamOld
-        New = 'Write-Warning "BF-908 My Team runtime failure: unverified local read, error details omitted"; $errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Roster and lineup information could not be verified. No action was submitted." -Detail "UNVERIFIED_SOURCE" -Active "team"'
+        New = 'Write-Warning "BF-908 My Team runtime failure: unverified local read, error details omitted"; $errorHtml = New-ManagerRecoveryPageHtml -Title "My Team unavailable" -Status "STOPPED SAFELY" -Summary "Roster and lineup information could not be verified. No action was submitted." -Detail "UNVERIFIED_SOURCE" -Active "team" -RosterDrift (Test-ButlerExactRosterDrift -Reason ([string]$_.Exception.Message))'
     },
     [pscustomobject]@{
         Contract = 'generic app blocked page'
         Old = $bf1119GenericOld
-        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Butler could not complete this view" -Status "STOPPED SAFELY" -Summary "Butler stopped rather than continue with unverified matchup or waiver data." -Detail "UNVERIFIED_SOURCE" -Active "dashboard"'
+        New = '$errorHtml = New-ManagerRecoveryPageHtml -Title "Butler could not complete this view" -Status "STOPPED SAFELY" -Summary "Butler stopped rather than continue with unverified matchup or waiver data." -Detail "UNVERIFIED_SOURCE" -Active "dashboard" -RosterDrift (Test-ButlerExactRosterDrift -Reason ([string]$_.Exception.Message))'
     },
     [pscustomobject]@{
         Contract = 'Player Detail blocked page'
