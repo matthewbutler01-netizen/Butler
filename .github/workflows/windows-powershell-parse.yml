@@ -26,6 +26,7 @@ on:
       - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
   pull_request:
     branches:
       - main
@@ -35,6 +36,7 @@ on:
       - 'scripts/**/*.cjs'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
 
 concurrency:
   group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
