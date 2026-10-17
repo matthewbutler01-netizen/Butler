@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `71af533793bfc603a938125b4ffaf44904120996`.
+- App PR #1535 target (stacked on #1533): `6fc5dd4b1fe7dc704925e08df2c3f5d6b28d4fcb`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -38,6 +38,9 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    Dashboard shows one weekly decision queue with review links. A held lineup
    must not hide independently eligible recorded waiver review. Missing or
    duplicated audit proof must withhold the whole recommendation view.
+   My Team compact navigation includes Start/Sit Assistant and Auto-Pilot.
+   On desktop, each section jump reaches one target; Lineup advisor must scroll
+   to and focus the lineup panel even before a review has been requested.
 2. With an existing saved previous-week waiver decision and independently
    verified immediately following regular-season week in the same season,
    Waiver Board shows `NEW WEEK` / `HOLD` and the previous move as history only.
