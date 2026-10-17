@@ -70,6 +70,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-evidence-refresh-cache-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-roster-recovery-order-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1037-startsit-auto-roster-recovery-acceptance.ps1'
           if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
