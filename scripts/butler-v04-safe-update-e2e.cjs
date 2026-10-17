@@ -16,7 +16,7 @@ const cmdSource = fs.readFileSync(cmd,'utf8');
 for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean/i,/git\s+push/i,/submitTransaction/i,/Invoke-RestMethod/i]) {
   assert.doesNotMatch(source,forbidden);
 }
-assert.match(source,/ec599fa27680e6b8b411e3c77ef24be6bf468454/);
+assert.match(source,/3d0093a05264947f3ed8c4b6a8ebe97251eb9049/);
 assert.match(source,/refs\/heads\/bf1529-governed-week-rollover-refresh/);
 assert.match(source,/merge-base --is-ancestor \$targetCommit FETCH_HEAD/);
 assert.match(source,/status --porcelain=v1 --untracked-files=normal/);
