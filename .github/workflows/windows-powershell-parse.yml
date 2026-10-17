@@ -19,6 +19,7 @@ on:
       - bf1527-one-click-exact-checkout
       - bf1528-week-rollover-readonly-gate
       - bf1529-governed-week-rollover-refresh
+      - bf-v04-fantasy-workflow-study
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
