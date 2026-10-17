@@ -31,6 +31,7 @@ $core = [System.IO.File]::ReadAllText($CorePath)
 $helper = @'
 function Test-ButlerExactRosterDrift {
     param([AllowNull()][string]$Reason)
+    if ($Reason -ceq 'BF-610_ROSTER_DRIFT_VERIFIED') { return $true }
     return [regex]::IsMatch([string]$Reason,
         'BF-610 BLOCKED: current roster membership drifted from BF-603/BF-602 frame; added=\[[0-9, ]*\] removed=\[[0-9, ]*\]; refresh BF-602/BF-603 and downstream live evidence before target-roster review')
 }

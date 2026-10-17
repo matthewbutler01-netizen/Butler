@@ -6,6 +6,10 @@ the raw exception, roster identifiers or database paths.
 
 The inner core recognizes the exact BF-610 roster-membership failure before
 sanitizing its error. It emits a fixed recovery marker and an explanation.
+Its authenticated inner-dashboard client reads at most 4,096 characters of a
+failed team-bundle response to classify that exact failure, then carries only
+a fixed sentinel onward. Other paths/statuses and unrelated failures do not
+receive that classification. No raw response is copied into the public page.
 The outer worker accepts that marker only once, on an HTTP 500 response from
 the exact My Team or Start/Sit route. Successful pages, unknown markers,
 duplicates and other routes do not initiate this recovery.
