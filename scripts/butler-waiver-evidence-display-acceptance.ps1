@@ -16,7 +16,28 @@ $script:fixture = [pscustomobject]@{ Ready = $true; ExplanationText = 'Historica
 if ($waiverEvidenceHtml -notmatch 'source=nflverse' -or $waiverEvidenceHtml -notmatch 'scoringKeys' -or $waiverEvidenceHtml -notmatch 'Source season: not recorded' -or $waiverEvidenceHtml -match '<script>') { throw 'Evidence display or escaping failed' }
 $script:fixture.ExplanationText = 'BF-624 produced the unique complete add/drop transaction.'
 . $render
-if ($waiverEvidenceHtml -notmatch 'Butler produced the unique' -or $waiverEvidenceHtml -match 'BF-624 produced') { throw 'Explanation subject missing' }
+if ($waiverEvidenceHtml -notmatch '<p>Butler produced the unique' -or $waiverEvidenceHtml -notmatch '<pre>BF-624 produced') { throw 'Explanation subject or original record missing' }
+# Use the actual frozen Java statement, then exercise public presentation.
+$java = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\bet\bet-cli\src\main\java\io\butler\bet\sleeper\SleeperLiveWaiverGovernedExplanationCapture.java'))
+$reason = [regex]::Match($java, '(?s)static final String SAME_POSITION_REASON =(?<block>.*?);')
+if (-not $reason.Success) { throw 'Frozen same-position fixture missing' }
+$method = (([regex]::Matches($reason.Groups['block'].Value, '"(?<part>[^"\r\n]*)"') | ForEach-Object {$_.Groups['part'].Value}) -join '')
+$script:fixture.ExplanationText = $method
+. $render
+$cache = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-app-request-worker-cache.ps1'))
+$presentation = [regex]::Match($cache, '(?s)\$presentationFunctions = @''\r?\n(?<block>.*?)\r?\n''@')
+if (-not $presentation.Success) { throw 'Real public presentation missing' }
+. ([scriptblock]::Create($presentation.Groups['block'].Value))
+$public = ConvertTo-ButlerUserFacingHtml -Html $waiverEvidenceHtml
+$details = $public.IndexOf('<details>', [StringComparison]::Ordinal)
+if ($details -lt 0) { throw 'Original evidence disclosure missing' }
+$visible = $public.Substring(0, $details)
+if ($visible -notmatch 'saved historical comparison' -or $visible -notmatch 'weakest supported bench or reserve comparator' -or $visible -match 'replacement by\s*\.' -or $visible -match 'BF-61[45]') { throw 'Known same-position explanation remains broken after presentation' }
+if ($public -notmatch [regex]::Escape('<pre>' + [Net.WebUtility]::HtmlEncode($method) + '</pre>')) { throw 'Exact saved method record was changed' }
+if ($public -notmatch 'Source season: not recorded' -or $public -match 'Source season: 20[0-9]{2}') { throw 'Missing source season was filled from unrelated data' }
+$script:fixture.ExplanationText = $method.Replace('BF-615.', 'UNKNOWN-METHOD.')
+. $render
+if ($waiverEvidenceHtml -match 'saved historical comparison supports' -or $waiverEvidenceHtml -notmatch 'UNKNOWN-METHOD') { throw 'Unknown saved method was reinterpreted' }
 $script:fixture.Ready = $false
 . $render
 if ($waiverEvidenceHtml -notmatch 'Saved explanation unavailable' -or $waiverEvidenceHtml -match 'nflverse') { throw 'Missing explanation reused evidence' }
