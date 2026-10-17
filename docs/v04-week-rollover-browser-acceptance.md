@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1533 target: `3d0093a05264947f3ed8c4b6a8ebe97251eb9049`.
+- App PR #1533 target: `e17f249ecc41943f8fbe6ef998a993979b31ab15`.
 - Source ref: `refs/heads/bf1529-governed-week-rollover-refresh`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
