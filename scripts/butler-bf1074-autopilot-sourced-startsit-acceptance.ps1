@@ -196,6 +196,8 @@ if ($queue.StartSitNext -notmatch 'Open Start/Sit Assistant' -or
 $gapPage = $startSit.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros').Replace('0 player holds', '3 player holds')
 foreach ($gapCase in @(
     @{ Page = $gapPage; Matchup = $matchup; Expected = $true },
+    @{ Page = $gapPage.Replace('1 proposed lineup changes have exact player-status checks from Sleeper at the recorded fetch time.', 'No lineup change is ready.') + '<div class="callout callout-danger start-sit-blocker"></div>'; Matchup = $matchup; Expected = $true },
+    @{ Page = $startSit; Matchup = $matchup.Replace('week-number="5"', 'week-number="6"'); Expected = $false },
     @{ Page = $gapPage + $proof; Matchup = $matchup; Expected = $false },
     @{ Page = $gapPage.Replace('3 player holds', '3 player holds. 2 player holds'); Matchup = $matchup; Expected = $false },
     @{ Page = $gapPage.Replace('Partial projection coverage;', 'Full scoreable projection coverage. Partial projection coverage;'); Matchup = $matchup; Expected = $false },
