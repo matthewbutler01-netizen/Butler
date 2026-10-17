@@ -2487,6 +2487,9 @@ try {
         }
         $autoRefresh = @{ Html = $body; Nonce = '' }
         if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/') {
+            if ($body.Contains('<aside class="manager-playbook" aria-label="Butler sections">')) {
+                $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
+            }
             $autoRefresh = Add-AutomaticDashboardRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {
