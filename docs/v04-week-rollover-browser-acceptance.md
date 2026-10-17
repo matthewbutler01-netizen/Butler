@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `dd9f5b955e4d75be380894f2fb71b752fc75d405`.
+- App PR #1535 target (stacked on #1533): `26e6b311b774632a4020acace3beccd134ec5ed4`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -49,6 +49,9 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    to and focus the lineup panel even before a review has been requested.
    The Dashboard matchup card discloses its recorded source/as-of value, with
    missing metadata unknown and no live-score or player-clearance claim.
+   When saved player holds appear in Weekly attention, check the saved review's
+   week, source and generated UTC timestamp. Missing or ambiguous metadata stays
+   unknown; the timestamp does not certify live injury or starter status.
    A timed-out/closed read-only request must not terminate the app. Transport
    fault scenarios are covered separately by automated and isolated tests.
 2. With an existing saved previous-week waiver decision and independently
