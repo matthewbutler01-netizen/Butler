@@ -11,11 +11,15 @@ $ErrorActionPreference = 'Stop'
 # BF-M1: a pinned, explicitly scoped v0.4 *development* update. Never
 # force-stop a process, modify Sleeper, touch the v0.3 release, reset Git,
 # clean untracked files or switch to a moving remote branch.
-$targetCommit = 'dd77d6b3221f4d78226d61330bc9ef5bed46976a'
-$sourceBranch = 'refs/heads/bf1525-waiver-evidence-age'
+$targetCommit = '018767e68d3ebd96df1d650a10e9776b579736b4'
+$sourceBranch = 'refs/heads/bf-v04-fantasy-workflow-study'
 
 try {
     Write-Host 'BUTLER v0.4 - PINNED LOCAL DEVELOPMENT UPDATE'
+    # The source starter binds 18080; never inspect one port and launch another.
+    if ($TargetPort -ne 18080 -and -not $PreflightOnly) {
+        throw 'PORT MISMATCH. This development starter requires port 18080; no update or app launch attempted.'
+    }
     Write-Host 'Scope: only the existing v0.4 source checkout and port 18080.'
     Write-Host 'No v0.3 release replacement; no Sleeper transaction.'
     Write-Host ('Approved beta candidate: ' + $targetCommit.Substring(0, 12))

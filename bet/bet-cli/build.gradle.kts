@@ -33,6 +33,22 @@ tasks.test {
     useJUnitPlatform()
 }
 
+// Source-contract tests read these files directly, outside the compiled test
+// classpath. A script/workflow change must invalidate their cached results.
+tasks.withType<Test>().configureEach {
+    inputs.files(
+        rootProject.fileTree("scripts"),
+        rootProject.fileTree(".github/workflows"),
+        rootProject.fileTree("docs"),
+        rootProject.fileTree("gradle"),
+        rootProject.files(".gitignore", "build.gradle.kts", "settings.gradle.kts",
+            "gradle.properties", "README.md"),
+        layout.projectDirectory.file("build.gradle.kts"),
+        sourceSets["main"].allSource
+    ).withPropertyName("butlerSourceContracts")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 val butlerAcceptanceTest by tasks.registering(Test::class) {
     group = "verification"
     description = "Runs Butler acceptance tests tagged with JUnit's 'acceptance' tag."
