@@ -34,6 +34,27 @@ inspect an authenticated account, private endpoints or recommendation formulas.
 
 ## First implementation slice: weekly decision queue
 
+The first slice is now implemented on this draft branch in
+`scripts/butler-weekly-decision-queue.ps1` and installed by a final Dashboard
+transform after the saved-lineup trust gate. It adds a compact review summary
+ahead of the existing week overview and preserves the existing detail panels.
+The accepted beta app/package pins have not moved to this branch.
+
+Its pure model consumes final lineup state and the waiver state/actionability/
+lineage triple. A recorded move is offered for review only when all three waiver
+fields agree. Lineup items always link to a current source review because this
+Dashboard cannot independently verify current starter slots. The queue does not
+claim a verified recommendation count, live source age or current-week proof.
+Those checks remain on the existing linked pages. Trade and matchup items are
+deferred rather than added as unsourced priority claims.
+
+`scripts/butler-weekly-decision-queue-acceptance.ps1` covers independent waiver
+review with a held lineup, stale/superseded/missing/conflicting states, pending
+and completed transactions, no-recorded-move honesty, escaped text and production
+staging. The focused Windows workflow now runs this acceptance suite. Browser
+layout checks use a clearly labeled synthetic fixture; that is separate from
+full live Dashboard acceptance and any later launcher repin.
+
 Use the Dashboard's existing governed inputs to render a small ordered queue:
 
 1. Explicit do-not-act, wrong-week or missing-source conditions.
