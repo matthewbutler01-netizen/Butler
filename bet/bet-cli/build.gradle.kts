@@ -36,10 +36,16 @@ tasks.test {
 // Source-contract tests read these files directly, outside the compiled test
 // classpath. A script/workflow change must invalidate their cached results.
 tasks.withType<Test>().configureEach {
-    inputs.files(rootProject.fileTree(rootProject.projectDir) {
-        include("scripts/**", ".github/workflows/**", ".gitignore", "**/*.gradle.kts",
-            "**/src/main/java/**", "gradle.properties", "gradle/**", "docs/**", "README.md")
-    }).withPropertyName("butlerSourceContracts")
+    inputs.files(
+        rootProject.fileTree("scripts"),
+        rootProject.fileTree(".github/workflows"),
+        rootProject.fileTree("docs"),
+        rootProject.fileTree("gradle"),
+        rootProject.files(".gitignore", "build.gradle.kts", "settings.gradle.kts",
+            "gradle.properties", "README.md"),
+        layout.projectDirectory.file("build.gradle.kts"),
+        sourceSets["main"].allSource
+    ).withPropertyName("butlerSourceContracts")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
