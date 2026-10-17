@@ -387,7 +387,9 @@ jobs:
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell
-        run: .\scripts\butler-accessibility-acceptance.ps1
+        run: |
+          & '.\scripts\butler-accessibility-acceptance.ps1'
+          & '.\scripts\butler-bf958-my-team-section-nav-acceptance.ps1'
 
       - name: Exercise verification hardening fixtures
         shell: powershell

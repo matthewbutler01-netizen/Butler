@@ -264,6 +264,16 @@ $css = @'
 $cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
 $core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
 
+# This transform adds start-sit-assistant to the rendered recommendation panel.
+# Update the older My Team anchor installer after its dependent staging passes:
+# matching a closing class quote would otherwise miss the new class list.
+$oldTeamAnchor = '$autoFillHtml.Replace(''<section class="panel recommendation-panel"'', ''<section id="team-lineup" class="panel recommendation-panel team-section-target" tabindex="-1"'')'
+$newTeamAnchor = '$autoFillHtml.Replace(''<section class="panel recommendation-panel'', ''<section id="team-lineup" tabindex="-1" class="panel recommendation-panel team-section-target'')'
+if ([regex]::Matches($core, [regex]::Escape($oldTeamAnchor)).Count -ne 1) {
+    throw 'BF-1021 BLOCKED: My Team lineup section anchor installer is not unique.'
+}
+$core = $core.Replace($oldTeamAnchor, $newTeamAnchor)
+
 $tokens = $null
 $errors = $null
 [void][System.Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
