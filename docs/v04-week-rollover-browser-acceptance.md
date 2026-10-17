@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `26e6b311b774632a4020acace3beccd134ec5ed4`.
+- App PR #1535 target (stacked on #1533): `d264629626db204f8aaf138525c2df64ebed2b4d`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
