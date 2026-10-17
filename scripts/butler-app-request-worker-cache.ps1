@@ -497,7 +497,9 @@ function ConvertTo-ButlerUserFacingHtml {
             $rx = '<div>' + [regex]::Escape($label) +
                 '\s*(?<value>[A-Z][A-Z0-9_]{2,63})</div>'
             $matches = [regex]::Matches($Html, $rx)
-            if ($matches.Count -ne 1) {
+            $allFields = [regex]::Matches($Html,
+                '<div>' + [regex]::Escape($label) + '\s*[^<]+</div>')
+            if ($matches.Count -ne 1 -or $allFields.Count -ne 1) {
                 $auditValues = @()
                 break
             }
@@ -509,6 +511,23 @@ function ConvertTo-ButlerUserFacingHtml {
             if ($endBody.Count -eq 1) {
                 $proof = '<div class="butler-m2-dashboard-audit" hidden>' +
                     ($auditValues -join '') + '</div>'
+                # The original hidden refresh contract survives translation,
+                # including a friendly "Decision state: Ready to act". Keeping
+                # that label alongside canonical proof makes strict consumers
+                # see two states. Remove only that translated machine field
+                # within the known flat hidden contract, after unique raw audit
+                # proof has been established. Visible copy and strict parsers
+                # remain unchanged; invalid/duplicate source fields never enter.
+                $contractPattern = '(?s)<div class="butler-refresh-contract" hidden>(?:<div>[^<]*</div>)+</div>'
+                $contracts = [regex]::Matches($result, $contractPattern)
+                if ($contracts.Count -gt 1) { return $result }
+                if ($contracts.Count -eq 1) {
+                    $contract = $contracts[0]
+                    $fields = [regex]::Replace($contract.Value,
+                        '<div>Decision state:\s*[^<]+</div>', '')
+                    $result = $result.Remove($contract.Index, $contract.Length).Insert($contract.Index, $fields)
+                }
+                $endBody = [regex]::Matches($result, '(?i)</body>')
                 $result = $result.Insert($endBody[0].Index, $proof)
             }
         }
