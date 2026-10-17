@@ -192,6 +192,31 @@ if ($queue.StartSitNext -notmatch 'Open Start/Sit Assistant' -or
     $html -match 'CURRENT SNAPSHOT') {
     throw 'BF-1075 BLOCKED: incomplete Start/Sit source was incorrectly advertised as a current prepared packet.'
 }
+# A matching page can explain its observed gaps without certifying freshness.
+$gapPage = $startSit.Replace('Full scoreable projection coverage', 'Partial projection coverage; missing projections are not zeros').Replace('0 player holds', '3 player holds')
+foreach ($gapCase in @(
+    @{ Page = $gapPage; Matchup = $matchup; Expected = $true },
+    @{ Page = $gapPage + $proof; Matchup = $matchup; Expected = $false },
+    @{ Page = $gapPage.Replace('3 player holds', '3 player holds. 2 player holds'); Matchup = $matchup; Expected = $false },
+    @{ Page = $gapPage.Replace('Partial projection coverage;', 'Full scoreable projection coverage. Partial projection coverage;'); Matchup = $matchup; Expected = $false },
+    @{ Page = $gapPage; Matchup = $matchup.Replace('week-number="5"', 'week-number="6"'); Expected = $false }
+)) {
+    $gapWatch = [pscustomobject]@{
+        Ready = $true; StartSit = 'REVIEW'; Waivers = 'ADD 1 / DROP 1'
+        Attention = 'ON TRACK'; EvidenceStatus = 'CURRENT'; Roster = 'Test Team'
+        StartSitObservedEvidenceGap = 'PARTIAL_WITH_HOLDS'
+    }
+    $gapWatch = Limit-V04AutoPilotToSourcedStartSit -WatchState $gapWatch -MatchupHtml $gapCase.Matchup -StartSitHtml $gapCase.Page -CheckedAtUtc $clock
+    $gapQueue = Get-V04AutoPilotApprovalQueue -WatchState $gapWatch -ApprovalPolicy $policy
+    $gapHtml = Get-V04AutoPilotHtml -WatchState $gapWatch -ApprovalPolicy $policy -ApprovalQueue $gapQueue
+    if (($gapHtml.Contains('reports partial projection coverage and player holds')) -ne $gapCase.Expected -or
+        $gapWatch.StartSit -cne 'BLOCKED - CHECK START/SIT' -or
+        $gapHtml.Contains('READY FOR MANAGER REVIEW') -or
+        $null -ne $gapWatch.PSObject.Properties['StartSitProjectionFetchedAtUtc'] -or
+        $gapWatch.Waivers -cne 'ADD 1 / DROP 1') {
+        throw 'Observed evidence gaps bypassed the hold or survived ambiguous/mismatched proof.'
+    }
+}
 # BF-1083: a current Dashboard audit is not blanket approval for a
 # deliberately held Start/Sit signal. Status needs warning contrast while
 # an independently actionable waiver can still be reviewed.
