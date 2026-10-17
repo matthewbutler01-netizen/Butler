@@ -97,3 +97,9 @@ Do not share raw rosters, tokens, private database contents or browser payloads.
 On failure, retain the local report and record only the failing check and safe
 error label. Stop your known beta app normally with Ctrl+C. Do not merge,
 release, replace v0.3 or mark acceptance complete from this checklist alone.
+
+The one-click full page check uses the existing bounded 120-second per-request
+checker budget. Exact roster recovery may finish after the former 30-second
+limit. This changes no source/health gate and performs no automatic page retry.
+A timed-out or failed page remains PAGE ERROR; passing waits do not certify
+freshness. Retain any earlier failed report separately from later acceptance.

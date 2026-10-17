@@ -187,7 +187,9 @@ try {
     $reportDir = Join-Path $env:LOCALAPPDATA 'Butler\diagnostics'
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     $reportPath = Join-Path $reportDir 'v04-beta-one-click-latest.txt'
-    $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 30 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
+    # First-open exact roster recovery may outlive the former 30-second check.
+    # Use the checker's existing finite default; never retry a failed page here.
+    $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 120 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
     $checkExit = $LASTEXITCODE
     $content = $log -join [Environment]::NewLine
     $finalCheck = Save-BetaPageCheckReport -Path $reportPath -CheckoutCommit $verifiedCheckout -Content $content -CheckExit $checkExit -Port $TargetPort

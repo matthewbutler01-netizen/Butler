@@ -10,6 +10,8 @@ for(const good of [/-UpdateOnly/,/Test-BetaHealth/,/Test-BetaPortBusy/,/Start-Pr
  assert.match(ps,good);
 }
 assert.match(updater,/\[switch\]\$UpdateOnly/);
+assert.match(ps,/-TimeoutSeconds 120 -CheckSleeperWeek/,'first-open check must allow the existing bounded recovery budget');
+assert.doesNotMatch(ps,/-TimeoutSeconds 30 -CheckSleeperWeek/);
 // Exact immutable pin in the updater and the beta launcher must agree.
 // A source checkout check is deliberately NOT proof of a live Sleeper week.
 const pinnedUpdater=updater.match(/^\$targetCommit = '([0-9a-f]{40})'\r?$/m);
