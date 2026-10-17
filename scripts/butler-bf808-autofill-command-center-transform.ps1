@@ -63,7 +63,8 @@ function Get-Bf808AutoFillSnapshotPath {
     # owner preview location remains unchanged when no override is supplied.
     $previewOverride = [string]$env:BUTLER_APP_PREVIEW_DIR
     if (-not [string]::IsNullOrWhiteSpace($previewOverride)) {
-        if (-not [IO.Path]::IsPathRooted($previewOverride)) {
+        if (-not [IO.Path]::IsPathRooted($previewOverride) -or
+            $previewOverride -notmatch '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
             throw 'BF-808 BLOCKED: BUTLER_APP_PREVIEW_DIR must be an absolute path.'
         }
         $directory = [IO.Path]::GetFullPath($previewOverride)
@@ -227,7 +228,8 @@ function Get-Bf808AutoFillSnapshotPath {
     # owner preview location remains unchanged when no override is supplied.
     $previewOverride = [string]$env:BUTLER_APP_PREVIEW_DIR
     if (-not [string]::IsNullOrWhiteSpace($previewOverride)) {
-        if (-not [IO.Path]::IsPathRooted($previewOverride)) {
+        if (-not [IO.Path]::IsPathRooted($previewOverride) -or
+            $previewOverride -notmatch '^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/][^\\/]+(?:[\\/]|$))') {
             throw 'BF-808 BLOCKED: BUTLER_APP_PREVIEW_DIR must be an absolute path.'
         }
         $directory = [IO.Path]::GetFullPath($previewOverride)

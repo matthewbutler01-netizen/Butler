@@ -34,7 +34,7 @@ try {
         $actual=Get-Bf808AutoFillSnapshotPath -LeagueKey '../fixture:league'
         if ((Split-Path -Parent $actual) -cne $isolated -or (Split-Path -Leaf $actual) -cne '.._fixture_league.json') { throw 'Override escaped its selected cache directory.' }
         if (Test-Path -LiteralPath $isolated) { throw 'Path resolution unexpectedly created or wrote the cache.' }
-        foreach($bad in @('relative-cache','.\cache')) {
+        foreach($bad in @('relative-cache','.\cache','\relative-cache','C:relative-cache')) {
             $env:BUTLER_APP_PREVIEW_DIR=$bad;$rejected=$false
             try { [void](Get-Bf808AutoFillSnapshotPath -LeagueKey 'fixture-league') } catch {$rejected=$true}
             if (-not $rejected) {throw 'Relative override silently fell back to owner state.'}
