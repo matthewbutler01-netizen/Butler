@@ -20,6 +20,20 @@ checks exact roster drift and verifies the current matchup before waiver
 evidence writes. Failures retain the hold. After an attempt, cached reads are
 invalidated even after partial writes; the route is retried once on success.
 
+Automatic attempts now save a best-effort process-local diagnostic under
+LocalAppData/Butler/diagnostics/v04-roster-recovery-PID.txt. It contains the
+overall COMPLETE/FAILED outcome, UTC time, elapsed milliseconds and at most
+16 allowlisted stage/outcome/timing lines. It never saves the captured CLI
+payload, exception text, league/player identifiers or database paths. The last
+attempt in that worker replaces its previous report; storage failure is ignored.
+Missing stage lines can mean failure before that stage's result was observed.
+These markers help diagnose a future slow or failed first open; they do not
+approve evidence, certify freshness, authorize recovery or change a held page.
+
+The diagnostics fixture uses synthetic child scripts only and verifies failed
+and successful outcomes, raw-data filtering, bounded output, replacement and
+storage failure. No live roster drift or provider outage is manufactured.
+
 This repairs Butler-local evidence only. It does not change a Sleeper roster,
 waiver claim, FAAB amount or trade. Repair can take time. A responding page,
 completed repair or saved review timestamp does not clear player/projection

@@ -142,7 +142,13 @@ function Invoke-RequiredSuccess {
     )
 
     Write-Host ("BF-723: running {0}..." -f $Label)
+    $stageTimer = [Diagnostics.Stopwatch]::StartNew()
     $result = Invoke-ButlerRuntimeCommand -MainClass $MainClass -LeagueId $LeagueId
+    $stageCode = [regex]::Match($Label, '^BF-(?:840|602|603|605|606|607|612|610|615/BF-617)\b').Value
+    if (-not [string]::IsNullOrWhiteSpace($stageCode)) {
+        $stageOutcome = if ($result.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
+        Write-Host ("BF-723 STAGE|{0}|{1}|{2}" -f $stageCode, $stageOutcome, $stageTimer.ElapsedMilliseconds)
+    }
     if ($result.ExitCode -ne 0) {
         $tail = Get-BoundedTail -Text $result.Text
         throw "BF-723 BLOCKED: $Label failed with runtime exit code $($result.ExitCode); output=$tail"

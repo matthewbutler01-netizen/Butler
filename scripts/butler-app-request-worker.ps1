@@ -325,6 +325,34 @@ function Resolve-V04AutoPilotOnOpenWeek {
     }
 }
 
+function Save-LocalRosterRecoveryDiagnostic {
+    param(
+        [ValidateSet('COMPLETE','FAILED')][string]$Outcome,
+        [AllowEmptyString()][string]$Text,
+        [ValidateRange(0,[long]::MaxValue)][long]$ElapsedMilliseconds
+    )
+    # Best-effort, process-local file. Never persist raw CLI output or errors.
+    try {
+        $base = [string]$env:LOCALAPPDATA
+        if ([string]::IsNullOrWhiteSpace($base) -or -not [IO.Path]::IsPathRooted($base)) { return }
+        $directory = Join-Path $base 'Butler\diagnostics'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $rows = [Collections.Generic.List[string]]::new()
+        $rows.Add('BF-723 LOCAL RECOVERY DIAGNOSTIC')
+        $rows.Add('Outcome: ' + $Outcome)
+        $rows.Add('Elapsed ms: ' + $ElapsedMilliseconds)
+        $rows.Add('UTC: ' + [DateTimeOffset]::UtcNow.ToString('o'))
+        $pattern = '(?m)^BF-723 STAGE\|BF-(?:840|602|603|605|606|607|612|610|615/BF-617)\|(?:PASS|FAIL)\|[0-9]{1,12}\r?$'
+        foreach ($match in @([regex]::Matches($Text, $pattern) | Select-Object -First 16)) {
+            $rows.Add($match.Value.TrimEnd("`r"))
+        }
+        $rows.Add('Stage markers are diagnostic only; no source freshness or action approval is implied.')
+        $path = Join-Path $directory ("v04-roster-recovery-{0}.txt" -f $PID)
+        [IO.File]::WriteAllText($path, ($rows -join [Environment]::NewLine), [Text.UTF8Encoding]::new($false))
+    }
+    catch { } # Diagnostic storage must never change the route/recovery outcome.
+}
+
 function Invoke-StartSitRosterDriftAutoRecovery {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -340,6 +368,9 @@ function Invoke-StartSitRosterDriftAutoRecovery {
 
     $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.StartSit.RosterRecovery.{0}" -f $PID))
     $lockTaken = $false
+    $recoveryTimer = [Diagnostics.Stopwatch]::StartNew()
+    $recoveryOutcome = 'FAILED'
+    $text = ''
     try {
         try {
             $lockTaken = $mutex.WaitOne(180000)
@@ -378,8 +409,10 @@ function Invoke-StartSitRosterDriftAutoRecovery {
             if ($tail.Length -gt 1800) { $tail = '...' + $tail.Substring($tail.Length - 1800) }
             throw "BF-1037 BLOCKED: automatic roster recovery failed; output=$tail"
         }
+        $recoveryOutcome = 'COMPLETE'
     }
     finally {
+        Save-LocalRosterRecoveryDiagnostic -Outcome $recoveryOutcome -Text $text -ElapsedMilliseconds $recoveryTimer.ElapsedMilliseconds
         if ($lockTaken) {
             try { $mutex.ReleaseMutex() } catch {}
         }
