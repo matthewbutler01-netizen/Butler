@@ -13,7 +13,7 @@ foreach($fn in @($functions | Where-Object {$_.Name.StartsWith('Invoke-')})) {
     . ([scriptblock]::Create('function '+$fn.Name+' { throw "Unexpected external lookup in synthetic Dashboard render." }'))
 }
 $summary=@'
-Target: SYNTHETIC QUEUE RENDER — no live league evidence
+Target: SYNTHETIC QUEUE RENDER - no live league evidence
 Audit: none
 Decision status: STALE_DO_NOT_ACT
 BF-629 live actionability: UNVERIFIED
