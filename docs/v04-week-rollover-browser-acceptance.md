@@ -21,9 +21,13 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 1. Use File Explorer **Extract All** and keep all package files together.
 2. Double-click `butler-v04-beta-one-click.cmd`. No PowerShell typing required.
-3. Check the report opened in Notepad: `BETA SOURCE CHECKOUT: VERIFIED` must
+3. Runtime preparation can take several minutes. The launcher waits at most
+   five minutes, prints progress and saves PENDING/HELD startup status if no
+   healthy service is verified. A timeout does not stop the app window; do not
+   start another copy. Inspect the known window and close it normally if needed.
+4. Check the report opened in Notepad: `BETA SOURCE CHECKOUT: VERIFIED` must
    contain the full app SHA above. This proves disk checkout only.
-4. Keep the new Butler app window open. Use `http://127.0.0.1:18080/`.
+5. Keep the new Butler app window open. Use `http://127.0.0.1:18080/`.
    A health response or passing page check does not prove browser acceptance.
 
 ## Browser checks (record PASS / FAIL / NOT EXERCISED)

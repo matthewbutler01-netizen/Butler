@@ -1,7 +1,8 @@
 param(
     [string]$CheckoutPath = 'C:\ButlerDev\pr1464',
     [ValidateRange(1024,65535)][int]$TargetPort = 18080,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [ValidateRange(1,600)][int]$StartupTimeoutSeconds = 300
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -47,6 +48,34 @@ function Test-BetaPortBusy {
     finally { try { $listener.Stop() } catch {} }
 }
 
+# Startup polling is bounded and never treats a source pin as service readiness.
+function Wait-BetaStartup {
+    param([int]$Port, [int]$TimeoutSeconds, [object]$StartedProcess)
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $nextNotice = 15
+    while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        if (Test-BetaHealth -Port $Port) { return $true }
+        if ($StartedProcess.HasExited) { return $false }
+        if ($timer.Elapsed.TotalSeconds -ge $nextNotice) {
+            Write-Host 'STARTUP PENDING. Runtime preparation may still be running; do not launch another copy.'
+            $nextNotice += 15
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+function Write-BetaStartupReport {
+    param([ValidateSet('PENDING','HELD')][string]$Status)
+    $directory = Join-Path $env:LOCALAPPDATA 'Butler\diagnostics'
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $path = Join-Path $directory 'v04-beta-one-click-latest.txt'
+    $text = 'BETA STARTUP: ' + $Status + [Environment]::NewLine +
+        'Browser acceptance: NOT RUN. Service readiness is not verified.' + [Environment]::NewLine +
+        'The app window may still be preparing the runtime. Inspect that known window; do not start another copy or kill unknown processes.'
+    [IO.File]::WriteAllText($path, $text, [Text.Encoding]::UTF8)
+    Write-Host ('Startup status report: ' + $path)
+}
+
 # BF-1527: verify the checkout of the immutable candidate before we start it.
 # This proves disk HEAD, not live player freshness or a health endpoint's SHA.
 $approvedCandidateCommit = 'cbaf8687fca950593ddd2db1836fa60be121a587'
@@ -72,6 +101,7 @@ function Assert-BetaCandidateCheckout {
 
 try {
     Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'
+    $startupReportWritten = $false
     # The source starter binds 18080; never inspect one port and launch another.
     if ($TargetPort -ne 18080 -and -not $PreflightOnly) {
         throw 'PORT MISMATCH. This development starter requires port 18080; no update or app launch attempted.'
@@ -116,14 +146,12 @@ try {
         Write-Host 'Starting v0.4 in a separate app window...'
         $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
         $arguments = '/c "' + $launcher + '"'
-        [void](Start-Process -FilePath $cmd -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $launcher) -PassThru)
-        $timer = [Diagnostics.Stopwatch]::StartNew()
-        while ($timer.Elapsed.TotalSeconds -lt 120) {
-            if (Test-BetaHealth -Port $TargetPort) { $ready = $true; break }
-            Start-Sleep -Seconds 2
-        }
+        Write-BetaStartupReport -Status 'PENDING'
+        $startupReportWritten = $true
+        $startedProcess = Start-Process -FilePath $cmd -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $launcher) -PassThru
+        $ready = Wait-BetaStartup -Port $TargetPort -TimeoutSeconds $StartupTimeoutSeconds -StartedProcess $startedProcess
         if (-not $ready) {
-            throw 'STARTUP NOT VERIFIED AFTER 120 SECONDS. Inspect the Butler app window.'
+            throw 'STARTUP NOT VERIFIED WITHIN THE BOUNDED WAIT OR STARTER EXITED. Inspect the known Butler app window and saved startup report; do not launch another copy.'
         }
         Write-Host 'BUTLER: STARTED.'
     }
@@ -161,6 +189,9 @@ try {
     Write-Host 'Keep the separate Butler app window running; this launcher may close.'
 }
 catch {
+    if ($startupReportWritten) {
+        try { Write-BetaStartupReport -Status 'HELD' } catch { Write-Host 'Startup status report could not be saved.' }
+    }
     Write-Host ('BETA HELD: ' + [string]$_.Exception.Message)
     exit 2
 }
