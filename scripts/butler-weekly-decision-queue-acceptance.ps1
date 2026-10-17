@@ -1,6 +1,15 @@
+param([string]$OutputHtmlPath='')
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'butler-weekly-decision-queue.ps1')
+$auditSummary="Decision status: CURRENT_AND_ACTIONABLE`nBF-629 live actionability: LIVE_ACTIONABLE_VERIFIED`nBF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED"
+if (-not (Test-ButlerQueueAuditFieldsUnique -Summary $auditSummary)) { throw 'Unique source proof rejected.' }
+if (-not (Test-ButlerQueueAuditFieldsUnique -Summary $auditSummary.Replace("`n","`r`n"))) { throw 'CRLF source proof rejected.' }
+foreach ($badSummary in @('',($auditSummary+"`nDecision status: STALE_DO_NOT_ACT"),($auditSummary+"`nbf-629 live actionability: UNVERIFIED"),($auditSummary.Replace('BF-631 evidence lineage:','missing:')))) {
+    if (Test-ButlerQueueAuditFieldsUnique -Summary $badSummary) { throw 'Missing/duplicate raw proof accepted.' }
+    $held=@(Get-ButlerWeeklyDecisionQueue -WaiverState 'CURRENT_AND_ACTIONABLE' -Actionability 'LIVE_ACTIONABLE_VERIFIED' -Lineage 'LATEST_EVIDENCE_LINEAGE_VERIFIED' -AuditFieldsUnique (Test-ButlerQueueAuditFieldsUnique -Summary $badSummary))
+    if (@($held | Where-Object {$_.Kind -ceq 'Waivers' -and $_.Status -ceq 'WAIVER HELD'}).Count -ne 1) { throw 'Ambiguous raw proof authorized queue review.' }
+}
 foreach ($case in @(
     @{State='CURRENT_AND_ACTIONABLE'; Action='LIVE_ACTIONABLE_VERIFIED'; Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'; Expected='RECORDED MOVE TO REVIEW'},
     @{State='CURRENT_AND_ACTIONABLE'; Action='UNVERIFIED'; Lineage='LATEST_EVIDENCE_LINEAGE_VERIFIED'; Expected='WAIVER HELD'},
@@ -13,7 +22,7 @@ foreach ($case in @(
     @{State='TRANSACTION_PENDING_DO_NOT_DUPLICATE'; Action=''; Lineage=''; Expected='DO NOT DUPLICATE'},
     @{State='TRANSACTION_ALREADY_COMPLETE'; Action=''; Lineage=''; Expected='RECORDED COMPLETE'}
 )) {
-    $items=@(Get-ButlerWeeklyDecisionQueue -LineupState 'EVIDENCE GAP' -WaiverState $case.State -Actionability $case.Action -Lineage $case.Lineage)
+    $items=@(Get-ButlerWeeklyDecisionQueue -LineupState 'EVIDENCE GAP' -WaiverState $case.State -Actionability $case.Action -Lineage $case.Lineage -AuditFieldsUnique $true)
     $waiver=@($items | Where-Object Kind -CEQ 'Waivers')
     if ($items.Count -ne 2 -or $waiver.Count -ne 1 -or $waiver[0].Status -cne $case.Expected) { throw 'Queue failed waiver evidence isolation.' }
     $lineup=@($items | Where-Object Kind -CEQ 'Lineup')[0]
@@ -42,7 +51,7 @@ try {
     $tokens=$null;$errors=$null
     $ast=[Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors)
     if (@($errors).Count) { throw 'Production queue staging failed parse.' }
-    foreach($name in @('Get-ButlerWeeklyDecisionQueue','ConvertTo-ButlerWeeklyDecisionQueueHtml','ConvertTo-DashboardHtml')) {
+    foreach($name in @('Test-ButlerQueueAuditFieldsUnique','Get-ButlerWeeklyDecisionQueue','ConvertTo-ButlerWeeklyDecisionQueueHtml','ConvertTo-DashboardHtml')) {
         $found=@($ast.FindAll({param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name},$true))
         if ($found.Count -ne 1) { throw "Production queue function missing or ambiguous: $name" }
         if ($name -ceq 'ConvertTo-DashboardHtml') {
@@ -52,6 +61,7 @@ try {
                 -not $body.Contains('$weeklyDecisionQueueHtml'+[Environment]::NewLine+'$bf907WeekGlanceHtml')) { throw 'Production queue lost governed source binding or position.' }
         }
     }
+    & (Join-Path $PSScriptRoot 'butler-weekly-queue-render-acceptance.ps1') -DashboardPath $path -OutputHtmlPath $OutputHtmlPath
     # Transform must reject duplicate installation without changing the file.
     $before=[IO.File]::ReadAllText($path);$rejected=$false
     try { & (Join-Path $PSScriptRoot 'butler-weekly-decision-queue-transform.ps1') -DashboardPath $path } catch { $rejected=$true }

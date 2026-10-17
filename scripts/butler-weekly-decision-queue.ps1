@@ -1,5 +1,13 @@
+function Test-ButlerQueueAuditFieldsUnique {
+    param([string]$Summary)
+    foreach ($label in @('Decision status:', 'BF-629 live actionability:', 'BF-631 evidence lineage:')) {
+        if ([regex]::Matches($Summary, '(?im)^' + [regex]::Escape($label) + '[^\r\n]*\r?$').Count -ne 1) { return $false }
+    }
+    return $true
+}
+
 function Get-ButlerWeeklyDecisionQueue {
-    param([string]$LineupState, [string]$WaiverState, [string]$Actionability, [string]$Lineage)
+    param([string]$LineupState, [string]$WaiverState, [string]$Actionability, [string]$Lineage, [bool]$AuditFieldsUnique = $false)
 
     # Presentation model only. Dashboard has no independent live starter proof.
     $lineup = [pscustomobject]@{
@@ -21,7 +29,10 @@ function Get-ButlerWeeklyDecisionQueue {
         Reason = 'The saved waiver evidence is incomplete, stale or unverified. Review the Waiver Board; do not reuse a saved move as current advice.'
         Href = '/waivers'; Label = 'Review Waiver Board'
     }
-    if ($WaiverState -ceq 'TRANSACTION_PENDING_DO_NOT_DUPLICATE') {
+    if (-not $AuditFieldsUnique) {
+        $waiver.Reason = 'The Dashboard audit fields are missing or duplicated. Review the Waiver Board; no saved move is cleared by this queue.'
+    }
+    elseif ($WaiverState -ceq 'TRANSACTION_PENDING_DO_NOT_DUPLICATE') {
         $waiver.Status = 'DO NOT DUPLICATE'
         $waiver.Reason = 'The recorded transaction is pending. Check its history before considering another move.'
         $waiver.Href = '/history?load=1'; $waiver.Label = 'Review transaction history'

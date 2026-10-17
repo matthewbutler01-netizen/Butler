@@ -14,7 +14,7 @@ $tail=$body.Substring($position)
 if ([regex]::Matches($tail,[regex]::Escape('$bf907WeekGlanceHtml')).Count -ne 1) { throw 'Weekly queue: overview slot ambiguous.' }
 $tail=$tail.Replace('$bf907WeekGlanceHtml', '$weeklyDecisionQueueHtml' + [Environment]::NewLine + '$bf907WeekGlanceHtml')
 $prelude=@'
-    $weeklyDecisionQueue = @(Get-ButlerWeeklyDecisionQueue -LineupState ([string]$lineupSignalStatus) -WaiverState ([string]$state) -Actionability ([string]$bf629) -Lineage ([string]$bf631))
+    $weeklyDecisionQueue = @(Get-ButlerWeeklyDecisionQueue -LineupState ([string]$lineupSignalStatus) -WaiverState ([string]$state) -Actionability ([string]$bf629) -Lineage ([string]$bf631) -AuditFieldsUnique (Test-ButlerQueueAuditFieldsUnique -Summary $Summary))
     $weeklyDecisionQueueHtml = ConvertTo-ButlerWeeklyDecisionQueueHtml -Items $weeklyDecisionQueue -Team ([string]$target)
 
 '@
