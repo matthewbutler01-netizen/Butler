@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1533 target: `eae84139c436b08143aee4b944f6b54d606a8674`.
+- App PR #1533 target: `b19cba91b876fed9abf775315799ee612bb28fea`.
 - Source ref: `refs/heads/bf1529-governed-week-rollover-refresh`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -53,6 +53,11 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    any unavailable scenario NOT EXERCISED; do not change live state to fake it.
 7. Auto-Pilot remains preview-only. No automatic rollover refresh or provider
    write occurs. Do not click a Sleeper submission control.
+   When the matching current-week Start/Sit page reports partial projections
+   and positive player holds, Auto-Pilot should explain both observed gaps.
+   It must still show no prepared lineup swap and must not claim independently
+   verified source freshness. If those source conditions are absent, record
+   this scenario NOT EXERCISED; do not manufacture holds in the live database.
 
 Use synthetic automated fixtures for states unavailable in the owner session;
 do not claim those fixtures are real-browser or live-provider proof.
