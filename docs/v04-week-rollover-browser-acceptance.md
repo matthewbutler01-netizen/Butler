@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `5ef33579d076b4b35caef2427730ec253979a48a`.
+- App PR #1535 target (stacked on #1533): `dd9f5b955e4d75be380894f2fb71b752fc75d405`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -25,6 +25,8 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    five minutes, prints progress and saves PENDING/HELD startup status if no
    healthy service is verified. A timeout does not stop the app window; do not
    start another copy. Inspect the known window and close it normally if needed.
+   If BF-670 names a local startup diagnostic, check its captured time; raw child
+   errors stay local and are not source freshness or recommendation clearance.
 4. Check the report opened in Notepad: `BETA SOURCE CHECKOUT: VERIFIED` must
    contain the full app SHA above. This proves disk checkout only.
 5. Keep the new Butler app window open. Use `http://127.0.0.1:18080/`.
