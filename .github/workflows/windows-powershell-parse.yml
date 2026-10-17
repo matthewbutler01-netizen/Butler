@@ -391,6 +391,7 @@ jobs:
           & '.\scripts\butler-accessibility-acceptance.ps1'
           & '.\scripts\butler-bf958-my-team-section-nav-acceptance.ps1'
           & '.\scripts\butler-bf954-dashboard-matchup-actions-acceptance.ps1'
+          & '.\scripts\butler-dashboard-disconnect-acceptance.ps1'
 
       - name: Exercise verification hardening fixtures
         shell: powershell
