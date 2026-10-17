@@ -36,6 +36,31 @@ try {
     $report = [IO.File]::ReadAllText($path)
     if ($report -notmatch 'BETA STARTUP: HELD' -or $report -notmatch 'Browser acceptance: NOT RUN') { throw 'Held report missing' }
     if ($report -match '(?m)^BETA STARTUP: PENDING|^BETA SOURCE CHECKOUT: VERIFIED') { throw 'Held report retained stale success or pending status' }
+    $pages = 'RESULT: 0 page failure(s), 1 watch warning(s).'
+    $script:probeCount = 0
+    $script:readyAfter = [int]::MaxValue
+    $final = Save-BetaPageCheckReport -Path $path -CheckoutCommit 'fixture-commit' -Content $pages -CheckExit 0 -Port 18080
+    $report = [IO.File]::ReadAllText($path)
+    if ($final.Healthy -or $final.Status -cne 'HELD - SERVICE NO LONGER VERIFIED' -or $script:probeCount -ne 1 -or
+        -not $report.Contains($pages) -or -not $report.Contains('BETA FINAL STATUS: HELD - SERVICE NO LONGER VERIFIED') -or
+        -not $report.Contains('Final service check UTC:') -or -not $report.Contains('Browser acceptance: NOT RUN') -or
+        -not $report.Contains('page results above preceded this failed service check')) {
+        throw 'Stopped service was cleared or lost its completed page evidence.'
+    }
+    $script:readyAfter = 1
+    $final = Save-BetaPageCheckReport -Path $path -CheckoutCommit 'fixture-commit' -Content $pages -CheckExit 0 -Port 18080
+    if (-not $final.Healthy -or $final.Status -cne 'PAGES LOAD - EVIDENCE WARNINGS' -or
+        ([IO.File]::ReadAllText($path)).Contains('SERVICE NO LONGER VERIFIED')) { throw 'Healthy service lost evidence warnings or retained a stale hold.' }
+    foreach ($case in @(
+        @{ Content='RESULT: 2 page failure(s), 0 watch warning(s).'; Exit=0 },
+        @{ Content=$pages; Exit=2 },
+        @{ Content='Checker returned no result summary.'; Exit=0 }
+    )) {
+        $final = Save-BetaPageCheckReport -Path $path -CheckoutCommit 'fixture-commit' -Content $case.Content -CheckExit $case.Exit -Port 18080
+        if (-not $final.Healthy -or $final.Status -cne 'PAGE ERROR') { throw 'Healthy endpoint hid a failed page check.' }
+    }
+    $final = Save-BetaPageCheckReport -Path $path -CheckoutCommit 'fixture-commit' -Content 'RESULT: 0 page failure(s), 0 watch warning(s).' -CheckExit 0 -Port 18080
+    if ($final.Status -cne 'LOCAL PAGES RESPOND - LIVE INJURIES NOT CERTIFIED') { throw 'Clean page result invented live evidence clearance.' }
 }
 finally {
     $env:LOCALAPPDATA = $originalLocalAppData
@@ -44,4 +69,4 @@ finally {
     if ([IO.Path]::GetDirectoryName($resolved) -ne $expectedParent -or [IO.Path]::GetFileName($resolved) -notlike 'butler-beta-startup-*') { throw 'Unsafe fixture cleanup path' }
     if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
 }
-Write-Host 'BETA STARTUP ACCEPTANCE: PASS (delayed health, exited starter, bounded timeout, safe saved reports)'
+Write-Host 'BETA STARTUP ACCEPTANCE: PASS (delayed health, exited starter, bounded timeout, final service loss, retained page evidence and warnings)'

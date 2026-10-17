@@ -76,6 +76,29 @@ function Write-BetaStartupReport {
     Write-Host ('Startup status report: ' + $path)
 }
 
+function Save-BetaPageCheckReport {
+    param([string]$Path, [string]$CheckoutCommit, [string]$Content, [int]$CheckExit, [int]$Port)
+    # A completed page sequence cannot prove that its app is still available.
+    $healthy = Test-BetaHealth -Port $Port
+    $status = if (-not $healthy) { 'HELD - SERVICE NO LONGER VERIFIED' }
+        elseif ($CheckExit -ne 0 -or $Content -notmatch '(?m)^RESULT:\s*0 page failure\(s\),\s*[0-9]+ watch warning\(s\)\.' -or
+            $Content -match '(?m)^RESULT:\s*[1-9][0-9]* page failure') { 'PAGE ERROR' }
+        elseif ($Content -match '(?m)^RESULT:\s*0 page failure\(s\),\s*[1-9][0-9]* watch warning') { 'PAGES LOAD - EVIDENCE WARNINGS' }
+        else { 'LOCAL PAGES RESPOND - LIVE INJURIES NOT CERTIFIED' }
+    $header = 'BETA SOURCE CHECKOUT: VERIFIED ' + $CheckoutCommit + [Environment]::NewLine +
+        'SOURCE PROOF: exact Git checkout, not a Sleeper week, injury, waiver availability or browser execution check.' +
+        [Environment]::NewLine + [Environment]::NewLine
+    $footer = [Environment]::NewLine + [Environment]::NewLine +
+        'BETA FINAL STATUS: ' + $status + [Environment]::NewLine +
+        'Final service check UTC: ' + [DateTimeOffset]::UtcNow.ToString('o') + [Environment]::NewLine +
+        'Browser acceptance: NOT RUN by this launcher.'
+    if (-not $healthy) {
+        $footer += [Environment]::NewLine + 'The page results above preceded this failed service check. Keep the known Butler app window open; inspect it before restarting. Do not start another copy or stop unknown processes.'
+    }
+    [IO.File]::WriteAllText($Path, $header + $Content + $footer, [Text.Encoding]::UTF8)
+    return [pscustomobject]@{ Healthy = $healthy; Status = $status }
+}
+
 # BF-1527: verify the checkout of the immutable candidate before we start it.
 # This proves disk HEAD, not live player freshness or a health endpoint's SHA.
 $approvedCandidateCommit = 'dd9f5b955e4d75be380894f2fb71b752fc75d405'
@@ -167,14 +190,15 @@ try {
     $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 30 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
     $checkExit = $LASTEXITCODE
     $content = $log -join [Environment]::NewLine
-    # The report proves which source checkout the updater selected. It does not
-    # certify the health endpoint's process identity or live Sleeper evidence.
-    $header = 'BETA SOURCE CHECKOUT: VERIFIED ' + $verifiedCheckout + [Environment]::NewLine +
-        'SOURCE PROOF: exact Git checkout, not a Sleeper week, injury, waiver availability or browser execution check.' +
-        [Environment]::NewLine + [Environment]::NewLine
-    [IO.File]::WriteAllText($reportPath, $header + $content, [Text.Encoding]::UTF8)
+    $finalCheck = Save-BetaPageCheckReport -Path $reportPath -CheckoutCommit $verifiedCheckout -Content $content -CheckExit $checkExit -Port $TargetPort
+    # Preserve the completed report, including its failed final probe, in catch.
+    $startupReportWritten = $false
+    if (-not $finalCheck.Healthy) {
+        Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $reportPath + '"')
+        throw 'SERVICE NO LONGER VERIFIED AFTER PAGE CHECKS. Browser was not opened. Inspect the saved report and known Butler app window.'
+    }
 
-    if ($checkExit -ne 0 -or $content -match '(?m)^RESULT:\s*[1-9][0-9]* page failure') {
+    if ($finalCheck.Status -ceq 'PAGE ERROR') {
         Write-Host 'BETA STATUS: PAGE ERROR. The app is open for read-only inspection.'
     }
     elseif ($content -match '(?m)^RESULT:\s*0 page failure\(s\),\s*[1-9][0-9]* watch warning') {

@@ -31,6 +31,10 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    contain the full app SHA above. This proves disk checkout only.
 5. Keep the new Butler app window open. Use `http://127.0.0.1:18080/`.
    A health response or passing page check does not prove browser acceptance.
+   The launcher checks service health again after page checks. If that final
+   check fails, it keeps the completed results in the report, marks the final
+   status HELD and opens the report without opening the browser. Inspect the
+   known app window before restarting; do not launch a second copy.
 
 ## Browser checks (record PASS / FAIL / NOT EXERCISED)
 

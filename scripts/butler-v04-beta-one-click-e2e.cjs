@@ -24,6 +24,12 @@ assert.ok(ps.indexOf('Assert-BetaCandidateCheckout -Path $CheckoutPath') < ps.in
 assert.match(ps,/BETA SOURCE CHECKOUT: VERIFIED/);
 assert.match(ps,/not a Sleeper week, injury, waiver availability or browser execution check/);
 assert.match(ps,/EXISTING v0\.4 WORKER\. The tested beta update was NOT applied/);
+assert.match(ps,/\$finalCheck = Save-BetaPageCheckReport/);
+const finalGate=ps.indexOf('if (-not $finalCheck.Healthy)');
+assert.ok(finalGate>ps.indexOf('$finalCheck = Save-BetaPageCheckReport'));
+assert.ok(finalGate<ps.indexOf("Start-Process -FilePath ('http://127.0.0.1:'"),'final health gate must precede browser opening');
+assert.match(ps,/\$startupReportWritten = \$false\s+if \(-not \$finalCheck.Healthy\)/);
+assert.match(ps,/SERVICE NO LONGER VERIFIED AFTER PAGE CHECKS/);
 assert.doesNotMatch(ps,/BUTLER: ALREADY RUNNING\. No update applied/);
 assert.match(cmd,/butler-v04-beta-one-click\.ps1/);
 assert.match(cmd,/EXTRACT ALL REQUIRED/);
