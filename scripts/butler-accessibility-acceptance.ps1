@@ -25,6 +25,24 @@ $teamWorkspace = '<!doctype html><html><head><title>My Team</title></head><body 
 $teamRendered = Add-ButlerAccessibility $teamWorkspace
 if ($teamRendered.Contains('class="manager-playbook"')) { throw 'My Team received a duplicate shared Playbook rail.' }
 if (-not $teamRendered.Contains('aria-label="Team workspace"') -or -not $teamRendered.Contains('aria-current="page"')) { throw 'My Team original Playbook/accessibility contract was lost.' }
+$compactNav = [regex]::Match($teamRendered, '(?s)<nav\b.*?</nav>').Value
+foreach ($route in @('/matchup/autofill', '/autopilot')) {
+    if ([regex]::Matches($compactNav, ('href="' + [regex]::Escape($route) + '"')).Count -ne 1) {
+        throw "My Team compact navigation must expose exactly one $route link."
+    }
+}
+if ([regex]::Matches($compactNav, 'aria-current="page"').Count -ne 1 -or
+    -not $compactNav.Contains('aria-current="page" class="active" href="/team"')) {
+    throw 'Adding weekly tools changed the My Team current-page identity.'
+}
+if ((Add-ButlerAccessibility $teamRendered) -cne $teamRendered) { throw 'My Team navigation is not stable on repeated rendering.' }
+$existingTools = $teamWorkspace.Replace('</nav>', '<a href="/matchup/autofill">Start/Sit Assistant</a><a href="/autopilot">Auto-Pilot</a></nav>')
+$existingNav = [regex]::Match((Add-ButlerAccessibility $existingTools), '(?s)<nav\b.*?</nav>').Value
+foreach ($route in @('/matchup/autofill', '/autopilot')) {
+    if ([regex]::Matches($existingNav, ('href="' + [regex]::Escape($route) + '"')).Count -ne 1) {
+        throw 'Existing weekly navigation was duplicated.'
+    }
+}
 
 $bare = '<html><body><h1>Unavailable</h1><pre>BF-610 original detail</pre></body></html>'
 if ((Add-ButlerAccessibility $bare) -cne $bare.Replace('<html>', '<html lang="en">')) { throw 'Minimal error page was changed beyond language metadata.' }

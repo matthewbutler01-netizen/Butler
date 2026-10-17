@@ -613,6 +613,24 @@ function Add-ButlerAccessibility {
     # page-local section jumps. Every other manager surface receives the same
     # Playbook navigation shell here at the final public HTML boundary.
     $hasTeamWorkspace = $result.IndexOf('aria-label="Team workspace"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if ($hasTeamWorkspace) {
+        # The desktop team rail is hidden below 1200px. Keep its weekly tools
+        # reachable from the compact navigation too, without duplicating links
+        # supplied by a newer page renderer or changing the current-page state.
+        foreach ($tool in @(
+            @{ Href = '/matchup/autofill'; Label = 'Start/Sit Assistant' },
+            @{ Href = '/autopilot'; Label = 'Auto-Pilot' }
+        )) {
+            if ($navigation -notmatch ('href="' + [regex]::Escape($tool.Href) + '"')) {
+                $toolLink = '<a href="' + $tool.Href + '">' + $tool.Label + '</a>'
+                $anchor = '<a href="/matchup">'
+                if ($navigation.Contains($anchor)) {
+                    $navigation = $navigation.Replace($anchor, $toolLink + $anchor)
+                }
+                else { $navigation = $navigation.Replace('</nav>', $toolLink + '</nav>') }
+            }
+        }
+    }
     if (-not $hasTeamWorkspace) {
         $currentMatch = [regex]::Match($navigation, '(?is)<a\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
         $currentLabel = if ($currentMatch.Success) {
