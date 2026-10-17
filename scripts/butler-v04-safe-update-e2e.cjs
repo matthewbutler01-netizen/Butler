@@ -37,6 +37,18 @@ function testRun(port) {
 }
 (async()=>{
   try {
+    // Actual entry points must reject a non-default launch port before even
+    // inspecting the checkout. Preflight may still probe isolated test ports.
+    for (const entry of [script,path.join(__dirname,'butler-v04-beta-one-click.ps1')]) {
+      const rejected=cp.spawnSync('powershell.exe',[
+        '-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
+        '-File',entry,'-CheckoutPath',repo,'-TargetPort','18081'
+      ],{encoding:'utf8',windowsHide:true,timeout:10000});
+      assert.equal(rejected.status,2,rejected.stdout+rejected.stderr);
+      assert.match(rejected.stdout,/PORT MISMATCH/);
+      assert.doesNotMatch(rejected.stdout,/Fetching pinned|Starting v0.4|BETA CHECKOUT: VERIFIED/);
+      assert.equal(fs.existsSync(repo),false,'must reject before creating a checkout');
+    }
     fs.mkdirSync(path.join(repo,'scripts'),{recursive:true});
     fs.writeFileSync(path.join(repo,'scripts','butler-v04-start-18080.cmd'),'@echo off\r\nexit /b 0\r\n');
     git(['init','-q']);

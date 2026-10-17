@@ -72,6 +72,10 @@ function Assert-BetaCandidateCheckout {
 
 try {
     Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'
+    # The source starter binds 18080; never inspect one port and launch another.
+    if ($TargetPort -ne 18080 -and -not $PreflightOnly) {
+        throw 'PORT MISMATCH. This development starter requires port 18080; no update or app launch attempted.'
+    }
     Write-Host 'One action: update, start, check, open.'
     Write-Host 'Never replaces v0.3 or submits a Sleeper transaction.'
     Write-Host ''

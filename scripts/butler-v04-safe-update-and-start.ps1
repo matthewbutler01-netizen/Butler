@@ -16,6 +16,10 @@ $sourceBranch = 'refs/heads/bf1529-governed-week-rollover-refresh'
 
 try {
     Write-Host 'BUTLER v0.4 - PINNED LOCAL DEVELOPMENT UPDATE'
+    # The source starter binds 18080; never inspect one port and launch another.
+    if ($TargetPort -ne 18080 -and -not $PreflightOnly) {
+        throw 'PORT MISMATCH. This development starter requires port 18080; no update or app launch attempted.'
+    }
     Write-Host 'Scope: only the existing v0.4 source checkout and port 18080.'
     Write-Host 'No v0.3 release replacement; no Sleeper transaction.'
     Write-Host ('Approved beta candidate: ' + $targetCommit.Substring(0, 12))
