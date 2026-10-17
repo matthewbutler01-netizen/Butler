@@ -160,16 +160,21 @@ function Invoke-AppCoreGet {
 function Test-StartSitRosterDriftResponse {
     param(
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [AllowNull()][string]$Body
+        [AllowNull()][string]$Body,
+        [int]$StatusCode = 500
     )
 
     # Only exact My Team and Start/Sit roster-drift messages authorize the
     # already-governed BF-723 local evidence repair. Other routes stay read-only.
-    if (@('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
+    if ($StatusCode -ne 500 -or @('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
         [string]::IsNullOrWhiteSpace($Body)) {
         return $false
     }
 
+    $markers=[regex]::Matches($Body,'data-butler-roster-recovery=')
+    if ($markers.Count -gt 0) {
+        return $markers.Count -eq 1 -and [regex]::Matches($Body,'<div data-butler-roster-recovery="bf610-exact-drift-v1" role="status">').Count -eq 1
+    }
     return $Body.IndexOf(
         'current roster membership drifted',
         [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
@@ -2398,7 +2403,7 @@ try {
         # exact proven BF-610 roster drift. The BF-723 script rechecks its own
         # strict authorization before any Butler-local evidence write; it never
         # submits a Sleeper transaction.
-        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
+        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body) -StatusCode ([int]$proxied.StatusCode)) {
             try {
                 Claim-LocalEvidenceRecovery -State $RefreshState
                 try {
