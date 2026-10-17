@@ -30,8 +30,19 @@ if ($queue.Count -ne 1 -or -not $queue[0].Value.Contains('WAIVER HELD') -or
 $ambiguous=$summary.Replace('STALE_DO_NOT_ACT','CURRENT_AND_ACTIONABLE').Replace('BF-629 live actionability: UNVERIFIED','BF-629 live actionability: LIVE_ACTIONABLE_VERIFIED').Replace('BF-631 evidence lineage: UNVERIFIED','BF-631 evidence lineage: LATEST_EVIDENCE_LINEAGE_VERIFIED')+"`r`nbf-629 live actionability: UNVERIFIED"
 $ambiguousHtml=ConvertTo-DashboardHtml -Summary $ambiguous
 $ambiguousQueue=[regex]::Match($ambiguousHtml,'(?s)<section class="panel weekly-decision-queue".*?</section>').Value
-if (-not $ambiguousQueue.Contains('WAIVER HELD') -or $ambiguousQueue.Contains('RECORDED MOVE TO REVIEW')) {
+if (-not $ambiguousQueue.Contains('WAIVER HELD') -or $ambiguousQueue.Contains('RECORDED MOVE TO REVIEW') -or
+    -not $ambiguousHtml.Contains('Dashboard evidence needs review') -or
+    $ambiguousHtml.Contains('A waiver move is ready to review') -or
+    $ambiguousHtml.Contains('butler-refresh-contract') -or
+    $ambiguousHtml.Contains('dashboard-summary-card')) {
     throw 'Generated Dashboard used first-match duplicate audit proof.'
 }
-if (-not [string]::IsNullOrWhiteSpace($OutputHtmlPath)) { [IO.File]::WriteAllText($OutputHtmlPath,$html,[Text.UTF8Encoding]::new($false)) }
+$missingHtml=ConvertTo-DashboardHtml -Summary 'Target: synthetic incomplete source'
+if (-not $missingHtml.Contains('Dashboard evidence needs review') -or $missingHtml.Contains('butler-refresh-contract')) {
+    throw 'Missing audit fields reached the normal Dashboard.'
+}
+if (-not [string]::IsNullOrWhiteSpace($OutputHtmlPath)) {
+    [IO.File]::WriteAllText($OutputHtmlPath,$html,[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText([IO.Path]::ChangeExtension($OutputHtmlPath,'.held.html'),$ambiguousHtml,[Text.UTF8Encoding]::new($false))
+}
 Write-Host 'GENERATED DASHBOARD QUEUE RENDER: PASS (real renderer, synthetic summary, no provider lookups).'

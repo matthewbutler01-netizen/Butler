@@ -19,6 +19,18 @@ $prelude=@'
 
 '@
 $body=$body.Substring(0,$position)+$prelude+[Environment]::NewLine+$tail
+# The old summary reader chooses the first matching field. Reject ambiguity
+# before it can populate any older hero, glance card or hidden audit contract.
+$entry=$fn.Body.EndBlock.Statements[0].Extent.StartOffset-$fn.Extent.StartOffset
+$entryGuard=@'
+    if (-not (Test-ButlerQueueAuditFieldsUnique -Summary $Summary)) {
+        $heldItems = @(Get-ButlerWeeklyDecisionQueue -LineupState 'UNVERIFIED' -WaiverState 'UNVERIFIED')
+        $heldQueue = ConvertTo-ButlerWeeklyDecisionQueueHtml -Items $heldItems -Team 'Team context not independently verified'
+        return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Butler - Dashboard evidence held</title><style>' + (Get-SharedCss) + '</style></head><body><main class="shell">' + (Get-HeaderHtml -Target 'Audit proof not verified' -Active 'dashboard') + '<section class="panel"><h1>Dashboard evidence needs review</h1><p>Required audit fields are missing or duplicated. Butler has withheld saved recommendations from this Dashboard. Review the source pages before acting.</p></section>' + $heldQueue + '<p>READ ONLY. No Sleeper transaction was submitted by this view.</p></main></body></html>'
+    }
+
+'@
+$body=$body.Insert($entry,$entryGuard+[Environment]::NewLine)
 $module=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'butler-weekly-decision-queue.ps1'))
 $source=$source.Substring(0,$fn.Extent.StartOffset)+$module+[Environment]::NewLine+$body+$source.Substring($fn.Extent.EndOffset)
 [void][Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
