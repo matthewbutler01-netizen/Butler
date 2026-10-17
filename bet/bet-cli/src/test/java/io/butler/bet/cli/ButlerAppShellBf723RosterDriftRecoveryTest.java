@@ -49,7 +49,7 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
     }
 
     @Test
-    void recoveryUsesFixedRosterStagesThenSynchronizesCurrentMatchup() throws Exception {
+    void recoveryVerifiesCurrentMatchupBeforeFixedRosterEvidenceStages() throws Exception {
         String script = source("scripts/butler-recover-roster-drift.ps1");
 
         String[] classes = {
@@ -71,7 +71,12 @@ class ButlerAppShellBf723RosterDriftRecoveryTest {
 
         int matchupSync = script.indexOf("io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli");
         assertEquals(1, occurrences(script, "io.butler.bet.cli.ButlerSleeperCurrentWeekMatchupSyncCli"));
-        assertTrue(matchupSync > previous, "BF-840 current matchup sync must run after governed roster evidence stages");
+        int driftAuthorization = script.indexOf("$recoveryNeeded = $true");
+        int firstEvidenceStage = script.indexOf(classes[0]);
+        assertTrue(matchupSync > driftAuthorization,
+            "BF-840 must remain downstream of the exact roster-state preflight");
+        assertTrue(matchupSync < firstEvidenceStage,
+            "BF-840 must verify the current week before any waiver evidence stage");
         assertTrue(script.contains("BF-840 current weekly matchup sync"));
 
         assertFalse(script.contains("ButlerSleeperLiveWaiverFinalRecommendationBundleCli"));

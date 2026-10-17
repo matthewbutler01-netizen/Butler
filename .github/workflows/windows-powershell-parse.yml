@@ -27,6 +27,8 @@ on:
       - 'docs/v04-week-rollover-browser-acceptance.md'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/build.gradle.kts'
   pull_request:
     branches:
       - main
@@ -37,6 +39,8 @@ on:
       - 'docs/v04-week-rollover-browser-acceptance.md'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
+      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/build.gradle.kts'
 
 concurrency:
   group: windows-powershell-compat-${{ github.event.pull_request.number || github.ref }}
@@ -278,7 +282,7 @@ jobs:
             'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
             '',
             'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
-            'This updater is pinned to commit b19cba91b876fed9abf775315799ee612bb28fea.',
+            'This updater is pinned to commit 71af533793bfc603a938125b4ffaf44904120996.',
             'The development starter requires loopback port 18080.',
             'It will not upgrade, merge or touch the frozen v0.3 release.',
             '',
