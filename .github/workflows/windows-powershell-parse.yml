@@ -138,6 +138,8 @@ jobs:
           if (-not $?) { exit 1 }
           & '.\scripts\butler-startup-stderr-acceptance.ps1'
           if (-not $?) { exit 1 }
+          node '.\scripts\butler-startup-warmup-http-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-auto-refresh-browser-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-bf1080-real-chromium-onopen-e2e.cjs'

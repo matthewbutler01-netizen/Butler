@@ -222,6 +222,8 @@ function Invoke-PreservedCoreWarmup {
     }
     catch {
         Write-Warning ("BF-751 preserved-core warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+        # Optional cache priming must not queue more work behind a failed read.
+        return
     }
     finally {
         if ($null -ne $response) { $response.Close() }
@@ -249,6 +251,7 @@ function Invoke-PreservedCoreWarmup {
     }
     catch {
         Write-Warning ("BF-756 preserved-core team warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+        return
     }
     finally {
         if ($null -ne $teamResponse) { $teamResponse.Close() }
