@@ -78,7 +78,7 @@ function Write-BetaStartupReport {
 
 # BF-1527: verify the checkout of the immutable candidate before we start it.
 # This proves disk HEAD, not live player freshness or a health endpoint's SHA.
-$approvedCandidateCommit = 'e17f249ecc41943f8fbe6ef998a993979b31ab15'
+$approvedCandidateCommit = 'eae84139c436b08143aee4b944f6b54d606a8674'
 function Assert-BetaCandidateCheckout {
     param([Parameter(Mandatory = $true)][string]$Path)
     if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
