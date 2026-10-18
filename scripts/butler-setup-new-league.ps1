@@ -217,6 +217,21 @@ try {
         [void](Invoke-ButlerRuntime -Label $stage.Label -MainClass $stage.Main -Arguments @($butlerLeagueId))
     }
 
+    # Record the initial governed result while data is still staged. Capture
+    # verifies live identity and reconciles lineage; a recorded hold is valid,
+    # but missing/ambiguous capture proof must never install a partial profile.
+    # This is a Butler-local audit, not a source refresh or Sleeper transaction.
+    $initialAudit = Invoke-ButlerRuntime -Label 'Initial governed waiver audit' -MainClass 'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli' -Arguments @($butlerLeagueId)
+    $captureState = Get-ExactField -Text $initialAudit -Pattern '(?m)^Capture state:\s+(?<value>\S+)\s*$' -Label 'initial audit capture state'
+    if (@('CAPTURED_VERIFIED', 'ALREADY_CAPTURED_EXACT') -cnotcontains $captureState) {
+        throw 'Initial waiver audit capture was not verified.'
+    }
+    $auditIdText = Get-ExactField -Text $initialAudit -Pattern '(?m)^Audit id:\s+(?<value>\S+)\s*$' -Label 'initial audit id'
+    $initialAuditId = [Guid]::Empty
+    if (-not [Guid]::TryParseExact($auditIdText, 'D', [ref]$initialAuditId) -or $initialAuditId -eq [Guid]::Empty) {
+        throw 'Initial waiver audit id was not valid.'
+    }
+
     if (-not (Test-Path -LiteralPath $stagedDatabase -PathType Leaf)) {
         throw 'Setup completed its provider stages without producing butler.db.'
     }

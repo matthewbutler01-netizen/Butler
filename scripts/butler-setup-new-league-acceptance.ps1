@@ -7,7 +7,7 @@ $profile = Join-Path $root 'profile'
 $javaHome = Join-Path $root 'java'
 $zip = Join-Path $root 'runtime.zip'
 $saved = @{}
-foreach ($name in @('LOCALAPPDATA', 'BUTLER_APP_DATA_DIR', 'JAVA_HOME', 'PATH')) {
+foreach ($name in @('LOCALAPPDATA', 'BUTLER_APP_DATA_DIR', 'JAVA_HOME', 'PATH', 'BUTLER_FIXTURE_CAPTURE_MODE')) {
     $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
 }
 
@@ -112,6 +112,18 @@ public static class ButlerMvpFixtureJava {
             return;
         }
 
+        if (main == "io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli") {
+            string mode = Environment.GetEnvironmentVariable("BUTLER_FIXTURE_CAPTURE_MODE");
+            if (mode == "exit") { Environment.Exit(2); return; }
+            if (mode == "missing") { Console.WriteLine("no capture proof"); return; }
+            string state = mode == "unknown" ? "UNKNOWN" : (mode == "already" ? "ALREADY_CAPTURED_EXACT" : "CAPTURED_VERIFIED");
+            Console.WriteLine("Capture state: " + state);
+            if (mode == "duplicate") Console.WriteLine("Capture state: CAPTURED_VERIFIED");
+            string auditId = mode == "bad-id" ? "unknown" : (mode == "empty-id" ? "00000000-0000-0000-0000-000000000000" : "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+            Console.WriteLine("Audit id: " + auditId);
+            if (mode == "duplicate-id") Console.WriteLine("Audit id: " + auditId);
+            return;
+        }
         Console.WriteLine("fixture stage complete: " + main);
     }
 }
@@ -126,6 +138,7 @@ public static class ButlerMvpFixtureJava {
     $env:BUTLER_APP_DATA_DIR = ''
     $env:JAVA_HOME = $javaHome
     $env:PATH = Join-Path $env:SystemRoot 'System32'
+    Remove-Item Env:BUTLER_FIXTURE_CAPTURE_MODE -ErrorAction SilentlyContinue
 
     $entry = Join-Path $package 'scripts\butler-setup-new-league.cmd'
     $output = @(& $entry -RuntimeZip $zip -SleeperUsername 'fixture-user' -SleeperLeagueId '123456789012345678' -VerifyOnly 2>&1) -join "`n"
@@ -133,6 +146,7 @@ public static class ButlerMvpFixtureJava {
     Assert-True ($exitCode -eq 0) "expected successful onboarding, exit=$exitCode output=$output"
     Assert-True ($output -match 'BUTLER MVP ONBOARDING: PASS') "missing onboarding PASS marker: $output"
     Assert-True ($output -match 'BUTLER SETUP RUNTIME CHECK: PASS') "runtime-only preflight did not run: $output"
+    Assert-True ($output -match 'SETUP PASS: Initial governed waiver audit') 'initial audit was not captured before onboarding completed'
 
     $dataDir = Join-Path $profile 'Butler\data'
     $db = Join-Path $dataDir 'butler.db'
@@ -149,6 +163,24 @@ public static class ButlerMvpFixtureJava {
     Assert-True ($second -match 'Saved Butler league selection already exists') "existing-selection guard missing: $second"
     Assert-True ((Get-FileHash -LiteralPath $db -Algorithm SHA256).Hash -ceq $beforeDb) 'blocked retry changed existing database'
     Assert-True ([IO.File]::ReadAllText($selection) -ceq $beforeSelection) 'blocked retry changed saved league selection'
+
+    foreach ($captureMode in @('exit', 'missing', 'duplicate', 'unknown', 'bad-id', 'empty-id', 'duplicate-id')) {
+        $failedProfile = Join-Path $root ('capture-' + $captureMode)
+        [IO.Directory]::CreateDirectory($failedProfile) | Out-Null
+        $env:LOCALAPPDATA = $failedProfile
+        $env:BUTLER_FIXTURE_CAPTURE_MODE = $captureMode
+        $failed = @(& $entry -RuntimeZip $zip -SleeperUsername 'fixture-user' -SleeperLeagueId '123456789012345678' -VerifyOnly 2>&1) -join "`n"
+        Assert-True ($LASTEXITCODE -ne 0) "invalid capture $captureMode was accepted"
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $failedProfile 'Butler\data\butler.db'))) "invalid capture $captureMode installed database"
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $failedProfile 'Butler\app-league.txt'))) "invalid capture $captureMode installed selection"
+        Assert-True ($failed -notmatch 'BUTLER FIRST LAUNCH: PASS') "invalid capture $captureMode reached launch"
+    }
+    $env:LOCALAPPDATA = Join-Path $root 'already-captured-profile'
+    [IO.Directory]::CreateDirectory($env:LOCALAPPDATA) | Out-Null
+    $env:BUTLER_FIXTURE_CAPTURE_MODE = 'already'
+    $already = @(& $entry -RuntimeZip $zip -SleeperUsername 'fixture-user' -SleeperLeagueId '123456789012345678' -VerifyOnly 2>&1) -join "`n"
+    Assert-True ($LASTEXITCODE -eq 0 -and $already -match 'BUTLER MVP ONBOARDING: PASS') 'exact already-captured result was rejected'
+    Remove-Item Env:BUTLER_FIXTURE_CAPTURE_MODE -ErrorAction SilentlyContinue
 
     $choiceProfile = Join-Path $root 'choice-profile'
     [IO.Directory]::CreateDirectory($choiceProfile) | Out-Null
@@ -184,7 +216,8 @@ public static class ButlerMvpFixtureJava {
         'io.butler.bet.cli.ButlerSleeperLiveWaiverAvailabilitySyncCli',
         'io.butler.bet.cli.ButlerSleeperLiveWaiverCurrentWeekStatSyncCli',
         'io.butler.bet.cli.ButlerSleeperLiveWaiverTargetRosterProductionHydrationCli',
-        'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli'
+        'io.butler.bet.cli.ButlerSleeperLiveWaiverComparisonBundleCli',
+        'io.butler.bet.cli.ButlerSleeperLiveWaiverRecommendationAuditCaptureCli'
     )) {
         Assert-True ($source.Contains($requiredClass)) "onboarding contract lost required stage $requiredClass"
     }
