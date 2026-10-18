@@ -35,6 +35,18 @@ foreach ($required in @(
 }
 
 $function = $function.Replace('Lineup advisor', 'Start/Sit Assistant')
+# Legal-lineup holds can mention projections in their detailed evidence without
+# proving that the projection source itself is missing. Preserve the generic
+# evidence-gap presentation for those exact optimizer failures.
+$projectionGapOld = '        $projectionGap = $reason.IndexOf(''projection'', [System.StringComparison]::OrdinalIgnoreCase) -ge 0'
+$projectionGapNew = @'
+        $projectionGap = $reason.IndexOf('projection', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            -not $reason.StartsWith('A complete legal ', [System.StringComparison]::Ordinal)
+'@
+if ([regex]::Matches($function, [regex]::Escape($projectionGapOld)).Count -ne 1) {
+    throw 'Start/Sit unavailable-evidence classification requires one exact anchor.'
+}
+$function = $function.Replace($projectionGapOld, $projectionGapNew.TrimEnd())
 $function = $function.Replace('This week''s lineup decision', 'Start/Sit Assistant')
 $function = $function.Replace('recommendation-panel', 'recommendation-panel start-sit-assistant')
 $function = $function.Replace('<h3>Decision</h3>', '<h3>What should I change?</h3>')

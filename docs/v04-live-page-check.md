@@ -150,6 +150,15 @@ Auto-Pilot reuses its already-loaded Dashboard HTML as the only eligibility sour
 
 ## Unavailable lineup rendering regression
 
+When every active candidate is excluded, evidence holds are now counted
+separately from confirmed unavailable players. The optimizer previously used
+the all-unavailable explanation even when evidence holds removed every
+candidate. The no-scoreable-candidate reason now reports both counts and the
+read-only report retains the source hold details. A legal-lineup evidence hold
+does not become a projection-source outage merely because those details mention
+projections. All-held and mixed-held lineups remain blocked; confirmed
+unavailability, candidate filtering and conditional eligibility are unchanged.
+
 An isolated real-app browser run found that the Dashboard's Refresh Lineup link
 could hide a useful unavailable-evidence reason behind a StrictMode exception:
 `ProjectionFetchedAt` was missing on the unavailable view. The Start/Sit

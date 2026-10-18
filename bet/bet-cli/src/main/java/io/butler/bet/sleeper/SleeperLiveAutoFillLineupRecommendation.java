@@ -925,7 +925,10 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         List<UnavailablePlayerExclusion> availabilityExclusions) {
 
         String base = requireText(reason, "reason");
-        if (!base.startsWith("A complete legal lineup cannot be built")) return base;
+        if (!base.startsWith("A complete legal lineup cannot be built")
+            && !base.startsWith("A complete legal starting lineup cannot be built because no scoreable active roster candidates remain.")) {
+            return base;
+        }
 
         Map<String, AutoFillLineupOptimizer.RosterPlayer> rosterById = new LinkedHashMap<>();
         for (var player : optimizerRoster) rosterById.put(player.playerId(), player);

@@ -16,6 +16,40 @@ class AutoFillLineupOptimizerBf825Test {
     private final AutoFillLineupOptimizer optimizer = new AutoFillLineupOptimizer();
 
     @Test
+    void allEvidenceHeldPlayersAreNotReportedAsConfirmedUnavailable() {
+        var result = optimizer.optimize(List.of("WR"),
+            List.of(starter("a", "Starter", 0), bench("b", "Bench")),
+            Map.of(), Set.of(), Set.of("a", "b"));
+        assertFalse(result.ready());
+        assertTrue(result.assignments().isEmpty());
+        assertTrue(result.reason().contains("Evidence holds=2; explicitly unavailable=0"));
+        assertTrue(result.reason().contains("An evidence hold is not a confirmed unavailable status"));
+        assertFalse(result.reason().contains("every active roster player is explicitly unavailable"));
+    }
+
+    @Test
+    void mixedHoldsAndConfirmedUnavailableRemainDistinctAndBlocked() {
+        var result = optimizer.optimize(List.of("WR"),
+            List.of(starter("a", "Unavailable", 0), bench("b", "Evidence Held")),
+            Map.of(), Set.of("a"), Set.of("b"));
+        assertFalse(result.ready());
+        assertTrue(result.assignments().isEmpty());
+        assertTrue(result.reason().contains("Evidence holds=1; explicitly unavailable=1"));
+        assertFalse(result.reason().contains("every active roster player is explicitly unavailable"));
+    }
+
+    @Test
+    void allConfirmedUnavailablePlayersRetainTheirActualReason() {
+        var result = optimizer.optimize(List.of("WR"),
+            List.of(starter("a", "Unavailable", 0), bench("b", "Unavailable Bench")),
+            Map.of(), Set.of("a", "b"), Set.of());
+        assertFalse(result.ready());
+        assertTrue(result.assignments().isEmpty());
+        assertTrue(result.reason().contains("every active roster player is explicitly unavailable"));
+        assertFalse(result.reason().contains("Evidence holds="));
+    }
+
+    @Test
     void emptySlotUsesBenchWithoutSyntheticCurrentProjectionOrBenchMove() {
         var result = optimizer.optimize(List.of("WR", "WR"),
             List.of(starter("wr-start", "Starter", 1), bench("wr-bench", "Bench")),

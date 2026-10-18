@@ -46,7 +46,8 @@ try {
     $idleHtml = ConvertTo-AutoFillHtml -AutoFill $idle
     if ($idleHtml -notmatch 'NOT REVIEWED') { throw 'Idle lineup lost its not-reviewed state' }
     foreach ($reason in @('No current weekly projection evidence is available.',
-            'Required roster identity evidence is unavailable.')) {
+            'Required roster identity evidence is unavailable.',
+            'A complete legal starting lineup cannot be built because no scoreable active roster candidates remain. Evidence holds=2; explicitly unavailable=0. Projection-held players: source review required.')) {
         $unavailable = ConvertTo-AutoFillView -Text ("State: UNAVAILABLE`nSeason/week: 2026/6`nScoring basis: PPR`nReason: $reason")
         if ($unavailable.Ready -or -not $unavailable.Requested) { throw 'Unavailable parser changed its governed state' }
         $unavailableHtml = ConvertTo-AutoFillHtml -AutoFill $unavailable
@@ -54,6 +55,10 @@ try {
             $unavailableHtml -notmatch 'No lineup recommendation' -or
             $unavailableHtml -match 'butler-startsit-source-proof|projection snapshot retrieved|proposed lineup changes') {
             throw 'Unavailable lineup must preserve its reason without READY source-proof or advice'
+        }
+        if ($reason.StartsWith('A complete legal ', [StringComparison]::Ordinal) -and
+            ($unavailableHtml -notmatch 'EVIDENCE GAP' -or $unavailableHtml -match 'PROJECTIONS NEEDED')) {
+            throw 'Legal-lineup evidence holds were incorrectly classified as a projection-source outage'
         }
     }
     foreach ($required in @(
