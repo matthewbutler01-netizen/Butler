@@ -66,6 +66,10 @@ function ConvertTo-LeagueHtml {
     }
     else {
         $franchiseHtml = '<div class="empty">Franchise rankings are unavailable until Butler reports current asset coverage as READY. No franchise order is inferred.</div>'
+        if ($null -ne $View.PSObject.Properties['FranchiseCoverage'] -and $null -ne $View.FranchiseCoverage) {
+            $coverage = $View.FranchiseCoverage
+            $franchiseHtml += "<p class=`"meta league-coverage-summary`">Recorded asset coverage: $(ConvertTo-HtmlText $coverage.Valued) of $(ConvertTo-HtmlText $coverage.Total) valued; missing player values: $(ConvertTo-HtmlText $coverage.MissingPlayers); missing pick values: $(ConvertTo-HtmlText $coverage.MissingPicks); stale values: $(ConvertTo-HtmlText $coverage.Stale).</p><p class=`"meta`">Rankings stay held until usable values cover every asset. Rechecking the same source may leave these gaps. Recorded coverage is not a live source check.</p>"
+        }
     }
 
     $movementSummary = if ($View.MovementAvailable) {

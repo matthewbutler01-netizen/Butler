@@ -2,6 +2,9 @@ package io.butler.bet.cli;
 
 import io.butler.bet.intelligence.LeagueActionPlanAnalyzer;
 import io.butler.bet.intelligence.LeagueTeamContextAnalyzer;
+import io.butler.bet.intelligence.LeagueHealthAnalyzer;
+import io.butler.bet.intelligence.LeagueOverviewAnalyzer;
+import io.butler.bet.intelligence.FranchiseValueReadinessAnalyzer;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
@@ -13,6 +16,29 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ButlerMainTest {
+    @Test
+    void overviewReportsCoverageWithoutInventingRanksOrUnknownZeros() {
+        var coverage = new FranchiseValueReadinessAnalyzer.ReadinessReport(
+            "league", "source", FranchiseValueReadinessAnalyzer.Readiness.PARTIAL,
+            341, 3, 0, 0, null, null, null,
+            List.of(), List.of(), List.of(), List.of(), List.of());
+        for (boolean known : new boolean[]{true, false}) {
+            var health = new LeagueHealthAnalyzer.HealthReport("league", "sleeper", "Fixture",
+                1, 344, 0, null, false, "source", false, null,
+                LeagueHealthAnalyzer.HealthStatus.PARTIAL, known ? coverage : null, null, List.of());
+            var overview = new LeagueOverviewAnalyzer.OverviewReport(
+                new LeagueActionPlanAnalyzer.ActionPlan(health, List.of()), null, null);
+            String output = capture(() -> ButlerMain.printLeagueOverview(overview));
+            if (known) {
+                assertTrue(output.contains("Franchise coverage: valued=341 total=344 missing_players=3 missing_picks=0 stale=0"));
+            } else {
+                assertFalse(output.contains("Franchise coverage:"));
+            }
+            assertTrue(output.contains("Franchise rankings: unavailable"));
+            assertFalse(output.contains("Franchise leaders:"));
+        }
+    }
+
     @Test
     void recognizesEverySupportedLeagueStatusArgumentForm() {
         assertTrue(ButlerMain.isSupportedLeagueStatus(new String[]{"league", "status", "league-id"}));

@@ -218,6 +218,12 @@ public final class ButlerMain {
         System.out.println("Source: " + (health.sourceResolved() ? health.source() : "UNRESOLVED"));
         if (health.minimumAsOfDate() != null) System.out.println("Minimum as-of: " + health.minimumAsOfDate());
         System.out.println("Requires attention: " + overview.requiresAttention());
+        var coverage = health.franchiseReadiness();
+        if (coverage != null) {
+            System.out.printf("Franchise coverage: valued=%d total=%d missing_players=%d missing_picks=%d stale=%d%n",
+                coverage.valuedAssets(), coverage.totalAssets(), coverage.missingPlayers(),
+                coverage.missingDraftPicks(), coverage.staleAssets());
+        }
         if (overview.franchiseRankingsAvailable()) {
             System.out.println("Franchise leaders:");
             for (var team : overview.topFranchises(3)) {
