@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 # BF-M1: a pinned, explicitly scoped v0.4 *development* update. Never
 # force-stop a process, modify Sleeper, touch the v0.3 release, reset Git,
 # clean untracked files or switch to a moving remote branch.
-$targetCommit = 'c9a0a7f946f32abdf6f6f13a15321b467acbe8e6'
+$targetCommit = '4194b5f3d741c187f22b34ccb833986d8f0f899d'
 $sourceBranch = 'refs/heads/bf-v04-fantasy-workflow-study'
 
 try {
