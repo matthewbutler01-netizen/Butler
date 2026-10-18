@@ -22,6 +22,41 @@ class SleeperWeeklyProjectionProviderBf826Test {
     }
 
     @Test
+    void fractionalSourceFramesCannotBecomeCurrentWeekEvidence() throws Exception {
+        for (String frame : new String[]{"\"season\":2026,\"week\":2.9",
+                "\"season\":2026.9,\"week\":2",
+                "\"season\":2026,\"week\":2.0000000000000001",
+                "\"season\":2026.0000000000000001,\"week\":2",
+                "\"season\":2147483648,\"week\":2",
+                "\"season\":2026,\"week\":4294967298"}) {
+            String json = "[{\"player_id\":\"valid\",\"season\":2026,\"week\":2,"
+                + "\"stats\":{\"pts_ppr\":10}},"
+                + "{\"player_id\":\"invalid-points\"," + frame + ",\"stats\":{\"pts_ppr\":99}},"
+                + "{\"player_id\":\"invalid-raw\"," + frame + ",\"stats\":{\"rec\":99}},"
+                + "{\"player_id\":\"invalid-gap\"," + frame + ",\"stats\":{\"adp_dd_ppr\":1000}}]";
+            var snapshot = provider().parse(json, 2026, 2,
+                SleeperWeeklyProjectionProvider.ScoringBasis.PPR, Map.of("rec", 1.0));
+            assertEquals(1, snapshot.projections().size(), frame);
+            assertEquals("valid", snapshot.projections().getFirst().sleeperPlayerId());
+            assertTrue(snapshot.gaps().isEmpty(), frame);
+            var legacy = provider().parse(json, 2026, 2,
+                SleeperWeeklyProjectionProvider.ScoringBasis.PPR);
+            assertEquals(1, legacy.projections().size(), frame);
+            assertEquals("valid", legacy.projections().getFirst().sleeperPlayerId());
+        }
+    }
+
+    @Test
+    void exactWholeNumberAndTextFramesRemainUsable() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"decimal","season":2026.0,"week":2.0,"stats":{"pts_ppr":10}},
+             {"player_id":"text","season":"2026","week":"2","stats":{"rec":4}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR, Map.of("rec", 1.0));
+        assertEquals(2, snapshot.projections().size());
+        assertTrue(snapshot.gaps().isEmpty());
+    }
+
+    @Test
     void precomputedPprRemainsPrimaryWhenPresent() throws Exception {
         String json = """
             [{

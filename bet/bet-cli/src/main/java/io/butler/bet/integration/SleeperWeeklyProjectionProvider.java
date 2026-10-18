@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -41,7 +43,9 @@ public final class SleeperWeeklyProjectionProvider {
     private final Source source;
     private final Clock clock;
     private final ObjectMapper mapper = new ObjectMapper(
-        JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build());
+        JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build())
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+        .configure(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES, false);
 
     public SleeperWeeklyProjectionProvider() {
         this(new HttpSource(DEFAULT_BASE_URI), Clock.systemUTC());
@@ -307,7 +311,15 @@ public final class SleeperWeeklyProjectionProvider {
 
     private static Integer integer(JsonNode node) {
         if (node == null || node.isNull()) return null;
-        if (node.canConvertToInt()) return node.intValue();
+        if (node.isNumber()) {
+            try {
+                // Numeric conversion must not truncate a fractional season/week
+                // into the requested frame. Whole-valued decimals remain exact.
+                return node.decimalValue().intValueExact();
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        }
         try {
             String value = node.asText();
             return value == null || value.isBlank() ? null : Integer.parseInt(value.trim());
