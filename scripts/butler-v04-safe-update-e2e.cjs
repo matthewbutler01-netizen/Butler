@@ -16,7 +16,7 @@ const cmdSource = fs.readFileSync(cmd,'utf8');
 for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean/i,/git\s+push/i,/submitTransaction/i,/Invoke-RestMethod/i]) {
   assert.doesNotMatch(source,forbidden);
 }
-assert.match(source,/14f4fb8a306e17b76d046779a2bcf974cc27c89e/);
+assert.match(source,/2e006e9ff61cbbad63350a7ae7bc74bf3fca59c1/);
 assert.match(source,/refs\/heads\/bf-v04-fantasy-workflow-study/);
 assert.match(source,/merge-base --is-ancestor \$targetCommit FETCH_HEAD/);
 assert.match(source,/status --porcelain=v1 --untracked-files=normal/);
