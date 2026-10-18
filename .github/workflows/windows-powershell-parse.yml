@@ -152,6 +152,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-start-draft-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\scripts\butler-runtime-lifetime-acceptance.ps1'
+          if (-not $?) { exit 1 }
           node '.\scripts\butler-v04-safe-update-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-beta-one-click-e2e.cjs'
@@ -395,6 +397,12 @@ jobs:
           & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
           & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
           & '.\scripts\butler-presentation-closeout-acceptance.ps1'
+
+      - name: Exercise runtime lifetime observations with inert owned processes
+        shell: powershell
+        run: |
+          & '.\scripts\butler-runtime-lifetime-acceptance.ps1'
+          if (-not $?) { exit 1 }
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell
