@@ -40,6 +40,8 @@ $function = $function.Replace('recommendation-panel', 'recommendation-panel star
 $function = $function.Replace('<h3>Decision</h3>', '<h3>What should I change?</h3>')
 $function = $function.Replace('<h3>Proposed promotion</h3>', '<h3>START</h3>')
 $function = $function.Replace('<h3>Proposed bench move</h3>', '<h3>SIT</h3>')
+$function = $function.Replace('<h3>START</h3>', '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>$summaryReviewNote')
+$function = $function.Replace('<h3>SIT</h3>', '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>$summaryReviewNote')
 $function = $function.Replace('<small>Current</small>', '<small>Current starter</small>')
 $function = $function.Replace('<small>Candidate</small>', '<small>Recommended starter</small>')
 $function = $function.Replace('Projected change', 'Projected difference')
@@ -110,6 +112,14 @@ $summarySetup = @'
     # player statuses; displaying a proposal is not health clearance.
     $proposedChanges = @($AutoFill.Assignments | Where-Object { [bool]$_.Changed }).Count
     $playerHolds = @($AutoFill.ProjectionHolds).Count
+    $summaryReviewRequired = $playerHolds -gt 0 -or
+        [string]$AutoFill.ProjectionCoverage -cne 'FULL' -or
+        ($proposedChanges -gt 0 -and [string]$AutoFill.SwapStatusFetchedAt -ceq 'UNVERIFIED')
+    $startSummaryHeading = if ($summaryReviewRequired) { 'START candidate' } else { 'START' }
+    $sitSummaryHeading = if ($summaryReviewRequired) { 'SIT candidate' } else { 'SIT' }
+    $summaryReviewNote = if ($summaryReviewRequired) {
+        '<p class="meta startsit-summary-review" role="note">Candidate only. Review held or incomplete evidence before changing your lineup.</p>'
+    } else { '' }
     $holdCopy = if ($playerHolds -eq 1) { '1 player hold' } else { "$playerHolds player holds" }
     $projectionBasisCopy = if ([string]$AutoFill.ProjectionCoverage -ceq 'FULL') { 'Full scoreable projection coverage' }
         else { 'Partial projection coverage; missing projections are not zeros' }
@@ -285,8 +295,8 @@ if (@($errors).Count -gt 0) {
 foreach ($required in @(
     'Start/Sit Assistant',
     'What should I change?',
-    '<h3>START</h3>',
-    '<h3>SIT</h3>',
+    '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>',
+    '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>',
     'Current starter',
     'Recommended starter',
     'Projected difference',

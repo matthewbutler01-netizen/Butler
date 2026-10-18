@@ -32,8 +32,8 @@ try {
     foreach ($required in @(
         'Start/Sit Assistant',
         'What should I change?',
-        '<h3>START</h3>',
-        '<h3>SIT</h3>',
+        '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>',
+        '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>',
         'Current starter',
         'Recommended starter',
         'Projected difference',

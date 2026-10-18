@@ -389,6 +389,9 @@ jobs:
           & '.\scripts\butler-bf1005-matchup-saved-lineup-review-acceptance.ps1'
           & '.\scripts\butler-bf1020-v04-dashboard-command-center-acceptance.ps1'
           & '.\scripts\butler-bf1021-v04-start-sit-assistant-acceptance.ps1'
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-bf1010-lineup-slot-placement-decision-count-acceptance.ps1'
+          if (-not $?) { exit 1 }
           & '.\scripts\butler-bf1024-v04-autopilot-weekly-watch-acceptance.ps1'
           & '.\scripts\butler-v04-live-page-check-acceptance.ps1'
           & '.\scripts\butler-presentation-closeout-acceptance.ps1'
