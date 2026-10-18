@@ -876,7 +876,15 @@ function ConvertTo-V04StartSitRouteHtml {
     # before the disclosure so the manager sees the real recovery blocker.
     $detail = [regex]::Match($result, '(?is)<details[^>]*>\s*<summary>\s*View evidence details\s*</summary>\s*<div[^>]*class="[^"]*callout-danger[^"]*"[^>]*>(?<reason>.*?)</div>\s*</details>')
     if ($detail.Success) {
-        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $detail.Groups['reason'].Value + '</div>'
+        $reason = $detail.Groups['reason'].Value
+        # Keep the exact counts visible without duplicating a roster-length
+        # source trace above the disclosure. Its complete escaped reason stays
+        # untouched in View evidence details. Other blockers remain exact.
+        $heldSummary = [regex]::Match($reason, '\AA complete legal starting lineup cannot be built because no scoreable active roster candidates remain\. Evidence holds=[0-9]+; explicitly unavailable=[0-9]+\. An evidence hold is not a confirmed unavailable status\.')
+        if ($heldSummary.Success) {
+            $reason = $heldSummary.Value + ' Open evidence details for player-by-player reasons.'
+        }
+        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $reason + '</div>'
         $result = $result.Insert($detail.Index, $visibleReason)
     }
 

@@ -158,6 +158,10 @@ read-only report retains the source hold details. A legal-lineup evidence hold
 does not become a projection-source outage merely because those details mention
 projections. All-held and mixed-held lineups remain blocked; confirmed
 unavailability, candidate filtering and conditional eligibility are unchanged.
+Start/Sit keeps the exact hold/unavailable counts visible and leaves the complete
+player-by-player source trace in the original expandable evidence disclosure.
+It does not duplicate a roster-length trace above the disclosure; unrelated
+blockers and ordinary Matchup rendering remain unchanged.
 
 An isolated real-app browser run found that the Dashboard's Refresh Lineup link
 could hide a useful unavailable-evidence reason behind a StrictMode exception:
