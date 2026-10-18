@@ -37,6 +37,34 @@ assert.doesNotMatch(data.blockedStartSit.Html, /<script\b/i);
 assert.equal(data.blockedAutopilot.Nonce, '');
 assert.doesNotMatch(data.blockedAutopilot.Html, /<script\b/i);
 
+// Cross-page rollover suppression uses the actual PowerShell renderers:
+// six actionability states x six lineage states x three source-based pages.
+assert.equal(data.rolloverPages.length, 36);
+assert.equal(new Set(data.rolloverPages.map(x => x.Actionability + ':' + x.Lineage)).size, 36);
+for (const state of data.rolloverPages) {
+  for (const surface of ['Dashboard', 'AutoPilot', 'StartSit']) {
+    const page = state[surface];
+    const context = `${surface}: ${state.Actionability}/${state.Lineage}`;
+    assert.equal(page.Nonce, '', context);
+    assert.doesNotMatch(page.Html, /<script\b|data-butler-auto-waiver=/i, context);
+    assert.doesNotMatch(page.Html, /href="\/refresh"/, context);
+  }
+}
+// Merely opening confirmation cannot refresh or replay the previous player
+// pair. The only submitted field is the token, under explicit user action.
+assert.doesNotMatch(data.confirmation, /<script\b|\bon\w+\s*=|http-equiv\s*=\s*["']?refresh/i);
+const forms = [...data.confirmation.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form>/gi)];
+assert.equal(forms.length, 1);
+assert.match(forms[0][1], /method="post"/);
+assert.match(forms[0][1], /action="\/refresh"/);
+const inputs = [...forms[0][2].matchAll(/<input\b([^>]*)>/gi)];
+assert.equal(inputs.length, 1);
+assert.match(inputs[0][1], /type="hidden"/);
+assert.match(inputs[0][1], /name="token"/);
+assert.ok(inputs[0][1].includes(`value="${data.token}"`));
+assert.match(forms[0][2], /<button\b[^>]*type="submit"[^>]*>Confirm refresh<\/button>/);
+assert.match(forms[0][2], /href="\/">Cancel<\/a>/);
+
 // One simulated browser tab: shared sessionStorage across navigation, but
 // fresh DOM/location per page view. All network calls are mocked.
 const storage = new Map();
@@ -232,6 +260,7 @@ async function visit(route, options = {}) {
   assert.equal(storage.get(sharedKey), 's:' + String(now));
 
   console.log('BF-1043 REAL RENDERED AUTO-REFRESH BROWSER EXECUTION: PASS');
+  console.log('Rollover: 108 source-page/state combinations stay script-free; confirmation requires explicit token-only submit; no real HTTP or provider writes.');
   console.log('Coverage: clickless Dashboard/Waivers/Auto-Pilot/blocked Start-Sit refresh, shared success/failure cooldown across manager pages, later-visit recovery, pending lock, legacy migration, no healthy Start/Sit script, token-only POST.');
 })().catch(error => {
   console.error(error);
