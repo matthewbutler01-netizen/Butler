@@ -12,3 +12,12 @@ Existing week/pairing, read-only, desktop-surface and gambling-copy checks remai
 The Start/Sit fixture exercises this release assertion with the current panel,
 legacy saved-review wording, a missing panel, duplicate panels and navigation-only
 labels. This changes acceptance logic, not lineup advice, eligibility or writes.
+
+The next focused run reached History and exposed another stale assumption:
+public normalization intentionally removes technical record disclosures. A
+single saved decision therefore has a View decision link without a details tag.
+History acceptance now checks the exact empty state or a saved-decision link on
+every card, plus collapsed older-record navigation with a matching count when
+multiple records exist. Real native rendering, link insertion and public
+normalization fixtures cover zero/one/multiple records and reject broken or
+external links, missing/corrupt older disclosure and contradictory empty state.
