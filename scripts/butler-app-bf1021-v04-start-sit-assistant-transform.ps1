@@ -169,10 +169,15 @@ $summarySetup = @'
         }
     }
 '@
-if ($function.IndexOf($summaryAnchor, [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'Start/Sit summary renderer anchor is missing.'
+# Only the top-level READY return owns this summary. A substring replacement
+# also matched the indented UNAVAILABLE return, whose view intentionally has
+# no projection timestamps, and turned its useful evidence-gap page into an
+# exception under StrictMode. Require one exact four-space return instead.
+$summaryMatches = [regex]::Matches($function, '(?m)^' + [regex]::Escape($summaryAnchor))
+if ($summaryMatches.Count -ne 1) {
+    throw 'Start/Sit summary renderer requires exactly one top-level ready return.'
 }
-$function = $function.Replace($summaryAnchor, $summarySetup.TrimEnd() + "`n" + $summaryAnchor)
+$function = $function.Insert($summaryMatches[0].Index, $summarySetup.TrimEnd() + "`n")
 $summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTitle)</p>'
 if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'Start/Sit decision summary card is missing.'
