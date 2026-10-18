@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `7c4f4c32ab91ebc589faa6a950e503ded20a634f`.
+- App PR #1535 target (stacked on #1533): `4ed19df572dc937d4c514539574c497cf2c11ea5`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -112,3 +112,8 @@ exception. Missing evidence still blocks lineup advice; this fix does not turn
 an unavailable player or projection into an eligible recommendation. Current
 candidate source is the full SHA pinned above. Verify the specific reason in
 View evidence details, then return to Dashboard without making a Sleeper move.
+
+When all lineup candidates are held, verify evidence holds and confirmed
+unavailability are counted separately. Game locks and missing evidence do not
+mean every player is injured or unavailable. Start/Sit should show concise
+counts with complete player-by-player reasons in View evidence details.
