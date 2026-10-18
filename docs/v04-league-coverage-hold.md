@@ -16,6 +16,13 @@ stale counts. Missing, duplicated, malformed or inconsistent summaries retain
 the generic hold without displaying uncertain counts. Older overview output
 remains supported. Counts never promote a held board to ranked output.
 
+Count fields accept only the ASCII digits emitted by the Java overview. Unicode
+decimal digits otherwise match .NET's digit shorthand but can throw during
+integer conversion, breaking the page instead of retaining the generic hold.
+The staged parser/renderer fixture covers that failure, oversized, negative and
+fractional counts, plus zero and maximum accepted counts. Valid counts remain
+display-only even at the boundaries; they never release held rankings.
+
 Java output/readiness tests and the existing Windows staged League-renderer
 fixture cover the output and fallback behavior. Exact-head CI and installed
 browser acceptance remain required before including this in a tested beta.

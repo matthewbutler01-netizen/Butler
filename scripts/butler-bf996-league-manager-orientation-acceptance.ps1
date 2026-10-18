@@ -107,10 +107,24 @@ Next actions: none.
         throw 'Held league coverage must explain the gap without inventing ranks.'
     }
     $coverageLine = 'Franchise coverage: valued=341 total=344 missing_players=3 missing_picks=0 stale=0'
+    foreach ($validCounts in @(
+        'valued=0 total=0 missing_players=0 missing_picks=0 stale=0',
+        'valued=999999999 total=999999999 missing_players=0 missing_picks=0 stale=999999999')) {
+        $boundaryView = ConvertTo-LeagueOverviewView -Text $heldOverview.Replace($coverageLine, ('Franchise coverage: ' + $validCounts))
+        $boundaryHtml = ConvertTo-LeagueHtml -View $boundaryView
+        if ($null -eq $boundaryView.FranchiseCoverage -or $boundaryView.RankingsAvailable -or
+            $boundaryHtml -notmatch 'league-coverage-summary' -or $boundaryHtml -match 'class="league-rank"') {
+            throw 'Valid boundary counts must remain display-only and must not release held ranks.'
+        }
+    }
     foreach ($replacement in @('', ($coverageLine + "`n" + $coverageLine),
         $coverageLine.Replace('total=344', 'total=340'),
         $coverageLine.Replace('stale=0', 'stale=342'),
-        $coverageLine.Replace('missing_players=3', 'missing_players=<script>3</script>'))) {
+        $coverageLine.Replace('missing_players=3', 'missing_players=<script>3</script>'),
+        $coverageLine.Replace('valued=341', ('valued=' + [char]0x0663 + [char]0x0664 + [char]0x0661)),
+        $coverageLine.Replace('total=344', 'total=1000000000'),
+        $coverageLine.Replace('stale=0', 'stale=-1'),
+        $coverageLine.Replace('missing_picks=0', 'missing_picks=0.0'))) {
         $uncertainView = ConvertTo-LeagueOverviewView -Text $heldOverview.Replace($coverageLine, $replacement)
         $uncertainHtml = ConvertTo-LeagueHtml -View $uncertainView
         if ($null -ne $uncertainView.FranchiseCoverage -or $uncertainView.RankingsAvailable -or

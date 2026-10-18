@@ -226,7 +226,7 @@ function ConvertTo-LeagueOverviewView {
     $franchiseCoverage = $null
     $coverageLines = [regex]::Matches($Text, '(?m)^Franchise coverage:.*$')
     if ($coverageLines.Count -eq 1) {
-        $counts = [regex]::Match($coverageLines[0].Value.TrimEnd(), '^Franchise coverage: valued=(?<valued>\d{1,9}) total=(?<total>\d{1,9}) missing_players=(?<players>\d{1,9}) missing_picks=(?<picks>\d{1,9}) stale=(?<stale>\d{1,9})$')
+        $counts = [regex]::Match($coverageLines[0].Value.TrimEnd(), '^Franchise coverage: valued=(?<valued>[0-9]{1,9}) total=(?<total>[0-9]{1,9}) missing_players=(?<players>[0-9]{1,9}) missing_picks=(?<picks>[0-9]{1,9}) stale=(?<stale>[0-9]{1,9})$')
         if ($counts.Success) {
             $valued = [int]$counts.Groups['valued'].Value
             $total = [int]$counts.Groups['total'].Value
