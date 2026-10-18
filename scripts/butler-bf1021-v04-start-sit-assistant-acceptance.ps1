@@ -133,6 +133,27 @@ try {
         throw 'BF-1021 BLOCKED: Start/Sit route must announce exactly one current page.'
     }
 
+    $guardrailAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $PSScriptRoot 'butler-manager-guardrail-acceptance.ps1'), [ref]$tokens, [ref]$errors)
+    if (@($errors).Count) { throw 'Manager release guardrail has parse errors.' }
+    $panelCheck = @($guardrailAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Assert-MatchupLineupPanel'
+    }, $true))
+    if ($panelCheck.Count -ne 1) { throw 'Expected one Matchup panel guardrail.' }
+    . ([scriptblock]::Create($panelCheck[0].Extent.Text))
+    Assert-MatchupLineupPanel -Html $routeFixture
+    Assert-MatchupLineupPanel -Html $routeFixture.Replace('panel recommendation-panel start-sit-assistant','panel recommendation-panel').Replace('Start/Sit Assistant','Lineup advisor - saved current review')
+    foreach ($invalid in @(
+        $routeFixture.Replace('panel recommendation-panel start-sit-assistant','panel other-panel'),
+        ($routeFixture + '<section class="panel recommendation-panel">Duplicate</section>'),
+        '<nav><a href="/matchup/autofill">Start/Sit Assistant</a><span>Lineup advisor</span></nav>')) {
+        $rejected = $false
+        try { Assert-MatchupLineupPanel -Html $invalid } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Release guardrail accepted missing, duplicate or navigation-only lineup evidence.' }
+    }
+
     Write-Host 'BF-1021 V0.4 START/SIT ASSISTANT ACCEPTANCE: PASS'
     Write-Host 'Coverage: dedicated Start/Sit route and current-page state, no duplicate Matchup hero, What-should-I-change summary, START/SIT cards, priority decision queue, current/recommended starter labels, projection difference, compare actions, holds, and read-only safety.'
 }

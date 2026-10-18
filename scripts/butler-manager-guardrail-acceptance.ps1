@@ -197,6 +197,16 @@ function Assert-Markers {
     }
 }
 
+function Assert-MatchupLineupPanel {
+    param([string]$Html)
+    # Passive v0.4 reviews use the Start/Sit renderer; saved reviews can retain
+    # the older advisor label. Prove the actual panel, not a navigation label.
+    $panels = [regex]::Matches($Html, '<section\b[^>]*\bclass="panel recommendation-panel(?: [^"]*)?"[^>]*>')
+    if ($panels.Count -ne 1) {
+        throw 'BF-844 BLOCKED: Weekly Matchup must contain one lineup review panel.'
+    }
+}
+
 function Assert-NoBettingPressure {
     param([string]$Html, [string]$Stage)
 
@@ -323,9 +333,9 @@ try {
     Assert-Ok -Response $matchup -Stage 'Weekly Matchup'
     Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup' -Markers @(
         'Weekly matchup',
-        'Lineup advisor',
         'READ ONLY.'
     )
+    Assert-MatchupLineupPanel -Html $matchup.Body
     # Final confirmed-pairing presentation is decision-first; BF-881 removed
     # the earlier sentence-based confirmation marker.
     # Detect the current governed confirmed state through the exact evidence
