@@ -24,6 +24,14 @@ const fixture = cp.spawnSync('powershell.exe', [
 assert.equal(fixture.status,0,'BF-1080 exact PowerShell renderer failed: ' +
   (fixture.stderr || fixture.stdout || '').slice(-700));
 const data = JSON.parse((fixture.stdout || '').trim());
+const rollover = data.rolloverPages.find(x =>
+  x.Actionability === 'AUDITED_WEEK_ROLLOVER_DO_NOT_ACT' &&
+  x.Lineage === 'LATEST_EVIDENCE_LINEAGE_VERIFIED');
+assert.ok(rollover, 'missing exact adjacent-week browser fixture');
+data.rolloverDashboard = rollover.Dashboard;
+data.rolloverAutopilot = rollover.AutoPilot;
+data.rolloverStartSit = rollover.StartSit;
+data.manualConfirmation = {Html:data.confirmation, Nonce:''};
 
 function locateBrowser() {
   const roots = [
@@ -192,6 +200,16 @@ async function scenario(name,config) {
       assert.match(dom,/CURRENT WEEKLY WATCH/,name+' blocked Auto-Pilot did not render');
       assert.equal(refreshed,false,name+' blocked watch changed evidence');
     }
+    if (config.expectedText) {
+      assert.ok(dom.includes(config.expectedText),name+' lost its held/confirmation content');
+      assert.equal(refreshed,false,name+' changed evidence without confirmation');
+    }
+    if (config.manualConfirmation) {
+      assert.match(dom,/<form method="post" action="\/refresh">/);
+      assert.match(dom,/<input type="hidden" name="token" value="a{64}">/);
+      assert.match(dom,/>Confirm refresh<\/button>/);
+      assert.match(dom,/>Cancel<\/a>/);
+    }
     for (const req of observed) {
       assert.ok(req.method==='GET' || (req.method==='POST' && req.path==='/refresh'),
         name+' sent unauthorized HTTP request');
@@ -205,6 +223,18 @@ async function scenario(name,config) {
 }
 
 (async()=>{
+  // A real adjacent-week page must stay passive on all sourced manager
+  // surfaces. Opening the actual confirmation form is also GET-only;
+  // these scenarios never click Submit or replay the old player pair.
+  for (const [page,route,expectedText] of [
+    ['rolloverDashboard','/','AUDITED_WEEK_ROLLOVER_DO_NOT_ACT'],
+    ['rolloverAutopilot','/autopilot','CURRENT WEEKLY WATCH'],
+    ['rolloverStartSit','/matchup/autofill','Source unavailable'],
+    ['manualConfirmation','/confirmation', 'CONFIRMATION REQUIRED']
+  ]) {
+    await scenario(page,{page,route,post:false,expectedText,
+      manualConfirmation:page==='manualConfirmation'});
+  }
   // Real clickless same-origin browser POST and real redirected fresh DOM.
   await scenario('dashboard-clickless-refresh',{
     page:'dashboard',route:'/',post:true,complete:true

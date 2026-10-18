@@ -154,6 +154,8 @@ Windows CI now runs `scripts/butler-auto-refresh-browser-e2e.cjs`. Unlike a stat
 
 The same CI test also checks 108 old-week and ambiguous-state renderings: six live-actionability states, six lineage states, and Dashboard, Auto-Pilot, and blocked Start/Sit. Each must remain free of an automatic script, nonce, or Dashboard refresh capability. This includes the immediately adjacent week, which supports only the separate manual Waiver Board recovery. The real confirmation renderer must produce exactly one token-only POST form with an explicit Confirm button and Cancel link, without a script, event handler, or automatic navigation. The existing Waiver Board and orchestration acceptance tests separately verify its manual link, current-week matchup-first ordering, failure stop, and rejection of ambiguous weeks. These simulations do not advance a live NFL week or submit a real refresh.
 
+`butler-bf1080-real-chromium-onopen-e2e.cjs` additionally opens the adjacent-week Dashboard, Auto-Pilot, blocked Start/Sit, and real confirmation markup in headless Chrome/Edge through a synthetic loopback server. All four must render their expected held/confirmation content without a POST; the confirmation form retains its explicit token field, Confirm button, and Cancel link. This exercises real browser loading and transport, while the league state and server remain fixtures.
+
 This is a browser-behavior **simulation**, not a live Chromium or real Sleeper session. Before lifting the v0.4 release hold, the user must still verify that the app renders correct roster, matchup and waiver data, and that the real browser sees the updated evidence after the governed refresh.
 
 ## BF-1050 real local HTTP diagnostic integration
