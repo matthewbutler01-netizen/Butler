@@ -143,25 +143,31 @@ Projection holds:
         [regex]::Matches($oneMove, 'class="meta startsit-summary-review" role="note"').Count -ne 2) {
         throw 'Held summaries must label both player proposals as candidates requiring review.'
     }
+    if ($oneMove -notmatch '<small>Candidate starter</small>' -or $oneMove -match '<small>Recommended starter</small>') {
+        throw 'Held detailed lineup rows must use candidate wording too.'
+    }
     # Keep the same real parsed proposal and change only evidence conditions.
     $parsed.ProjectionHolds = @()
     $parsed.ProjectionCoverage = 'FULL'
     $parsed.SwapStatusFetchedAt = '2026-10-03T22:00:00Z'
     $complete = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($complete -notmatch '<h3>START</h3>' -or $complete -notmatch '<h3>SIT</h3>' -or $complete -match 'startsit-summary-review') {
+    if ($complete -notmatch '<h3>START</h3>' -or $complete -notmatch '<h3>SIT</h3>' -or $complete -match 'startsit-summary-review' -or
+        $complete -notmatch '<small>Recommended starter</small>' -or $complete -match '<small>Candidate starter</small>') {
         throw 'Full zero-hold proposals must retain the existing concise headings.'
     }
     foreach ($coverage in @('PARTIAL','UNKNOWN')) {
         $parsed.ProjectionCoverage = $coverage
         $incomplete = ConvertTo-AutoFillHtml -AutoFill $parsed
-        if ($incomplete -notmatch '<h3>START candidate</h3>' -or $incomplete -notmatch '<h3>SIT candidate</h3>') {
+        if ($incomplete -notmatch '<h3>START candidate</h3>' -or $incomplete -notmatch '<h3>SIT candidate</h3>' -or
+            $incomplete -notmatch '<small>Candidate starter</small>' -or $incomplete -match '<small>Recommended starter</small>') {
             throw 'Incomplete projection evidence must not expose plain action headings.'
         }
     }
     $parsed.ProjectionCoverage = 'FULL'
     $parsed.SwapStatusFetchedAt = 'UNVERIFIED'
     $unknownTime = ConvertTo-AutoFillHtml -AutoFill $parsed
-    if ($unknownTime -notmatch '<h3>START candidate</h3>' -or $unknownTime -notmatch 'status check time is UNVERIFIED') {
+    if ($unknownTime -notmatch '<h3>START candidate</h3>' -or $unknownTime -notmatch 'status check time is UNVERIFIED' -or
+        $unknownTime -notmatch '<small>Candidate starter</small>' -or $unknownTime -match '<small>Recommended starter</small>') {
         throw 'Unknown status time must keep proposals explicitly review-only.'
     }
     if ($unknownTime -notmatch 'Jauan Jennings' -or $unknownTime -notmatch 'Emeka Egbuka' -or

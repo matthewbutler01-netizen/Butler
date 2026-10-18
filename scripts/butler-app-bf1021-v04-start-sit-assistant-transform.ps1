@@ -145,6 +145,11 @@ $summarySetup = @'
     } else { 'swap players status map retrieved ' + [string]$AutoFill.SwapStatusFetchedAt + ' UTC' }
     $statusProofCopy += " Sources: $projectionFetchedText; $statusFetchedText. This records a source fetch, not an injury report publication time."
     $decisionActionCopy = $decisionTitle
+    if ($summaryReviewRequired) {
+        # The detailed board must not promote a held comparison into advice.
+        $lineupFocusHtml = $lineupFocusHtml.Replace('<small>Recommended starter</small>', '<small>Candidate starter</small>')
+        $unchangedDisclosure = $unchangedDisclosure.Replace('<small>Recommended starter</small>', '<small>Candidate starter</small>')
+    }
     if ($managerMoveCount -eq 0 -and $directSignalCount -gt 0) {
         $reviewTasks = @(
             foreach ($signal in [regex]::Matches($queueItems, '<li><strong>(?<player>.*?)</strong>: current starter with an attributed SIT selection')) {

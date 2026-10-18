@@ -9,6 +9,9 @@ review notice when any player hold exists, projection coverage is not FULL, or
 changed assignments have an UNVERIFIED status-check time. Full, zero-hold
 proposals with a recorded status time retain the existing headings. These are
 presentation conditions, not new source verification or availability clearance.
+The detailed lineup board uses Candidate starter under the same review
+conditions, so its labels agree with the summary cards. Fully supported previews
+retain Recommended starter. Current-player labels and comparisons remain.
 
 Proposal names, comparisons, source-proof marker, hold reasons and read-only
 boundary remain. No optimizer output, source fetch, transaction or authorization
