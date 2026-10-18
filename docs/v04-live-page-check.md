@@ -2,6 +2,14 @@
 
 This check is for the **development v0.4 app** only. The v0.3.0 release is frozen. It does not deploy, merge, start, or stop an app, and it never submits a Sleeper transaction.
 
+The Auto-Pilot on-open comparison recognizes both the production Dashboard
+sidebar and the legacy navigation fixture. Exactly one complete Butler
+navigation block is required. Duplicate or unknown navigation remains
+unverified; source audit, lineage, token and CSP gates still apply. Recognizing
+the sidebar does not certify browser refresh execution or resolve an incomplete
+Auto-Pilot watch. Regression fixtures cover eligible/current sidebars, missing
+or unexpected refresh controls, ambiguous navigation and invalid audit proof.
+
 ## Windows quick run
 
 **If you get `BF-1146 BLOCKED: NO CURRENT WORKER`:** the downloaded diagnostic ZIP is only a checker, not Butler itself. Open your **updated v0.4 source checkout**, double-click `scripts\butler-v04-start-18080.cmd`, and keep the application window open. Then reopen the checker. The starter uses the existing guarded `butler-app.cmd -Port 18080` path; it never force-stops another worker and never edits Sleeper. A standalone diagnostic ZIP cannot supply the app or its Java dependencies. Do not run either CMD directly from inside a ZIP; use **Extract All** first.

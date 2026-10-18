@@ -420,7 +420,7 @@ function Test-ButlerCrossRouteOnOpen {
     try {
         if ([string]::IsNullOrWhiteSpace($DashboardHtml) -or
             [regex]::Matches($DashboardHtml,
-                '<nav class="nav" aria-label="Butler sections">').Count -ne 1) {
+                '(?s)<nav class="nav" aria-label="Butler sections">.*?</nav>|<aside class="manager-playbook" aria-label="Butler sections">.*?</aside>').Count -ne 1) {
             if ($scriptMarkers.Count -gt 0) {
                 return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT SOURCE UNKNOWN' }
             }
