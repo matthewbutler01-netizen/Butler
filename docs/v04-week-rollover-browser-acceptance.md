@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `50dcdc4454e43fc7f27d4cfa4d079a5e9c2060aa`.
+- App PR #1535 target (stacked on #1533): `7c4f4c32ab91ebc589faa6a950e503ded20a634f`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -103,3 +103,12 @@ checker budget. Exact roster recovery may finish after the former 30-second
 limit. This changes no source/health gate and performs no automatic page retry.
 A timed-out or failed page remains PAGE ERROR; passing waits do not certify
 freshness. Retain any earlier failed report separately from later acceptance.
+
+## Unavailable-lineup rendering check
+
+From Dashboard, choose Refresh Lineup when offered. An unavailable lineup must
+show its actual evidence-gap reason rather than a ProjectionFetchedAt property
+exception. Missing evidence still blocks lineup advice; this fix does not turn
+an unavailable player or projection into an eligible recommendation. Current
+candidate source is the full SHA pinned above. Verify the specific reason in
+View evidence details, then return to Dashboard without making a Sleeper move.
