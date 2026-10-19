@@ -247,7 +247,7 @@ function Send-HttpResponse {
 }
 
 $maxRequestWorkers = 8
-$innerPort = Get-FreeLoopbackPort
+$innerPort = $null
 $coreProcess = $null
 $listener = [System.Net.Sockets.TcpListener]::new($loopback, $Port)
 $decisionRefreshToken = New-DecisionRefreshToken
@@ -282,10 +282,14 @@ function Remove-CompletedRequestJobs {
 
 Push-Location $repoRoot
 try {
+    # Hold the public endpoint while the inner runtime prepares. Listening is
+    # not readiness: no request is accepted before Wait-ForAppCore succeeds.
+    $listener.ExclusiveAddressUse = $true
+    $listener.Start()
+    $innerPort = Get-FreeLoopbackPort
     $coreProcess = Start-AppCore -InnerPort $innerPort
     Wait-ForAppCore -InnerPort $innerPort -Process $coreProcess
     $requestPool.Open()
-    $listener.Start()
 
     $url = "http://127.0.0.1:$Port/"
     Write-Host 'Butler App Shell'
