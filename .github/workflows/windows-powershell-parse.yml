@@ -27,7 +27,7 @@ on:
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
       - 'bet/bet-cli/src/main/java/**'
-      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/src/test/java/**'
       - 'bet/bet-cli/build.gradle.kts'
   pull_request:
     branches:
@@ -39,7 +39,7 @@ on:
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
       - 'bet/bet-cli/src/main/java/**'
-      - 'bet/bet-cli/src/test/java/**/ButlerAppShellBf723RosterDriftRecoveryTest.java'
+      - 'bet/bet-cli/src/test/java/**'
       - 'bet/bet-cli/build.gradle.kts'
 
 concurrency:
