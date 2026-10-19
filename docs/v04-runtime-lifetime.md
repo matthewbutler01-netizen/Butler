@@ -25,3 +25,10 @@ The Windows acceptance fixture runs the actual supervisor and watchdog around
 an inert guard: successful and nonzero guard exits, abrupt owned-supervisor loss,
 watchdog cleanup of that owned guard, blocked diagnostic storage and refusal to
 append to an unrelated file. It starts no Butler runtime or provider request.
+
+A separate guard-loss fixture keeps an inert supervisor alive while stopping
+its inert guard. It runs the actual watchdog and requires the matching core
+and its descendant to exit, while an unrelated guard child and the supervisor
+remain alive. The receipt must say `GUARD_DISAPPEARED`, without inventing an
+observed exit code or reporting supervisor loss. This verifies cleanup scope
+and observation accuracy; it adds no automatic restart or production behavior.
