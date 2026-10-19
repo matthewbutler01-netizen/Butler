@@ -420,6 +420,10 @@ jobs:
         run: |
           & '.\scripts\butler-release-security-timeout-acceptance.ps1'
           if (-not $?) { exit 1 }
+          & '.\scripts\butler-release-security-timeout-acceptance.ps1' -Performance
+          if (-not $?) { exit 1 }
+          & '.\scripts\butler-startup-port-reservation-acceptance.ps1'
+          if (-not $?) { exit 1 }
 
       - name: Exercise accessibility rendering fixtures
         shell: powershell

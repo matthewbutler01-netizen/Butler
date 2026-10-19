@@ -418,6 +418,10 @@ function Get-FreeBackendPort {
 }
 
 try {
+    # Reserve the selected endpoint before worker preparation can consume or
+    # lose it. Requests are not accepted until all workers are ready below.
+    $listener.ExclusiveAddressUse = $true
+    $listener.Start()
     Enable-ButlerGradleNoDaemon
     Write-Host 'Preparing Butler read-only runtime. The app is not ready yet.'
     Initialize-ReadOnlyCliRuntime
@@ -443,7 +447,6 @@ try {
     }
 
     $requestPool.Open()
-    $listener.Start()
     Write-Host 'Butler core listener started. The outer app readiness and page checks still apply.'
 
     while ($true) {
