@@ -2,6 +2,14 @@
 
 This check is for the **development v0.4 app** only. The v0.3.0 release is frozen. It does not deploy, merge, start, or stop an app, and it never submits a Sleeper transaction.
 
+The Auto-Pilot on-open comparison recognizes both the production Dashboard
+sidebar and the legacy navigation fixture. Exactly one complete Butler
+navigation block is required. Duplicate or unknown navigation remains
+unverified; source audit, lineage, token and CSP gates still apply. Recognizing
+the sidebar does not certify browser refresh execution or resolve an incomplete
+Auto-Pilot watch. Regression fixtures cover eligible/current sidebars, missing
+or unexpected refresh controls, ambiguous navigation and invalid audit proof.
+
 ## Windows quick run
 
 **If you get `BF-1146 BLOCKED: NO CURRENT WORKER`:** the downloaded diagnostic ZIP is only a checker, not Butler itself. Open your **updated v0.4 source checkout**, double-click `scripts\butler-v04-start-18080.cmd`, and keep the application window open. Then reopen the checker. The starter uses the existing guarded `butler-app.cmd -Port 18080` path; it never force-stops another worker and never edits Sleeper. A standalone diagnostic ZIP cannot supply the app or its Java dependencies. Do not run either CMD directly from inside a ZIP; use **Extract All** first.
@@ -140,9 +148,39 @@ Offline Windows smoke contract fixtures: `scripts\butler-v04-live-page-check-acc
 
 Auto-Pilot reuses its already-loaded Dashboard HTML as the only eligibility source. It must prove the exact BF-677 Dashboard manual-refresh state, BF-629 live actionability, BF-631 lineage, and any BF-636 governed plan before emitting a client-side refresh. Merely finding a Refresh link cannot authorize an update. An eligible Auto-Pilot visit uses the same existing token-gated Butler-local `POST /refresh`, with a shared audit-based five-minute cooldown across Dashboard and Auto-Pilot. On successful POST, the browser returns to `/autopilot`. No transaction is sent to Sleeper, and no automatic write is permitted on no-transaction, ambiguous, or blocked evidence.
 
+## Unavailable lineup rendering regression
+
+When every active candidate is excluded, evidence holds are now counted
+separately from confirmed unavailable players. The optimizer previously used
+the all-unavailable explanation even when evidence holds removed every
+candidate. The no-scoreable-candidate reason now reports both counts and the
+read-only report retains the source hold details. A legal-lineup evidence hold
+does not become a projection-source outage merely because those details mention
+projections. All-held and mixed-held lineups remain blocked; confirmed
+unavailability, candidate filtering and conditional eligibility are unchanged.
+Start/Sit keeps the exact hold/unavailable counts visible and leaves the complete
+player-by-player source trace in the original expandable evidence disclosure.
+It does not duplicate a roster-length trace above the disclosure; unrelated
+blockers and ordinary Matchup rendering remain unchanged.
+
+An isolated real-app browser run found that the Dashboard's Refresh Lineup link
+could hide a useful unavailable-evidence reason behind a StrictMode exception:
+`ProjectionFetchedAt` was missing on the unavailable view. The Start/Sit
+transform had inserted READY-only summary setup before both the top-level READY
+return and the indented UNAVAILABLE return. It now requires one exact top-level
+return and inserts that setup only there. The staged Start/Sit acceptance runs
+the actual parser and renderer for idle, unavailable projections, and unavailable
+roster evidence; unavailable views retain their reason without a source-proof
+paragraph or lineup advice. Timestamp verification and lineup eligibility are
+unchanged.
+
 ## BF-1043 no-click browser behavior verification
 
 Windows CI now runs `scripts/butler-auto-refresh-browser-e2e.cjs`. Unlike a static text check, it invokes the **actual PowerShell refresh renderer** via `scripts/butler-auto-refresh-browser-fixtures.ps1`, extracts the generated nonce-protected scripts, and executes them in a mocked browser environment (using Node's built-in VM). The test confirms that eligible page load calls the same-origin token-gated POST without a click; Dashboard and Auto-Pilot share the audited five-minute session cooldown; Waivers has its own cooldown; successful responses navigate to the correct page; server rejection and network failure do not retry automatically; and a new audit ID permits a new check. No real HTTP connection is made by the fixture.
+
+The same CI test also checks 108 old-week and ambiguous-state renderings: six live-actionability states, six lineage states, and Dashboard, Auto-Pilot, and blocked Start/Sit. Each must remain free of an automatic script, nonce, or Dashboard refresh capability. This includes the immediately adjacent week, which supports only the separate manual Waiver Board recovery. The real confirmation renderer must produce exactly one token-only POST form with an explicit Confirm button and Cancel link, without a script, event handler, or automatic navigation. The existing Waiver Board and orchestration acceptance tests separately verify its manual link, current-week matchup-first ordering, failure stop, and rejection of ambiguous weeks. These simulations do not advance a live NFL week or submit a real refresh.
+
+`butler-bf1080-real-chromium-onopen-e2e.cjs` additionally opens the adjacent-week Dashboard, Auto-Pilot, blocked Start/Sit, and real confirmation markup in headless Chrome/Edge through a synthetic loopback server. All four must render their expected held/confirmation content without a POST; the confirmation form retains its explicit token field, Confirm button, and Cancel link. This exercises real browser loading and transport, while the league state and server remain fixtures.
 
 This is a browser-behavior **simulation**, not a live Chromium or real Sleeper session. Before lifting the v0.4 release hold, the user must still verify that the app renders correct roster, matchup and waiver data, and that the real browser sees the updated evidence after the governed refresh.
 

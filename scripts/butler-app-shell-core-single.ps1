@@ -221,6 +221,24 @@ function ConvertTo-LeagueOverviewView {
         throw "BF-667 BLOCKED: governed franchise-ranking availability is missing."
     }
 
+    # Optional display proof; it never changes ranking eligibility. Reject
+    # duplicate, malformed or arithmetically contradictory count summaries.
+    $franchiseCoverage = $null
+    $coverageLines = [regex]::Matches($Text, '(?m)^Franchise coverage:.*$')
+    if ($coverageLines.Count -eq 1) {
+        $counts = [regex]::Match($coverageLines[0].Value.TrimEnd(), '^Franchise coverage: valued=(?<valued>[0-9]{1,9}) total=(?<total>[0-9]{1,9}) missing_players=(?<players>[0-9]{1,9}) missing_picks=(?<picks>[0-9]{1,9}) stale=(?<stale>[0-9]{1,9})$')
+        if ($counts.Success) {
+            $valued = [int]$counts.Groups['valued'].Value
+            $total = [int]$counts.Groups['total'].Value
+            $missingPlayers = [int]$counts.Groups['players'].Value
+            $missingPicks = [int]$counts.Groups['picks'].Value
+            $stale = [int]$counts.Groups['stale'].Value
+            if ($valued + $missingPlayers + $missingPicks -eq $total -and $stale -le $valued) {
+                $franchiseCoverage = [pscustomobject]@{ Valued = $valued; Total = $total; MissingPlayers = $missingPlayers; MissingPicks = $missingPicks; Stale = $stale }
+            }
+        }
+    }
+
     $movementMatch = [regex]::Match($Text, '(?m)^Top value movers:\s+(?<previous>\S+)\s+->\s+(?<latest>\S+)\s+coverage=(?<comparable>\d+)/(?<total>\d+)\s+\((?<coverage>[0-9.]+)%\)\s*$')
     $movementUnavailable = $Text -match '(?m)^Value movement:\s+unavailable'
     $movers = @()
@@ -268,6 +286,7 @@ function ConvertTo-LeagueOverviewView {
         Source = $sourceMatch.Groups['source'].Value.Trim()
         RequiresAttention = $attentionMatch.Groups['attention'].Value -ceq "true"
         RankingsAvailable = $rankingsAvailable
+        FranchiseCoverage = $franchiseCoverage
         Leaders = @($leaders)
         MovementAvailable = $movementMatch.Success
         MovementPrevious = if ($movementMatch.Success) { $movementMatch.Groups['previous'].Value } else { "none" }
@@ -756,9 +775,16 @@ function Send-HttpResponse {
         "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'`r`n" +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($headerBytes, 0, $headerBytes.Length)
+        $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException], [System.Net.Sockets.SocketException] {
+        # A closed or timed-out client must not terminate its server/worker.
+        if ($Stream -is [System.Net.Sockets.NetworkStream]) { return }
+        throw
+    }
 }
 
 $innerPort = Get-FreeLoopbackPort

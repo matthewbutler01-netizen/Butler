@@ -63,7 +63,7 @@ class ButlerAppShellBf702WarmCliClassesTest {
         for (int depth = 0; depth < 7 && current != null; depth++) {
             Path candidate = current.resolve(relativePath);
             if (Files.isRegularFile(candidate)) {
-                return Files.readString(candidate, StandardCharsets.US_ASCII);
+                return Files.readString(candidate, StandardCharsets.US_ASCII).replace("\r\n", "\n");
             }
             current = current.getParent();
         }

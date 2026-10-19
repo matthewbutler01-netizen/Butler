@@ -197,6 +197,34 @@ function Assert-Markers {
     }
 }
 
+function Assert-MatchupLineupPanel {
+    param([string]$Html)
+    # Passive v0.4 reviews use the Start/Sit renderer; saved reviews can retain
+    # the older advisor label. Prove the actual panel, not a navigation label.
+    $panels = [regex]::Matches($Html, '<section\b[^>]*\bclass="panel recommendation-panel(?: [^"]*)?"[^>]*>')
+    if ($panels.Count -ne 1) {
+        throw 'BF-844 BLOCKED: Weekly Matchup must contain one lineup review panel.'
+    }
+}
+
+function Assert-HistoryDecisionAccess {
+    param([string]$Html)
+    $cards = [regex]::Matches($Html, '(?s)<article class="history-card(?: history-card-compact)?">.*?</article>')
+    $empty = [regex]::Matches($Html, '<div class="empty">No recorded (?:governed )?waiver decisions are available for this league yet\.</div>')
+    if ($empty.Count -eq 1 -and $cards.Count -eq 0) { return }
+    if ($empty.Count -ne 0 -or $cards.Count -eq 0) { throw 'BF-844 BLOCKED: Decision History has no unambiguous empty or recorded state.' }
+    foreach ($card in $cards) {
+        $links = [regex]::Matches($card.Value, '<a\b[^>]*\bhref="/history\?audit=[A-Za-z0-9-]{1,128}"[^>]*>View decision</a>')
+        if ($links.Count -ne 1) { throw 'BF-844 BLOCKED: each history card must have one exact saved-decision link.' }
+    }
+    if ($cards.Count -gt 1) {
+        $older = [regex]::Matches($Html, '<details class="history-older-list"><summary>View older decisions \((?<count>[0-9]{1,9})\)</summary>')
+        if ($older.Count -ne 1 -or [int]$older[0].Groups['count'].Value -ne $cards.Count - 1) {
+            throw 'BF-844 BLOCKED: older history records must be progressively disclosed with the matching count.'
+        }
+    }
+}
+
 function Assert-NoBettingPressure {
     param([string]$Html, [string]$Stage)
 
@@ -323,9 +351,9 @@ try {
     Assert-Ok -Response $matchup -Stage 'Weekly Matchup'
     Assert-Markers -Html $matchup.Body -Stage 'Weekly Matchup' -Markers @(
         'Weekly matchup',
-        'Lineup advisor',
         'READ ONLY.'
     )
+    Assert-MatchupLineupPanel -Html $matchup.Body
     # Final confirmed-pairing presentation is decision-first; BF-881 removed
     # the earlier sentence-based confirmation marker.
     # Detect the current governed confirmed state through the exact evidence
@@ -396,14 +424,7 @@ try {
         'Back to Dashboard',
         'READ ONLY'
     )
-    if ($history.Body.IndexOf('No recorded governed waiver decisions are available', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
-        Assert-Markers -Html $history.Body -Stage 'Decision History disclosure' -Markers @('<details')
-        $decisionDisclosure = $history.Body.IndexOf('Decision details', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-        $olderDisclosure = $history.Body.IndexOf('View older decisions', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
-        if (-not $decisionDisclosure -and -not $olderDisclosure) {
-            throw 'BF-844 BLOCKED: Decision History records are not progressively disclosed.'
-        }
-    }
+    Assert-HistoryDecisionAccess -Html $history.Body
     Assert-NoBettingPressure -Html $history.Body -Stage 'Decision History'
     Assert-DesktopSurface -Html $history.Body -Stage 'Decision History desktop surface'
     Write-Host 'History: DECISION_FIRST_AND_DISCLOSURE_VERIFIED'

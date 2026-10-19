@@ -9,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -19,9 +20,16 @@ import java.util.zip.GZIPInputStream;
 
 /** Read-only exact-ID usage evidence. A conservative review policy, not a calibrated points model. */
 final class NflverseRosterUsageProvider {
+    @FunctionalInterface
+    interface TextSource { String download(URI uri) throws IOException, InterruptedException; }
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
         .followRedirects(HttpClient.Redirect.NORMAL).build();
     private final Map<URI, Cached> cache = new LinkedHashMap<>();
+    private final Clock clock;
+
+    NflverseRosterUsageProvider() { this(Clock.systemUTC()); }
+
+    NflverseRosterUsageProvider(Clock clock) { this.clock = java.util.Objects.requireNonNull(clock); }
 
     Map<String, UsageEvidence> load(int season, int week, Set<String> ids) throws IOException, InterruptedException {
         if (week < 3) return Map.of();
@@ -36,7 +44,7 @@ final class NflverseRosterUsageProvider {
     }
 
     synchronized String download(URI uri) throws IOException, InterruptedException {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Cached saved = cache.get(uri);
         if (saved != null && now.isBefore(saved.expires())) return saved.body();
 

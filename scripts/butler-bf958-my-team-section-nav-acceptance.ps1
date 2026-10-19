@@ -40,7 +40,7 @@ try {
         'id="team-draft" class="panel team-section-target" tabindex="-1"',
         '$autoFillHtml = ConvertTo-AutoFillHtml -AutoFill $AutoFill -Roster $Roster',
         '$autoFillHtml.Replace(',
-        'id="team-lineup" class="panel recommendation-panel team-section-target" tabindex="-1"'
+        'id="team-lineup" tabindex="-1" class="panel recommendation-panel team-section-target'
     )) {
         if ($team.IndexOf($required, [System.StringComparison]::Ordinal) -lt 0) {
             throw "BF-958 BLOCKED: staged section-navigation marker is missing: $required"
@@ -76,6 +76,26 @@ try {
     }
     if ($lineupAnchor -match 'Invoke-RestMethod|Invoke-WebRequest|Invoke-ButlerReadOnly|https://api\.sleeper\.app|Method = "POST"|submitTransaction|setFaab|AutoFillLineupOptimizer') {
         throw 'BF-958 BLOCKED: lineup section anchor introduced backend, provider, optimizer, or write behavior.'
+    }
+
+    # Execute the installed mutation, rather than counting a dormant id literal.
+    # BF-1021 adds a class after recommendation-panel in every Start/Sit state.
+    # The old exact opening-class match silently left those sections unanchored.
+    foreach ($classes in @('panel recommendation-panel', 'panel recommendation-panel start-sit-assistant')) {
+        foreach ($state in @('NOT REVIEWED', 'HELD', 'REVIEW AVAILABLE')) {
+            $autoFillHtml = '<section class="' + $classes + '"><h2>' + $state + '</h2><p>Original evidence &amp; holds</p></section>'
+            $originalBody = $autoFillHtml.Substring($autoFillHtml.IndexOf('>') + 1)
+            . ([scriptblock]::Create($lineupAnchor))
+            if ([regex]::Matches($autoFillHtml, 'id="team-lineup"').Count -ne 1 -or
+                -not $autoFillHtml.Contains('tabindex="-1"') -or
+                -not $autoFillHtml.Contains('team-section-target') -or
+                ($classes.Contains('start-sit-assistant') -and -not $autoFillHtml.Contains('start-sit-assistant'))) {
+                throw "BF-958 BLOCKED: rendered lineup anchor missing for $classes / $state."
+            }
+            if ($autoFillHtml.Substring($autoFillHtml.IndexOf('>') + 1) -cne $originalBody) {
+                throw 'BF-958 BLOCKED: section navigation altered recommendation evidence.'
+            }
+        }
     }
 
     Write-Host 'BF-958 MY TEAM SECTION NAVIGATION ACCEPTANCE: PASS'

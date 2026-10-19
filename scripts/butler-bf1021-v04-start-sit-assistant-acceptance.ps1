@@ -29,11 +29,43 @@ try {
     }
 
     $surface = $functions[0].Extent.Text
+    # Run the real staged parser and renderer together. READY-only summary
+    # setup must not execute inside an UNAVAILABLE early return: those views
+    # legitimately omit projection timestamps. Text-only rendering checks
+    # and hand-built READY fixtures previously missed this StrictMode crash.
+    foreach ($name in @('New-AutoFillIdleView','ConvertTo-AutoFillView','ConvertTo-AutoFillHtml')) {
+        $definition = @($ast.FindAll({
+            param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+        }, $true))
+        if ($definition.Count -ne 1) { throw "Expected exactly one staged function $name" }
+        . ([scriptblock]::Create($definition[0].Extent.Text))
+    }
+    function ConvertTo-HtmlText { param([string]$Text) [Net.WebUtility]::HtmlEncode($Text) }
+    $idle = New-AutoFillIdleView
+    $idleHtml = ConvertTo-AutoFillHtml -AutoFill $idle
+    if ($idleHtml -notmatch 'NOT REVIEWED') { throw 'Idle lineup lost its not-reviewed state' }
+    foreach ($reason in @('No current weekly projection evidence is available.',
+            'Required roster identity evidence is unavailable.',
+            'A complete legal starting lineup cannot be built because no scoreable active roster candidates remain. Evidence holds=2; explicitly unavailable=0. Projection-held players: source review required.')) {
+        $unavailable = ConvertTo-AutoFillView -Text ("State: UNAVAILABLE`nSeason/week: 2026/6`nScoring basis: PPR`nReason: $reason")
+        if ($unavailable.Ready -or -not $unavailable.Requested) { throw 'Unavailable parser changed its governed state' }
+        $unavailableHtml = ConvertTo-AutoFillHtml -AutoFill $unavailable
+        if ($unavailableHtml -notmatch [regex]::Escape($reason) -or
+            $unavailableHtml -notmatch 'No lineup recommendation' -or
+            $unavailableHtml -match 'butler-startsit-source-proof|projection snapshot retrieved|proposed lineup changes') {
+            throw 'Unavailable lineup must preserve its reason without READY source-proof or advice'
+        }
+        if ($reason.StartsWith('A complete legal ', [StringComparison]::Ordinal) -and
+            ($unavailableHtml -notmatch 'EVIDENCE GAP' -or $unavailableHtml -match 'PROJECTIONS NEEDED')) {
+            throw 'Legal-lineup evidence holds were incorrectly classified as a projection-source outage'
+        }
+    }
     foreach ($required in @(
         'Start/Sit Assistant',
         'What should I change?',
-        '<h3>START</h3>',
-        '<h3>SIT</h3>',
+        '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>',
+        '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>',
         'Current starter',
         'Recommended starter',
         'Projected difference',
@@ -133,8 +165,29 @@ try {
         throw 'BF-1021 BLOCKED: Start/Sit route must announce exactly one current page.'
     }
 
+    $guardrailAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $PSScriptRoot 'butler-manager-guardrail-acceptance.ps1'), [ref]$tokens, [ref]$errors)
+    if (@($errors).Count) { throw 'Manager release guardrail has parse errors.' }
+    $panelCheck = @($guardrailAst.FindAll({
+        param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -eq 'Assert-MatchupLineupPanel'
+    }, $true))
+    if ($panelCheck.Count -ne 1) { throw 'Expected one Matchup panel guardrail.' }
+    . ([scriptblock]::Create($panelCheck[0].Extent.Text))
+    Assert-MatchupLineupPanel -Html $routeFixture
+    Assert-MatchupLineupPanel -Html $routeFixture.Replace('panel recommendation-panel start-sit-assistant','panel recommendation-panel').Replace('Start/Sit Assistant','Lineup advisor - saved current review')
+    foreach ($invalid in @(
+        $routeFixture.Replace('panel recommendation-panel start-sit-assistant','panel other-panel'),
+        ($routeFixture + '<section class="panel recommendation-panel">Duplicate</section>'),
+        '<nav><a href="/matchup/autofill">Start/Sit Assistant</a><span>Lineup advisor</span></nav>')) {
+        $rejected = $false
+        try { Assert-MatchupLineupPanel -Html $invalid } catch { $rejected = $true }
+        if (-not $rejected) { throw 'Release guardrail accepted missing, duplicate or navigation-only lineup evidence.' }
+    }
+
     Write-Host 'BF-1021 V0.4 START/SIT ASSISTANT ACCEPTANCE: PASS'
-    Write-Host 'Coverage: dedicated Start/Sit route and current-page state, no duplicate Matchup hero, What-should-I-change summary, START/SIT cards, priority decision queue, current/recommended starter labels, projection difference, compare actions, holds, and read-only safety.'
+    Write-Host 'Coverage: actual staged idle/unavailable parser-renderer paths without READY-only timestamps, dedicated Start/Sit route and current-page state, no duplicate Matchup hero, What-should-I-change summary, START/SIT cards, priority decision queue, current/recommended starter labels, projection difference, compare actions, holds, and read-only safety.'
 }
 finally {
     if (Test-Path -LiteralPath $root) {

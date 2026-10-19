@@ -36,6 +36,34 @@ foreach ($fixture in @($renderedDashboard, $renderedWaivers, $renderedAutoPilot,
 if ($renderedBlocked.Nonce -ne '') {
     throw 'BF-1043 BLOCKED: no-transaction Auto-Pilot emitted a script.'
 }
+# Exercise all old-week/ambiguous states through each real source-based
+# automatic renderer. An adjacent-week manual recovery must never inherit
+# the ordinary stale-evidence automatic refresh capability.
+$rolloverPages = @()
+foreach ($actionability in @('AUDITED_WEEK_ROLLOVER_DO_NOT_ACT',
+        'AUDITED_WEEK_MISMATCH_DO_NOT_ACT','AUDITED_WEEK_UNVERIFIED_DO_NOT_ACT',
+        'AUDITED_TRANSACTION_PENDING','AUDITED_TRANSACTION_COMPLETE','')) {
+    foreach ($lineage in @('LATEST_EVIDENCE_LINEAGE_VERIFIED',
+            'MARKET_LINEAGE_SUPERSEDED','WAIVER_LINEAGE_SUPERSEDED',
+            'MARKET_AND_WAIVER_LINEAGE_SUPERSEDED','UNKNOWN','')) {
+        $oldWeek = $dashboard.Replace('LIVE_ACTIONABLE_VERIFIED', $actionability).
+            Replace('MARKET_LINEAGE_SUPERSEDED', $lineage)
+        $governed = Add-DecisionRefreshControl -Html $oldWeek -RequestTarget '/'
+        $rolloverPages += [pscustomobject]@{
+            Actionability = $actionability
+            Lineage = $lineage
+            Dashboard = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token $token
+            AutoPilot = Add-AutomaticAutoPilotRefresh -Html $autoPilot -RequestTarget '/autopilot' -DashboardHtml $oldWeek -Token $token
+            StartSit = Add-AutomaticStartSitRefresh -Html $blockedStartSit -RequestTarget '/matchup/autofill' -DashboardHtml $oldWeek -Token $token
+        }
+    }
+}
+# Only presentation dependencies are stubbed. The production confirmation
+# renderer must emit a manual token-only form; no runner or HTTP is invoked.
+function Get-AppCss { return '' }
+function Get-AppNav { param([string]$Active) return '<nav></nav>' }
+function ConvertTo-HtmlText { param([string]$Text) return [Net.WebUtility]::HtmlEncode($Text) }
+$confirmation = Get-DecisionRefreshConfirmationHtml -LeagueId '00000000-0000-0000-0000-000000000001' -Token $token
 [pscustomobject]@{
     audit = $audit
     token = $token
@@ -45,4 +73,6 @@ if ($renderedBlocked.Nonce -ne '') {
     startsit = $renderedStartSit
     blockedStartSit = $renderedHealthyStartSit
     blockedAutopilot = $renderedBlocked
+    rolloverPages = $rolloverPages
+    confirmation = $confirmation
 } | ConvertTo-Json -Depth 6 -Compress

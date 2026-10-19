@@ -16,6 +16,7 @@ function Add-DashboardMatchupSummary {
     $title = 'Opponent unavailable'
     $status = 'MATCHUP DATA NEEDED'
     $statusClass = 'warn'
+    $matchupSourceNote = 'Matchup source and recorded time are not verified.'
     try {
         # This is the same read-only, non-AutoFill bundle used by GET /matchup.
         # Validate the exact team, season, and week before showing an opponent.
@@ -28,12 +29,16 @@ function Add-DashboardMatchupSummary {
         if ($matchup.LeagueId -cne $LeagueId -or $matchup.UserTeamId -cne $roster.ButlerTeamId -or $matchup.Season -ne $roster.Season -or $matchup.Week -ne $week) {
             throw 'Matchup frame does not match the bound team.'
         }
+        $sourceName = if ($null -ne $matchup.PSObject.Properties['Source'] -and -not [string]::IsNullOrWhiteSpace([string]$matchup.Source)) { [string]$matchup.Source } else { 'unknown' }
+        $recordedTime = if ($null -ne $matchup.PSObject.Properties['AsOf'] -and -not [string]::IsNullOrWhiteSpace([string]$matchup.AsOf)) { [string]$matchup.AsOf } else { 'unknown' }
+        $matchupSourceNote = 'Recorded matchup source: ' + $sourceName + '; as-of: ' + $recordedTime + '. This is not a live score or player availability check.'
         $title = "Week $($matchup.Week): $($matchup.UserTeamName) vs. $($matchup.OpponentTeamName)"
         $status = 'OPPONENT CONFIRMED'
         $statusClass = 'good'
     }
     catch {
         # Missing or stale matchup evidence must not block the rest of Dashboard.
+        $matchupSourceNote = 'Matchup source and recorded time are not verified.'
     }
     $card = '<article class="week-glance-card"><div class="week-kind">Matchup</div><div class="week-title">' + (ConvertTo-HtmlText $title) + '</div><div class="status ' + $statusClass + '">' + $status + '</div><div class="week-action"><a href="/matchup">Open Weekly Matchup &rarr;</a></div></article>'
     return $cardPattern.Replace($Html, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $card }, 1)
@@ -63,3 +68,19 @@ if (-not (Test-Path -LiteralPath $bf954Transform -PathType Leaf)) {
     throw "BF-954 BLOCKED: Dashboard matchup opponent actions transform not found at $bf954Transform"
 }
 & $bf954Transform -CorePath $CorePath
+
+# Install after the older card transforms, whose exact card contracts must stay
+# intact. This disclosure reuses their existing validated bundle, with no read.
+$core = [IO.File]::ReadAllText($CorePath)
+$returnAnchor = '    return $cardPattern.Replace($Html, [System.Text.RegularExpressions.MatchEvaluator]{ param($match) $card }, 1)'
+if ([regex]::Matches($core, [regex]::Escape($returnAnchor)).Count -ne 1) {
+    throw 'Dashboard matchup: source disclosure boundary is not unique.'
+}
+$sourceDisclosure = @'
+    $card = $card.Replace('</article>', '<p class="matchup-source-note">' + (ConvertTo-HtmlText $matchupSourceNote) + '</p></article>')
+'@
+$core = $core.Replace($returnAnchor, $sourceDisclosure.TrimEnd() + [Environment]::NewLine + $returnAnchor)
+$tokens = $null; $errors = $null
+[void][Management.Automation.Language.Parser]::ParseInput($core, [ref]$tokens, [ref]$errors)
+if (@($errors).Count) { throw 'Dashboard matchup: source disclosure failed parse.' }
+[IO.File]::WriteAllText($CorePath, $core, [Text.UTF8Encoding]::new($false))

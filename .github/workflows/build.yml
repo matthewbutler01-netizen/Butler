@@ -20,6 +20,7 @@ on:
       - bf1528-week-rollover-readonly-gate
       - bf1529-governed-week-rollover-refresh
       - bf1534-v04-week-rollover-beta-pack
+      - bf-v04-fantasy-workflow-study
   pull_request:
     branches:
       - main

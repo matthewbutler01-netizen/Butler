@@ -17,6 +17,11 @@ $guard = Join-Path $scriptDir 'butler-app-guard.ps1'
 $watchdog = Join-Path $scriptDir 'butler-child-tree-watchdog.ps1'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+$lifetimeReceipt = ''
+try {
+    . (Join-Path $scriptDir 'butler-runtime-lifetime.ps1')
+    $lifetimeReceipt = New-ButlerLifetimeReceipt -Port $Port -SupervisorProcessId $PID
+} catch { }
 
 foreach ($required in @($guard, $watchdog, $powershell)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -61,6 +66,9 @@ function Start-ButlerWatchdog {
     $arguments = "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$watchdog`" " +
         "-SupervisorPid $PID -SupervisorStartTicks $SupervisorStartTicks " +
         "-GuardPid $($GuardProcess.Id) -GuardStartTicks $guardStartTicks"
+    if (-not [string]::IsNullOrWhiteSpace($lifetimeReceipt)) {
+        $arguments += " -LifetimeReceipt `"$lifetimeReceipt`""
+    }
 
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $powershell
@@ -127,6 +135,7 @@ $supervisorStartTicks = Get-ProcessStartTicks -ProcessId $PID
 
 try {
     $guardProcess = Start-ButlerGuard
+    if ($lifetimeReceipt) { Write-ButlerLifetimeEvent -Path $lifetimeReceipt -Event GUARD_STARTED }
     try {
         $watchdogProcess = Start-ButlerWatchdog -GuardProcess $guardProcess -SupervisorStartTicks $supervisorStartTicks
     }
@@ -137,6 +146,7 @@ try {
 
     $guardProcess.WaitForExit()
     $exitCode = [int]$guardProcess.ExitCode
+    if ($lifetimeReceipt) { Write-ButlerLifetimeEvent -Path $lifetimeReceipt -Event GUARD_EXITED -ExitCode $exitCode }
 
     if ($null -ne $watchdogProcess) {
         try { [void]$watchdogProcess.WaitForExit(3000) } catch {}
@@ -144,7 +154,12 @@ try {
 
     exit $exitCode
 }
+catch {
+    if ($lifetimeReceipt) { Write-ButlerLifetimeEvent -Path $lifetimeReceipt -Event SUPERVISOR_FAILED }
+    throw
+}
 finally {
+    if ($lifetimeReceipt) { Write-ButlerLifetimeEvent -Path $lifetimeReceipt -Event SUPERVISOR_FINALIZING }
     if ($null -ne $guardProcess) {
         try {
             if (-not $guardProcess.HasExited) {

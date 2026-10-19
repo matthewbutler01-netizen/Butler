@@ -457,6 +457,29 @@ Assert-Bf1097OnOpen -Dashboard $bf1097Dash -Pilot $bf1097Armed.Html -PilotCheck 
 Assert-Bf1097OnOpen -Dashboard $bf1097Dash -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO MISSING'
 Assert-Bf1097OnOpen -Dashboard $bf1097CurrentDash -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'PASS' -Evidence 'ON-OPEN GATED'
 Assert-Bf1097OnOpen -Dashboard $bf1097CurrentDash -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+# The production Dashboard uses the sidebar; legacy fixtures use nav.
+$bf1097SidebarDash = $bf1097Dash.Replace('<body>', '<body class="dashboard-page">').Replace(
+    '<nav class="nav" aria-label="Butler sections"></nav>',
+    '<aside class="manager-playbook" aria-label="Butler sections"></aside>')
+Assert-Bf1097OnOpen -Dashboard $bf1097SidebarDash -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'PASS' -Evidence 'ON-OPEN ARMED'
+Assert-Bf1097OnOpen -Dashboard $bf1097SidebarDash -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO MISSING'
+$bf1097SidebarCurrent = $bf1097SidebarDash.Replace('STALE_DO_NOT_ACT', 'CURRENT_AND_ACTIONABLE').Replace('MARKET_LINEAGE_SUPERSEDED', 'LATEST_EVIDENCE_LINEAGE_VERIFIED')
+Assert-Bf1097OnOpen -Dashboard $bf1097SidebarCurrent -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'PASS' -Evidence 'ON-OPEN GATED'
+Assert-Bf1097OnOpen -Dashboard $bf1097SidebarCurrent -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+foreach ($bf1097UnsafeSidebar in @(
+    $bf1097SidebarDash.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED'),
+    $bf1097SidebarDash.Replace('Audit ID: ' + $bf1097Audit, 'Audit ID: UNKNOWN'),
+    $bf1097SidebarDash.Replace('</body>', '<div>Audit ID: ' + $bf1097Audit + '</div></body>')
+)) {
+    Assert-Bf1097OnOpen -Dashboard $bf1097UnsafeSidebar -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+}
+foreach ($bf1097BadSidebar in @(
+    $bf1097SidebarDash.Replace('</aside>', '</aside><nav class="nav" aria-label="Butler sections"></nav>'),
+    $bf1097SidebarDash.Replace('</aside>', '</aside><aside class="manager-playbook" aria-label="Butler sections"></aside>'),
+    $bf1097SidebarDash.Replace('aria-label="Butler sections"', 'aria-label="Other sections"')
+)) {
+    Assert-Bf1097OnOpen -Dashboard $bf1097BadSidebar -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT SOURCE UNKNOWN'
+}
 Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT SOURCE UNKNOWN'
 Assert-Bf1097OnOpen -Dashboard '<html><body>no nav</body></html>' -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'SKIP' -Evidence 'PROOF UNAVAILABLE'
 
