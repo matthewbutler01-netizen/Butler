@@ -297,7 +297,7 @@ jobs:
             'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
             '',
             'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
-            'This updater is pinned to commit 262f880dfdc647e1ddf848b22361b9f58ae9707f.',
+            'This updater is pinned to commit 4539a3864bf05b997d078c1e43e9d8b845fc5e34.',
             'The development starter requires loopback port 18080.',
             'It will not upgrade, merge or touch the frozen v0.3 release.',
             '',
