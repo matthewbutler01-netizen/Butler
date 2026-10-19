@@ -350,3 +350,18 @@ When the separate read-only Start/Sit source returns a single, current-league/we
 The count comes only from the same exact source proof already checked against a recent player-status observation (10-minute window) and projection observation (120-minute window); Dashboard START/SIT counts are not substituted. A missing, duplicated, contradictory, stale, zero, or player-held source never creates a verified proposal count or review claim. For a verified no-change decision, no change count or swap-status lookup is implied. Counts above 99 fall back to generic text rather than presenting an implausible number. No provider request, lineup submission, waiver claim, trade, or FAAB action is added. The previously frozen v0.3.0 remains untouched.
 
 Windows-source gate and renderer acceptance now cover single/multiple verified proposal counts, actual manager-facing text, one-click navigation, and rejection of held/ambiguous source counts. This is a draft v0.4 improvement; it is not yet verification of any particular connected Sleeper player's eligibility.
+
+## Public Dashboard refresh-options diagnostic
+
+The cross-route on-open check reconstructs entitlement from the Dashboard's
+exact governing fields. A generated refresh-options banner may remain after
+public navigation omits the manual refresh link. Previously its existing link
+made the reconstruction helper skip adding the navigation control, producing
+AUTO-PILOT AUTO UNEXPECTED despite otherwise eligible stale evidence.
+
+The diagnostic removes exact refresh anchors from a private HTML copy before
+running the existing entitlement helpers. It executes no script or POST and
+changes no authorization rule. Acceptance uses an actual generated banner and
+requires eligible stale evidence to pass while blocked actionability, a current
+or prior-week decision, and duplicate audit fields still warn. Sequential live
+GET comparisons are observations, not a controlled freshness experiment.

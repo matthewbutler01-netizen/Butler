@@ -426,7 +426,15 @@ function Test-ButlerCrossRouteOnOpen {
             }
             return $result
         }
-        $governed = Add-DecisionRefreshControl -Html $DashboardHtml -RequestTarget '/'
+        # Public navigation may omit the manual refresh link while an existing
+        # generated banner still links to refresh options. That link causes
+        # Add-DecisionRefreshControl's idempotence guard to skip reconstruction.
+        # Remove only exact refresh anchors from this diagnostic-only copy,
+        # then independently re-prove all governing fields through the same
+        # helpers. Never infer entitlement from an existing link or script.
+        $probeHtml = [regex]::Replace($DashboardHtml,
+            '(?is)<a href="/refresh">[^<]*</a>', '')
+        $governed = Add-DecisionRefreshControl -Html $probeHtml -RequestTarget '/'
         $entitlement = Add-AutomaticDashboardRefresh -Html $governed -RequestTarget '/' -Token ('a' * 64)
         $eligible = -not [string]::IsNullOrWhiteSpace([string]$entitlement.Nonce)
     }
