@@ -365,3 +365,11 @@ changes no authorization rule. Acceptance uses an actual generated banner and
 requires eligible stale evidence to pass while blocked actionability, a current
 or prior-week decision, and duplicate audit fields still warn. Sequential live
 GET comparisons are observations, not a controlled freshness experiment.
+
+A same-input live capture also demonstrated CURRENT_REFRESH_RECOMMENDED with
+valid actionability, lineage and audit identity but all three detailed plan
+fields absent from public presentation. That is now WARN / AUTO-PILOT SOURCE
+UNKNOWN, not an allegation that the observed capability is unexpected. Complete
+policy proof can pass; missing/duplicated required policy remains unverified;
+known blocked plans or a non-nine-step plan still report unexpected capability.
+No missing field becomes an automatic-refresh permission.
