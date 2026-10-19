@@ -32,7 +32,7 @@ function check(waiverSource, startSitSource) {
 }
 check(waiver, startSit);
 // Negative controls: removing either recently fixed rule must fail closed.
-const waiverBroken = waiver.replace(/(\.waiver-pair-note\{[^}]*?)overflow-wrap:anywhere;/,
+const waiverBroken = waiver.replace(/(\.waiver-pair-note\{[^}]*?)overflow-wrap:anywhere(?=\})/,
   '$1');
 assert.notEqual(waiverBroken, waiver, 'waiver negative fixture did not alter source');
 assert.throws(() => check(waiverBroken, startSit), /Mobile evidence must wrap/);
