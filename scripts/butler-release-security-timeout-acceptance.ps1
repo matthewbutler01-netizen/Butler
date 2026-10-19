@@ -57,3 +57,7 @@ finally {
         Remove-Item -LiteralPath $resolvedRoot -Recurse -Force
     }
 }
+# GitHub's PowerShell wrapper propagates the last native child exit code.
+# The expected failing runner was asserted above; successful fixture completion
+# must not inherit its deliberate nonzero status. Exceptions still fail the step.
+$global:LASTEXITCODE = 0
