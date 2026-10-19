@@ -179,6 +179,7 @@ $root = "http://127.0.0.1:$selectedPort"
 $process = $null
 $ownedPid = 0
 $failure = $null
+$startupTimedOut = $false
 
 Write-Host 'Butler release-security acceptance (BF-768)'
 Write-Host "Selected port: $selectedPort"
@@ -204,6 +205,7 @@ try {
         Start-Sleep -Milliseconds 250
     }
     if (-not $healthy) {
+        $startupTimedOut = $true
         throw "BF-768 FAILED: Butler did not become healthy within $StartupTimeoutSeconds seconds."
     }
 
@@ -219,6 +221,14 @@ finally {
     catch {
         if ($null -eq $failure) { $failure = $_ }
         else { Write-Warning $_.Exception.Message }
+    }
+    if ($startupTimedOut) {
+        # Drain only after owned-tree cleanup closes the redirected streams.
+        # Keep the original timeout failure and the existing bounded output tail.
+        $diagnostic = Get-Bf768StartupOutput -Process $process
+        if (-not [string]::IsNullOrWhiteSpace($diagnostic)) {
+            Write-Host "BF-768 startup timeout diagnostic: $diagnostic"
+        }
     }
     if ($ownedPid -gt 0) {
         Remove-Bf768RunState -ProcessId $ownedPid -SelectedPort $selectedPort

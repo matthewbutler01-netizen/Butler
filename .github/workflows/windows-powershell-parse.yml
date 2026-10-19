@@ -404,6 +404,12 @@ jobs:
           & '.\scripts\butler-runtime-lifetime-acceptance.ps1'
           if (-not $?) { exit 1 }
 
+      - name: Preserve bounded security startup timeout diagnostics
+        shell: powershell
+        run: |
+          & '.\scripts\butler-release-security-timeout-acceptance.ps1'
+          if (-not $?) { exit 1 }
+
       - name: Exercise accessibility rendering fixtures
         shell: powershell
         run: |
