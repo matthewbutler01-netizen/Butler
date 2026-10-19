@@ -117,6 +117,24 @@ class SleeperWeeklyProjectionProviderBf826Test {
     }
 
     @Test
+    void adpOnlyCurrentWeekRowExplainsHoldWithoutInventingPoints() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"s-rb","season":2026,"week":2,
+              "season_type":"regular","stats":{"adp_dd_ppr":1000}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            Map.of("rush_yd", 0.1, "rec", 1.0));
+
+        assertTrue(snapshot.projections().isEmpty());
+        assertEquals(1, snapshot.gaps().size());
+        var gap = snapshot.gaps().getFirst();
+        assertEquals("s-rb", gap.sleeperPlayerId());
+        assertTrue(gap.reason().contains("numeric raw fields=adp_dd_ppr=1000"));
+        assertTrue(gap.reason().contains("ADP is average draft position, not projected fantasy points"));
+        assertTrue(gap.reason().contains("Recheck current-week projection evidence"));
+        assertTrue(gap.reason().contains("keep this player held"));
+    }
+
+    @Test
     void exactRowWithNoMatchingRawScoringEvidencePreservesCoverageGap() throws Exception {
         String json = """
             [{

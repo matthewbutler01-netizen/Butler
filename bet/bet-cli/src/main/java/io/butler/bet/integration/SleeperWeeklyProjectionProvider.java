@@ -213,7 +213,19 @@ public final class SleeperWeeklyProjectionProvider {
             playerId,
             "exact Sleeper projection row is present but " + pointsField
                 + " is missing/non-numeric; " + rawScore.reason()
-                + "; numeric raw fields=" + numericFieldSummary(stats)));
+                + "; numeric raw fields=" + numericFieldSummary(stats)
+                + (hasNumericAdp(stats)
+                    ? "; ADP is average draft position, not projected fantasy points. Recheck current-week projection evidence; keep this player held until scoreable evidence is available."
+                    : "")));
+    }
+
+    private static boolean hasNumericAdp(JsonNode stats) {
+        Iterator<Map.Entry<String, JsonNode>> fields = stats.fields();
+        while (fields.hasNext()) {
+            Map.Entry<String, JsonNode> field = fields.next();
+            if (field.getKey().startsWith("adp_") && field.getValue().isNumber()) return true;
+        }
+        return false;
     }
 
     private static String numericFieldSummary(JsonNode stats) {
