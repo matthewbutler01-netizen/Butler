@@ -54,6 +54,11 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    unknown; the timestamp does not certify live injury or starter status.
    A timed-out/closed read-only request must not terminate the app. Transport
    fault scenarios are covered separately by automated and isolated tests.
+   At a narrow 304px CSS viewport, expand the saved Waiver Board evidence
+   and Start/Sit evidence details. Check that long original records retain
+   their text but wrap without horizontal page overflow. A source-level CI
+   rule check does not replace this actual browser geometry check. If the
+   needed evidence is absent, record NOT EXERCISED instead of PASS.
 2. With an existing saved previous-week waiver decision and independently
    verified immediately following regular-season week in the same season,
    Waiver Board shows `NEW WEEK` / `HOLD` and the previous move as history only.
