@@ -70,6 +70,60 @@ exit ([int]$env:BUTLER_LIFETIME_FIXTURE_MODE)
         }
         Write-Host "Lifetime receipt fixture ${mode}: PASS"
     }
+    # Exercise guard loss while a separate inert supervisor is still alive.
+    # The real watchdog must clean up its exact core tree, not an unrelated
+    # guard child. No Butler runtime, database, listener or provider is used.
+    $profile = Join-Path $root 'guard-loss'
+    [IO.Directory]::CreateDirectory($profile) | Out-Null
+    $env:LOCALAPPDATA = $profile
+    . (Join-Path $root 'butler-runtime-lifetime.ps1')
+    $idle = Join-Path $root 'inert-idle.ps1'
+    [IO.File]::WriteAllText($idle, '$deadline = [DateTime]::UtcNow.AddSeconds(90); while ([DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }')
+    $core = Join-Path $root 'butler-app-shell-core.ps1'
+    [IO.File]::WriteAllText($core, @'
+$child = Start-Process powershell.exe -ArgumentList ('-NoProfile -File "' + (Join-Path $PSScriptRoot 'inert-idle.ps1') + '"') -WindowStyle Hidden -PassThru
+[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'core-descendant.txt'), [string]$child.Id)
+$deadline = [DateTime]::UtcNow.AddSeconds(90)
+while ([DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+'@)
+    $guardFixture = Join-Path $root 'inert-guard-tree.ps1'
+    [IO.File]::WriteAllText($guardFixture, @'
+$core = Start-Process powershell.exe -ArgumentList ('-NoProfile -File "' + (Join-Path $PSScriptRoot 'butler-app-shell-core.ps1') + '"') -WindowStyle Hidden -PassThru
+$sentinel = Start-Process powershell.exe -ArgumentList ('-NoProfile -File "' + (Join-Path $PSScriptRoot 'inert-idle.ps1') + '"') -WindowStyle Hidden -PassThru
+[IO.File]::WriteAllText((Join-Path $PSScriptRoot 'guard-tree-ready.txt'), ([string]$core.Id + ',' + [string]$sentinel.Id))
+$deadline = [DateTime]::UtcNow.AddSeconds(90)
+while ([DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+'@)
+    $ps = Join-Path $PSHOME 'powershell.exe'
+    $inertSupervisor = Start-Process $ps -ArgumentList ('-NoProfile -File "' + $idle + '"') -WindowStyle Hidden -PassThru
+    $owned += $inertSupervisor
+    $inertGuard = Start-Process $ps -ArgumentList ('-NoProfile -File "' + $guardFixture + '"') -WindowStyle Hidden -PassThru
+    $owned += $inertGuard
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    $readyPath = Join-Path $root 'guard-tree-ready.txt'
+    $descendantPath = Join-Path $root 'core-descendant.txt'
+    while ((-not [IO.File]::Exists($readyPath) -or -not [IO.File]::Exists($descendantPath)) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if (-not [IO.File]::Exists($readyPath) -or -not [IO.File]::Exists($descendantPath)) { throw 'Inert guard tree did not become ready' }
+    $treeIds = [IO.File]::ReadAllText($readyPath).Split(',')
+    $trackedCore = Get-Process -Id ([int]$treeIds[0]) -ErrorAction Stop
+    $sentinel = Get-Process -Id ([int]$treeIds[1]) -ErrorAction Stop
+    $descendant = Get-Process -Id ([int][IO.File]::ReadAllText($descendantPath)) -ErrorAction Stop
+    $owned += @($trackedCore,$sentinel,$descendant)
+    $receipt = New-ButlerLifetimeReceipt -Port 18089 -SupervisorProcessId $inertSupervisor.Id
+    if (-not $receipt) { throw 'Guard-loss receipt missing' }
+    Write-ButlerLifetimeEvent -Path $receipt -Event GUARD_STARTED
+    $watchArgs = '-NoProfile -File "' + (Join-Path $root 'butler-child-tree-watchdog.ps1') + '" -SupervisorPid ' + $inertSupervisor.Id + ' -SupervisorStartTicks ' + $inertSupervisor.StartTime.ToUniversalTime().Ticks + ' -GuardPid ' + $inertGuard.Id + ' -GuardStartTicks ' + $inertGuard.StartTime.ToUniversalTime().Ticks + ' -LifetimeReceipt "' + $receipt + '"'
+    $guardWatch = Start-Process $ps -ArgumentList $watchArgs -WindowStyle Hidden -PassThru
+    $owned += $guardWatch
+    $inertGuard.Kill()
+    if (-not $inertGuard.WaitForExit(5000)) { throw 'Owned inert guard did not stop' }
+    if (-not $guardWatch.WaitForExit(20000) -or $guardWatch.ExitCode -ne 0) { throw 'Guard-loss watchdog failed' }
+    if (-not $trackedCore.WaitForExit(5000) -or -not $descendant.WaitForExit(5000)) { throw 'Owned core tree survived guard loss' }
+    if ($inertSupervisor.HasExited -or $sentinel.HasExited) { throw 'Watchdog stopped unrelated fixture process' }
+    $events = [IO.File]::ReadAllText($receipt)
+    if ($events -notmatch 'event=GUARD_DISAPPEARED' -or $events -match 'event=SUPERVISOR_DISAPPEARED|event=GUARD_EXITED') { throw 'Guard loss was misclassified' }
+    Write-Host 'Lifetime guard-loss fixture: PASS (core descendant cleanup, unrelated child preserved, exact observation)'
+
     # A caller-supplied receipt path must not append outside diagnostics.
     $env:LOCALAPPDATA = Join-Path $root 'outside-profile'
     . (Join-Path $root 'butler-runtime-lifetime.ps1')
