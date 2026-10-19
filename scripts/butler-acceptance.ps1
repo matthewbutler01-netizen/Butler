@@ -208,6 +208,7 @@ $process = $null
 $ownedPid = 0
 $failure = $null
 $passed = $false
+$startupTimedOut = $false
 
 Write-Host 'Butler one-command Windows acceptance (BF-698)'
 Write-Host "Selected port: $selectedPort"
@@ -235,6 +236,7 @@ try {
     }
 
     if (-not $healthy) {
+        $startupTimedOut = $true
         throw "BF-698 FAILED: Butler did not become healthy within $StartupTimeoutSeconds seconds."
     }
 
@@ -253,6 +255,12 @@ finally {
     catch {
         if ($null -eq $failure) { $failure = $_ }
         else { Write-Warning $_.Exception.Message }
+    }
+    if ($startupTimedOut) {
+        $diagnostic = Get-BoundedStartupOutput -Process $process
+        if (-not [string]::IsNullOrWhiteSpace($diagnostic)) {
+            Write-Host "BF-698 startup timeout diagnostic: $diagnostic"
+        }
     }
     if ($ownedPid -gt 0) {
         Remove-OwnedRunState -ProcessId $ownedPid -SelectedPort $selectedPort
