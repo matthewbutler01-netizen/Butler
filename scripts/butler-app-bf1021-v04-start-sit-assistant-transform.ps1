@@ -290,6 +290,7 @@ $css = @'
 .start-sit-assistant .lineup-choice small{font-size:12px;font-weight:700}
 .start-sit-assistant .lineup-swap-compare{font-size:14px;line-height:1.55}
 .start-sit-assistant .review-queue li{font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.start-sit-assistant details{overflow-wrap:anywhere}
 @media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
 '@
 
