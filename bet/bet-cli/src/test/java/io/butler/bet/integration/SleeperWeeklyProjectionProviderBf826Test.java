@@ -135,6 +135,31 @@ class SleeperWeeklyProjectionProviderBf826Test {
     }
 
     @Test
+    void adpAlongsideScoreableEvidenceDoesNotCreateAHoldOrReplaceRealZero() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"zero","season":2026,"week":2,
+              "stats":{"adp_dd_ppr":1000,"pts_ppr":0}},
+             {"player_id":"raw","season":2026,"week":2,
+              "stats":{"adp_dd_ppr":1000,"rush_yd":40,"rec":2}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            Map.of("rush_yd", 0.1, "rec", 1.0));
+
+        assertTrue(snapshot.gaps().isEmpty());
+        assertEquals(2, snapshot.projections().size());
+        var zero = snapshot.projections().stream()
+            .filter(p -> p.sleeperPlayerId().equals("zero")).findFirst().orElseThrow();
+        assertEquals(0, BigDecimal.ZERO.compareTo(zero.projectedPoints()));
+        assertEquals(SleeperWeeklyProjectionProvider.ProjectionProvenance.SLEEPER_PRECOMPUTED,
+            zero.provenance());
+        var raw = snapshot.projections().stream()
+            .filter(p -> p.sleeperPlayerId().equals("raw")).findFirst().orElseThrow();
+        assertEquals(0, new BigDecimal("6").compareTo(raw.projectedPoints()));
+        assertEquals(SleeperWeeklyProjectionProvider.ProjectionProvenance.SLEEPER_RAW_STATS_LEAGUE_SCORED,
+            raw.provenance());
+        assertTrue(raw.scoringKeys().stream().noneMatch(key -> key.startsWith("adp_")));
+    }
+
+    @Test
     void exactRowWithNoMatchingRawScoringEvidencePreservesCoverageGap() throws Exception {
         String json = """
             [{
