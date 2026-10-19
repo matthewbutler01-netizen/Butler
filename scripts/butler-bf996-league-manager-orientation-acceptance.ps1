@@ -84,8 +84,56 @@ try {
         throw 'BF-996 BLOCKED: League manager orientation introduced provider, backend-read, optimizer, write, or open-redirect behavior.'
     }
 
+    # Exercise the actual staged parser and renderer with a held overview.
+    foreach ($statement in $ast.EndBlock.Statements) {
+        if ($statement -is [System.Management.Automation.Language.FunctionDefinitionAst]) {
+            Invoke-Expression $statement.Extent.Text
+        }
+    }
+    $heldOverview = @'
+League: Fixture League [11111111-1111-1111-1111-111111111111]
+Status: PARTIAL  core-ready=false
+Source: fixture-values
+Requires attention: true
+Franchise coverage: valued=341 total=344 missing_players=3 missing_picks=0 stale=0
+Franchise rankings: unavailable until current asset coverage is READY.
+Value movement: unavailable
+Next actions: none.
+'@
+    $heldView = ConvertTo-LeagueOverviewView -Text $heldOverview
+    $heldHtml = ConvertTo-LeagueHtml -View $heldView
+    if ($heldView.RankingsAvailable -or $heldHtml -notmatch '341 of 344 valued; missing player values: 3; missing pick values: 0; stale values: 0' -or
+        $heldHtml -notmatch 'Rechecking the same source may leave these gaps' -or $heldHtml -match 'class="league-rank"') {
+        throw 'Held league coverage must explain the gap without inventing ranks.'
+    }
+    $coverageLine = 'Franchise coverage: valued=341 total=344 missing_players=3 missing_picks=0 stale=0'
+    foreach ($validCounts in @(
+        'valued=0 total=0 missing_players=0 missing_picks=0 stale=0',
+        'valued=999999999 total=999999999 missing_players=0 missing_picks=0 stale=999999999')) {
+        $boundaryView = ConvertTo-LeagueOverviewView -Text $heldOverview.Replace($coverageLine, ('Franchise coverage: ' + $validCounts))
+        $boundaryHtml = ConvertTo-LeagueHtml -View $boundaryView
+        if ($null -eq $boundaryView.FranchiseCoverage -or $boundaryView.RankingsAvailable -or
+            $boundaryHtml -notmatch 'league-coverage-summary' -or $boundaryHtml -match 'class="league-rank"') {
+            throw 'Valid boundary counts must remain display-only and must not release held ranks.'
+        }
+    }
+    foreach ($replacement in @('', ($coverageLine + "`n" + $coverageLine),
+        $coverageLine.Replace('total=344', 'total=340'),
+        $coverageLine.Replace('stale=0', 'stale=342'),
+        $coverageLine.Replace('missing_players=3', 'missing_players=<script>3</script>'),
+        $coverageLine.Replace('valued=341', ('valued=' + [char]0x0663 + [char]0x0664 + [char]0x0661)),
+        $coverageLine.Replace('total=344', 'total=1000000000'),
+        $coverageLine.Replace('stale=0', 'stale=-1'),
+        $coverageLine.Replace('missing_picks=0', 'missing_picks=0.0'))) {
+        $uncertainView = ConvertTo-LeagueOverviewView -Text $heldOverview.Replace($coverageLine, $replacement)
+        $uncertainHtml = ConvertTo-LeagueHtml -View $uncertainView
+        if ($null -ne $uncertainView.FranchiseCoverage -or $uncertainView.RankingsAvailable -or
+            $uncertainHtml -match 'league-coverage-summary' -or $uncertainHtml -notmatch 'No franchise order is inferred') {
+            throw "Invalid coverage retained count=$($null -ne $uncertainView.FranchiseCoverage), ranked=$($uncertainView.RankingsAvailable), summary=$($uncertainHtml -match 'league-coverage-summary'), generic=$($uncertainHtml -match 'No franchise order is inferred')."
+        }
+    }
     Write-Host 'BF-996 LEAGUE MANAGER ORIENTATION ACCEPTANCE: PASS'
-    Write-Host 'Coverage: clear My Team vs league-team roles, honest neutral-board identity boundary, exact Scout/Trade partner context, responsive presentation, and no new reads or writes'
+    Write-Host 'Coverage: manager roles, neutral franchise identity, held asset counts, uncertain-count fallback, exact Scout/Trade context, responsive presentation, and no new reads or writes'
 }
 finally {
     if (Test-Path -LiteralPath $root) {

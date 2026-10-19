@@ -35,11 +35,25 @@ foreach ($required in @(
 }
 
 $function = $function.Replace('Lineup advisor', 'Start/Sit Assistant')
+# Legal-lineup holds can mention projections in their detailed evidence without
+# proving that the projection source itself is missing. Preserve the generic
+# evidence-gap presentation for those exact optimizer failures.
+$projectionGapOld = '        $projectionGap = $reason.IndexOf(''projection'', [System.StringComparison]::OrdinalIgnoreCase) -ge 0'
+$projectionGapNew = @'
+        $projectionGap = $reason.IndexOf('projection', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            -not $reason.StartsWith('A complete legal ', [System.StringComparison]::Ordinal)
+'@
+if ([regex]::Matches($function, [regex]::Escape($projectionGapOld)).Count -ne 1) {
+    throw 'Start/Sit unavailable-evidence classification requires one exact anchor.'
+}
+$function = $function.Replace($projectionGapOld, $projectionGapNew.TrimEnd())
 $function = $function.Replace('This week''s lineup decision', 'Start/Sit Assistant')
 $function = $function.Replace('recommendation-panel', 'recommendation-panel start-sit-assistant')
 $function = $function.Replace('<h3>Decision</h3>', '<h3>What should I change?</h3>')
 $function = $function.Replace('<h3>Proposed promotion</h3>', '<h3>START</h3>')
 $function = $function.Replace('<h3>Proposed bench move</h3>', '<h3>SIT</h3>')
+$function = $function.Replace('<h3>START</h3>', '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>$summaryReviewNote')
+$function = $function.Replace('<h3>SIT</h3>', '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>$summaryReviewNote')
 $function = $function.Replace('<small>Current</small>', '<small>Current starter</small>')
 $function = $function.Replace('<small>Candidate</small>', '<small>Recommended starter</small>')
 $function = $function.Replace('Projected change', 'Projected difference')
@@ -110,6 +124,14 @@ $summarySetup = @'
     # player statuses; displaying a proposal is not health clearance.
     $proposedChanges = @($AutoFill.Assignments | Where-Object { [bool]$_.Changed }).Count
     $playerHolds = @($AutoFill.ProjectionHolds).Count
+    $summaryReviewRequired = $playerHolds -gt 0 -or
+        [string]$AutoFill.ProjectionCoverage -cne 'FULL' -or
+        ($proposedChanges -gt 0 -and [string]$AutoFill.SwapStatusFetchedAt -ceq 'UNVERIFIED')
+    $startSummaryHeading = if ($summaryReviewRequired) { 'START candidate' } else { 'START' }
+    $sitSummaryHeading = if ($summaryReviewRequired) { 'SIT candidate' } else { 'SIT' }
+    $summaryReviewNote = if ($summaryReviewRequired) {
+        '<p class="meta startsit-summary-review" role="note">Candidate only. Review held or incomplete evidence before changing your lineup.</p>'
+    } else { '' }
     $holdCopy = if ($playerHolds -eq 1) { '1 player hold' } else { "$playerHolds player holds" }
     $projectionBasisCopy = if ([string]$AutoFill.ProjectionCoverage -ceq 'FULL') { 'Full scoreable projection coverage' }
         else { 'Partial projection coverage; missing projections are not zeros' }
@@ -135,6 +157,11 @@ $summarySetup = @'
     } else { 'swap players status map retrieved ' + [string]$AutoFill.SwapStatusFetchedAt + ' UTC' }
     $statusProofCopy += " Sources: $projectionFetchedText; $statusFetchedText. This records a source fetch, not an injury report publication time."
     $decisionActionCopy = $decisionTitle
+    if ($summaryReviewRequired) {
+        # The detailed board must not promote a held comparison into advice.
+        $lineupFocusHtml = $lineupFocusHtml.Replace('<small>Recommended starter</small>', '<small>Candidate starter</small>')
+        $unchangedDisclosure = $unchangedDisclosure.Replace('<small>Recommended starter</small>', '<small>Candidate starter</small>')
+    }
     if ($managerMoveCount -eq 0 -and $directSignalCount -gt 0) {
         $reviewTasks = @(
             foreach ($signal in [regex]::Matches($queueItems, '<li><strong>(?<player>.*?)</strong>: current starter with an attributed SIT selection')) {
@@ -154,10 +181,15 @@ $summarySetup = @'
         }
     }
 '@
-if ($function.IndexOf($summaryAnchor, [System.StringComparison]::Ordinal) -lt 0) {
-    throw 'Start/Sit summary renderer anchor is missing.'
+# Only the top-level READY return owns this summary. A substring replacement
+# also matched the indented UNAVAILABLE return, whose view intentionally has
+# no projection timestamps, and turned its useful evidence-gap page into an
+# exception under StrictMode. Require one exact four-space return instead.
+$summaryMatches = [regex]::Matches($function, '(?m)^' + [regex]::Escape($summaryAnchor))
+if ($summaryMatches.Count -ne 1) {
+    throw 'Start/Sit summary renderer requires exactly one top-level ready return.'
 }
-$function = $function.Replace($summaryAnchor, $summarySetup.TrimEnd() + "`n" + $summaryAnchor)
+$function = $function.Insert($summaryMatches[0].Index, $summarySetup.TrimEnd() + "`n")
 $summaryOld = '<h3>What should I change?</h3><p>$(ConvertTo-HtmlText $decisionTitle)</p>'
 if ($function.IndexOf($summaryOld, [System.StringComparison]::Ordinal) -lt 0) {
     throw 'Start/Sit decision summary card is missing.'
@@ -258,11 +290,22 @@ $css = @'
 .start-sit-assistant .lineup-choice small{font-size:12px;font-weight:700}
 .start-sit-assistant .lineup-swap-compare{font-size:14px;line-height:1.55}
 .start-sit-assistant .review-queue li{font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.start-sit-assistant details{overflow-wrap:anywhere}
 @media(max-width:760px){.start-sit-assistant{padding:16px 14px}.start-sit-assistant .grid.four{grid-template-columns:1fr!important}}
 '@
 
 $cssBlock = $cssBlock.Substring(0, $cssTerminator) + [Environment]::NewLine + $css.TrimEnd() + [Environment]::NewLine + $cssBlock.Substring($cssTerminator)
 $core = $core.Substring(0, $cssStart) + $cssBlock + $core.Substring($cssEnd)
+
+# This transform adds start-sit-assistant to the rendered recommendation panel.
+# Update the older My Team anchor installer after its dependent staging passes:
+# matching a closing class quote would otherwise miss the new class list.
+$oldTeamAnchor = '$autoFillHtml.Replace(''<section class="panel recommendation-panel"'', ''<section id="team-lineup" class="panel recommendation-panel team-section-target" tabindex="-1"'')'
+$newTeamAnchor = '$autoFillHtml.Replace(''<section class="panel recommendation-panel'', ''<section id="team-lineup" tabindex="-1" class="panel recommendation-panel team-section-target'')'
+if ([regex]::Matches($core, [regex]::Escape($oldTeamAnchor)).Count -ne 1) {
+    throw 'BF-1021 BLOCKED: My Team lineup section anchor installer is not unique.'
+}
+$core = $core.Replace($oldTeamAnchor, $newTeamAnchor)
 
 $tokens = $null
 $errors = $null
@@ -275,8 +318,8 @@ if (@($errors).Count -gt 0) {
 foreach ($required in @(
     'Start/Sit Assistant',
     'What should I change?',
-    '<h3>START</h3>',
-    '<h3>SIT</h3>',
+    '<h3>$(ConvertTo-HtmlText $startSummaryHeading)</h3>',
+    '<h3>$(ConvertTo-HtmlText $sitSummaryHeading)</h3>',
     'Current starter',
     'Recommended starter',
     'Projected difference',

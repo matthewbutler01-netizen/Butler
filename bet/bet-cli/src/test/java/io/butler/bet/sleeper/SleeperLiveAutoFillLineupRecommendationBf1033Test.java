@@ -6,11 +6,32 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SleeperLiveAutoFillLineupRecommendationBf1033Test {
+
+    @Test
+    void noScoreableCandidatesPreservesActualHoldReasonsWithoutInventingUnavailableStatus() {
+        var roster = List.of(new AutoFillLineupOptimizer.RosterPlayer(
+            "held", "Held WR", List.of("WR"),
+            AutoFillLineupOptimizer.RosterSlot.STARTER, 0, "WR"));
+        var recommendation = new AutoFillLineupOptimizer().optimize(
+            List.of("WR"), roster, Map.of(), Set.of(), Set.of("held"));
+        assertTrue(!recommendation.ready());
+        var holds = List.of(new SleeperLiveAutoFillLineupRecommendation.ProjectionHold(
+            "held", "Held WR", "STARTER", "WR", "Active", null,
+            "Weekly game-state proof is missing; preserve the current lineup."));
+        String result = SleeperLiveAutoFillLineupRecommendation.appendLegalityExclusionDiagnostics(
+            recommendation.reason(), roster, holds, List.of());
+        assertTrue(result.startsWith(recommendation.reason()));
+        assertTrue(result.contains("Evidence holds=1; explicitly unavailable=0"));
+        assertTrue(result.contains("Weekly game-state proof is missing"));
+        assertTrue(result.contains("Explicitly unavailable players: none"));
+        assertTrue(!result.contains("every active roster player is explicitly unavailable"));
+    }
 
     @Test
     void legalityFailureIncludesHeldAndUnavailableCandidateReasons() {

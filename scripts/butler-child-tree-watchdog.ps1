@@ -11,13 +11,16 @@ param(
     [int]$GuardPid,
 
     [Parameter(Mandatory = $true)]
-    [long]$GuardStartTicks
+    [long]$GuardStartTicks,
+
+    [string]$LifetimeReceipt = ''
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $taskkill = Join-Path $env:SystemRoot 'System32\taskkill.exe'
+try { . (Join-Path $PSScriptRoot 'butler-runtime-lifetime.ps1') } catch { $LifetimeReceipt = '' }
 
 function Get-ProcessStartTicks {
     param([Parameter(Mandatory = $true)][int]$ProcessId)
@@ -81,6 +84,11 @@ while ($true) {
     if ($supervisorAlive -and $guardAlive) {
         Start-Sleep -Milliseconds 200
         continue
+    }
+
+    if ($LifetimeReceipt) {
+        $event = if (-not $supervisorAlive) { 'SUPERVISOR_DISAPPEARED' } else { 'GUARD_DISAPPEARED' }
+        Write-ButlerLifetimeEvent -Path $LifetimeReceipt -Event $event
     }
 
     # Normal guard completion should already have stopped its preserved core.

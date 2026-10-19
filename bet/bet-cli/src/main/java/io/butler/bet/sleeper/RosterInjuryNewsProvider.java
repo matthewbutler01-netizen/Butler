@@ -8,12 +8,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -26,29 +28,81 @@ final class RosterInjuryNewsProvider {
         "(?i)\\b(injur(?:y|ies|ed)|questionable|doubtful|ruled out|sidelined|concussion|practice|surgery)\\b");
     private static final Pattern ANALYSIS = Pattern.compile(
         "(?i)\\b(fantasy|start|sit|rankings?|outlook|breakout|backfield|snaps?|targets?|touches|role)\\b");
-    private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final FeedLoader loader;
+    private final Clock clock;
     private String cached;
     private Instant expires = Instant.EPOCH;
 
-    synchronized Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
-        throws IOException, InterruptedException {
-        Instant now = Instant.now();
-        if (cached == null || !now.isBefore(expires)) {
+    RosterInjuryNewsProvider() {
+        var client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+        loader = () -> {
             var response = client.send(HttpRequest.newBuilder(URI.create(FEED))
                 .timeout(Duration.ofSeconds(8)).GET().build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200 || response.body().length() > 1_000_000) {
-                throw new IOException("NFL news feed unavailable or oversized");
-            }
-            cached = response.body();
-            expires = now.plus(Duration.ofMinutes(5));
-        }
-        return parse(cached, players, now);
+            if (response.statusCode() != 200) throw new IOException("NFL news feed unavailable");
+            return response.body();
+        };
+        clock = Clock.systemUTC();
     }
 
-    synchronized Map<String, String> loadAnalysis(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+    RosterInjuryNewsProvider(FeedLoader loader, Clock clock) {
+        this.loader = Objects.requireNonNull(loader);
+        this.clock = Objects.requireNonNull(clock);
+    }
+
+    @FunctionalInterface
+    interface FeedLoader { String load() throws IOException, InterruptedException; }
+
+    private synchronized String feed() throws IOException, InterruptedException {
+        Instant now = clock.instant();
+        if (cached == null || !now.isBefore(expires)) {
+            String next = loader.load();
+            if (next == null || next.length() > 1_000_000) throw new IOException("NFL news feed unavailable or oversized");
+            cached = next;
+            expires = now.plus(Duration.ofMinutes(5));
+        }
+        return cached;
+    }
+
+    Review newReview() { return new Review(); }
+
+    /** One recommendation shares one feed outcome, including failure, without a cross-request failure cache. */
+    final class Review {
+        private boolean attempted;
+        private String xml;
+        private IOException unavailable;
+        private InterruptedException interrupted;
+
+        private synchronized String feedOnce() throws IOException, InterruptedException {
+            if (!attempted) {
+                attempted = true;
+                try { xml = feed(); }
+                catch (IOException e) { unavailable = e; }
+                catch (InterruptedException e) { interrupted = e; }
+            }
+            if (interrupted != null) throw interrupted;
+            if (unavailable != null) throw unavailable;
+            return xml;
+        }
+
+        Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException {
+            return parse(feedOnce(), players, clock.instant());
+        }
+
+        Map<String, String> loadAnalysis(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+            throws IOException, InterruptedException {
+            return parseAnalysis(feedOnce(), players, clock.instant());
+        }
+    }
+
+    Map<String, String> load(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
         throws IOException, InterruptedException {
-        load(players); // Uses the same bounded cached feed as injury headlines.
-        return parseAnalysis(cached, players, Instant.now());
+        return newReview().load(players);
+    }
+
+    Map<String, String> loadAnalysis(List<SleeperLiveWaiverTargetRosterContextAudit.TargetPlayer> players)
+        throws IOException, InterruptedException {
+        return newReview().loadAnalysis(players);
     }
 
     static Map<String, String> parseAnalysis(String xml,

@@ -70,5 +70,22 @@ if ($ordinary -cne $fixture) {
     throw 'BF-1029 BLOCKED: ordinary Matchup presentation changed.'
 }
 
+$heldSummary = 'A complete legal starting lineup cannot be built because no scoreable active roster candidates remain. Evidence holds=15; explicitly unavailable=1. An evidence hold is not a confirmed unavailable status.'
+$heldDetails = $heldSummary + ' Projection-held players: ' + ('Synthetic exact source hold; ' * 200) + 'Explicitly unavailable players: source-confirmed exclusion.'
+$heldFixture = $fixture.Replace('Usage source HTTP 404: https://example.invalid/usage.csv', $heldDetails)
+$heldRoute = ConvertTo-V04StartSitRouteHtml -Html $heldFixture -RequestTarget '/matchup/autofill'
+$visible = [regex]::Match($heldRoute, '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> (?<reason>.*?)</div>')
+if (-not $visible.Success -or
+    $visible.Groups['reason'].Value -cne ($heldSummary + ' Open evidence details for player-by-player reasons.')) {
+    throw 'Held lineup must keep exact counts and review direction visible without duplicating the source trace'
+}
+if (-not $heldRoute.Contains('<div class="callout callout-danger">' + $heldDetails + '</div>') -or
+    [regex]::Matches($heldRoute, [regex]::Escape($heldDetails)).Count -ne 1) {
+    throw 'Held lineup lost or duplicated the complete source trace in its disclosure'
+}
+if ((ConvertTo-V04StartSitRouteHtml -Html $heldFixture -RequestTarget '/matchup') -cne $heldFixture) {
+    throw 'Held evidence summary changed ordinary Matchup'
+}
+
 Write-Host 'BF-1029 V0.4 START/SIT BLOCKER DIAGNOSTICS ACCEPTANCE: PASS'
-Write-Host 'Coverage: exact Start/Sit current-page identity, visible exact evidence blocker, preserved disclosure traceability, duplicate hero removal, and unchanged ordinary Matchup.'
+Write-Host 'Coverage: exact Start/Sit current-page identity, visible exact evidence blocker, compact all-held counts with one complete source disclosure, duplicate hero removal, and unchanged ordinary Matchup.'

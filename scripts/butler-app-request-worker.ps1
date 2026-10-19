@@ -160,16 +160,21 @@ function Invoke-AppCoreGet {
 function Test-StartSitRosterDriftResponse {
     param(
         [Parameter(Mandatory = $true)][string]$RequestTarget,
-        [AllowNull()][string]$Body
+        [AllowNull()][string]$Body,
+        [int]$StatusCode = 500
     )
 
     # Only exact My Team and Start/Sit roster-drift messages authorize the
     # already-governed BF-723 local evidence repair. Other routes stay read-only.
-    if (@('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
+    if ($StatusCode -ne 500 -or @('/matchup/autofill', '/team') -cnotcontains $RequestTarget -or
         [string]::IsNullOrWhiteSpace($Body)) {
         return $false
     }
 
+    $markers=[regex]::Matches($Body,'data-butler-roster-recovery=')
+    if ($markers.Count -gt 0) {
+        return $markers.Count -eq 1 -and [regex]::Matches($Body,'<div data-butler-roster-recovery="bf610-exact-drift-v1" role="status">').Count -eq 1
+    }
     return $Body.IndexOf(
         'current roster membership drifted',
         [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
@@ -320,6 +325,34 @@ function Resolve-V04AutoPilotOnOpenWeek {
     }
 }
 
+function Save-LocalRosterRecoveryDiagnostic {
+    param(
+        [ValidateSet('COMPLETE','FAILED')][string]$Outcome,
+        [AllowEmptyString()][string]$Text,
+        [ValidateRange(0,[long]::MaxValue)][long]$ElapsedMilliseconds
+    )
+    # Best-effort, process-local file. Never persist raw CLI output or errors.
+    try {
+        $base = [string]$env:LOCALAPPDATA
+        if ([string]::IsNullOrWhiteSpace($base) -or -not [IO.Path]::IsPathRooted($base)) { return }
+        $directory = Join-Path $base 'Butler\diagnostics'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $rows = [Collections.Generic.List[string]]::new()
+        $rows.Add('BF-723 LOCAL RECOVERY DIAGNOSTIC')
+        $rows.Add('Outcome: ' + $Outcome)
+        $rows.Add('Elapsed ms: ' + $ElapsedMilliseconds)
+        $rows.Add('UTC: ' + [DateTimeOffset]::UtcNow.ToString('o'))
+        $pattern = '(?m)^BF-723 STAGE\|BF-(?:840|602|603|605|606|607|612|610|615/BF-617)\|(?:PASS|FAIL)\|[0-9]{1,12}\r?$'
+        foreach ($match in @([regex]::Matches($Text, $pattern) | Select-Object -First 16)) {
+            $rows.Add($match.Value.TrimEnd("`r"))
+        }
+        $rows.Add('Stage markers are diagnostic only; no source freshness or action approval is implied.')
+        $path = Join-Path $directory ("v04-roster-recovery-{0}.txt" -f $PID)
+        [IO.File]::WriteAllText($path, ($rows -join [Environment]::NewLine), [Text.UTF8Encoding]::new($false))
+    }
+    catch { } # Diagnostic storage must never change the route/recovery outcome.
+}
+
 function Invoke-StartSitRosterDriftAutoRecovery {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -335,6 +368,9 @@ function Invoke-StartSitRosterDriftAutoRecovery {
 
     $mutex = [System.Threading.Mutex]::new($false, ("Local\Butler.StartSit.RosterRecovery.{0}" -f $PID))
     $lockTaken = $false
+    $recoveryTimer = [Diagnostics.Stopwatch]::StartNew()
+    $recoveryOutcome = 'FAILED'
+    $text = ''
     try {
         try {
             $lockTaken = $mutex.WaitOne(180000)
@@ -373,8 +409,10 @@ function Invoke-StartSitRosterDriftAutoRecovery {
             if ($tail.Length -gt 1800) { $tail = '...' + $tail.Substring($tail.Length - 1800) }
             throw "BF-1037 BLOCKED: automatic roster recovery failed; output=$tail"
         }
+        $recoveryOutcome = 'COMPLETE'
     }
     finally {
+        Save-LocalRosterRecoveryDiagnostic -Outcome $recoveryOutcome -Text $text -ElapsedMilliseconds $recoveryTimer.ElapsedMilliseconds
         if ($lockTaken) {
             try { $mutex.ReleaseMutex() } catch {}
         }
@@ -613,6 +651,24 @@ function Add-ButlerAccessibility {
     # page-local section jumps. Every other manager surface receives the same
     # Playbook navigation shell here at the final public HTML boundary.
     $hasTeamWorkspace = $result.IndexOf('aria-label="Team workspace"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    if ($hasTeamWorkspace) {
+        # The desktop team rail is hidden below 1200px. Keep its weekly tools
+        # reachable from the compact navigation too, without duplicating links
+        # supplied by a newer page renderer or changing the current-page state.
+        foreach ($tool in @(
+            @{ Href = '/matchup/autofill'; Label = 'Start/Sit Assistant' },
+            @{ Href = '/autopilot'; Label = 'Auto-Pilot' }
+        )) {
+            if ($navigation -notmatch ('href="' + [regex]::Escape($tool.Href) + '"')) {
+                $toolLink = '<a href="' + $tool.Href + '">' + $tool.Label + '</a>'
+                $anchor = '<a href="/matchup">'
+                if ($navigation.Contains($anchor)) {
+                    $navigation = $navigation.Replace($anchor, $toolLink + $anchor)
+                }
+                else { $navigation = $navigation.Replace('</nav>', $toolLink + '</nav>') }
+            }
+        }
+    }
     if (-not $hasTeamWorkspace) {
         $currentMatch = [regex]::Match($navigation, '(?is)<a\b[^>]*aria-current="page"[^>]*>(?<label>[^<]+)</a>')
         $currentLabel = if ($currentMatch.Success) {
@@ -820,7 +876,15 @@ function ConvertTo-V04StartSitRouteHtml {
     # before the disclosure so the manager sees the real recovery blocker.
     $detail = [regex]::Match($result, '(?is)<details[^>]*>\s*<summary>\s*View evidence details\s*</summary>\s*<div[^>]*class="[^"]*callout-danger[^"]*"[^>]*>(?<reason>.*?)</div>\s*</details>')
     if ($detail.Success) {
-        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $detail.Groups['reason'].Value + '</div>'
+        $reason = $detail.Groups['reason'].Value
+        # Keep the exact counts visible without duplicating a roster-length
+        # source trace above the disclosure. Its complete escaped reason stays
+        # untouched in View evidence details. Other blockers remain exact.
+        $heldSummary = [regex]::Match($reason, '\AA complete legal starting lineup cannot be built because no scoreable active roster candidates remain\. Evidence holds=[0-9]+; explicitly unavailable=[0-9]+\. An evidence hold is not a confirmed unavailable status\.')
+        if ($heldSummary.Success) {
+            $reason = $heldSummary.Value + ' Open evidence details for player-by-player reasons.'
+        }
+        $visibleReason = '<div class="callout callout-danger start-sit-blocker"><strong>Blocking evidence:</strong> ' + $reason + '</div>'
         $result = $result.Insert($detail.Index, $visibleReason)
     }
 
@@ -1957,9 +2021,16 @@ function Send-HttpResponse {
         $autoPilotFailureHeader +
         "Connection: close`r`n`r`n"
     $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($headers)
-    $Stream.Write($headerBytes, 0, $headerBytes.Length)
-    $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($headerBytes, 0, $headerBytes.Length)
+        $Stream.Write($bodyBytes, 0, $bodyBytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException], [System.Net.Sockets.SocketException] {
+        # A closed or timed-out client must not terminate its server/worker.
+        if ($Stream -is [System.Net.Sockets.NetworkStream]) { return }
+        throw
+    }
 }
 
 function Get-RefreshTokenSnapshot {
@@ -2373,7 +2444,7 @@ try {
         # exact proven BF-610 roster drift. The BF-723 script rechecks its own
         # strict authorization before any Butler-local evidence write; it never
         # submits a Sleeper transaction.
-        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body)) {
+        if (Test-StartSitRosterDriftResponse -RequestTarget $requestTarget -Body ([string]$body) -StatusCode ([int]$proxied.StatusCode)) {
             try {
                 Claim-LocalEvidenceRecovery -State $RefreshState
                 try {
@@ -2462,6 +2533,9 @@ try {
         }
         $autoRefresh = @{ Html = $body; Nonce = '' }
         if ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/') {
+            if ($body.Contains('<aside class="manager-playbook" aria-label="Butler sections">')) {
+                $body = Add-DecisionRefreshControl -Html $body -RequestTarget $requestTarget
+            }
             $autoRefresh = Add-AutomaticDashboardRefresh -Html $body -RequestTarget $requestTarget -Token (Get-RefreshTokenSnapshot -State $RefreshState)
         }
         elseif ($proxied.StatusCode -eq 200 -and $requestTarget -ceq '/waivers') {

@@ -222,6 +222,8 @@ function Invoke-PreservedCoreWarmup {
     }
     catch {
         Write-Warning ("BF-751 preserved-core warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+        # Optional cache priming must not queue more work behind a failed read.
+        return
     }
     finally {
         if ($null -ne $response) { $response.Close() }
@@ -249,6 +251,7 @@ function Invoke-PreservedCoreWarmup {
     }
     catch {
         Write-Warning ("BF-756 preserved-core team warmup skipped on port {0}: {1}" -f $BackendPort, $_.Exception.Message)
+        return
     }
     finally {
         if ($null -ne $teamResponse) { $teamResponse.Close() }
@@ -415,11 +418,18 @@ function Get-FreeBackendPort {
 }
 
 try {
+    # Reserve the selected endpoint before worker preparation can consume or
+    # lose it. Requests are not accepted until all workers are ready below.
+    $listener.ExclusiveAddressUse = $true
+    $listener.Start()
     Enable-ButlerGradleNoDaemon
+    Write-Host 'Preparing Butler read-only runtime. The app is not ready yet.'
     Initialize-ReadOnlyCliRuntime
     Initialize-DirectJavaRuntime
 
     for ($index = 0; $index -lt $maxCoreWorkers; $index++) {
+        $workerStartupTimer = [Diagnostics.Stopwatch]::StartNew()
+        Write-Host ("Preparing Butler worker {0} of {1}. The app is not ready yet." -f ($index + 1), $maxCoreWorkers)
         do {
             $backendPort = Get-FreeLoopbackPort
         } while ($backendPorts -contains $backendPort)
@@ -431,11 +441,13 @@ try {
             Process = $process
         })
         Wait-PreservedCore -BackendPort $backendPort -Process $process
+        Write-Host ("Butler worker {0} health verified after {1:N1}s; preparing optional page caches." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
         Invoke-PreservedCoreWarmup -BackendPort $backendPort
+        Write-Host ("Butler worker {0} preparation finished after {1:N1}s. Optional cache warnings do not verify page evidence." -f ($index + 1), $workerStartupTimer.Elapsed.TotalSeconds)
     }
 
     $requestPool.Open()
-    $listener.Start()
+    Write-Host 'Butler core listener started. The outer app readiness and page checks still apply.'
 
     while ($true) {
         Remove-CompletedCoreJobs

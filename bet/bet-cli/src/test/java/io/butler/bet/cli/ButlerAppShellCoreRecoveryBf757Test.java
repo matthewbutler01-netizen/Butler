@@ -14,7 +14,7 @@ class ButlerAppShellCoreRecoveryBf757Test {
     @Test
     void exitedIdleCoreIsRecoveredBeforeItCanBeDispatched() throws Exception {
         String source = source("scripts/butler-app-shell-core.ps1");
-        String selector = between(source, "function Get-FreeBackendPort {", "try {\n    Enable-ButlerGradleNoDaemon");
+        String selector = between(source, "function Get-FreeBackendPort {", "\ntry {\n");
 
         assertTrue(selector.contains("$hasExited = [bool]$backend.Process.HasExited"));
         assertTrue(selector.contains("if (-not $hasExited) { return $candidate }"));
@@ -121,7 +121,7 @@ class ButlerAppShellCoreRecoveryBf757Test {
     }
 
     private static String source(String relativePath) throws Exception {
-        return Files.readString(locate(relativePath), StandardCharsets.UTF_8);
+        return Files.readString(locate(relativePath), StandardCharsets.UTF_8).replace("\r\n", "\n");
     }
 
     private static Path locate(String relativePath) {

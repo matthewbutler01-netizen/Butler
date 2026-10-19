@@ -1,7 +1,12 @@
 package io.butler.bet.sleeper;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -14,6 +19,68 @@ class RosterInjuryNewsProviderTest {
     private static String item(String title, String date, String link) {
         return "<rss><channel><item><title>" + title + "</title><pubDate>" + date
             + "</pubDate><link>" + link + "</link></item></channel></rss>";
+    }
+
+    @Test
+    void oneReviewSharesFailedFetchButNextReviewRetries() {
+        var calls = new AtomicInteger();
+        var provider = new RosterInjuryNewsProvider(() -> {
+            calls.incrementAndGet(); throw new IOException("fixture feed outage");
+        }, Clock.fixed(NOW, ZoneOffset.UTC));
+        var review = provider.newReview();
+        assertThrows(IOException.class, () -> review.load(List.of(PRICE)));
+        assertThrows(IOException.class, () -> review.loadAnalysis(List.of(PRICE)));
+        assertEquals(1, calls.get(), "injury and analysis must not each wait for the failed feed");
+        assertThrows(IOException.class, () -> provider.newReview().loadAnalysis(List.of(PRICE)));
+        assertEquals(2, calls.get(), "a failed review must not suppress the next review's attempt");
+    }
+
+    @Test
+    void sameSuccessfulFeedSupportsDistinctInjuryAndAnalysisParsing() throws Exception {
+        var calls = new AtomicInteger();
+        var provider = new RosterInjuryNewsProvider(() -> {
+            calls.incrementAndGet();
+            return item("Jadarian Price practice fantasy outlook", "Wed, 30 Sep 2026 20:00:00 GMT", "https://www.espn.com/nfl/story");
+        }, Clock.fixed(NOW, ZoneOffset.UTC));
+        var review = provider.newReview();
+        assertTrue(review.load(List.of(PRICE)).get("13286").contains("does not establish an official Out"));
+        assertTrue(review.loadAnalysis(List.of(PRICE)).get("13286").contains("Public ESPN analysis"));
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void expiredSuccessIsNotUsedWhenRefreshFails() throws Exception {
+        var clock = new MutableClock();
+        var calls = new AtomicInteger();
+        var provider = new RosterInjuryNewsProvider(() -> {
+            if (calls.incrementAndGet() > 1) throw new IOException("fixture outage after expiry");
+            return item("Jadarian Price practice fantasy outlook", "Wed, 30 Sep 2026 20:00:00 GMT", "https://www.espn.com/nfl/story");
+        }, clock);
+        assertFalse(provider.newReview().load(List.of(PRICE)).isEmpty());
+        clock.now = NOW.plusSeconds(301);
+        var expired = provider.newReview();
+        assertThrows(IOException.class, () -> expired.load(List.of(PRICE)));
+        assertThrows(IOException.class, () -> expired.loadAnalysis(List.of(PRICE)));
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    void interruptedFeedIsNotRetriedInsideSameReview() {
+        var calls = new AtomicInteger();
+        var provider = new RosterInjuryNewsProvider(() -> {
+            calls.incrementAndGet(); throw new InterruptedException("fixture interruption");
+        }, Clock.fixed(NOW, ZoneOffset.UTC));
+        var review = provider.newReview();
+        assertThrows(InterruptedException.class, () -> review.load(List.of(PRICE)));
+        assertThrows(InterruptedException.class, () -> review.loadAnalysis(List.of(PRICE)));
+        assertEquals(1, calls.get());
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now = NOW;
+        public ZoneId getZone() { return ZoneOffset.UTC; }
+        public Clock withZone(ZoneId zone) { return this; }
+        public Instant instant() { return now; }
     }
 
     @Test

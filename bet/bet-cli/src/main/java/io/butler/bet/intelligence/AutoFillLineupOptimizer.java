@@ -117,6 +117,13 @@ public final class AutoFillLineupOptimizer {
             .filter(player -> !projectionHoldPlayerIds.contains(player.playerId()))
             .toList();
         if (candidates.isEmpty()) {
+            if (!projectionHoldPlayerIds.isEmpty()) {
+                return Recommendation.unavailable(
+                    "A complete legal starting lineup cannot be built because no scoreable active roster candidates remain. "
+                        + "Evidence holds=" + projectionHoldPlayerIds.size()
+                        + "; explicitly unavailable=" + explicitlyUnavailablePlayerIds.size()
+                        + ". An evidence hold is not a confirmed unavailable status.");
+            }
             return Recommendation.unavailable(
                 "A complete legal starting lineup cannot be built because every active roster player is explicitly unavailable.");
         }

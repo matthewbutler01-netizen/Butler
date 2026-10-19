@@ -115,6 +115,24 @@ function Invoke-Bf742DashboardWorkerRead {
         }
     }
     catch {
+        # The authenticated worker may prove exact roster drift. Preserve only
+        # its fixed classification, never raw provider output or player IDs.
+        $failure=$_.Exception
+        while ($failure -isnot [Net.WebException] -and $null -ne $failure.InnerException) { $failure=$failure.InnerException }
+        if ($Path -ceq '/__butler/internal/team-bundle' -and
+            $failure -is [Net.WebException] -and $null -ne $failure.Response -and
+            [int]$failure.Response.StatusCode -eq 500) {
+            $failedResponse=$failure.Response
+            try {
+                $failureReader=[IO.StreamReader]::new($failedResponse.GetResponseStream(),[Text.Encoding]::UTF8)
+                try {
+                    $buffer=New-Object char[] 4096
+                    $count=$failureReader.ReadBlock($buffer,0,$buffer.Length)
+                    $safeDrift=Test-ButlerExactRosterDrift -Reason ([string]::new($buffer,0,$count))
+                } finally { $failureReader.Dispose() }
+            } finally { $failedResponse.Close() }
+            if ($safeDrift) { throw 'BF-610_ROSTER_DRIFT_VERIFIED' }
+        }
         throw "$BoundaryName BLOCKED: BF-742 authenticated inner-dashboard read failed. $($_.Exception.Message)"
     }
     finally {

@@ -35,16 +35,19 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     private final MatchupSource matchupSource;
     private final ExpertSource expertSource;
     private final GameLockSource gameLockSource;
+    private final RosterInjuryNewsProvider sharedNewsProvider;
     private static final NflExpertPickProvider SHARED_EXPERT_PROVIDER = new NflExpertPickProvider();
-    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER = new NflverseDefensiveMatchupProvider();
-    private static final NflverseGameLockProvider SHARED_GAME_LOCK_PROVIDER = new NflverseGameLockProvider();
-    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
     private static final NflverseRosterUsageProvider SHARED_USAGE_PROVIDER = new NflverseRosterUsageProvider();
+    private static final NflverseDefensiveMatchupProvider SHARED_MATCHUP_PROVIDER =
+        new NflverseDefensiveMatchupProvider(SHARED_USAGE_PROVIDER::download);
+    private static final NflverseGameLockProvider SHARED_GAME_LOCK_PROVIDER =
+        new NflverseGameLockProvider(SHARED_USAGE_PROVIDER::download);
+    private static final RosterInjuryNewsProvider SHARED_NEWS_PROVIDER = new RosterInjuryNewsProvider();
 
     public SleeperLiveAutoFillLineupRecommendation(Database database) {
         this(database, productionProjectionSource(), SHARED_AVAILABILITY_PROVIDER::load, SHARED_NEWS_PROVIDER::load,
             SHARED_NEWS_PROVIDER::loadAnalysis, SHARED_USAGE_PROVIDER::load, SHARED_MATCHUP_PROVIDER::load,
-            SHARED_EXPERT_PROVIDER::load, SHARED_GAME_LOCK_PROVIDER::load);
+            SHARED_EXPERT_PROVIDER::load, SHARED_GAME_LOCK_PROVIDER::load, SHARED_NEWS_PROVIDER);
     }
 
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource) {
@@ -98,6 +101,15 @@ public final class SleeperLiveAutoFillLineupRecommendation {
     SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
         AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
         MatchupSource matchupSource, ExpertSource expertSource, GameLockSource gameLockSource) {
+        this(database, projectionSource, availabilitySource, newsSource, analysisSource, usageSource,
+            matchupSource, expertSource, gameLockSource, null);
+    }
+
+    private SleeperLiveAutoFillLineupRecommendation(Database database, ProjectionSource projectionSource,
+        AvailabilitySource availabilitySource, NewsSource newsSource, NewsSource analysisSource, UsageSource usageSource,
+        MatchupSource matchupSource, ExpertSource expertSource, GameLockSource gameLockSource,
+        RosterInjuryNewsProvider sharedNewsProvider) {
+        this.sharedNewsProvider = sharedNewsProvider;
         this.expertSource = Objects.requireNonNull(expertSource);
         this.gameLockSource = Objects.requireNonNull(gameLockSource, "gameLockSource must not be null");
         this.matchupSource = Objects.requireNonNull(matchupSource);
@@ -293,8 +305,12 @@ public final class SleeperLiveAutoFillLineupRecommendation {
             availabilityFailure = "Current Sleeper player availability evidence is unavailable: " + safeMessage(e);
         }
         Map<String, String> injuryNews = Map.of();
+        // Create per recommend() call: a failed optional feed is not fetched again for analysis,
+        // and a later review gets a new attempt rather than a shared negative cache.
+        var newsReview = sharedNewsProvider == null ? null : sharedNewsProvider.newReview();
         try {
-            injuryNews = newsSource.load(roster.targetPlayers());
+            injuryNews = newsReview == null ? newsSource.load(roster.targetPlayers())
+                : newsReview.load(roster.targetPlayers());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException | IllegalStateException e) {
@@ -655,7 +671,8 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         Map<String, String> analysis = Map.of();
         String analysisCoverage = "No matching recent public analysis was found; this is not expert consensus.";
         try {
-            analysis = analysisSource.load(roster.targetPlayers());
+            analysis = newsReview == null ? analysisSource.load(roster.targetPlayers())
+                : newsReview.loadAnalysis(roster.targetPlayers());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             analysisCoverage = "Public analysis check interrupted; expert coverage unverified.";
@@ -908,7 +925,10 @@ public final class SleeperLiveAutoFillLineupRecommendation {
         List<UnavailablePlayerExclusion> availabilityExclusions) {
 
         String base = requireText(reason, "reason");
-        if (!base.startsWith("A complete legal lineup cannot be built")) return base;
+        if (!base.startsWith("A complete legal lineup cannot be built")
+            && !base.startsWith("A complete legal starting lineup cannot be built because no scoreable active roster candidates remain.")) {
+            return base;
+        }
 
         Map<String, AutoFillLineupOptimizer.RosterPlayer> rosterById = new LinkedHashMap<>();
         for (var player : optimizerRoster) rosterById.put(player.playerId(), player);

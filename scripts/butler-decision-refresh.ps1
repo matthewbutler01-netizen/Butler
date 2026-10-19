@@ -47,7 +47,8 @@ function Add-DecisionRefreshControl {
     )
 
     if ($RequestTarget -cne '/') { return $Html }
-    if ($Html -notmatch '<nav class="nav" aria-label="Butler sections">') {
+    $navigation=[regex]::Matches($Html,'(?s)<nav class="nav" aria-label="Butler sections">.*?</nav>|<aside class="manager-playbook" aria-label="Butler sections">.*?</aside>')
+    if ($navigation.Count -ne 1) {
         throw 'BF-677 BLOCKED: Dashboard HTML is missing the Butler navigation contract.'
     }
     if ($Html -match 'href="/refresh"') { return $Html }
@@ -91,7 +92,10 @@ function Add-DecisionRefreshControl {
     }
 
     if (-not $eligible) { return $Html }
-    return $Html.Replace('</nav>', '<a href="/refresh">Refresh Butler data</a></nav>')
+    $nav=$navigation[0]
+    $close=if ($nav.Value.StartsWith('<aside')) { '</aside>' } else { '</nav>' }
+    $updated=$nav.Value.Replace($close,'<a href="/refresh">Refresh Butler data</a>'+$close)
+    return $Html.Substring(0,$nav.Index)+$updated+$Html.Substring($nav.Index+$nav.Length)
 }
 
 function Get-DecisionRefreshConfirmationHtml {
@@ -283,7 +287,9 @@ function Add-AutomaticGovernedRefreshHtml {
     # The insertion uses an exact case-sensitive replacement. Require that
     # exact casing here too; an uppercase <BODY> must not claim a live nonce
     # while silently leaving the automatic refresh script uninserted.
-    if ([regex]::Matches($Html, '<body>').Count -ne 1 -or
+    $bodyTag = if ($Route -ceq '/' -and $Html.Contains('<body class="dashboard-page">')) { '<body class="dashboard-page">' } else { '<body>' }
+    if ([regex]::Matches($Html, '<body\b', [Text.RegularExpressions.RegexOptions]::IgnoreCase).Count -ne 1 -or
+        [regex]::Matches($Html, [regex]::Escape($bodyTag)).Count -ne 1 -or
         [regex]::Matches($Html, '</body>').Count -ne 1) {
         return $result
     }
@@ -343,7 +349,7 @@ function Add-AutomaticGovernedRefreshHtml {
 })();
 </script>
 "@
-    $result.Html = $Html.Replace('<body>', '<body>' + $markup)
+    $result.Html = $Html.Replace($bodyTag, $bodyTag + $markup)
     $result.Nonce = $nonce
     return $result
 }
@@ -364,7 +370,7 @@ function Add-AutomaticDashboardRefresh {
 
     # A successful Add-DecisionRefreshControl call adds this exact link only
     # after it verifies the current audited decision against existing gates.
-    $nav = [regex]::Matches($Html, '(?is)<nav class="nav" aria-label="Butler sections">.*?</nav>')
+    $nav = [regex]::Matches($Html, '(?s)<nav class="nav" aria-label="Butler sections">.*?</nav>|<aside class="manager-playbook" aria-label="Butler sections">.*?</aside>')
     if ($nav.Count -ne 1 -or
         -not $nav[0].Value.Contains('<a href="/refresh">Refresh Butler data</a>')) {
         return $result

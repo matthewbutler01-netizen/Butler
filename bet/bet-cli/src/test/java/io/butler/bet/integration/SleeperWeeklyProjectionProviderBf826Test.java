@@ -22,6 +22,41 @@ class SleeperWeeklyProjectionProviderBf826Test {
     }
 
     @Test
+    void fractionalSourceFramesCannotBecomeCurrentWeekEvidence() throws Exception {
+        for (String frame : new String[]{"\"season\":2026,\"week\":2.9",
+                "\"season\":2026.9,\"week\":2",
+                "\"season\":2026,\"week\":2.0000000000000001",
+                "\"season\":2026.0000000000000001,\"week\":2",
+                "\"season\":2147483648,\"week\":2",
+                "\"season\":2026,\"week\":4294967298"}) {
+            String json = "[{\"player_id\":\"valid\",\"season\":2026,\"week\":2,"
+                + "\"stats\":{\"pts_ppr\":10}},"
+                + "{\"player_id\":\"invalid-points\"," + frame + ",\"stats\":{\"pts_ppr\":99}},"
+                + "{\"player_id\":\"invalid-raw\"," + frame + ",\"stats\":{\"rec\":99}},"
+                + "{\"player_id\":\"invalid-gap\"," + frame + ",\"stats\":{\"adp_dd_ppr\":1000}}]";
+            var snapshot = provider().parse(json, 2026, 2,
+                SleeperWeeklyProjectionProvider.ScoringBasis.PPR, Map.of("rec", 1.0));
+            assertEquals(1, snapshot.projections().size(), frame);
+            assertEquals("valid", snapshot.projections().getFirst().sleeperPlayerId());
+            assertTrue(snapshot.gaps().isEmpty(), frame);
+            var legacy = provider().parse(json, 2026, 2,
+                SleeperWeeklyProjectionProvider.ScoringBasis.PPR);
+            assertEquals(1, legacy.projections().size(), frame);
+            assertEquals("valid", legacy.projections().getFirst().sleeperPlayerId());
+        }
+    }
+
+    @Test
+    void exactWholeNumberAndTextFramesRemainUsable() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"decimal","season":2026.0,"week":2.0,"stats":{"pts_ppr":10}},
+             {"player_id":"text","season":"2026","week":"2","stats":{"rec":4}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR, Map.of("rec", 1.0));
+        assertEquals(2, snapshot.projections().size());
+        assertTrue(snapshot.gaps().isEmpty());
+    }
+
+    @Test
     void precomputedPprRemainsPrimaryWhenPresent() throws Exception {
         String json = """
             [{
@@ -79,6 +114,49 @@ class SleeperWeeklyProjectionProviderBf826Test {
         assertTrue(projection.scoringKeys().contains("rec"));
         assertTrue(projection.scoringKeys().contains("rec_yd"));
         assertEquals(0, snapshot.gaps().size());
+    }
+
+    @Test
+    void adpOnlyCurrentWeekRowExplainsHoldWithoutInventingPoints() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"s-rb","season":2026,"week":2,
+              "season_type":"regular","stats":{"adp_dd_ppr":1000}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            Map.of("rush_yd", 0.1, "rec", 1.0));
+
+        assertTrue(snapshot.projections().isEmpty());
+        assertEquals(1, snapshot.gaps().size());
+        var gap = snapshot.gaps().getFirst();
+        assertEquals("s-rb", gap.sleeperPlayerId());
+        assertTrue(gap.reason().contains("numeric raw fields=adp_dd_ppr=1000"));
+        assertTrue(gap.reason().contains("ADP is average draft position, not projected fantasy points"));
+        assertTrue(gap.reason().contains("Recheck current-week projection evidence"));
+        assertTrue(gap.reason().contains("keep this player held"));
+    }
+
+    @Test
+    void adpAlongsideScoreableEvidenceDoesNotCreateAHoldOrReplaceRealZero() throws Exception {
+        var snapshot = provider().parse("""
+            [{"player_id":"zero","season":2026,"week":2,
+              "stats":{"adp_dd_ppr":1000,"pts_ppr":0}},
+             {"player_id":"raw","season":2026,"week":2,
+              "stats":{"adp_dd_ppr":1000,"rush_yd":40,"rec":2}}]
+            """, 2026, 2, SleeperWeeklyProjectionProvider.ScoringBasis.PPR,
+            Map.of("rush_yd", 0.1, "rec", 1.0));
+
+        assertTrue(snapshot.gaps().isEmpty());
+        assertEquals(2, snapshot.projections().size());
+        var zero = snapshot.projections().stream()
+            .filter(p -> p.sleeperPlayerId().equals("zero")).findFirst().orElseThrow();
+        assertEquals(0, BigDecimal.ZERO.compareTo(zero.projectedPoints()));
+        assertEquals(SleeperWeeklyProjectionProvider.ProjectionProvenance.SLEEPER_PRECOMPUTED,
+            zero.provenance());
+        var raw = snapshot.projections().stream()
+            .filter(p -> p.sleeperPlayerId().equals("raw")).findFirst().orElseThrow();
+        assertEquals(0, new BigDecimal("6").compareTo(raw.projectedPoints()));
+        assertEquals(SleeperWeeklyProjectionProvider.ProjectionProvenance.SLEEPER_RAW_STATS_LEAGUE_SCORED,
+            raw.provenance());
+        assertTrue(raw.scoringKeys().stream().noneMatch(key -> key.startsWith("adp_")));
     }
 
     @Test
