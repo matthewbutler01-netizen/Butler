@@ -5,7 +5,7 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `4ed19df572dc937d4c514539574c497cf2c11ea5`.
+- App PR #1535 target (stacked on #1533): `bae2ff534f32ede65d26bafdf4fd43492df05111`.
 - Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
   to pass on that exact app SHA AND the exact packaging PR #1534 head used for
@@ -117,3 +117,12 @@ When all lineup candidates are held, verify evidence holds and confirmed
 unavailability are counted separately. Game locks and missing evidence do not
 mean every player is injured or unavailable. Start/Sit should show concise
 counts with complete player-by-player reasons in View evidence details.
+
+If an actual current-week source row has only numeric ADP fields and no
+scoreable points or stats, its evidence details should explain that ADP means
+average draft position, not projected fantasy points. The player remains held,
+with a current-week evidence recheck as the next step. Do not fabricate such a
+row in the live profile to make this check applicable. Record NOT OBSERVED if
+the current source does not provide this case. Numeric zero projected points
+and raw stats that match league scoring remain valid evidence even when ADP
+is also present; ADP must never replace those points.
