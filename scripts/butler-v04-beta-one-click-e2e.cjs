@@ -10,6 +10,8 @@ for(const good of [/-UpdateOnly/,/Test-BetaHealth/,/Test-BetaPortBusy/,/Start-Pr
  assert.match(ps,good);
 }
 assert.match(updater,/\[switch\]\$UpdateOnly/);
+assert.match(ps,/-TimeoutSeconds 120 -CheckSleeperWeek/,'first-open check must allow the existing bounded recovery budget');
+assert.doesNotMatch(ps,/-TimeoutSeconds 30 -CheckSleeperWeek/);
 // Exact immutable pin in the updater and the beta launcher must agree.
 // A source checkout check is deliberately NOT proof of a live Sleeper week.
 const pinnedUpdater=updater.match(/^\$targetCommit = '([0-9a-f]{40})'\r?$/m);
@@ -24,7 +26,24 @@ assert.ok(ps.indexOf('Assert-BetaCandidateCheckout -Path $CheckoutPath') < ps.in
 assert.match(ps,/BETA SOURCE CHECKOUT: VERIFIED/);
 assert.match(ps,/not a Sleeper week, injury, waiver availability or browser execution check/);
 assert.match(ps,/EXISTING v0\.4 WORKER\. The tested beta update was NOT applied/);
+assert.match(ps,/\$finalCheck = Save-BetaPageCheckReport/);
+const finalGate=ps.indexOf('if (-not $finalCheck.Healthy)');
+assert.ok(finalGate>ps.indexOf('$finalCheck = Save-BetaPageCheckReport'));
+assert.ok(finalGate<ps.indexOf("Start-Process -FilePath ('http://127.0.0.1:'"),'final health gate must precede browser opening');
+assert.match(ps,/\$startupReportWritten = \$false\s+if \(-not \$finalCheck.Healthy\)/);
+assert.match(ps,/SERVICE NO LONGER VERIFIED AFTER PAGE CHECKS/);
 assert.doesNotMatch(ps,/BUTLER: ALREADY RUNNING\. No update applied/);
 assert.match(cmd,/butler-v04-beta-one-click\.ps1/);
 assert.match(cmd,/EXTRACT ALL REQUIRED/);
 console.log('BF-BETA ONE-CLICK CONTRACT: PASS (guarded update, launch, one report, no transaction)');
+
+// The downloadable instructions must describe the actual held-worker behavior
+// and ship the browser procedure; source identity alone is not acceptance.
+const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/windows-powershell-parse.yml'),'utf8');
+assert.doesNotMatch(workflow,/370cd7bc|launcher opens',/);
+assert.match(workflow,/If any v0\.4 Butler is already running, the launcher HOLDS/);
+assert.match(workflow,/Copy-Item -LiteralPath .*v04-week-rollover-browser-acceptance\.md.*BROWSER-ACCEPTANCE\.md/);
+assert.ok(workflow.includes(pinnedUpdater[1]),'packaged README must name the actual immutable pin');
+const checklist=fs.readFileSync(path.join(__dirname,'../docs/v04-week-rollover-browser-acceptance.md'),'utf8');
+assert.ok(checklist.includes(pinnedUpdater[1]),'browser checklist app pin drift');
+console.log('BETA PACKAGE INSTRUCTIONS: PASS (pin, held worker, browser checklist)');

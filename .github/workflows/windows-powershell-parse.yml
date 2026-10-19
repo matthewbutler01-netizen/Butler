@@ -19,11 +19,13 @@ on:
       - bf1527-one-click-exact-checkout
       - bf1528-week-rollover-readonly-gate
       - bf1529-governed-week-rollover-refresh
+      - bf1534-v04-week-rollover-beta-pack
       - bf-v04-fantasy-workflow-study
     paths:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
       - 'scripts/**/*.cjs'
+      - 'docs/v04-week-rollover-browser-acceptance.md'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
       - 'bet/bet-cli/src/main/java/**'
@@ -36,6 +38,7 @@ on:
       - 'scripts/**/*.ps1'
       - 'scripts/**/*.cmd'
       - 'scripts/**/*.cjs'
+      - 'docs/v04-week-rollover-browser-acceptance.md'
       - '.github/workflows/windows-powershell-parse.yml'
       - 'gradle/wrapper/gradle-wrapper.properties'
       - 'bet/bet-cli/src/main/java/**'
@@ -156,7 +159,11 @@ jobs:
           if (-not $?) { exit 1 }
           node '.\scripts\butler-v04-safe-update-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & '.\scripts\butler-v04-beta-startup-acceptance.ps1'
+          if (-not $?) { exit 1 }
           node '.\scripts\butler-v04-beta-one-click-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-v04-mobile-evidence-wrap-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\scripts\butler-bf1527-one-click-checkout-pin-acceptance.ps1'
           if (-not $?) { exit 1 }
@@ -240,8 +247,13 @@ jobs:
                               'butler-v04-safe-update-and-start.ps1')) {
             Copy-Item -LiteralPath (Join-Path '.\scripts' $name) -Destination (Join-Path $target $name) -ErrorAction Stop
           }
+          Copy-Item -LiteralPath '.\docs\v04-week-rollover-browser-acceptance.md' -Destination (Join-Path $target 'BROWSER-ACCEPTANCE.md') -ErrorAction Stop
           $readme = @(
             'BUTLER v0.4 - READ-ONLY BETA - ONE CLICK',
+            '',
+            'Development candidate: HOLD until both exact-SHA full Windows',
+            'and Java workflows pass. Browser acceptance remains required.',
+            'Read BROWSER-ACCEPTANCE.md before starting the owner session.',
             '',
             '1. Right-click ZIP and choose Extract All.',
             '2. Double-click butler-v04-beta-one-click.cmd in extracted folder.',
@@ -249,8 +261,8 @@ jobs:
             '   and saves the ONE status report in LocalAppData\Butler\diagnostics.',
             '4. Leave the separate Butler app window open while using it.',
             '',
-            'If an older v0.4 Butler is already running, the launcher opens',
-            'it WITHOUT installing a new build. Close ONLY your known v0.4',
+            'If any v0.4 Butler is already running, the launcher HOLDS.',
+            'It cannot verify that worker source. Close ONLY your known v0.4',
             'window with Ctrl+C and double-click again to install this build.',
             'No v0.3 changes, force-stop, or Sleeper transactions are made.',
             'Normal app GETs may invoke existing governed Butler-local recovery.',
@@ -287,7 +299,8 @@ jobs:
             'BUTLER v0.4 - PINNED DEVELOPMENT UPDATE AND START',
             '',
             'Only for an existing clean v0.4 checkout at C:\ButlerDev\pr1464.',
-            'This updater is pinned to reviewed commit 370cd7bc and port 18080.',
+            'This updater is pinned to commit 4539a3864bf05b997d078c1e43e9d8b845fc5e34.',
+            'The development starter requires loopback port 18080.',
             'It will not upgrade, merge or touch the frozen v0.3 release.',
             '',
             'IMPORTANT: use Windows Explorer EXTRACT ALL, not Open-in-ZIP.',

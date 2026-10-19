@@ -1,7 +1,8 @@
 param(
     [string]$CheckoutPath = 'C:\ButlerDev\pr1464',
     [ValidateRange(1024,65535)][int]$TargetPort = 18080,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [ValidateRange(1,600)][int]$StartupTimeoutSeconds = 300
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -47,9 +48,60 @@ function Test-BetaPortBusy {
     finally { try { $listener.Stop() } catch {} }
 }
 
+# Startup polling is bounded and never treats a source pin as service readiness.
+function Wait-BetaStartup {
+    param([int]$Port, [int]$TimeoutSeconds, [object]$StartedProcess)
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $nextNotice = 15
+    while ($timer.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        if (Test-BetaHealth -Port $Port) { return $true }
+        if ($StartedProcess.HasExited) { return $false }
+        if ($timer.Elapsed.TotalSeconds -ge $nextNotice) {
+            Write-Host 'STARTUP PENDING. Runtime preparation may still be running; do not launch another copy.'
+            $nextNotice += 15
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    return $false
+}
+function Write-BetaStartupReport {
+    param([ValidateSet('PENDING','HELD')][string]$Status)
+    $directory = Join-Path $env:LOCALAPPDATA 'Butler\diagnostics'
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $path = Join-Path $directory 'v04-beta-one-click-latest.txt'
+    $text = 'BETA STARTUP: ' + $Status + [Environment]::NewLine +
+        'Browser acceptance: NOT RUN. Service readiness is not verified.' + [Environment]::NewLine +
+        'The app window may still be preparing the runtime. Inspect that known window; do not start another copy or kill unknown processes.'
+    [IO.File]::WriteAllText($path, $text, [Text.Encoding]::UTF8)
+    Write-Host ('Startup status report: ' + $path)
+}
+
+function Save-BetaPageCheckReport {
+    param([string]$Path, [string]$CheckoutCommit, [string]$Content, [int]$CheckExit, [int]$Port)
+    # A completed page sequence cannot prove that its app is still available.
+    $healthy = Test-BetaHealth -Port $Port
+    $status = if (-not $healthy) { 'HELD - SERVICE NO LONGER VERIFIED' }
+        elseif ($CheckExit -ne 0 -or $Content -notmatch '(?m)^RESULT:\s*0 page failure\(s\),\s*[0-9]+ watch warning\(s\)\.' -or
+            $Content -match '(?m)^RESULT:\s*[1-9][0-9]* page failure') { 'PAGE ERROR' }
+        elseif ($Content -match '(?m)^RESULT:\s*0 page failure\(s\),\s*[1-9][0-9]* watch warning') { 'PAGES LOAD - EVIDENCE WARNINGS' }
+        else { 'LOCAL PAGES RESPOND - LIVE INJURIES NOT CERTIFIED' }
+    $header = 'BETA SOURCE CHECKOUT: VERIFIED ' + $CheckoutCommit + [Environment]::NewLine +
+        'SOURCE PROOF: exact Git checkout, not a Sleeper week, injury, waiver availability or browser execution check.' +
+        [Environment]::NewLine + [Environment]::NewLine
+    $footer = [Environment]::NewLine + [Environment]::NewLine +
+        'BETA FINAL STATUS: ' + $status + [Environment]::NewLine +
+        'Final service check UTC: ' + [DateTimeOffset]::UtcNow.ToString('o') + [Environment]::NewLine +
+        'Browser acceptance: NOT RUN by this launcher.'
+    if (-not $healthy) {
+        $footer += [Environment]::NewLine + 'The page results above preceded this failed service check. Keep the known Butler app window open; inspect it before restarting. Do not start another copy or stop unknown processes.'
+    }
+    [IO.File]::WriteAllText($Path, $header + $Content + $footer, [Text.Encoding]::UTF8)
+    return [pscustomobject]@{ Healthy = $healthy; Status = $status }
+}
+
 # BF-1527: verify the checkout of the immutable candidate before we start it.
 # This proves disk HEAD, not live player freshness or a health endpoint's SHA.
-$approvedCandidateCommit = 'dd77d6b3221f4d78226d61330bc9ef5bed46976a'
+$approvedCandidateCommit = '4539a3864bf05b997d078c1e43e9d8b845fc5e34'
 function Assert-BetaCandidateCheckout {
     param([Parameter(Mandatory = $true)][string]$Path)
     if ($null -eq (Get-Command git.exe -ErrorAction SilentlyContinue)) {
@@ -72,6 +124,11 @@ function Assert-BetaCandidateCheckout {
 
 try {
     Write-Host 'BUTLER v0.4 - OPEN BETA (READ ONLY)'
+    $startupReportWritten = $false
+    # The source starter binds 18080; never inspect one port and launch another.
+    if ($TargetPort -ne 18080 -and -not $PreflightOnly) {
+        throw 'PORT MISMATCH. This development starter requires port 18080; no update or app launch attempted.'
+    }
     Write-Host 'One action: update, start, check, open.'
     Write-Host 'Never replaces v0.3 or submits a Sleeper transaction.'
     Write-Host ''
@@ -112,14 +169,12 @@ try {
         Write-Host 'Starting v0.4 in a separate app window...'
         $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
         $arguments = '/c "' + $launcher + '"'
-        [void](Start-Process -FilePath $cmd -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $launcher) -PassThru)
-        $timer = [Diagnostics.Stopwatch]::StartNew()
-        while ($timer.Elapsed.TotalSeconds -lt 120) {
-            if (Test-BetaHealth -Port $TargetPort) { $ready = $true; break }
-            Start-Sleep -Seconds 2
-        }
+        Write-BetaStartupReport -Status 'PENDING'
+        $startupReportWritten = $true
+        $startedProcess = Start-Process -FilePath $cmd -ArgumentList $arguments -WorkingDirectory (Split-Path -Parent $launcher) -PassThru
+        $ready = Wait-BetaStartup -Port $TargetPort -TimeoutSeconds $StartupTimeoutSeconds -StartedProcess $startedProcess
         if (-not $ready) {
-            throw 'STARTUP NOT VERIFIED AFTER 120 SECONDS. Inspect the Butler app window.'
+            throw 'STARTUP NOT VERIFIED WITHIN THE BOUNDED WAIT OR STARTER EXITED. Inspect the known Butler app window and saved startup report; do not launch another copy.'
         }
         Write-Host 'BUTLER: STARTED.'
     }
@@ -132,17 +187,20 @@ try {
     $reportDir = Join-Path $env:LOCALAPPDATA 'Butler\diagnostics'
     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
     $reportPath = Join-Path $reportDir 'v04-beta-one-click-latest.txt'
-    $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 30 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
+    # First-open exact roster recovery may outlive the former 30-second check.
+    # Use the checker's existing finite default; never retry a failed page here.
+    $log = @(& $pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $checker -Port $TargetPort -TimeoutSeconds 120 -CheckSleeperWeek 2>&1 | ForEach-Object { [string]$_ })
     $checkExit = $LASTEXITCODE
     $content = $log -join [Environment]::NewLine
-    # The report proves which source checkout the updater selected. It does not
-    # certify the health endpoint's process identity or live Sleeper evidence.
-    $header = 'BETA SOURCE CHECKOUT: VERIFIED ' + $verifiedCheckout + [Environment]::NewLine +
-        'SOURCE PROOF: exact Git checkout, not a Sleeper week, injury, waiver availability or browser execution check.' +
-        [Environment]::NewLine + [Environment]::NewLine
-    [IO.File]::WriteAllText($reportPath, $header + $content, [Text.Encoding]::UTF8)
+    $finalCheck = Save-BetaPageCheckReport -Path $reportPath -CheckoutCommit $verifiedCheckout -Content $content -CheckExit $checkExit -Port $TargetPort
+    # Preserve the completed report, including its failed final probe, in catch.
+    $startupReportWritten = $false
+    if (-not $finalCheck.Healthy) {
+        Start-Process -FilePath 'notepad.exe' -ArgumentList ('"' + $reportPath + '"')
+        throw 'SERVICE NO LONGER VERIFIED AFTER PAGE CHECKS. Browser was not opened. Inspect the saved report and known Butler app window.'
+    }
 
-    if ($checkExit -ne 0 -or $content -match '(?m)^RESULT:\s*[1-9][0-9]* page failure') {
+    if ($finalCheck.Status -ceq 'PAGE ERROR') {
         Write-Host 'BETA STATUS: PAGE ERROR. The app is open for read-only inspection.'
     }
     elseif ($content -match '(?m)^RESULT:\s*0 page failure\(s\),\s*[1-9][0-9]* watch warning') {
@@ -157,6 +215,9 @@ try {
     Write-Host 'Keep the separate Butler app window running; this launcher may close.'
 }
 catch {
+    if ($startupReportWritten) {
+        try { Write-BetaStartupReport -Status 'HELD' } catch { Write-Host 'Startup status report could not be saved.' }
+    }
     Write-Host ('BETA HELD: ' + [string]$_.Exception.Message)
     exit 2
 }
