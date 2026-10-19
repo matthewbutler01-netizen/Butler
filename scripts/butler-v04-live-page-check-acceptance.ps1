@@ -476,6 +476,19 @@ Assert-Bf1097OnOpen -Dashboard $bf1097PublicDash.Replace('LIVE_ACTIONABLE_VERIFI
 Assert-Bf1097OnOpen -Dashboard $bf1097PublicDash.Replace('STALE_DO_NOT_ACT','CURRENT_AND_ACTIONABLE') -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
 Assert-Bf1097OnOpen -Dashboard $bf1097PublicDash.Replace('STALE_DO_NOT_ACT','PRIOR_WEEK_DO_NOT_ACT') -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
 Assert-Bf1097OnOpen -Dashboard $bf1097PublicDash.Replace('</body>', ('<div>Audit ID: ' + $bf1097Audit + '</div></body>')) -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+$bf1097Recommended = $bf1097PublicDash.Replace('STALE_DO_NOT_ACT','CURRENT_REFRESH_RECOMMENDED').Replace('MARKET_LINEAGE_SUPERSEDED','LATEST_EVIDENCE_LINEAGE_VERIFIED')
+$bf1097PolicyFields = @('<div>BF-636 plan state: MANUAL_REFRESH_PLAN_READY</div>',
+    '<div>BF-636 plan policy: sleeper-live-waiver-manual-refresh-plan-v1-bf635-explicit-operator-only-no-execution</div>',
+    '<div>Governed step count: 9</div>')
+$bf1097CompletePolicy = $bf1097Recommended.Replace('</body>', (($bf1097PolicyFields -join '') + '</body>'))
+Assert-Bf1097OnOpen -Dashboard $bf1097CompletePolicy -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'PASS' -Evidence 'ON-OPEN ARMED'
+foreach ($field in $bf1097PolicyFields) {
+    Assert-Bf1097OnOpen -Dashboard $bf1097CompletePolicy.Replace($field,'') -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT SOURCE UNKNOWN'
+}
+Assert-Bf1097OnOpen -Dashboard $bf1097Recommended -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT SOURCE UNKNOWN'
+Assert-Bf1097OnOpen -Dashboard $bf1097Recommended -Pilot $bf1097Pilot -PilotCheck $bf1097UnarmedCheck -Expected 'SKIP' -Evidence 'PROOF UNAVAILABLE'
+Assert-Bf1097OnOpen -Dashboard $bf1097CompletePolicy.Replace('Governed step count: 9','Governed step count: 10') -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
+Assert-Bf1097OnOpen -Dashboard $bf1097CompletePolicy.Replace('MANUAL_REFRESH_PLAN_READY','BLOCKED') -Pilot $bf1097Armed.Html -PilotCheck $bf1097ArmedCheck -Expected 'WARN' -Evidence 'AUTO-PILOT AUTO UNEXPECTED'
 foreach ($bf1097UnsafeSidebar in @(
     $bf1097SidebarDash.Replace('BF-629: LIVE_ACTIONABLE_VERIFIED', 'BF-629: BLOCKED'),
     $bf1097SidebarDash.Replace('Audit ID: ' + $bf1097Audit, 'Audit ID: UNKNOWN'),

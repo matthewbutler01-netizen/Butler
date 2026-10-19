@@ -426,6 +426,22 @@ function Test-ButlerCrossRouteOnOpen {
             }
             return $result
         }
+        # Public presentation may omit the detailed nine-step policy proof.
+        # Missing proof cannot establish either entitlement or a violation.
+        # Known contradictory policy values still reach the ordinary gate.
+        if ((Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Decision state:') -ceq 'CURRENT_REFRESH_RECOMMENDED' -and
+            (Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-629:') -ceq 'LIVE_ACTIONABLE_VERIFIED' -and
+            (Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'BF-631:') -ceq 'LATEST_EVIDENCE_LINEAGE_VERIFIED' -and
+            (Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label 'Audit ID:') -cmatch '^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') {
+            foreach ($label in @('BF-636 plan state:', 'BF-636 plan policy:', 'Governed step count:')) {
+                if ([string]::IsNullOrWhiteSpace((Get-DecisionRefreshTechnicalField -Html $DashboardHtml -Label $label))) {
+                    if ($scriptMarkers.Count -gt 0) {
+                        return [pscustomobject]@{ Status = 'WARN'; Evidence = 'AUTO-PILOT SOURCE UNKNOWN' }
+                    }
+                    return $result
+                }
+            }
+        }
         # Public navigation may omit the manual refresh link while an existing
         # generated banner still links to refresh options. That link causes
         # Add-DecisionRefreshControl's idempotence guard to skip reconstruction.
