@@ -5,10 +5,10 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
 
 ## Before opening the beta
 
-- App PR #1535 target (stacked on #1533): `4539a3864bf05b997d078c1e43e9d8b845fc5e34`.
-- Source ref: `refs/heads/bf-v04-fantasy-workflow-study`.
+- App PR #1539 tested target (stacked on #1537): `558578f55297a6943fe1c13df816ece7810252b9`.
+- Source ref: `refs/heads/bf1539-v04-cross-tab-onopen-refresh-lock`.
 - Require Java Build and the complete Windows PowerShell Compatibility workflow
-  to pass on that exact app SHA AND the exact packaging PR #1534 head used for
+  to pass on that exact app SHA AND the exact packaging PR #1540 head used for
   this archive. A green freshness job alone does not clear this gate.
 - Record both SHAs and workflow URLs below. If either is pending, failed,
   cancelled, absent, or belongs to another SHA, leave this session NOT RUN.

@@ -16,8 +16,18 @@ const cmdSource = fs.readFileSync(cmd,'utf8');
 for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean/i,/git\s+push/i,/submitTransaction/i,/Invoke-RestMethod/i]) {
   assert.doesNotMatch(source,forbidden);
 }
-assert.match(source,/4539a3864bf05b997d078c1e43e9d8b845fc5e34/);
-assert.match(source,/refs\/heads\/bf-v04-fantasy-workflow-study/);
+// Pin is intentionally immutable for this beta: reject an accidentally
+// older one-click app, and require the reviewed branch as the fetch source.
+const expectedApp = '558578f55297a6943fe1c13df816ece7810252b9';
+const expectedSource = 'refs/heads/bf1539-v04-cross-tab-onopen-refresh-lock';
+const pinnedCommit = source.match(/^\$targetCommit = '([0-9a-f]{40})'\r?$/m);
+const pinnedBranch = source.match(/^\$sourceBranch = '(refs\/heads\/[^']+)'\r?$/m);
+assert.ok(pinnedCommit && pinnedBranch, 'Updater must pin an exact app commit and source ref');
+assert.equal(pinnedCommit[1], expectedApp, 'Updater pin does not match tested app');
+assert.equal(pinnedBranch[1], expectedSource, 'Updater source ref is not the reviewed branch');
+const launcher = fs.readFileSync(path.join(__dirname, 'butler-v04-beta-one-click.ps1'), 'utf8');
+assert.ok(launcher.includes("$approvedCandidateCommit = '" + expectedApp + "'"),
+  'One-click launcher must verify the exact same immutable app');
 assert.match(source,/merge-base --is-ancestor \$targetCommit FETCH_HEAD/);
 assert.match(source,/status --porcelain=v1 --untracked-files=normal/);
 assert.match(source,/switch --detach \$targetCommit/);
