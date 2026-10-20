@@ -122,39 +122,40 @@ async function visit(route, options = {}) {
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /checked this decision recently/);
 
-  // Waivers has an independent cooldown (different evidence surface).
+  // BF-1537: Waivers shares the exact governed /refresh audit with Dashboard.
+  // Opening the next manager page must NOT silently repeat that same POST.
   x = await visit('waivers');
-  assert.equal(calls.length, 2);
-  assert.deepEqual(x.redirected, ['/waivers']);
-  assert.equal(calls[1].route, 'waivers');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(x.redirected, []);
+  assert.match(x.text, /checked this decision recently/);
 
   // Session refresh loop remains bounded while the same audit is active.
   x = await visit('dashboard');
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   assert.deepEqual(x.redirected, []);
 
   // On a visit after five minutes, Auto-Pilot can recheck the governed gate.
   now += 300001;
   x = await visit('autopilot');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 2);
   assert.deepEqual(x.redirected, ['/autopilot']);
 
   // BF-1103: a rejected local POST gets a brief failed-attempt lock,
   // NOT a five-minute success lock, so future visits can self-heal.
   now += 300001;
   x = await visit('dashboard', { network: 'reject' });
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 3);
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /Automatic update stopped/);
   const dashboardKey = 'butler-auto-refresh:/' + ':' + data.audit;
   assert.equal(storage.get(dashboardKey), 'f:' + String(now));
   x = await visit('autopilot');
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 3);
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /could not complete the last update/);
   now += 60001;
   x = await visit('autopilot');
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 4);
   assert.deepEqual(x.redirected, ['/autopilot']);
   assert.equal(storage.get(dashboardKey), 's:' + String(now));
 
@@ -162,18 +163,20 @@ async function visit(route, options = {}) {
   // with an automatic retry on a LATER page visit, not in the same view.
   now += 300001;
   x = await visit('waivers', { network: 'throw' });
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 5);
   assert.deepEqual(x.redirected, []);
   assert.match(x.text, /Automatic update could not finish/);
-  const waiverKey = 'butler-auto-refresh:/waivers:' + data.audit;
-  assert.equal(storage.get(waiverKey), 'f:' + String(now));
+  assert.equal(storage.get(dashboardKey), 'f:' + String(now));
+  x = await visit('dashboard');
+  assert.equal(calls.length, 5);
+  assert.match(x.text, /could not complete the last update/);
   x = await visit('waivers');
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 5);
   now += 60001;
   x = await visit('waivers');
-  assert.equal(calls.length, 7);
+  assert.equal(calls.length, 6);
   assert.deepEqual(x.redirected, ['/waivers']);
-  assert.equal(storage.get(waiverKey), 's:' + String(now));
+  assert.equal(storage.get(dashboardKey), 's:' + String(now));
 
   // Separate audit identity authorizes a fresh visit, not a replay.
   // This is still only the local browser intent; the POST server gate must
@@ -185,7 +188,7 @@ async function visit(route, options = {}) {
   };
   data.audit2 = changed;
   x = await visit('audit2');
-  assert.equal(calls.length, 8);
+  assert.equal(calls.length, 7);
   assert.deepEqual(x.redirected, ['/']);
   assert.ok(storage.has('butler-auto-refresh:/:' + audit2));
 
@@ -199,15 +202,15 @@ async function visit(route, options = {}) {
   };
   const thirdKey = 'butler-auto-refresh:/:' + audit3;
   x = await visit('audit3', { network: 'pending' });
-  assert.equal(calls.length, 9);
+  assert.equal(calls.length, 8);
   assert.deepEqual(x.redirected, []);
   assert.equal(storage.get(thirdKey), 'p:' + String(now));
   x = await visit('audit3');
-  assert.equal(calls.length, 9);
+  assert.equal(calls.length, 8);
   assert.match(x.text, /could not complete the last update/);
   now += 60001;
   x = await visit('audit3');
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 9);
   assert.deepEqual(x.redirected, ['/']);
   assert.equal(storage.get(thirdKey), 's:' + String(now));
 
@@ -215,7 +218,7 @@ async function visit(route, options = {}) {
   // successful cooldown; a second POST must NOT be sent immediately.
   storage.set(thirdKey, String(now));
   x = await visit('audit3');
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 9);
   assert.match(x.text, /checked this decision recently/);
 
   for (const call of calls) {
