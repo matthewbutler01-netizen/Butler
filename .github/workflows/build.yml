@@ -21,6 +21,7 @@ on:
       - bf1529-governed-week-rollover-refresh
       - bf1534-v04-week-rollover-beta-pack
       - bf1536-v04-evidence-viewport-browser-proof
+      - bf1537-v04-shared-waiver-audit-cooldown
       - bf-v04-fantasy-workflow-study
   pull_request:
     branches:
