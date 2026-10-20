@@ -56,9 +56,12 @@ Do not submit a Sleeper lineup, waiver, trade or FAAB change during this session
    fault scenarios are covered separately by automated and isolated tests.
    At a narrow 304px CSS viewport, expand the saved Waiver Board evidence
    and Start/Sit evidence details. Check that long original records retain
-   their text but wrap without horizontal page overflow. A source-level CI
-   rule check does not replace this actual browser geometry check. If the
-   needed evidence is absent, record NOT EXERCISED instead of PASS.
+   their text but wrap without horizontal page overflow. The BF-1536
+   Windows Chromium fixture separately exercises four isolated 304px frames
+   with production-source CSS and deliberately broken negative controls.
+   Passing that synthetic browser fixture does NOT establish live manager-
+   page responsiveness, source freshness or owner-browser acceptance. If
+   saved evidence is absent in the real app, record NOT EXERCISED, not PASS.
 2. With an existing saved previous-week waiver decision and independently
    verified immediately following regular-season week in the same season,
    Waiver Board shows `NEW WEEK` / `HOLD` and the previous move as history only.
