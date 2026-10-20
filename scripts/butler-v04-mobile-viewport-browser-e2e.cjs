@@ -61,7 +61,7 @@ function srcdoc(test) {
       '</p></details><ul class="review-queue"><li>' + token + '</li></ul></article>';
   return '<!doctype html><html><head>' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-    '<style>*{box-sizing:border-box}html,body{margin:0;padding:0;width:304px}' +
+    '<style>*{box-sizing:border-box}html,body{margin:0;padding:0}' +
     'body{overflow-x:visible;font:14px sans-serif}.panel{padding:14px;' +
     'border:1px solid #333;width:100%;max-width:100%}' + style +
     '</style></head><body>' + body + '</body></html>';
