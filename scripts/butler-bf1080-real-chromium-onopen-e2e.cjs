@@ -137,8 +137,9 @@ async function scenario(name,config) {
       res.writeHead(302,{'Location':config.nextRoute,'Cache-Control':'no-store'});
       res.end();return;
     }
+    const nextPage=data[config.nextPage || 'autopilot'];
     const page=(config.nextRoute && req.url === config.nextRoute) ?
-      {html:data.autopilot.Html,nonce:data.autopilot.Nonce} :
+      {html:nextPage.Html,nonce:nextPage.Nonce} :
       pageFor(config,refreshed);
     const nonce=(config.badCsp ? '0'.repeat(64) : page.nonce);
     const policy="default-src 'none'; script-src 'nonce-"+nonce+
@@ -183,10 +184,10 @@ async function scenario(name,config) {
     if (config.nextRoute) {
       assert.ok(paths.includes(config.nextRoute),
         name+' never navigated into the second manager page');
-      assert.match(dom,/CURRENT WEEKLY WATCH/,
-        name+' did not show Auto-Pilot after Dashboard navigation');
+      assert.ok(dom.includes(config.nextRouteText || 'CURRENT WEEKLY WATCH'),
+        name+' did not show the expected next manager route');
       assert.equal(posts.length,1,
-        name+' made an extra automatic refresh on Auto-Pilot from the same audit');
+        name+' made an extra automatic local refresh on the same audit');
     }
     if (config.reject) {
       assert.equal(refreshed,false,name+' policy rejection mutated fixture evidence');
@@ -270,6 +271,18 @@ async function scenario(name,config) {
   });
   await scenario('startsit-to-autopilot-shared-cooldown',{
     page:'startsit',route:'/matchup/autofill',nextRoute:'/autopilot',
+    post:true,remainStale:true
+  });
+  // BF-1537: Waivers also posts the identical governed /refresh endpoint.
+  // Its matching exact audit must share the Dashboard/Auto-Pilot cooldown
+  // in either route order, avoiding a second silent local refresh.
+  await scenario('dashboard-to-waivers-shared-cooldown',{
+    page:'dashboard',route:'/',nextRoute:'/waivers',nextPage:'waivers',
+    nextRouteText:'data-butler-auto-waiver',post:true,remainStale:true
+  });
+  await scenario('waivers-to-dashboard-shared-cooldown',{
+    page:'waivers',route:'/waivers',nextRoute:'/',nextPage:'dashboard',
+    nextRouteText:'Decision state: STALE_DO_NOT_ACT',
     post:true,remainStale:true
   });
   // A legitimate no-transaction page must never trigger an automatic POST.
