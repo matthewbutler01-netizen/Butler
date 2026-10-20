@@ -162,7 +162,8 @@ async function scenario(name,config) {
     const paths=observed.filter(x=>x.method==='GET').map(x=>x.path);
     assert.ok(paths.includes(config.route),name+' never loaded target page');
     if (config.post) {
-      assert.equal(posts.length,1,name+' did not submit exactly one local POST');
+      const shownStatus = /id="butler-auto-refresh-status"[^>]*>([^<]*)</.exec(dom)?.[1] || 'NO STATUS NODE';
+      assert.equal(posts.length,1,name+' did not submit exactly one local POST (rendered status: '+shownStatus+'; requests: '+JSON.stringify(observed)+')');
       assert.equal(posts[0].path,'/refresh',name+' wrote to wrong endpoint');
     } else {
       assert.equal(posts.length,0,name+' unexpectedly submitted a POST');
