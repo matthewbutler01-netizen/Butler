@@ -22,6 +22,7 @@ on:
       - bf1534-v04-week-rollover-beta-pack
       - bf1536-v04-evidence-viewport-browser-proof
       - bf1537-v04-shared-waiver-audit-cooldown
+      - bf1539-v04-cross-tab-onopen-refresh-lock
       - bf-v04-fantasy-workflow-study
     paths:
       - 'scripts/**/*.ps1'
