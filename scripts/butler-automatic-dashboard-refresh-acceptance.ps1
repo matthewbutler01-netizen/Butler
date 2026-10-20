@@ -14,12 +14,13 @@ $ok = Add-AutomaticDashboardRefresh -Html $eligible -RequestTarget '/' -Token $t
 if ($ok.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
     $ok.Html -notmatch "window.location.replace\('/'\)" -or
     $ok.Html -notmatch "method: 'POST'" -or
+    $ok.Html -notmatch 'navigator.locks.request' -or
     $ok.Html -notmatch "credentials: 'same-origin'" -or
     $ok.Html -notmatch 'now - previous < cooldown' -or
     $ok.Html -notmatch '300000 : 60000' -or
     $ok.Html -notmatch "setItem\(key, 'p:'" -or
-    $ok.Html -notmatch "setItem\(key, 'f:'" -or
-    $ok.Html -notmatch "setItem\(key, 's:'") {
+    $ok.Html -notmatch "const failed = 'f:'" -or
+    $ok.Html -notmatch "const completed = 's:'") {
     throw 'Eligible stale Dashboard is missing governed automatic recovery.'
 }
 
