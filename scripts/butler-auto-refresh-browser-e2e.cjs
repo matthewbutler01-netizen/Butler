@@ -69,14 +69,15 @@ assert.match(forms[0][2], /href="\/">Cancel<\/a>/);
 // fresh DOM/location per page view. All network calls are mocked.
 const storage = new Map();
 const calls = [];
-// Synthetic Web Locks serialize even separate simulated browser tabs.
-const heldLocks = new Map();
+// Web Locks serialize independently scoped tabs. A hung local POST stays
+// exclusive until the original tab is closed (or its fetch is cancelled).
+const heldLocks = new Set();
 function requestLock(name,opts,run) {
   assert.equal(opts.mode, 'exclusive');
-  const prior = heldLocks.get(name) || Promise.resolve();
-  const next = prior.catch(() => {}).then(run);
-  heldLocks.set(name, next.catch(() => {}));
-  return next;
+  assert.equal(opts.ifAvailable, true, 'never wait behind an active local POST');
+  if (heldLocks.has(name)) return Promise.resolve().then(() => run(null));
+  heldLocks.add(name);
+  return Promise.resolve().then(() => run({name})).finally(() => heldLocks.delete(name));
 }
 let now = 1000000000;
 
@@ -223,7 +224,10 @@ async function visit(route, options = {}) {
   assert.equal(storage.get(thirdKey), 'p:' + String(now));
   x = await visit('audit3');
   assert.equal(calls.length, 8);
-  assert.match(x.text, /could not complete the last update/);
+  assert.match(x.text, /already updating this decision in another tab/);
+  // Close the tab with the deliberately hanging request. Real browsers
+  // release its Web Lock on window termination; do not forge completion.
+  heldLocks.delete(thirdKey);
   now += 60001;
   x = await visit('audit3');
   assert.equal(calls.length, 9);
