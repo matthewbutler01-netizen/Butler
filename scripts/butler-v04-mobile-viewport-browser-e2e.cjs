@@ -47,7 +47,11 @@ function srcdoc(test) {
   if (test.broken && test.type === 'lineup') {
     style = style.replace(/\.start-sit-assistant details\{overflow-wrap:anywhere\}/, '');
   }
-  assert.notEqual(style, rules[test.type], 'Negative fixture must remove a real wrap rule');
+  if (test.broken) {
+    assert.notEqual(style, rules[test.type], 'Negative fixture must remove a real wrap rule');
+  } else {
+    assert.equal(style, rules[test.type], 'Fixed fixture changed production source CSS');
+  }
   const body = test.type === 'waiver' ?
     '<article class="panel waiver-pair-note"><p>' + token +
       '</p><details open><summary>Recorded source and scoring coverage</summary><pre>' +
