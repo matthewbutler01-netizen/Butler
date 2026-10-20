@@ -295,9 +295,11 @@ function Add-AutomaticGovernedRefreshHtml {
     }
 
     $nonce = New-DecisionRefreshToken
-    # Dashboard and Auto-Pilot share one cooldown per audited decision so
-    # navigating between the two cannot silently trigger duplicate refreshes.
-    $cooldownRoute = if (@('/autopilot', '/matchup/autofill') -ccontains $Route) { '/' } else { $Route }
+    # Dashboard, Waivers, Auto-Pilot and Start/Sit share the SAME governed
+    # /refresh POST for an identical audited decision. A route change must
+    # not schedule a second local evidence refresh. Distinct audit IDs keep
+    # independent eligibility/cooldowns; no provider transaction is added.
+    $cooldownRoute = '/'
     $markup = @"
 <div style="padding:16px" role="status"><span id="butler-auto-refresh-status">Checking whether Butler's evidence can be updated...</span> <a href="/refresh">Check refresh options</a></div>
 <script nonce="$nonce">
