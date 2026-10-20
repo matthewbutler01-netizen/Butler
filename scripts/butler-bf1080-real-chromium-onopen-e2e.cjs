@@ -176,10 +176,21 @@ async function scenario(name,config) {
   const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1080-'));
   try {
     const url='http://127.0.0.1:'+server.address().port+config.route;
-    const dom=await runHeadless(url,profile,Boolean(config.post));
+    let dom=await runHeadless(url,profile,Boolean(config.post));
+    // Rare Windows headless startup can produce a DOM snapshot without
+    // sending even the initial loopback GET. Retry ONLY that transport-
+    // empty case with a fresh profile. A request, failed POST, wrong CSP,
+    // or wrong script outcome must never be retried or hidden.
+    if (!observed.some(x=>x.method==='GET'&&x.path===config.route) &&
+        observed.every(x=>x.method!=='POST')) {
+      console.log('BF-1080 '+name.toUpperCase()+': empty browser navigation, one fresh-profile retry');
+      const retryProfile=path.join(profile,'retry');
+      fs.mkdirSync(retryProfile,{recursive:true});
+      dom=await runHeadless(url,retryProfile,Boolean(config.post));
+    }
     const posts=observed.filter(x=>x.method==='POST');
     const paths=observed.filter(x=>x.method==='GET').map(x=>x.path);
-    assert.ok(paths.includes(config.route),name+' never loaded target page');
+    assert.ok(paths.includes(config.route),name+' never loaded target page; observed: '+JSON.stringify(observed));
     if (config.post) {
       const shownStatus = /id="butler-auto-refresh-status"[^>]*>([^<]*)</.exec(dom)?.[1] || 'NO STATUS NODE';
       assert.equal(posts.length,1,name+' did not submit exactly one local POST (rendered status: '+shownStatus+'; requests: '+JSON.stringify(observed)+')');
