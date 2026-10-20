@@ -61,14 +61,18 @@ function pageFor(config, refreshed) {
   return {html:page.Html,nonce:page.Nonce};
 }
 
-function runHeadless(url, profile) {
+function runHeadless(url, profile, awaitAsyncLocks=false) {
   return new Promise((resolve,reject) => {
     const args = [
       '--headless=new', '--disable-gpu', '--no-first-run',
       '--no-default-browser-check','--disable-extensions',
       '--disable-background-networking','--no-proxy-server',
       '--no-sandbox','--disable-features=MediaRouter,OptimizationHints',
-      '--user-data-dir=' + profile, '--virtual-time-budget=10000',
+      '--user-data-dir=' + profile,
+      // BF-1539: Web Locks callback is asynchronous in Chrome's browser
+      // process. Virtual time can dump the initial DOM before acquisition.
+      // Use real wall-clock wait for actual Web Locks HTTP scenarios.
+      awaitAsyncLocks ? '--timeout=4500' : '--virtual-time-budget=10000',
       '--dump-dom', url
     ];
     const proc = cp.spawn(browser,args,{
@@ -157,7 +161,7 @@ async function scenario(name,config) {
   const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1080-'));
   try {
     const url='http://127.0.0.1:'+server.address().port+config.route;
-    const dom=await runHeadless(url,profile);
+    const dom=await runHeadless(url,profile,Boolean(config.post));
     const posts=observed.filter(x=>x.method==='POST');
     const paths=observed.filter(x=>x.method==='GET').map(x=>x.path);
     assert.ok(paths.includes(config.route),name+' never loaded target page');
@@ -279,7 +283,7 @@ async function sameOriginConcurrentFrames() {
   const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1539-'));
   try {
     const url='http://127.0.0.1:'+server.address().port+'/two-contexts';
-    const dom=await runHeadless(url,profile);
+    const dom=await runHeadless(url,profile,true);
     assert.match(dom,/<iframe src="\/"><\/iframe>/);
     assert.match(dom,/<iframe src="\/waivers"><\/iframe>/);
     const pages=observed.filter(r=>r.method==='GET'&&['/','/waivers'].includes(r.path));
