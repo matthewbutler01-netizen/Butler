@@ -307,47 +307,71 @@ function Add-AutomaticGovernedRefreshHtml {
   const status = document.getElementById('butler-auto-refresh-status');
   const key = 'butler-auto-refresh:${cooldownRoute}:$AuditId';
   try {
-    // BF-1103: completed refreshes stay on a five-minute shared audit
-    // cooldown. A failed/unfinished local POST does NOT count as fresh
-    // evidence for five minutes: permit a new automatic attempt on a
-    // later page visit after one minute, never a background retry.
-    // Legacy timestamp-only values remain five-minute success locks.
-    const now = Date.now();
-    const prior = sessionStorage.getItem(key);
-    const found = /^([psf]):([0-9]+)$/.exec(prior || '');
-    const kind = found ? found[1] : 's';
-    const previous = Number(found ? found[2] : prior);
-    const cooldown = kind === 's' ? 300000 : 60000;
-    if (Number.isFinite(previous) && previous > 0 && now >= previous && now - previous < cooldown) {
-      status.textContent = kind === 's'
-        ? 'Butler checked this decision recently. Review the current status or use Check refresh options.'
-        : 'Butler could not complete the last update. It will recheck on a later page visit; Check refresh options is available now.';
+    // sessionStorage is tab-scoped, so it cannot stop two windows from
+    // posting the SAME audited Butler-local refresh. Web Locks serialize
+    // same-origin tabs and localStorage shares the bounded outcome. Neither
+    // stores the one-use token or permits a Sleeper transaction.
+    if (!navigator.locks || typeof navigator.locks.request !== 'function') {
+      status.textContent = 'Automatic update is unavailable in this browser. Use Check refresh options.';
       return;
     }
-    // Lock concurrent tabs/navigations before sending the POST. If the
-    // browser refuses sessionStorage, fail closed without a write.
-    sessionStorage.setItem(key, 'p:' + String(now));
-    status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
-    const response = await fetch('/refresh', {
-      method: 'POST', credentials: 'same-origin',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'token=$Token'
-    });
-    if (!response.ok) {
-      sessionStorage.setItem(key, 'f:' + String(Date.now()));
-      status.textContent = 'Automatic update stopped. Butler can recheck on a later visit or you can use Check refresh options.';
-      return;
-    }
-    sessionStorage.setItem(key, 's:' + String(Date.now()));
-    window.location.replace('$Route');
-  } catch (error) {
-    try {
-      if (sessionStorage.getItem(key) && sessionStorage.getItem(key).indexOf('p:') === 0) {
-        sessionStorage.setItem(key, 'f:' + String(Date.now()));
+    const shared = localStorage;
+    await navigator.locks.request(key, {mode: 'exclusive'}, async function () {
+      // Keep the legacy session record readable when upgrading a tab.
+      // The newest valid recorded outcome wins; a failed POST never
+      // blocks a later page visit for five minutes.
+      const values = [sessionStorage.getItem(key), shared.getItem(key)];
+      let previous = 0;
+      let kind = 's';
+      for (const value of values) {
+        const found = /^([psf]):([0-9]+)$/.exec(value || '');
+        const instant = Number(found ? found[2] : value);
+        if (Number.isFinite(instant) && instant > previous) {
+          previous = instant;
+          kind = found ? found[1] : 's';
+        }
       }
-    } catch (ignored) {}
-    status.textContent = 'Automatic update could not finish. Butler can recheck on a later visit; use Check refresh options now.';
-  }
+      const now = Date.now();
+      const cooldown = kind === 's' ? 300000 : 60000;
+      if (previous > 0 && now >= previous && now - previous < cooldown) {
+        status.textContent = kind === 's'
+          ? 'Butler checked this decision recently. Review the current status or use Check refresh options.'
+          : 'Butler could not complete the last update. It will recheck on a later page visit; Check refresh options is available now.';
+        return;
+      }
+      // Store an in-progress record in both places BEFORE the POST.
+      // Only this origin's exclusive browser lock can pass this point.
+      sessionStorage.setItem(key, 'p:' + String(now));
+      shared.setItem(key, 'p:' + String(now));
+      status.textContent = 'Updating Butler evidence. No move will be submitted to Sleeper.';
+      try {
+        const response = await fetch('/refresh', {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: 'token=$Token'
+        });
+        if (!response.ok) {
+          const failed = 'f:' + String(Date.now());
+          sessionStorage.setItem(key, failed);
+          shared.setItem(key, failed);
+          status.textContent = 'Automatic update stopped. Butler can recheck on a later visit or you can use Check refresh options.';
+          return;
+        }
+        const completed = 's:' + String(Date.now());
+        sessionStorage.setItem(key, completed);
+        shared.setItem(key, completed);
+        window.location.replace('$Route');
+      } catch (error) {
+        const failed = 'f:' + String(Date.now());
+        try { sessionStorage.setItem(key, failed); } catch (ignored) {}
+        try { shared.setItem(key, failed); } catch (ignored) {}
+        status.textContent = 'Automatic update could not finish. Butler can recheck on a later visit; use Check refresh options now.';
+      }
+    });
+  } catch (error) {
+    // No Web Locks or storage permission means NO automatic write.
+    // The existing /refresh confirmation remains available by hand.
+    status.textContent = 'Automatic update could not finish. Use Check refresh options now.';
 })();
 </script>
 "@
