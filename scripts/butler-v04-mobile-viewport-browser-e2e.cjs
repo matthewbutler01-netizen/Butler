@@ -81,7 +81,8 @@ const observer = [
   'const frame=document.getElementById(name);',
   'const doc=frame.contentDocument;',
   'if(!doc||doc.readyState!=="complete") return null;',
-  'return {name:name,width:doc.documentElement.clientWidth,',
+  'return {name:name,viewport:doc.defaultView.innerWidth,',
+  'width:doc.documentElement.clientWidth,',
   'scroll:Math.max(doc.documentElement.scrollWidth,doc.body.scrollWidth)};',
   '});',
   'if(readings.some(function(x){return !x;})){setTimeout(measure,80);return;}',
@@ -149,7 +150,11 @@ function render(file) {
     const rows=JSON.parse(found[1]);
     assert.equal(rows.length,4);
     for(const row of rows) {
-      assert.equal(row.width,304,row.name+' frame is not 304 CSS pixels');
+      assert.equal(row.viewport,304,row.name+' iframe viewport is not 304 CSS pixels');
+      // A tall evidence record creates a 15px vertical scrollbar on Windows.
+      // The layout's real usable client width is then 289px, not 304px.
+      assert.ok(row.width<=row.viewport && row.width>=row.viewport-20,
+        row.name+' has an unexpected scrollbar/client-width mismatch');
       assert.ok(Number.isFinite(row.scroll),row.name+' missing document width');
       if(row.name.endsWith('-fixed')) {
         assert.ok(row.scroll<=row.width,
@@ -158,7 +163,8 @@ function render(file) {
         assert.ok(row.scroll>row.width+20,
           row.name+' negative control did not reproduce overflow');
       }
-      console.log('BF-1536 '+row.name+': '+row.width+'/'+row.scroll+'px');
+      console.log('BF-1536 '+row.name+': viewport='+row.viewport+
+        ' client='+row.width+' scroll='+row.scroll+'px');
     }
     console.log('BF-1536 REAL 304PX CHROMIUM EVIDENCE FIXTURE: PASS');
   } finally {
