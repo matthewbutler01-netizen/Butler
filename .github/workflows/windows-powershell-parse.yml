@@ -20,6 +20,7 @@ on:
       - bf1528-week-rollover-readonly-gate
       - bf1529-governed-week-rollover-refresh
       - bf1534-v04-week-rollover-beta-pack
+      - bf1536-v04-evidence-viewport-browser-proof
       - bf-v04-fantasy-workflow-study
     paths:
       - 'scripts/**/*.ps1'
@@ -164,6 +165,8 @@ jobs:
           node '.\scripts\butler-v04-beta-one-click-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node '.\scripts\butler-v04-mobile-evidence-wrap-e2e.cjs'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node '.\scripts\butler-v04-mobile-viewport-browser-e2e.cjs'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & '.\scripts\butler-bf1527-one-click-checkout-pin-acceptance.ps1'
           if (-not $?) { exit 1 }
