@@ -4,7 +4,23 @@ $ErrorActionPreference = 'Stop'
 $token = 'a' * 64
 $html = '<html><body><span hidden data-butler-auto-waiver="11111111-1111-1111-1111-111111111111"></span></body></html>'
 $result = Add-AutomaticWaiverRefresh -Html $html -RequestTarget '/waivers' -Token $token
-if ($result.Nonce -cnotmatch '^[0-9a-f]{64}$' -or $result.Html -notmatch "method: 'POST'" -or $result.Html -notmatch 'sessionStorage.setItem' -or $result.Html -notmatch 'Date.now\(\)' -or $result.Html -notmatch 'now - previous < cooldown' -or $result.Html -notmatch '300000 : 60000' -or $result.Html -notmatch "setItem\(key, 'p:'" -or $result.Html -notmatch "setItem\(key, 'f:'" -or $result.Html -notmatch "setItem\(key, 's:'" -or $result.Html -notmatch "window.location.replace\('/waivers'\)") { throw 'Eligible automatic update missing its protected request, cooldown or retry bound.' }
+# Source contract: guarded, nonblocking cross-tab lock and two storage
+# records (never the token), 5-minute success / 1-minute failure cooldown.
+if ($result.Nonce -cnotmatch '^[0-9a-f]{64}$' -or
+    $result.Html -notmatch "method: 'POST'" -or
+    $result.Html -notmatch 'navigator.locks.request' -or
+    $result.Html -notmatch 'ifAvailable: true' -or
+    $result.Html -notmatch 'sessionStorage.setItem' -or
+    $result.Html -notmatch 'shared.setItem' -or
+    $result.Html -notmatch 'Date.now\(\)' -or
+    $result.Html -notmatch 'now - previous < cooldown' -or
+    $result.Html -notmatch '300000 : 60000' -or
+    $result.Html -notmatch "setItem\(key, 'p:'" -or
+    $result.Html -notmatch "const failed = 'f:'" -or
+    $result.Html -notmatch "const completed = 's:'" -or
+    $result.Html -notmatch "window.location.replace\('/waivers'\)") {
+    throw 'Eligible automatic update missing its protected browser lock, request, cooldown or retry bound.'
+}
 foreach ($route in @('/', '/waivers?position=RB', '/history')) {
     $result = Add-AutomaticWaiverRefresh -Html $html -RequestTarget $route -Token $token
     if ($result.Nonce -ne '' -or $result.Html -ne $html) { throw 'Unexpected automatic update route.' }

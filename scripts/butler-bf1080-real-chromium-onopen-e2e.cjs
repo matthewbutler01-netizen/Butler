@@ -61,14 +61,18 @@ function pageFor(config, refreshed) {
   return {html:page.Html,nonce:page.Nonce};
 }
 
-function runHeadless(url, profile) {
+function runHeadless(url, profile, awaitAsyncLocks=false) {
   return new Promise((resolve,reject) => {
     const args = [
       '--headless=new', '--disable-gpu', '--no-first-run',
       '--no-default-browser-check','--disable-extensions',
       '--disable-background-networking','--no-proxy-server',
       '--no-sandbox','--disable-features=MediaRouter,OptimizationHints',
-      '--user-data-dir=' + profile, '--virtual-time-budget=10000',
+      '--user-data-dir=' + profile,
+      // BF-1539: Web Locks callback is asynchronous in Chrome's browser
+      // process. Virtual time can dump the initial DOM before acquisition.
+      // Use real wall-clock wait for actual Web Locks HTTP scenarios.
+      awaitAsyncLocks ? '--timeout=4500' : '--virtual-time-budget=10000',
       '--dump-dom', url
     ];
     const proc = cp.spawn(browser,args,{
@@ -108,6 +112,17 @@ async function scenario(name,config) {
       res.writeHead(404);res.end();return;
     }
     observed.push({method:req.method,path:req.url});
+    // Hold only the *synthetic document-load event* for asynchronous
+    // browser Web Locks. Otherwise --dump-dom can snapshot the initial
+    // markup before the lock callback runs at all. Never contact a
+    // provider and never alter the application's source CSP.
+    if (req.url === '/fixture-load-delay' && req.method === 'GET') {
+      setTimeout(()=>{
+        res.writeHead(200,{'Content-Type':'image/gif','Cache-Control':'no-store'});
+        res.end(Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=','base64'));
+      },1500);
+      return;
+    }
     if (req.url === '/refresh') {
       if (req.method !== 'POST') {res.writeHead(405);res.end();return;}
       let body='';
@@ -143,13 +158,17 @@ async function scenario(name,config) {
       pageFor(config,refreshed);
     const nonce=(config.badCsp ? '0'.repeat(64) : page.nonce);
     const policy="default-src 'none'; script-src 'nonce-"+nonce+
-      "'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+      "'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors 'none'";
     res.writeHead(200, {
       'Content-Type':'text/html; charset=utf-8',
       'Cache-Control':'no-store',
       'Content-Security-Policy':policy
     });
-    res.end(page.html);
+    const delayed=Boolean(config.post && page.nonce);
+    res.end(delayed
+      ? page.html.replace('</body>',
+          '<img src="/fixture-load-delay" alt="" aria-hidden="true"></body>')
+      : page.html);
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);server.listen(0,'127.0.0.1',resolve);
@@ -157,12 +176,24 @@ async function scenario(name,config) {
   const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1080-'));
   try {
     const url='http://127.0.0.1:'+server.address().port+config.route;
-    const dom=await runHeadless(url,profile);
+    let dom=await runHeadless(url,profile,Boolean(config.post));
+    // Rare Windows headless startup can produce a DOM snapshot without
+    // sending even the initial loopback GET. Retry ONLY that transport-
+    // empty case with a fresh profile. A request, failed POST, wrong CSP,
+    // or wrong script outcome must never be retried or hidden.
+    if (!observed.some(x=>x.method==='GET'&&x.path===config.route) &&
+        observed.every(x=>x.method!=='POST')) {
+      console.log('BF-1080 '+name.toUpperCase()+': empty browser navigation, one fresh-profile retry');
+      const retryProfile=path.join(profile,'retry');
+      fs.mkdirSync(retryProfile,{recursive:true});
+      dom=await runHeadless(url,retryProfile,Boolean(config.post));
+    }
     const posts=observed.filter(x=>x.method==='POST');
     const paths=observed.filter(x=>x.method==='GET').map(x=>x.path);
-    assert.ok(paths.includes(config.route),name+' never loaded target page');
+    assert.ok(paths.includes(config.route),name+' never loaded target page; observed: '+JSON.stringify(observed));
     if (config.post) {
-      assert.equal(posts.length,1,name+' did not submit exactly one local POST');
+      const shownStatus = /id="butler-auto-refresh-status"[^>]*>([^<]*)</.exec(dom)?.[1] || 'NO STATUS NODE';
+      assert.equal(posts.length,1,name+' did not submit exactly one local POST (rendered status: '+shownStatus+'; requests: '+JSON.stringify(observed)+')');
       assert.equal(posts[0].path,'/refresh',name+' wrote to wrong endpoint');
     } else {
       assert.equal(posts.length,0,name+' unexpectedly submitted a POST');
@@ -220,6 +251,88 @@ async function scenario(name,config) {
     server.closeAllConnections();
     await new Promise(resolve=>server.close(resolve));
     try {fs.rmSync(profile,{recursive:true,force:true,maxRetries:3,retryDelay:200});} catch {}
+  }
+}
+
+
+/**
+ * BF-1539: genuine Chromium lock and shared-storage geometry. Two same-origin
+ * iframe browsing contexts launch independently. This checks actual browser
+ * Web Locks, DOM scripting and HTTP concurrency, not independent top-level
+ * tab sessionStorage isolation (separately exercised in the BF-1043 VM).
+ * CSP in this synthetic fixture permits self-framing, unlike real Butler.
+ */
+async function sameOriginConcurrentFrames() {
+  const observed=[];
+  const server=http.createServer((req,res)=>{
+    if (req.url==='/favicon.ico' && req.method==='GET') {
+      res.writeHead(404);res.end();return;
+    }
+    observed.push({method:req.method,path:req.url});
+    if (req.url==='/fixture-load-delay' && req.method==='GET') {
+      setTimeout(()=>{
+        res.writeHead(200,{'Content-Type':'image/gif','Cache-Control':'no-store'});
+        res.end(Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=','base64'));
+      },1500);
+      return;
+    }
+    if(req.url==='/two-contexts' && req.method==='GET'){
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
+        'Cache-Control':'no-store',
+        'Content-Security-Policy':"default-src 'none'; frame-src 'self'"});
+      res.end('<!doctype html><html><body><iframe src="/"></iframe>'+
+        '<iframe src="/waivers"></iframe></body></html>');
+      return;
+    }
+    if(req.url==='/refresh' && req.method==='POST'){
+      let body='';
+      req.on('data',chunk=>{body+=String(chunk);if(body.length>256)req.destroy();});
+      req.on('end',()=>{
+        assert.equal(body,'token='+data.token,'unexpected synthetic refresh payload');
+        assert.equal(req.headers['content-type'],'application/x-www-form-urlencoded');
+        // Keep the first POST in flight long enough to test overlapping
+        // same-origin contexts. A second refresh must not be sent.
+        setTimeout(()=>{
+          res.writeHead(200,{'Cache-Control':'no-store','Content-Type':'text/plain'});
+          res.end('fixture refreshed');
+        },350);
+      });
+      return;
+    }
+    if(req.method==='GET' && (req.url==='/' || req.url==='/waivers')){
+      const page=req.url==='/' ? data.dashboard : data.waivers;
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
+        'Cache-Control':'no-store',
+        'Content-Security-Policy':"default-src 'none'; script-src 'nonce-"+
+          page.Nonce+"'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors 'self'"});
+      res.end(page.Html.replace('</body>', '<img src="/fixture-load-delay" alt="" aria-hidden="true"></body>'));
+      return;
+    }
+    res.writeHead(405);res.end('unapproved synthetic route');
+  });
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);server.listen(0,'127.0.0.1',resolve);
+  });
+  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1539-'));
+  try {
+    const url='http://127.0.0.1:'+server.address().port+'/two-contexts';
+    const dom=await runHeadless(url,profile,true);
+    assert.match(dom,/<iframe src="\/"><\/iframe>/);
+    assert.match(dom,/<iframe src="\/waivers"><\/iframe>/);
+    const pages=observed.filter(r=>r.method==='GET'&&['/','/waivers'].includes(r.path));
+    const posts=observed.filter(r=>r.method==='POST');
+    assert.ok(pages.some(r=>r.path==='/'),'Dashboard frame did not load');
+    assert.ok(pages.some(r=>r.path==='/waivers'),'Waiver frame did not load');
+    assert.equal(posts.length,1,'two concurrent browser contexts duplicated /refresh');
+    assert.equal(posts[0].path,'/refresh');
+    assert.ok(observed.every(r=>r.method==='GET' ||
+      (r.method==='POST' && r.path==='/refresh')),
+      'fixture made an unauthorized request');
+    console.log('BF-1539 REAL CHROME TWO-CONTEXT AUDIT LOCK: PASS (one same-origin POST)');
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve=>server.close(resolve));
+    try{fs.rmSync(profile,{recursive:true,force:true,maxRetries:3,retryDelay:200});}catch{}
   }
 }
 
@@ -297,5 +410,6 @@ async function scenario(name,config) {
   await scenario('policy-rejected',{
     page:'dashboard',route:'/',post:true,reject:true
   });
+  await sameOriginConcurrentFrames();
   console.log('BF-1080 REAL CHROME/EDGE ON-OPEN TRANSPORT: PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});

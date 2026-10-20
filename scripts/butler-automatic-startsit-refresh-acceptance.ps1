@@ -14,12 +14,14 @@ foreach ($necessary in @(
     'butler-auto-refresh:/:11111111-1111-1111-1111-111111111111',
     "fetch('/refresh'",
     "method: 'POST'",
+    'navigator.locks.request',
+    'ifAvailable: true',
     "credentials: 'same-origin'",
     'token=' + $token,
     "window.location.replace('/matchup/autofill')",
     "setItem(key, 'p:'",
-    "setItem(key, 'f:'",
-    "setItem(key, 's:'"
+    "const failed = 'f:'", 
+    "const completed = 's:'"
 )) {
     if ($ok.Html.IndexOf($necessary, [StringComparison]::Ordinal) -lt 0) {
         throw "BF-1104 BLOCKED: missing existing source-governed Start/Sit on-open contract: $necessary"

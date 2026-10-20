@@ -69,6 +69,16 @@ assert.match(forms[0][2], /href="\/">Cancel<\/a>/);
 // fresh DOM/location per page view. All network calls are mocked.
 const storage = new Map();
 const calls = [];
+// Web Locks serialize independently scoped tabs. A hung local POST stays
+// exclusive until the original tab is closed (or its fetch is cancelled).
+const heldLocks = new Set();
+function requestLock(name,opts,run) {
+  assert.equal(opts.mode, 'exclusive');
+  assert.equal(opts.ifAvailable, true, 'never wait behind an active local POST');
+  if (heldLocks.has(name)) return Promise.resolve().then(() => run(null));
+  heldLocks.add(name);
+  return Promise.resolve().then(() => run({name})).finally(() => heldLocks.delete(name));
+}
 let now = 1000000000;
 
 async function visit(route, options = {}) {
@@ -77,6 +87,8 @@ async function visit(route, options = {}) {
   const redirected = [];
   const status = { textContent: '' };
   const network = options.network || 'ok';
+  const tabStorage = options.tabStorage || storage;
+  const sharedStorage = options.sharedStorage || storage;
   const sandbox = {
     document: {
       getElementById: name => {
@@ -87,9 +99,14 @@ async function visit(route, options = {}) {
     Date: { now: () => now },
     Number, String,
     sessionStorage: {
-      getItem: k => storage.has(k) ? storage.get(k) : null,
-      setItem: (k, v) => storage.set(k, v)
+      getItem: k => tabStorage.has(k) ? tabStorage.get(k) : null,
+      setItem: (k, v) => tabStorage.set(k, v)
     },
+    localStorage: {
+      getItem: k => sharedStorage.has(k) ? sharedStorage.get(k) : null,
+      setItem: (k, v) => sharedStorage.set(k, v)
+    },
+    navigator: options.noWebLocks ? {} : {locks:{request:requestLock}},
     fetch: async (url, settings) => {
       calls.push({ route, url, settings });
       if (network === 'throw') { throw new Error('offline synthetic fixture'); }
@@ -207,7 +224,10 @@ async function visit(route, options = {}) {
   assert.equal(storage.get(thirdKey), 'p:' + String(now));
   x = await visit('audit3');
   assert.equal(calls.length, 8);
-  assert.match(x.text, /could not complete the last update/);
+  assert.match(x.text, /already updating this decision in another tab/);
+  // Close the tab with the deliberately hanging request. Real browsers
+  // release its Web Lock on window termination; do not forge completion.
+  heldLocks.delete(thirdKey);
   now += 60001;
   x = await visit('audit3');
   assert.equal(calls.length, 9);
@@ -262,6 +282,32 @@ async function visit(route, options = {}) {
   assert.deepEqual(x.redirected, ['/']);
   assert.equal(storage.get(sharedKey), 's:' + String(now));
 
+  // BF-1539: two separately scoped browser tabs opened at once must
+  // never issue two local POSTs for the same audit. Shared origin lock
+  // and cooldown apply to all manager routes for that exact audit ID.
+  const tab1 = new Map(), tab2 = new Map(), originStore = new Map();
+  calls.length = 0;
+  const visits = await Promise.all([
+    visit('dashboard', {tabStorage:tab1,sharedStorage:originStore}),
+    visit('waivers', {tabStorage:tab2,sharedStorage:originStore})
+  ]);
+  assert.equal(calls.length, 1, 'same audit across tabs triggered duplicate refresh');
+  assert.equal(visits.filter(v => v.redirected.length === 1).length, 1,
+    'only the refresh owner may redirect');
+  assert.equal(originStore.get(sharedKey), 's:' + String(now));
+  assert.equal(tab1.has(sharedKey) !== tab2.has(sharedKey), true,
+    'each tab must keep independent sessionStorage');
+  const followup = await visit('autopilot', {
+    tabStorage:new Map(),sharedStorage:originStore
+  });
+  assert.equal(calls.length, 1, 'third tab duplicated the same audit');
+  assert.match(followup.text,/checked this decision recently/);
+  const denied = await visit('dashboard', {
+    tabStorage:new Map(), sharedStorage:new Map(),noWebLocks:true
+  });
+  assert.equal(calls.length, 1, 'missing Web Locks must fail closed');
+  assert.match(denied.text,/Automatic update is unavailable/);
+  console.log('BF-1539 CROSS-TAB AUDIT LOCK: PASS (two windows one POST; third held; unavailable API fail-closed)');
   console.log('BF-1043 REAL RENDERED AUTO-REFRESH BROWSER EXECUTION: PASS');
   console.log('Rollover: 108 source-page/state combinations stay script-free; confirmation requires explicit token-only submit; no real HTTP or provider writes.');
   console.log('Coverage: clickless Dashboard/Waivers/Auto-Pilot/blocked Start-Sit refresh, shared success/failure cooldown across manager pages, later-visit recovery, pending lock, legacy migration, no healthy Start/Sit script, token-only POST.');
