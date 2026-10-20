@@ -18,8 +18,8 @@ for (const forbidden of [/Stop-Process/i,/taskkill/i,/git\s+reset/i,/git\s+clean
 }
 // Pin is intentionally immutable for this beta: reject an accidentally
 // older one-click app, and require the reviewed branch as the fetch source.
-const expectedApp = 'df5968504886f6af36582a96fc2c41a631d0dec2';
-const expectedSource = 'refs/heads/bf1537-v04-shared-waiver-audit-cooldown';
+const expectedApp = '558578f55297a6943fe1c13df816ece7810252b9';
+const expectedSource = 'refs/heads/bf1539-v04-cross-tab-onopen-refresh-lock';
 const pinnedCommit = source.match(/^\$targetCommit = '([0-9a-f]{40})'\r?$/m);
 const pinnedBranch = source.match(/^\$sourceBranch = '(refs\/heads\/[^']+)'\r?$/m);
 assert.ok(pinnedCommit && pinnedBranch, 'Updater must pin an exact app commit and source ref');

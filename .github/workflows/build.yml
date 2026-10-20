@@ -23,6 +23,7 @@ on:
       - bf1536-v04-evidence-viewport-browser-proof
       - bf1537-v04-shared-waiver-audit-cooldown
       - bf1538-v04-shared-refresh-one-click-beta
+      - bf1540-v04-cross-tab-one-click-beta
       - bf-v04-fantasy-workflow-study
   pull_request:
     branches:
