@@ -112,6 +112,17 @@ async function scenario(name,config) {
       res.writeHead(404);res.end();return;
     }
     observed.push({method:req.method,path:req.url});
+    // Hold only the *synthetic document-load event* for asynchronous
+    // browser Web Locks. Otherwise --dump-dom can snapshot the initial
+    // markup before the lock callback runs at all. Never contact a
+    // provider and never alter the application's source CSP.
+    if (req.url === '/fixture-load-delay' && req.method === 'GET') {
+      setTimeout(()=>{
+        res.writeHead(200,{'Content-Type':'image/gif','Cache-Control':'no-store'});
+        res.end(Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=','base64'));
+      },1500);
+      return;
+    }
     if (req.url === '/refresh') {
       if (req.method !== 'POST') {res.writeHead(405);res.end();return;}
       let body='';
@@ -147,13 +158,17 @@ async function scenario(name,config) {
       pageFor(config,refreshed);
     const nonce=(config.badCsp ? '0'.repeat(64) : page.nonce);
     const policy="default-src 'none'; script-src 'nonce-"+nonce+
-      "'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'";
+      "'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors 'none'";
     res.writeHead(200, {
       'Content-Type':'text/html; charset=utf-8',
       'Cache-Control':'no-store',
       'Content-Security-Policy':policy
     });
-    res.end(page.html);
+    const delayed=Boolean(config.post && page.nonce);
+    res.end(delayed
+      ? page.html.replace('</body>',
+          '<img src="/fixture-load-delay" alt="" aria-hidden="true"></body>')
+      : page.html);
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);server.listen(0,'127.0.0.1',resolve);
@@ -243,6 +258,13 @@ async function sameOriginConcurrentFrames() {
       res.writeHead(404);res.end();return;
     }
     observed.push({method:req.method,path:req.url});
+    if (req.url==='/fixture-load-delay' && req.method==='GET') {
+      setTimeout(()=>{
+        res.writeHead(200,{'Content-Type':'image/gif','Cache-Control':'no-store'});
+        res.end(Buffer.from('R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=','base64'));
+      },1500);
+      return;
+    }
     if(req.url==='/two-contexts' && req.method==='GET'){
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
         'Cache-Control':'no-store',
@@ -271,8 +293,8 @@ async function sameOriginConcurrentFrames() {
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
         'Cache-Control':'no-store',
         'Content-Security-Policy':"default-src 'none'; script-src 'nonce-"+
-          page.Nonce+"'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'"});
-      res.end(page.Html);
+          page.Nonce+"'; connect-src 'self'; style-src 'unsafe-inline'; img-src 'self'; frame-ancestors 'self'"});
+      res.end(page.Html.replace('</body>', '<img src="/fixture-load-delay" alt="" aria-hidden="true"></body>'));
       return;
     }
     res.writeHead(405);res.end('unapproved synthetic route');
