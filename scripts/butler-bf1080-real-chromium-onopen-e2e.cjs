@@ -223,6 +223,81 @@ async function scenario(name,config) {
   }
 }
 
+
+/**
+ * BF-1539: genuine Chromium lock and shared-storage geometry. Two same-origin
+ * iframe browsing contexts launch independently. This checks actual browser
+ * Web Locks, DOM scripting and HTTP concurrency, not independent top-level
+ * tab sessionStorage isolation (separately exercised in the BF-1043 VM).
+ * CSP in this synthetic fixture permits self-framing, unlike real Butler.
+ */
+async function sameOriginConcurrentFrames() {
+  const observed=[];
+  const server=http.createServer((req,res)=>{
+    if (req.url==='/favicon.ico' && req.method==='GET') {
+      res.writeHead(404);res.end();return;
+    }
+    observed.push({method:req.method,path:req.url});
+    if(req.url==='/two-contexts' && req.method==='GET'){
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
+        'Cache-Control':'no-store',
+        'Content-Security-Policy':"default-src 'none'; frame-src 'self'"});
+      res.end('<!doctype html><html><body><iframe src="/"></iframe>'+
+        '<iframe src="/waivers"></iframe></body></html>');
+      return;
+    }
+    if(req.url==='/refresh' && req.method==='POST'){
+      let body='';
+      req.on('data',chunk=>{body+=String(chunk);if(body.length>256)req.destroy();});
+      req.on('end',()=>{
+        assert.equal(body,'token='+data.token,'unexpected synthetic refresh payload');
+        assert.equal(req.headers['content-type'],'application/x-www-form-urlencoded');
+        // Keep the first POST in flight long enough to test overlapping
+        // same-origin contexts. A second refresh must not be sent.
+        setTimeout(()=>{
+          res.writeHead(200,{'Cache-Control':'no-store','Content-Type':'text/plain'});
+          res.end('fixture refreshed');
+        },350);
+      });
+      return;
+    }
+    if(req.method==='GET' && (req.url==='/' || req.url==='/waivers')){
+      const page=req.url==='/' ? data.dashboard : data.waivers;
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8',
+        'Cache-Control':'no-store',
+        'Content-Security-Policy':"default-src 'none'; script-src 'nonce-"+
+          page.Nonce+"'; connect-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'"});
+      res.end(page.Html);
+      return;
+    }
+    res.writeHead(405);res.end('unapproved synthetic route');
+  });
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);server.listen(0,'127.0.0.1',resolve);
+  });
+  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'butler-bf1539-'));
+  try {
+    const url='http://127.0.0.1:'+server.address().port+'/two-contexts';
+    const dom=await runHeadless(url,profile);
+    assert.match(dom,/<iframe src="\/"><\/iframe>/);
+    assert.match(dom,/<iframe src="\/waivers"><\/iframe>/);
+    const pages=observed.filter(r=>r.method==='GET'&&['/','/waivers'].includes(r.path));
+    const posts=observed.filter(r=>r.method==='POST');
+    assert.ok(pages.some(r=>r.path==='/'),'Dashboard frame did not load');
+    assert.ok(pages.some(r=>r.path==='/waivers'),'Waiver frame did not load');
+    assert.equal(posts.length,1,'two concurrent browser contexts duplicated /refresh');
+    assert.equal(posts[0].path,'/refresh');
+    assert.ok(observed.every(r=>r.method==='GET' ||
+      (r.method==='POST' && r.path==='/refresh')),
+      'fixture made an unauthorized request');
+    console.log('BF-1539 REAL CHROME TWO-CONTEXT AUDIT LOCK: PASS (one same-origin POST)');
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve=>server.close(resolve));
+    try{fs.rmSync(profile,{recursive:true,force:true,maxRetries:3,retryDelay:200});}catch{}
+  }
+}
+
 (async()=>{
   // A real adjacent-week page must stay passive on all sourced manager
   // surfaces. Opening the actual confirmation form is also GET-only;
@@ -297,5 +372,6 @@ async function scenario(name,config) {
   await scenario('policy-rejected',{
     page:'dashboard',route:'/',post:true,reject:true
   });
+  await sameOriginConcurrentFrames();
   console.log('BF-1080 REAL CHROME/EDGE ON-OPEN TRANSPORT: PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
