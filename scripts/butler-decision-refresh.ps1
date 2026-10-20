@@ -372,6 +372,7 @@ function Add-AutomaticGovernedRefreshHtml {
     // No Web Locks or storage permission means NO automatic write.
     // The existing /refresh confirmation remains available by hand.
     status.textContent = 'Automatic update could not finish. Use Check refresh options now.';
+  }
 })();
 </script>
 "@
