@@ -316,7 +316,11 @@ function Add-AutomaticGovernedRefreshHtml {
       return;
     }
     const shared = localStorage;
-    await navigator.locks.request(key, {mode: 'exclusive'}, async function () {
+    await navigator.locks.request(key, {mode: 'exclusive', ifAvailable: true}, async function (lock) {
+      if (!lock) {
+        status.textContent = 'Butler is already updating this decision in another tab. Check this page later or use Check refresh options.';
+        return;
+      }
       // Keep the legacy session record readable when upgrading a tab.
       // The newest valid recorded outcome wins; a failed POST never
       // blocks a later page visit for five minutes.
