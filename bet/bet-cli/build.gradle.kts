@@ -22,7 +22,7 @@ dependencyLocking {
 }
 
 dependencies {
-    implementation("org.xerial:sqlite-jdbc:3.53.4.0")
+    implementation("org.xerial:sqlite-jdbc:3.54.1.0")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.22.3")
     testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
